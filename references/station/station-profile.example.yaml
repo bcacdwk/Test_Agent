@@ -6,12 +6,48 @@ station:
 modules:
   - slot: 1
     type: MPSMU
+    model: B1511B
     channels: [1]
     alias: gate_smu
   - slot: 2
     type: MPSMU
+    model: B1511B
     channels: [2]
     alias: drain_smu
+  - slot: 3
+    type: HRSMU
+    model: B1517A
+    channels: [3]
+    alias: source_smu
+  - slot: 4
+    type: HRSMU
+    model: B1517A
+    channels: [4]
+    alias: leakage_smu
+  - slot: 5
+    type: WGFMU
+    model: B1530A
+    channels: [5, 15]
+    alias: pulse_wgfmu
+  - slot: 6
+    type: HVSPGU
+    model: B1525A
+    channels: [6, 16]
+    alias: pulse_spgu
+  - slot: 7
+    type: MFCMU
+    model: B1520A
+    channels: [7]
+    alias: cap_cmu
+
+limits:
+  # Practical measured envelopes for this station (see config/safety_limits.example.yaml).
+  external_max_voltage_v: 42.0
+  smu_max_current_a: 0.1
+  spgu_max_voltage_v: 40.0
+  wgfmu_max_pulse_voltage_v: 10.0
+  mfcmu_frequency_hz: [1000.0, 1000000.0]
+  mfcmu_max_dc_bias_internal_v: 25.0
 
 topology:
   shield_box: unknown

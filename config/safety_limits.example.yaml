@@ -4,6 +4,10 @@
 global:
   max_voltage_v: 100.0
   max_current_a: 0.1
+  # Practical station-wide external voltage envelope (measured), distinct from
+  # the absolute module spec. Recipes/flows should enforce this, not just the
+  # per-module spec maxima below.
+  external_max_voltage_v: 42.0
   require_interlock_above_v: 42.0
   auto_zero_on_error: true
   require_human_approval_for_unknown_dut: true
@@ -12,21 +16,44 @@ module_limits:
   HPSMU:
     max_voltage_v: 200.0
     max_current_a: 1.0
+  # B1511B MPSMU: module spec is +/-100 V / +/-100 mA, but the station external
+  # voltage is limited to +/-42 V (see global.external_max_voltage_v).
   MPSMU:
+    model: B1511B
     max_voltage_v: 100.0
+    external_max_voltage_v: 42.0
     max_current_a: 0.1
+    min_current_range: 1e-9
+  # B1517A HRSMU: same +/-42 V external envelope; lower current ranges reach
+  # 10 pA (1 pA with ASU). Preferred for leakage/low-current measurements.
   HRSMU:
+    model: B1517A
     max_voltage_v: 100.0
+    external_max_voltage_v: 42.0
     max_current_a: 0.1
+    min_current_range: 1e-11
+    min_current_range_with_asu: 1e-12
   MCSMU:
     max_voltage_v: 30.0
     max_current_a: 1.0
+  # B1525A HV-SPGU: two pulse channels, measured +/-40 V.
   HVSPGU:
+    model: B1525A
     max_voltage_v: 40.0
     max_current_a: null
+    pulse_channels: 2
+  # B1530A WGFMU: measured +/-10 V pulse; no output compliance limiter.
   WGFMU:
-    max_voltage_v: null
+    model: B1530A
+    max_voltage_v: 10.0
     max_current_a: null
+  # B1520A MFCMU: usable frequency 1 kHz-1 MHz, internal DC bias +/-25 V.
+  MFCMU:
+    model: B1520A
+    max_voltage_v: 25.0
+    max_dc_bias_internal_v: 25.0
+    min_frequency_hz: 1000.0
+    max_frequency_hz: 1000000.0
 
 approval_required:
   - voltage_above_interlock_threshold

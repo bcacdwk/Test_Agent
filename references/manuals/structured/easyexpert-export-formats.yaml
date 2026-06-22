@@ -1,0 +1,325 @@
+{
+  "source_pdf": "../Keysight EasyEXPERT Software.pdf",
+  "source_index": "../keysight-easyexpert-software-index.md",
+  "coverage_note": "Text/Excel export structures are extracted from Ch 1 pages 164-174; XSLT filter groups and components are extracted from Ch 8 pages 497-506. Examples are summarized, not copied row-for-row.",
+  "formats": [
+    {
+      "format": "Text File Export - CSV",
+      "purpose": "Export EasyEXPERT test record data as comma-separated text from Results > Export Options > Text File Export or folder/auto export dialogs.",
+      "file_extension": ".csv",
+      "data_scope": [
+        "measurement data",
+        "identification section",
+        "setup data section"
+      ],
+      "schema_or_components": {
+        "measurement_data_items": [
+          "Tag information",
+          "Data names",
+          "Data units",
+          "Size",
+          "Data values"
+        ],
+        "tag_information_values": [
+          "Dimension1",
+          "Dimension2",
+          "Data Name",
+          "Data Unit",
+          "Data Value"
+        ],
+        "orientation": [
+          "By Row",
+          "By Column"
+        ],
+        "data_value_segments": [
+          "Data assigned to X-Y Graph",
+          "Data assigned to List Display",
+          "Data assigned to Parameter Display",
+          "User function defined but not displayed",
+          "Analysis function defined but not displayed",
+          "Any data referred to by user/analysis functions",
+          "Data displayed by two dimensional array"
+        ],
+        "identification_items": [
+          "Setup title",
+          "Classic test name",
+          "Application test name",
+          "Test date",
+          "Test time",
+          "Device ID",
+          "Count",
+          "Flags",
+          "Remarks"
+        ],
+        "setup_items": [
+          "Test parameters",
+          "DUT parameters",
+          "Analysis setup"
+        ],
+        "save_type_actions": [
+          "Save with measurement data",
+          "Do not save",
+          "Save as separate file"
+        ],
+        "misc": {
+          "delimiter": "comma",
+          "quotation": [
+            "Single",
+            "Double",
+            "None"
+          ]
+        }
+      },
+      "parser_implications": "Parser must handle optional leading tag row/column, row-vs-column orientation, optional separate setup file suffix -s, and metadata labels mapped to RecordTime/TestTarget/IterationIndex/Flag/Remarks.",
+      "pdf_pages": "164-168",
+      "printed_pages": "1-148 to 1-152",
+      "notes": "Default: data names ON, data units OFF, size OFF, tag information OFF; setup test/DUT parameters ON, analysis setup OFF."
+    },
+    {
+      "format": "Text File Export - tab-separated text",
+      "purpose": "Same structure as text export, with tab delimiter.",
+      "file_extension": ".txt",
+      "data_scope": [
+        "measurement data",
+        "identification section",
+        "setup data section"
+      ],
+      "schema_or_components": "Same as Text File Export - CSV; Miscellaneous tab Save As = Text.",
+      "parser_implications": "Delimiter differs but record tags and orientation rules are shared with CSV.",
+      "pdf_pages": "164-168",
+      "printed_pages": "1-148 to 1-152",
+      "notes": "String values may be quoted depending on Quotation setting."
+    },
+    {
+      "format": "Text File Export - formatted text",
+      "purpose": "Space-separated formatted text export.",
+      "file_extension": ".prn",
+      "data_scope": [
+        "measurement data",
+        "identification section",
+        "setup data section"
+      ],
+      "schema_or_components": "Same logical record items as Text File Export; Miscellaneous tab Save As = Formatted Text.",
+      "parser_implications": "Less robust for machine parsing than CSV/tab because spacing is layout-sensitive.",
+      "pdf_pages": "164-168",
+      "printed_pages": "1-148 to 1-152",
+      "notes": "Use CSV/tab for MCP ingest when possible."
+    },
+    {
+      "format": "Excel Data Export",
+      "purpose": "Export measurement data/list/graph/customized list to Microsoft Excel via File > Export to Excel or automatic export.",
+      "file_extension": ".xls/.xlsx via Excel automation (manual does not define exact extension)",
+      "data_scope": [
+        "Measurement Data tab",
+        "Identification tab",
+        "Setup data section",
+        "Worksheet tab"
+      ],
+      "schema_or_components": {
+        "measurement_data_items": [
+          "Tag information",
+          "Data names",
+          "Data units",
+          "Size",
+          "Data values"
+        ],
+        "target_sheet_auto_export": [
+          "List",
+          "Customized List"
+        ],
+        "target_sheet_manual_export": [
+          "List",
+          "Graph",
+          "Customized List"
+        ],
+        "identification_items": [
+          "Setup title",
+          "Classic test name",
+          "Application test name",
+          "Test date",
+          "Test time",
+          "Device ID",
+          "Count",
+          "Flags",
+          "Remarks"
+        ],
+        "setup_items": [
+          "Test parameters",
+          "DUT parameters",
+          "Analysis setup"
+        ],
+        "worksheet_name_options": "Can add checked items to worksheet name."
+      },
+      "parser_implications": "Excel export may split graph/list/setup across worksheets; parser should prefer list/customized-list worksheets for data and treat graph worksheets as presentation artifacts.",
+      "pdf_pages": "169-174",
+      "printed_pages": "1-153 to 1-158",
+      "notes": "Manual says Excel 2003/2007/2010 supported."
+    },
+    {
+      "format": "XSLT group 1 measurement-only export",
+      "purpose": "Custom Export in My Format using XSLT filters for measurement data only.",
+      "file_extension": ".csv, .txt/tab, .xml (XML Spreadsheet) depending on filter",
+      "data_scope": [
+        "measurement data only"
+      ],
+      "schema_or_components": {
+        "files": [
+          "meas-csv.xsl",
+          "meas-tab-sv.xsl",
+          "meas-xmlss.xsl"
+        ]
+      },
+      "parser_implications": "Simplest data ingest path if setup/metadata is not needed.",
+      "pdf_pages": "497-498",
+      "printed_pages": "8-31 to 8-33",
+      "notes": "Examples in Table 8-5."
+    },
+    {
+      "format": "XSLT group 2 measurement plus index",
+      "purpose": "Custom export with row number/index plus measurement data.",
+      "file_extension": ".csv, .txt/tab, .xml",
+      "data_scope": [
+        "measurement data",
+        "index"
+      ],
+      "schema_or_components": {
+        "files": [
+          "meas-index-csv.xsl",
+          "meas-index-tab-sv.xsl",
+          "meas-index-xmlss.xsl"
+        ]
+      },
+      "parser_implications": "Good for preserving original point order as No. plus measurement variables.",
+      "pdf_pages": "497-498",
+      "printed_pages": "8-31 to 8-33",
+      "notes": "Examples in Table 8-6."
+    },
+    {
+      "format": "XSLT group 3/4 measurement plus metadata",
+      "purpose": "Custom export with metadata, optionally index.",
+      "file_extension": ".csv, .txt/tab, .xml",
+      "data_scope": [
+        "measurement data",
+        "metadata",
+        "optional index"
+      ],
+      "schema_or_components": {
+        "metadata_fields": [
+          "test name",
+          "setup name",
+          "record time",
+          "device ID",
+          "counter number",
+          "flag",
+          "remarks"
+        ],
+        "group3_files": [
+          "meas-meta-csv.xsl",
+          "meas-meta-tab-sv.xsl",
+          "meas-meta-xmlss.xsl"
+        ],
+        "group4_files": [
+          "meas-index-meta-csv.xsl",
+          "meas-index-meta-tab-sv.xsl",
+          "meas-index-meta-xmlss.xsl"
+        ]
+      },
+      "parser_implications": "Recommended for automated MCP data ingest because result vectors can be tied back to device ID/count/test setup.",
+      "pdf_pages": "497-499",
+      "printed_pages": "8-31 to 8-34",
+      "notes": "Examples in Table 8-7 and Table 8-8."
+    },
+    {
+      "format": "XSLT group 5 all data including setup",
+      "purpose": "Export all data including test setup; used by Export As CSV/XML Spreadsheet functions.",
+      "file_extension": ".csv, .txt/tab, .xml",
+      "data_scope": [
+        "test setup",
+        "test parameters",
+        "DUT parameters",
+        "metadata",
+        "analysis setup",
+        "measurement vectors"
+      ],
+      "schema_or_components": {
+        "files": [
+          "csv.xsl",
+          "tab-sv.xsl",
+          "xmlss.xsl"
+        ],
+        "classic_components": [
+          "SetupTitle",
+          "PrimitiveTest",
+          "TestParameter",
+          "MetaData",
+          "AnalysisSetup",
+          "Dimension1",
+          "Dimension2",
+          "DataName",
+          "DataValue"
+        ],
+        "application_components": [
+          "SetupTitle",
+          "ApplicationTest",
+          "TestParameter",
+          "DutParameter",
+          "MetaData",
+          "AnalysisSetup",
+          "Dimension1",
+          "Dimension2",
+          "DataName",
+          "DataValue"
+        ],
+        "xslt_reference_names": [
+          "sta:TestData",
+          "sta:MeasurementData",
+          "sta:DataVectorSet",
+          "sta:TestSetup",
+          "sta:Title",
+          "sta:PrimitiveTest",
+          "sta:ApplicationTest",
+          "sta:TestParameterList",
+          "sta:DutParameterList",
+          "sta:AnalysisParameterList",
+          "sta:MetaData/sta:ParameterList",
+          "sta:TerminalList",
+          "sta:Parameter",
+          "sta:Number",
+          "sta:Double",
+          "sta:String",
+          "sta:Boolean",
+          "sta:DateTime",
+          "sta:Binary",
+          "sta:Channel",
+          "sta:Terminal",
+          "sta:Port"
+        ]
+      },
+      "parser_implications": "Best archival export for recreating setup context. Parser must dispatch by first-column component label and preserve order-sensitive Dimension/DataName/DataValue arrays.",
+      "pdf_pages": "497-506",
+      "printed_pages": "8-31 to 8-40",
+      "notes": "Filter modification example shows how to suppress setup-related components by overriding XSLT templates."
+    },
+    {
+      "format": "Remote RESult:FETch TEXT/XTR",
+      "purpose": "Remote control retrieval of latest test result or sibling results.",
+      "file_extension": "block response, content format TEXT or XTR",
+      "data_scope": [
+        "latest result",
+        "all included tests for application result via SIBLings"
+      ],
+      "schema_or_components": {
+        "commands": [
+          ":RESult:FETch[:LATest]?",
+          ":RESult:FETch[:LATest]:SIBLings?",
+          ":RESult:FORMat TEXT|XTR",
+          ":RESult:FORMat:ESCape 0|1"
+        ]
+      },
+      "parser_implications": "Remote result is definite-length Block data; parser must strip SCPI block header before parsing TEXT or XTR payload.",
+      "pdf_pages": "436-438",
+      "printed_pages": "6-22 to 6-24",
+      "notes": "Revised index originally mentioned CSV/XML/XMLSS, but Ch 6 command text verifies TEXT|XTR modes for RESult:FORMat."
+    }
+  ]
+}

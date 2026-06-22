@@ -1,0 +1,1350 @@
+schema_version: 1
+source:
+  manual_title: "Agilent B1530A Waveform Generator/Fast Measurement Unit User's Guide"
+  source_pdf: "B1530A WGFMU.pdf"
+  revised_index: "test_agent/references/manuals/b1530a-wgfmu-index.md"
+  extraction_date: "2026-06-22"
+notes:
+  - "Codes 0 to -9999 are reserved by the B1530A WGFMU Instrument Library."
+  - "Status codes 10000-10006 are included because they gate measurement data readout, although they are not errors."
+  - "Warning levels 1000-1003 are included because warning handling is part of the error/warning API."
+  - "Firmware error messages 3324-3327 reveal undocumented internal commands WGMA?, WGMB?, and WGMS?."
+  - "Codes 3324-3327 appear on PDF page 161 under a 'Self-test/Calibration Error' section header, but functionally relate to internal command operation limits. They are categorized here as 'operation_error_internal_command' for tooling clarity."
+  - "Codes 3480 and 3481 genuinely share the same message 'Invalid frame configuration.' per the PDF; they are distinct firmware error codes."
+  - "Recovery hints are engineering guidance for tooling, not official Keysight language."
+records:
+  - code: 0
+    message: "WGFMU_NO_ERROR"
+    category: "library_error_code"
+    meaning: "No error."
+    likely_causes: []
+    recovery_hint: "Proceed."
+    pdf_page: 156
+    printed_page: "4-80"
+
+  - code: -1
+    message: "WGFMU_PARAMETER_OUT_OF_RANGE_ERROR"
+    category: "library_error_code"
+    meaning: "Invalid parameter value; value is out of range."
+    likely_causes: ["Time, voltage, current range, point count, interval, average, or mode outside documented limits."]
+    recovery_hint: "Clamp parameters to documented limits and rerun setup validation via exportAscii/update/execute."
+    pdf_page: 156
+    printed_page: "4-80"
+
+  - code: -2
+    message: "WGFMU_ILLEGAL_STRING_ERROR"
+    category: "library_error_code"
+    meaning: "Invalid string value; empty or illegal pointer."
+    likely_causes: ["Empty pattern/event/file name.", "Null pointer.", "Invalid string buffer."]
+    recovery_hint: "Use non-empty strings and verify buffers remain allocated for API calls."
+    pdf_page: 156
+    printed_page: "4-80"
+
+  - code: -3
+    message: "WGFMU_CONTEXT_ERROR"
+    category: "library_error_code"
+    meaning: "Context error between relative functions."
+    likely_causes: ["Calling functions in invalid order.", "Setup inconsistent with channel mode."]
+    recovery_hint: "Follow programming overview order: define patterns/events/sequences, open session, set modes/ranges, connect, execute, read, disconnect."
+    pdf_page: 156
+    printed_page: "4-80"
+
+  - code: -4
+    message: "WGFMU_FUNCTION_NOT_SUPPORTED_ERROR"
+    category: "library_error_code"
+    meaning: "Specified function is not supported by this channel."
+    likely_causes: ["Function called on non-WGFMU channel.", "Current measurement in PG/SMU mode.", "DC-only function in non-DC mode."]
+    recovery_hint: "Check channel ID and operation mode compatibility."
+    pdf_page: 156
+    printed_page: "4-80"
+
+  - code: -5
+    message: "WGFMU_COMMUNICATION_ERROR"
+    category: "library_error_code"
+    meaning: "IO library error."
+    likely_causes: ["GPIB address incorrect.", "Connection Expert/system controller setting wrong.", "B1500A unavailable."]
+    recovery_hint: "Verify GPIB address such as GPIB0::17::INSTR, IO Library configuration, and EasyEXPERT remote-control prerequisites."
+    pdf_page: 156
+    printed_page: "4-80"
+
+  - code: -6
+    message: "WGFMU_FW_ERROR"
+    category: "library_error_code"
+    meaning: "Firmware error occurred."
+    likely_causes: ["Underlying firmware error 3000-3508."]
+    recovery_hint: "Read detailed error string/summary and map firmware code below."
+    pdf_page: 156
+    printed_page: "4-80"
+
+  - code: -7
+    message: "WGFMU_LIBRARY_ERROR"
+    category: "library_error_code"
+    meaning: "WGFMU instrument library error."
+    likely_causes: ["Library internal failure.", "Bad runtime environment."]
+    recovery_hint: "Collect log with openLogFile/getErrorSummary; verify library installation."
+    pdf_page: 156
+    printed_page: "4-80"
+
+  - code: -8
+    message: "WGFMU_ERROR"
+    category: "library_error_code"
+    meaning: "Unidentified error."
+    likely_causes: ["Unclassified library or firmware issue."]
+    recovery_hint: "Read detailed error string, clear setup, reinitialize, and reproduce with minimal setup."
+    pdf_page: 157
+    printed_page: "4-81"
+
+  - code: -9
+    message: "WGFMU_CHANNEL_NOT_FOUND_ERROR"
+    category: "library_error_code"
+    meaning: "Specified channel id is not available for WGFMU."
+    likely_causes: ["Wrong chanId.", "WGFMU not installed in expected slot.", "Unused/open channel controlled."]
+    recovery_hint: "Call getChannelIdSize/getChannelIds and use Table 4-3 slot mapping."
+    pdf_page: 157
+    printed_page: "4-81"
+
+  - code: -10
+    message: "WGFMU_PATTERN_NOT_FOUND_ERROR"
+    category: "library_error_code"
+    meaning: "Unexpected pattern name was specified."
+    likely_causes: ["Pattern not created.", "Typo in pattern name.", "clear called before use."]
+    recovery_hint: "Create pattern before vectors/events/sequences and use exact names."
+    pdf_page: 157
+    printed_page: "4-81"
+
+  - code: -11
+    message: "WGFMU_EVENT_NOT_FOUND_ERROR"
+    category: "library_error_code"
+    meaning: "Unexpected event name was specified."
+    likely_causes: ["Event not created.", "Typo in event name.", "Wrong pattern/event/cycle/loop/count selection."]
+    recovery_hint: "Use getMeasureEvent(s) to inspect event names and indices."
+    pdf_page: 157
+    printed_page: "4-81"
+
+  - code: -12
+    message: "WGFMU_PATTERN_ALREADY_EXISTS_ERROR"
+    category: "library_error_code"
+    meaning: "Duplicate pattern name was specified."
+    likely_causes: ["createPattern/createXxxPattern with existing name."]
+    recovery_hint: "Use unique pattern names or clear before redefining."
+    pdf_page: 157
+    printed_page: "4-81"
+
+  - code: -13
+    message: "WGFMU_SEQUENCER_NOT_RUNNING_ERROR"
+    category: "library_error_code"
+    meaning: "Sequencer must be running to execute the specified function."
+    likely_causes: ["Polling/progress function called before execute.", "wait/read state invalid."]
+    recovery_hint: "Run execute first and ensure channel is connected in Fast IV or PG mode."
+    pdf_page: 157
+    printed_page: "4-81"
+
+  - code: -14
+    message: "WGFMU_RESULT_NOT_READY_ERROR"
+    category: "library_error_code"
+    meaning: "Measurement is in progress; result data not ready."
+    likely_causes: ["Read attempted before measurement event/data completion."]
+    recovery_hint: "Use getChannelStatus, getMeasureValueSize, or isMeasureEventCompleted before reading."
+    pdf_page: 157
+    printed_page: "4-81"
+
+  - code: -15
+    message: "WGFMU_RESULT_OUT_OF_DATE_ERROR"
+    category: "library_error_code"
+    meaning: "Measurement result data was deleted by setup change."
+    likely_causes: ["Waveform or measurement setup changed before reading data."]
+    recovery_hint: "Read measurement results before changing waveform/measurement setup."
+    pdf_page: 157
+    printed_page: "4-81"
+
+  - code: 1000
+    message: "WGFMU_WARNING_LEVEL_OFF"
+    category: "warning_level"
+    meaning: "Warning reporting off."
+    likely_causes: []
+    recovery_hint: "Use only when intentionally suppressing warnings."
+    pdf_page: 144
+    printed_page: "4-68"
+
+  - code: 1001
+    message: "WGFMU_WARNING_LEVEL_SEVERE"
+    category: "warning_level"
+    meaning: "Report severe warnings."
+    likely_causes: []
+    recovery_hint: "Useful threshold for treating severe warnings as errors."
+    pdf_page: 144
+    printed_page: "4-68"
+
+  - code: 1002
+    message: "WGFMU_WARNING_LEVEL_NORMAL"
+    category: "warning_level"
+    meaning: "Report normal and severe warnings; default."
+    likely_causes: []
+    recovery_hint: "Recommended default while developing tools."
+    pdf_page: 144
+    printed_page: "4-68"
+
+  - code: 1003
+    message: "WGFMU_WARNING_LEVEL_INFORMATION"
+    category: "warning_level"
+    meaning: "Report information, normal, and severe warnings."
+    likely_causes: []
+    recovery_hint: "Use for detailed validation/logging."
+    pdf_page: 144
+    printed_page: "4-68"
+
+  - code: 10000
+    message: "WGFMU_STATUS_COMPLETED"
+    category: "status_code"
+    meaning: "All sequences completed and all data ready to read."
+    likely_causes: []
+    recovery_hint: "Safe to read result data."
+    pdf_page: 155
+    printed_page: "4-79"
+
+  - code: 10001
+    message: "WGFMU_STATUS_DONE"
+    category: "status_code"
+    meaning: "All sequences just completed."
+    likely_causes: []
+    recovery_hint: "Poll again or read when status becomes completed/data ready."
+    pdf_page: 155
+    printed_page: "4-79"
+
+  - code: 10002
+    message: "WGFMU_STATUS_RUNNING"
+    category: "status_code"
+    meaning: "Sequencer is running."
+    likely_causes: []
+    recovery_hint: "Use progress functions; read only completed partial data where supported."
+    pdf_page: 155
+    printed_page: "4-79"
+
+  - code: 10003
+    message: "WGFMU_STATUS_ABORT_COMPLETED"
+    category: "status_code"
+    meaning: "Sequencer aborted and all data ready to read."
+    likely_causes: ["User/tool aborted run."]
+    recovery_hint: "Read available data, then reinitialize or disconnect as needed."
+    pdf_page: 155
+    printed_page: "4-79"
+
+  - code: 10004
+    message: "WGFMU_STATUS_ABORTED"
+    category: "status_code"
+    meaning: "Sequencer just aborted."
+    likely_causes: ["Abort command executed."]
+    recovery_hint: "Poll until abort completed if data readout is needed."
+    pdf_page: 155
+    printed_page: "4-79"
+
+  - code: 10005
+    message: "WGFMU_STATUS_RUNNING_ILLEGAL"
+    category: "status_code"
+    meaning: "Illegal state; setup changed while sequencer is running. Data cannot be read."
+    likely_causes: ["Function that changes setup was received during running sequencer."]
+    recovery_hint: "Do not change setup while running. Abort/reinitialize and rerun."
+    pdf_page: 155
+    printed_page: "4-79"
+
+  - code: 10006
+    message: "WGFMU_STATUS_IDLE"
+    category: "status_code"
+    meaning: "Idle state. Data cannot be read."
+    likely_causes: ["No completed run/data available."]
+    recovery_hint: "Connect channel, execute sequence, and wait for completion."
+    pdf_page: 155
+    printed_page: "4-79"
+
+  - code: 3000
+    message: "WGFMU module does not exist."
+    category: "operation_error"
+    meaning: "Requested WGFMU module/channel is not present."
+    likely_causes: ["Wrong channel number.", "Expected WGFMU not installed."]
+    recovery_hint: "Check channel number and installed module list with getChannelIds."
+    pdf_page: 158
+    printed_page: "4-82"
+
+  - code: 3001
+    message: "RSU is not connected."
+    category: "operation_error"
+    meaning: "RSU connection not detected for the WGFMU channel."
+    likely_causes: ["RSU cable missing.", "Wrong channel selected.", "B1500A powered with cabling issue."]
+    recovery_hint: "Power down before RSU cable work; verify RSU-to-WGFMU cable and channel number."
+    pdf_page: 158
+    printed_page: "4-82"
+
+  - code: 3015
+    message: "Measurement data corrupted."
+    category: "operation_error"
+    meaning: "Cannot get measurement data; correct result is not stored in memory."
+    likely_causes: ["Runtime data corruption.", "Overflow or illegal state around data capture."]
+    recovery_hint: "Rerun with smaller data volume; read error summary and status."
+    pdf_page: 158
+    printed_page: "4-82"
+
+  - code: 3050
+    message: "Measurement data memory overflow error."
+    category: "operation_error"
+    meaning: "WGFMU module memory overflow; data exceeding memory size could not be stored."
+    likely_causes: ["Too many points.", "RAW mode with large average.", "Too many loops/events before readout."]
+    recovery_hint: "Reduce points/loops/RAW average, split run, or read partial data sooner."
+    pdf_page: 158
+    printed_page: "4-82"
+
+  - code: 3051
+    message: "Measurement data FIFO overflow error."
+    category: "operation_error"
+    meaning: "FIFO overflow because averaging count was frequently changed."
+    likely_causes: ["Frequent averaging changes across adjacent measurement events."]
+    recovery_hint: "Avoid frequent average changes; keep >=100 ns between events that change averaging."
+    pdf_page: 158
+    printed_page: "4-82"
+
+  - code: 3052
+    message: "Measurement range change request error."
+    category: "operation_error"
+    meaning: "Range cannot be changed because range change interval is too short."
+    likely_causes: ["Too many range events too close together."]
+    recovery_hint: "For three or more consecutive range changes, use >2 us spacing; keep range events outside averaging windows."
+    pdf_page: 158
+    printed_page: "4-82"
+
+  - code: 3201
+    message: "ALWG Sequence Data is not ready."
+    category: "operation_error"
+    meaning: "Sequence data must be set to the specified WGFMU channel."
+    likely_causes: ["execute called before addSequence/addSequences."]
+    recovery_hint: "Create pattern and add sequence for each enabled channel before execute."
+    pdf_page: 158
+    printed_page: "4-82"
+
+  - code: 3202
+    message: "ALWG Waveform Data is not ready."
+    category: "operation_error"
+    meaning: "Waveform data must be set to the specified WGFMU channel."
+    likely_causes: ["Empty or missing pattern/vector data."]
+    recovery_hint: "Create pattern and define waveform vectors before assigning sequence."
+    pdf_page: 158
+    printed_page: "4-82"
+
+  - code: 3301
+    message: "Specified output voltage is out of absolute limits."
+    category: "operation_error"
+    meaning: "Requested output voltage is outside selected range."
+    likely_causes: ["Voltage exceeds -3..+3, -5..+5, -10..0, or 0..+10 range."]
+    recovery_hint: "Select compatible force voltage range and clamp waveform voltage."
+    pdf_page: 159
+    printed_page: "4-83"
+
+  - code: 3302
+    message: "Specified voltage output range is invalid."
+    category: "operation_error"
+    meaning: "Invalid force voltage range."
+    likely_causes: ["Unsupported range constant.", "+/-10 V range in PG mode."]
+    recovery_hint: "Use Table 4-6 force-voltage range constants compatible with operation mode."
+    pdf_page: 159
+    printed_page: "4-83"
+
+  - code: 3303
+    message: "Invalid measurement mode for current operation mode."
+    category: "operation_error"
+    meaning: "Operation mode must be Fast IV or DC to perform current measurement."
+    likely_causes: ["Current measurement in PG or SMU mode."]
+    recovery_hint: "Use Fast IV/DC for current measurement or switch to voltage measurement in PG."
+    pdf_page: 159
+    printed_page: "4-83"
+
+  - code: 3304
+    message: "Specified ALWG Vector Data size is out of absolute limits."
+    category: "operation_error"
+    meaning: "ALWG vector data size too large to read."
+    likely_causes: ["Too many force-vector data points requested/read."]
+    recovery_hint: "Reduce vector query size or split readback."
+    pdf_page: 159
+    printed_page: "4-83"
+
+  - code: 3305
+    message: "Specified ALWG Sequence Data size is out of absolute limits."
+    category: "operation_error"
+    meaning: "ALWG sequence data size too large."
+    likely_causes: ["Too many sequence items or query size too large."]
+    recovery_hint: "Keep sequence count within 512 and split readbacks."
+    pdf_page: 159
+    printed_page: "4-83"
+
+  - code: 3306
+    message: "ALWG Waveform Data is empty."
+    category: "operation_error"
+    meaning: "ALWG data must not be empty."
+    likely_causes: ["Pattern has no usable waveform data."]
+    recovery_hint: "Create pattern and add at least one vector/valid duration before execution."
+    pdf_page: 159
+    printed_page: "4-83"
+
+  - code: 3307
+    message: "Specified ALWG Waveform Data size is out of absolute limits."
+    category: "operation_error"
+    meaning: "ALWG waveform data size too large."
+    likely_causes: ["Too many vectors in waveform data."]
+    recovery_hint: "Keep maximum vectors at or below 2048."
+    pdf_page: 159
+    printed_page: "4-83"
+
+  - code: 3308
+    message: "Specified waveform index of ALWG Sequence Data is out of absolute limits."
+    category: "operation_error"
+    meaning: "Sequence references invalid waveform index."
+    likely_causes: ["Invalid sequence setup or readback index."]
+    recovery_hint: "Validate sequence pattern order and query indices."
+    pdf_page: 159
+    printed_page: "4-83"
+
+  - code: 3309
+    message: "Specified loop number of ALWG Sequence Data is out of absolute limits."
+    category: "operation_error"
+    meaning: "Sequence loop count invalid."
+    likely_causes: ["Count <1 or >1,099,511,627,776."]
+    recovery_hint: "Clamp sequence count and account for rounding of non-integers."
+    pdf_page: 159
+    printed_page: "4-83"
+
+  - code: 3310
+    message: "Specified output voltage of ALWG Waveform Data is out of absolute limits."
+    category: "operation_error"
+    meaning: "Waveform voltage point exceeds selected absolute limits."
+    likely_causes: ["Vector voltage outside selected output range."]
+    recovery_hint: "Preflight all vector voltages against selected force range."
+    pdf_page: 159
+    printed_page: "4-83"
+
+  - code: 3311
+    message: "Specified interval time of ALWG Waveform is out of absolute limits."
+    category: "operation_error"
+    meaning: "Vector incremental time is invalid."
+    likely_causes: ["dTime <10 ns or >10995.11627775 s.", "Not aligned to 10 ns resolution."]
+    recovery_hint: "Use dTime in 10 ns to 10995.11627775 s and round to 10 ns."
+    pdf_page: 159
+    printed_page: "4-83"
+
+  - code: 3312
+    message: "Specified ALWG measurement interval time is out of absolute limits."
+    category: "operation_error"
+    meaning: "Measurement interval invalid."
+    likely_causes: ["setMeasureEvent interval <10 ns or >1.34217728 s."]
+    recovery_hint: "Clamp interval to 10 ns to 1.34217728 s in 10 ns steps."
+    pdf_page: 160
+    printed_page: "4-84"
+
+  - code: 3313
+    message: "Specified ALWG measurement instruction code is invalid."
+    category: "operation_error"
+    meaning: "Measurement event setting has invalid instruction code."
+    likely_causes: ["Invalid rdata or event encoding generated by library/tool."]
+    recovery_hint: "Use documented setMeasureEvent rdata constants and validate generated event setup."
+    pdf_page: 160
+    printed_page: "4-84"
+
+  - code: 3314
+    message: "Specified ALWG range change instruction code is invalid."
+    category: "operation_error"
+    meaning: "Range event setting has invalid instruction code."
+    likely_causes: ["Invalid range constant or malformed range event."]
+    recovery_hint: "Use documented current range constants and validate setRangeEvent inputs."
+    pdf_page: 160
+    printed_page: "4-84"
+
+  - code: 3315
+    message: "Specified ALWG measurement count is out of absolute limits."
+    category: "operation_error"
+    meaning: "Measurement averaging time invalid."
+    likely_causes: ["average not 0 and outside 10 ns to 0.020971512 s."]
+    recovery_hint: "Use average=0 or 10 ns to 0.020971512 s in 10 ns steps."
+    pdf_page: 160
+    printed_page: "4-84"
+
+  - code: 3316
+    message: "Specified ALWG measurement count is greater than measurement interval."
+    category: "operation_error"
+    meaning: "Average time exceeds interval."
+    likely_causes: ["setMeasureEvent average > interval."]
+    recovery_hint: "Ensure average <= interval."
+    pdf_page: 160
+    printed_page: "4-84"
+
+  - code: 3317
+    message: "Specified slot is invalid."
+    category: "operation_error"
+    meaning: "Slot number invalid."
+    likely_causes: ["Slot outside 1 to 10."]
+    recovery_hint: "Use B1500A slots 1-10 and convert to chanId correctly."
+    pdf_page: 160
+    printed_page: "4-84"
+
+  - code: 3318
+    message: "Specified module channel is invalid."
+    category: "operation_error"
+    meaning: "Module channel invalid."
+    likely_causes: ["Channel not Ch1/Ch2 or invalid chanId."]
+    recovery_hint: "Use Table 4-3 channel IDs and discovered installed channels."
+    pdf_page: 160
+    printed_page: "4-84"
+
+  - code: 3319
+    message: "Output delay is out of absolute limits."
+    category: "operation_error"
+    meaning: "Force delay invalid."
+    likely_causes: ["setForceDelay outside -50 ns to +50 ns or not rounded."]
+    recovery_hint: "Use -50 ns to +50 ns in 625 ps resolution."
+    pdf_page: 160
+    printed_page: "4-84"
+
+  - code: 3320
+    message: "Measurement delay is out of absolute limits."
+    category: "operation_error"
+    meaning: "Measure delay invalid."
+    likely_causes: ["setMeasureDelay outside -50 ns to +50 ns or not rounded."]
+    recovery_hint: "Use -50 ns to +50 ns in 625 ps resolution."
+    pdf_page: 160
+    printed_page: "4-84"
+
+  - code: 3321
+    message: "VM/IM measurement mode is invalid."
+    category: "operation_error"
+    meaning: "Voltage/current measurement mode invalid."
+    likely_causes: ["Unsupported measurement mode constant."]
+    recovery_hint: "Use VOLTAGE=4000 or CURRENT=4001 with compatible operation mode."
+    pdf_page: 160
+    printed_page: "4-84"
+
+  - code: 3322
+    message: "Voltage measurement range is invalid."
+    category: "operation_error"
+    meaning: "Voltage measurement range constant invalid."
+    likely_causes: ["Unsupported voltage measurement range."]
+    recovery_hint: "Use 5 V or 10 V measurement range constants."
+    pdf_page: 160
+    printed_page: "4-84"
+
+  - code: 3323
+    message: "Current measurement range is invalid."
+    category: "operation_error"
+    meaning: "Current measurement range constant invalid."
+    likely_causes: ["Unsupported current range constant."]
+    recovery_hint: "Use 1 uA, 10 uA, 100 uA, 1 mA, or 10 mA constants."
+    pdf_page: 160
+    printed_page: "4-84"
+
+  - code: 3324
+    message: "WGMA?,WGMB? command query size is out of absolute limits."
+    category: "operation_error_internal_command"
+    meaning: "Undocumented internal query size invalid."
+    likely_causes: ["Library/internal data query too large."]
+    recovery_hint: "Reduce requested data size; split reads. WGMA?/WGMB? syntax is not documented."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3325
+    message: "Specified count for spot measurement is out of absolute limits."
+    category: "operation_error_internal_command"
+    meaning: "Undocumented WGMS? spot measurement count invalid."
+    likely_causes: ["DC spot/averaged measurement count outside internal limit."]
+    recovery_hint: "For public API, use dcmeasureAveragedValue points 1-65535. WGMS? syntax is undocumented."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3326
+    message: "Specified interval for spot measurement is out of absolute limits."
+    category: "operation_error_internal_command"
+    meaning: "Undocumented WGMS? spot measurement interval invalid."
+    likely_causes: ["DC spot/averaged measurement interval outside internal limit."]
+    recovery_hint: "For public API, use dcmeasureAveragedValue interval 1-65535 ticks of 5 ns. WGMS? syntax is undocumented."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3327
+    message: "Specified operation mode is invalid for spot measurement."
+    category: "operation_error_internal_command"
+    meaning: "Spot measurement requires DC operation mode."
+    likely_causes: ["WGMS?/DC spot measurement attempted outside DC mode."]
+    recovery_hint: "Set operation mode to DC before DC measurement APIs. WGMS? syntax is undocumented."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3002
+    message: "WGFMU initialization failure."
+    category: "self_test_calibration_error"
+    meaning: "WGFMU failed initialization."
+    likely_causes: ["Hardware/firmware initialization issue."]
+    recovery_hint: "Power cycle, run self-test, collect error summary; service may be required."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3003
+    message: "WGFMU FPGA is not configured."
+    category: "self_test_calibration_error"
+    meaning: "FPGA configuration failed or absent."
+    likely_causes: ["Firmware/FPGA configuration fault."]
+    recovery_hint: "Power cycle and self-test; contact service if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3004
+    message: "EEPROM CRC data of system timing data is invalid."
+    category: "self_test_calibration_error"
+    meaning: "System timing EEPROM CRC invalid."
+    likely_causes: ["EEPROM corruption."]
+    recovery_hint: "Run self-test/calibration; service likely required if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3005
+    message: "EEPROM CRC data of DAC DCM PS data is invalid."
+    category: "self_test_calibration_error"
+    meaning: "DAC DCM phase-shift EEPROM CRC invalid."
+    likely_causes: ["EEPROM/calibration data corruption."]
+    recovery_hint: "Run self-test/calibration; contact service if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3006
+    message: "EEPROM CRC data of ADC DCM PS data is invalid."
+    category: "self_test_calibration_error"
+    meaning: "ADC DCM phase-shift EEPROM CRC invalid."
+    likely_causes: ["EEPROM/calibration data corruption."]
+    recovery_hint: "Run self-test/calibration; contact service if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3007
+    message: "EEPROM CRC data of DAC clock edge data is invalid."
+    category: "self_test_calibration_error"
+    meaning: "DAC clock edge EEPROM CRC invalid."
+    likely_causes: ["EEPROM/calibration data corruption."]
+    recovery_hint: "Run self-test/calibration; contact service if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3008
+    message: "EEPROM CRC data of ADC clock edge data is invalid."
+    category: "self_test_calibration_error"
+    meaning: "ADC clock edge EEPROM CRC invalid."
+    likely_causes: ["EEPROM/calibration data corruption."]
+    recovery_hint: "Run self-test/calibration; contact service if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3009
+    message: "EEPROM CRC data of DAC level calibration data is invalid."
+    category: "self_test_calibration_error"
+    meaning: "DAC level calibration EEPROM CRC invalid."
+    likely_causes: ["EEPROM/calibration data corruption."]
+    recovery_hint: "Run calibration; contact service if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3010
+    message: "EEPROM CRC data of ADC level calibration data is invalid."
+    category: "self_test_calibration_error"
+    meaning: "ADC level calibration EEPROM CRC invalid."
+    likely_causes: ["EEPROM/calibration data corruption."]
+    recovery_hint: "Run calibration; contact service if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3011
+    message: "EEPROM CRC data of DAC skew calibration data is invalid."
+    category: "self_test_calibration_error"
+    meaning: "DAC skew calibration EEPROM CRC invalid."
+    likely_causes: ["EEPROM/calibration data corruption."]
+    recovery_hint: "Run calibration; contact service if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3012
+    message: "EEPROM CRC data of ADC skew calibration data is invalid."
+    category: "self_test_calibration_error"
+    meaning: "ADC skew calibration EEPROM CRC invalid."
+    likely_causes: ["EEPROM/calibration data corruption."]
+    recovery_hint: "Run calibration; contact service if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3013
+    message: "EEPROM CRC data of RSU calibration data is invalid."
+    category: "self_test_calibration_error"
+    meaning: "RSU calibration EEPROM CRC invalid."
+    likely_causes: ["RSU EEPROM/calibration data corruption.", "Wrong or failing RSU/cable."]
+    recovery_hint: "Verify RSU/cable; run calibration; service if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3014
+    message: "Invalid EEPROM type."
+    category: "self_test_calibration_error"
+    meaning: "EEPROM type not recognized."
+    likely_causes: ["Hardware/EEPROM mismatch or fault."]
+    recovery_hint: "Contact Keysight/Agilent service."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3400
+    message: "WGFMU module is in TEST FAIL state."
+    category: "self_test_error"
+    meaning: "WGFMU module failed self-test."
+    likely_causes: ["Hardware self-test failure."]
+    recovery_hint: "Run self-test again after power cycle; service if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3401
+    message: "Digital H/W function test failed."
+    category: "self_test_error"
+    meaning: "Digital hardware self-test failed."
+    likely_causes: ["Digital hardware fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3402
+    message: "CPLD access function test failed."
+    category: "self_test_error"
+    meaning: "CPLD access test failed."
+    likely_causes: ["CPLD or bus access fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3403
+    message: "FPGA configuration test failed."
+    category: "self_test_error"
+    meaning: "FPGA configuration self-test failed."
+    likely_causes: ["FPGA configuration fault."]
+    recovery_hint: "Power cycle; service if persistent."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3404
+    message: "FPGA1 access function test failed."
+    category: "self_test_error"
+    meaning: "FPGA1 access failed."
+    likely_causes: ["FPGA1 or access bus fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 161
+    printed_page: "4-85"
+
+  - code: 3405
+    message: "FPGA2 access function test failed."
+    category: "self_test_error"
+    meaning: "FPGA2 access failed."
+    likely_causes: ["FPGA2 or access bus fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3406
+    message: "FPGA1 System Clock DCM function test failed."
+    category: "self_test_error"
+    meaning: "FPGA1 system clock DCM test failed."
+    likely_causes: ["Clock/DCM fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3407
+    message: "FPGA1 DAC Clock DCM function test failed."
+    category: "self_test_error"
+    meaning: "FPGA1 DAC clock DCM test failed."
+    likely_causes: ["DAC clocking fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3408
+    message: "FPGA1 ADC Clock DCM function test failed."
+    category: "self_test_error"
+    meaning: "FPGA1 ADC clock DCM test failed."
+    likely_causes: ["ADC clocking fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3409
+    message: "FPGA1 Memory Clock DCM function test failed."
+    category: "self_test_error"
+    meaning: "FPGA1 memory clock DCM test failed."
+    likely_causes: ["Memory clocking fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3410
+    message: "FPGA2 System Clock DCM function test failed."
+    category: "self_test_error"
+    meaning: "FPGA2 system clock DCM test failed."
+    likely_causes: ["Clock/DCM fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3411
+    message: "FPGA2 DAC Clock DCM function test failed."
+    category: "self_test_error"
+    meaning: "FPGA2 DAC clock DCM test failed."
+    likely_causes: ["DAC clocking fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3412
+    message: "FPGA2 ADC Clock DCM function test failed."
+    category: "self_test_error"
+    meaning: "FPGA2 ADC clock DCM test failed."
+    likely_causes: ["ADC clocking fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3413
+    message: "FPGA2 Memory Clock DCM function test failed."
+    category: "self_test_error"
+    meaning: "FPGA2 memory clock DCM test failed."
+    likely_causes: ["Memory clocking fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3414
+    message: "FPGA1, 2 communication I/F test failed."
+    category: "self_test_error"
+    meaning: "Communication interface between FPGAs failed."
+    likely_causes: ["Inter-FPGA communication fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3415
+    message: "CONVEND interrupt function test failed."
+    category: "self_test_error"
+    meaning: "Conversion-end interrupt test failed."
+    likely_causes: ["Interrupt path fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3416
+    message: "10 MHz clock test failed."
+    category: "self_test_error"
+    meaning: "10 MHz clock test failed."
+    likely_causes: ["Reference clock fault."]
+    recovery_hint: "Verify system sync/reference configuration; service if persistent."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3417
+    message: "FPGA SYNC SEL pin control function test failed."
+    category: "self_test_error"
+    meaning: "FPGA sync select pin control failed."
+    likely_causes: ["Sync control hardware fault."]
+    recovery_hint: "Check sync cabling/configuration; service if persistent."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3418
+    message: "FPGA SYNC FB pin control function test failed."
+    category: "self_test_error"
+    meaning: "FPGA sync feedback pin control failed."
+    likely_causes: ["Sync feedback hardware fault."]
+    recovery_hint: "Check sync cabling/configuration; service if persistent."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3419
+    message: "FPGA SYNC IN pin control function test failed."
+    category: "self_test_error"
+    meaning: "FPGA sync input pin control failed."
+    likely_causes: ["Sync input hardware fault."]
+    recovery_hint: "Check sync cabling/configuration; service if persistent."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3420
+    message: "IDELAY function test failed."
+    category: "self_test_error"
+    meaning: "Input delay function test failed."
+    likely_causes: ["Timing/delay hardware fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3421
+    message: "Channel 1 SDRAM access function test failed."
+    category: "self_test_error"
+    meaning: "Channel 1 SDRAM access failed."
+    likely_causes: ["Channel 1 memory fault."]
+    recovery_hint: "Service likely required; reduce data does not fix self-test memory failure."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3422
+    message: "Channel 2 SDRAM access function test failed."
+    category: "self_test_error"
+    meaning: "Channel 2 SDRAM access failed."
+    likely_causes: ["Channel 2 memory fault."]
+    recovery_hint: "Service likely required; reduce data does not fix self-test memory failure."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3423
+    message: "WGFMU EEPROM access function test failed."
+    category: "self_test_error"
+    meaning: "WGFMU EEPROM access failed."
+    likely_causes: ["EEPROM access fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3424
+    message: "Channel 1 RSU EEPROM access function test failed."
+    category: "self_test_error"
+    meaning: "Channel 1 RSU EEPROM access failed."
+    likely_causes: ["RSU EEPROM/cable fault on channel 1."]
+    recovery_hint: "Verify RSU connection/cable; service RSU if persistent."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3425
+    message: "Channel 2 RSU EEPROM access function test failed."
+    category: "self_test_error"
+    meaning: "Channel 2 RSU EEPROM access failed."
+    likely_causes: ["RSU EEPROM/cable fault on channel 2."]
+    recovery_hint: "Verify RSU connection/cable; service RSU if persistent."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3426
+    message: "WGFMU EEPROM CRC data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU EEPROM CRC invalid."
+    likely_causes: ["EEPROM data corruption."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3427
+    message: "WGFMU EEPROM CRC data of format revision data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU EEPROM format revision CRC invalid."
+    likely_causes: ["EEPROM data corruption."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3428
+    message: "WGFMU EEPROM CRC data of serial number data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU serial number EEPROM CRC invalid."
+    likely_causes: ["EEPROM data corruption."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3429
+    message: "WGFMU EEPROM CRC data of system timing data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU system timing EEPROM CRC invalid."
+    likely_causes: ["EEPROM timing data corruption."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3430
+    message: "WGFMU EEPROM CRC data of DAC DCM PS data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU DAC DCM phase-shift EEPROM CRC invalid."
+    likely_causes: ["EEPROM calibration data corruption."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3431
+    message: "WGFMU EEPROM CRC data of ADC DCM PS data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU ADC DCM phase-shift EEPROM CRC invalid."
+    likely_causes: ["EEPROM calibration data corruption."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3432
+    message: "WGFMU EEPROM CRC data of DAC clock edge data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU DAC clock edge EEPROM CRC invalid."
+    likely_causes: ["EEPROM clock calibration data corruption."]
+    recovery_hint: "Service likely required."
+    pdf_page: 162
+    printed_page: "4-86"
+
+  - code: 3433
+    message: "WGFMU EEPROM CRC data of ADC clock edge data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU ADC clock edge EEPROM CRC invalid."
+    likely_causes: ["EEPROM clock calibration data corruption."]
+    recovery_hint: "Service likely required."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3434
+    message: "WGFMU EEPROM CRC data of DAC level calibration data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU DAC level calibration EEPROM CRC invalid."
+    likely_causes: ["Calibration data corruption."]
+    recovery_hint: "Service/calibration likely required."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3435
+    message: "WGFMU EEPROM CRC data of ADC level calibration data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU ADC level calibration EEPROM CRC invalid."
+    likely_causes: ["Calibration data corruption."]
+    recovery_hint: "Service/calibration likely required."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3436
+    message: "WGFMU EEPROM CRC data of DAC skew calibration data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU DAC skew calibration EEPROM CRC invalid."
+    likely_causes: ["Skew calibration data corruption."]
+    recovery_hint: "Service/calibration likely required."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3437
+    message: "WGFMU EEPROM CRC data of ADC skew calibration data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU ADC skew calibration EEPROM CRC invalid."
+    likely_causes: ["Skew calibration data corruption."]
+    recovery_hint: "Service/calibration likely required."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3438
+    message: "RSU EEPROM CRC data of format revision data is invalid."
+    category: "self_test_error"
+    meaning: "RSU format revision EEPROM CRC invalid."
+    likely_causes: ["RSU EEPROM data corruption."]
+    recovery_hint: "Verify RSU; service if persistent."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3439
+    message: "RSU EEPROM CRC data of serial number data is invalid."
+    category: "self_test_error"
+    meaning: "RSU serial number EEPROM CRC invalid."
+    likely_causes: ["RSU EEPROM data corruption."]
+    recovery_hint: "Verify RSU; service if persistent."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3440
+    message: "RSU EEPROM CRC data of type id data is invalid."
+    category: "self_test_error"
+    meaning: "RSU type ID EEPROM CRC invalid."
+    likely_causes: ["Wrong/failing RSU or EEPROM data corruption."]
+    recovery_hint: "Verify RSU model and connection; service if persistent."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3441
+    message: "RSU EEPROM CRC data of calibration data is invalid."
+    category: "self_test_error"
+    meaning: "RSU calibration EEPROM CRC invalid."
+    likely_causes: ["RSU calibration data corruption."]
+    recovery_hint: "Run calibration/service RSU if persistent."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3450
+    message: "WGFMU EEPROM data is invalid."
+    category: "self_test_error"
+    meaning: "WGFMU EEPROM data invalid."
+    likely_causes: ["EEPROM data corruption."]
+    recovery_hint: "Service likely required."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3451
+    message: "WGFMU EEPROM data of RSU type is invalid."
+    category: "self_test_error"
+    meaning: "Stored RSU type data invalid."
+    likely_causes: ["Wrong RSU/cable or EEPROM mismatch."]
+    recovery_hint: "Verify RSU and cable; service if persistent."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3452
+    message: "WGFMU EEPROM data of RSU cable type is invalid."
+    category: "self_test_error"
+    meaning: "Stored RSU cable type data invalid."
+    likely_causes: ["Cable identification/calibration issue."]
+    recovery_hint: "Verify WGFMU-RSU cable type and run calibration; service if persistent."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3460
+    message: "Main DAC, Main ADC test failed."
+    category: "self_test_error"
+    meaning: "Main DAC/ADC hardware test failed."
+    likely_causes: ["Analog hardware fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3461
+    message: "Bias DAC, Main ADC test failed."
+    category: "self_test_error"
+    meaning: "Bias DAC/Main ADC hardware test failed."
+    likely_causes: ["Analog hardware fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3462
+    message: "Main DAC, Reference ADC test failed."
+    category: "self_test_error"
+    meaning: "Main DAC/Reference ADC hardware test failed."
+    likely_causes: ["Analog reference hardware fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3463
+    message: "VM function test failed."
+    category: "self_test_error"
+    meaning: "Voltage measurement function test failed."
+    likely_causes: ["Voltage measurement circuit fault."]
+    recovery_hint: "Run self-cal; service if persistent."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3464
+    message: "IM offset test failed."
+    category: "self_test_error"
+    meaning: "Current measurement offset test failed."
+    likely_causes: ["Current measurement offset/calibration fault."]
+    recovery_hint: "Run self-cal; service if persistent."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3465
+    message: "IM short test failed."
+    category: "self_test_error"
+    meaning: "Current measurement short test failed."
+    likely_causes: ["Current measurement hardware fault."]
+    recovery_hint: "Run self-test/cal; service if persistent."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3480
+    message: "Invalid frame configuration."
+    category: "self_test_error"
+    meaning: "Mainframe/module frame configuration invalid."
+    likely_causes: ["Invalid module combination or configuration."]
+    recovery_hint: "Verify B1500A module installation/rating limits; service if needed."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3481
+    message: "Invalid frame configuration."
+    category: "self_test_error"
+    meaning: "Mainframe/module frame configuration invalid."
+    likely_causes: ["Invalid module combination or configuration."]
+    recovery_hint: "Verify B1500A module installation/rating limits; service if needed."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3482
+    message: "Frame has no modules."
+    category: "self_test_error"
+    meaning: "No modules detected in frame."
+    likely_causes: ["Configuration detection failure or empty frame."]
+    recovery_hint: "Verify module installation and B1500A configuration."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3483
+    message: "PLL not locked in slave module."
+    category: "self_test_error"
+    meaning: "Slave module PLL did not lock."
+    likely_causes: ["Synchronization/clocking problem between modules."]
+    recovery_hint: "Check Sync Out/In cabling and master/slave slot order; service if persistent."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3484
+    message: "Reference line is not connected."
+    category: "self_test_error"
+    meaning: "Reference line missing."
+    likely_causes: ["Sync/reference cabling issue."]
+    recovery_hint: "Verify internal/external reference connections and WGFMU sync cable."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3485
+    message: "Sync line is not connected."
+    category: "self_test_error"
+    meaning: "Sync line missing."
+    likely_causes: ["Sync cable missing or connected incorrectly."]
+    recovery_hint: "Connect Sync Out of master to Sync In of slave; avoid wrong terminal connections."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3486
+    message: "Sync Reserve line is not connected."
+    category: "self_test_error"
+    meaning: "Sync reserve line missing."
+    likely_causes: ["Sync cable or connector issue."]
+    recovery_hint: "Verify sync cable and module installation."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3487
+    message: "Interrupt line is not available."
+    category: "self_test_error"
+    meaning: "Interrupt line unavailable."
+    likely_causes: ["Backplane/module interrupt path fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3488
+    message: "Module service request assertion test failed."
+    category: "self_test_error"
+    meaning: "Service request assertion failed."
+    likely_causes: ["Module SRQ path fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3489
+    message: "Module service request detection test failed."
+    category: "self_test_error"
+    meaning: "Service request detection failed."
+    likely_causes: ["Module/mainframe SRQ detection fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 163
+    printed_page: "4-87"
+
+  - code: 3490
+    message: "Emergency interrupt is not available."
+    category: "self_test_error"
+    meaning: "Emergency interrupt path unavailable."
+    likely_causes: ["Interrupt hardware fault."]
+    recovery_hint: "Service likely required."
+    pdf_page: 164
+    printed_page: "4-88"
+
+  - code: 3500
+    message: "WGFMU calibration failed."
+    category: "calibration_error"
+    meaning: "General WGFMU calibration failed."
+    likely_causes: ["Calibration environment/cable issue.", "Hardware fault."]
+    recovery_hint: "Warm up, verify cabling/load conditions, rerun self-cal; service if persistent."
+    pdf_page: 164
+    printed_page: "4-88"
+
+  - code: 3501
+    message: "ADC gain calibration failed."
+    category: "calibration_error"
+    meaning: "ADC gain calibration failed."
+    likely_causes: ["ADC calibration/hardware issue."]
+    recovery_hint: "Rerun self-cal after warm-up; service if persistent."
+    pdf_page: 164
+    printed_page: "4-88"
+
+  - code: 3502
+    message: "CMR calibration failed."
+    category: "calibration_error"
+    meaning: "Common-mode rejection calibration failed."
+    likely_causes: ["Analog calibration issue."]
+    recovery_hint: "Rerun self-cal; service if persistent."
+    pdf_page: 164
+    printed_page: "4-88"
+
+  - code: 3503
+    message: "IM offset calibration failed."
+    category: "calibration_error"
+    meaning: "Current measurement offset calibration failed."
+    likely_causes: ["Current-measurement offset issue."]
+    recovery_hint: "Rerun self-cal with correct cabling; service if persistent."
+    pdf_page: 164
+    printed_page: "4-88"
+
+  - code: 3504
+    message: "VM offset calibration failed."
+    category: "calibration_error"
+    meaning: "Voltage measurement offset calibration failed."
+    likely_causes: ["Voltage-measurement offset issue."]
+    recovery_hint: "Rerun self-cal with correct cabling; service if persistent."
+    pdf_page: 164
+    printed_page: "4-88"
+
+  - code: 3505
+    message: "VF gain calibration failed."
+    category: "calibration_error"
+    meaning: "Voltage force gain calibration failed."
+    likely_causes: ["Voltage-force calibration/hardware issue."]
+    recovery_hint: "Rerun self-cal; service if persistent."
+    pdf_page: 164
+    printed_page: "4-88"
+
+  - code: 3506
+    message: "VF offset calibration failed."
+    category: "calibration_error"
+    meaning: "Voltage force offset calibration failed."
+    likely_causes: ["Voltage-force offset issue."]
+    recovery_hint: "Rerun self-cal; service if persistent."
+    pdf_page: 164
+    printed_page: "4-88"
+
+  - code: 3507
+    message: "Reference ADC does not exist. Cannot perform WGFMU calibration."
+    category: "calibration_error"
+    meaning: "Reference ADC missing/unavailable."
+    likely_causes: ["Reference ADC hardware detection failure."]
+    recovery_hint: "Service likely required."
+    pdf_page: 164
+    printed_page: "4-88"
+
+  - code: 3508
+    message: "WGFMU, RSU cable length calibration failed."
+    category: "calibration_error"
+    meaning: "Cable length calibration between WGFMU and RSU failed."
+    likely_causes: ["Wrong/faulty WGFMU-RSU cable.", "RSU not connected correctly.", "Cable length data issue."]
+    recovery_hint: "Verify cable set and RSU connection with B1500A powered off before cabling; rerun calibration."
+    pdf_page: 164
+    printed_page: "4-88"
+
+opus_review:
+  reviewer: "opus-4.6-max"
+  review_date: "2026-06-22"
+  passes_completed: 5
+  verification_method: "Multi-pass: (1) schema/field audit, (2) index cross-reference, (3) PDF page verification of error codes 3311-3327 and 3480/3481 on pages 159-163, (4) targeted corrections, (5) YAML syntax validation"
+  items_verified_against_pdf:
+    - "Error 3311 firmware limit 10995.11627775 s confirmed on PDF 159"
+    - "Error 3312 interval limit 1.34217728 s confirmed on PDF 160"
+    - "Error 3315 averaging limit 0.020971512 s confirmed on PDF 160"
+    - "Errors 3324-3327 confirmed on PDF page 161 (printed 4-85) under Self-test/Calibration Error header"
+    - "Errors 3480/3481 confirmed as genuinely duplicate message text on PDF 163"
+    - "All self-test codes 3400-3490 confirmed continuous on pages 161-163"
+    - "All calibration codes 3500-3508 confirmed on page 164"
+  corrections_made:
+    - "Added clarifying notes about 3324-3327 page/category discrepancy"
+    - "Added note about 3480/3481 duplicate messages being genuine"
+    - "Added note distinguishing recovery hints from official Keysight text"
+  remaining_uncertainties:
+    - "Exact meaning distinction between codes 3480 and 3481 is unknown; PDF gives identical messages"
+    - "Gap codes 3442-3449, 3453-3459, 3466-3479 are presumably undefined/reserved by firmware"
+  completeness: "All error/status/warning codes visible in the PDF text extraction are represented. No codes were found in the PDF that are missing from this file."

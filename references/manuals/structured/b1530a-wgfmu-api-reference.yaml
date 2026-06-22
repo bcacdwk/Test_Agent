@@ -1,0 +1,941 @@
+schema_version: 1
+source:
+  manual_title: "Agilent B1530A Waveform Generator/Fast Measurement Unit User's Guide"
+  source_pdf: "B1530A WGFMU.pdf"
+  revised_index: "test_agent/references/manuals/b1530a-wgfmu-index.md"
+  manual_part_number: "B1530-90000"
+  edition: "Edition 5, August 2012"
+  extraction_date: "2026-06-22"
+notes:
+  - "This file extracts instrument-library API concepts useful for future WGFMU waveform, pulse, sampling, and reliability tooling."
+  - "The PDF TOC contains OCR/typographic issue 'WGFMU_getMeasueValue'; the function is treated as WGFMU_getMeasureValue."
+  - "C++ function form is WGFMU_name; C# form is WGFMU.name; HTBasic form is Wm_name. HTBasic names are abbreviated and not exhaustively normalized here."
+  - "Functions are grouped when the manual treats them as direct scalar/vector or get/set variants. Each record includes page references."
+  - "Hidden commands WGMA?, WGMB?, and WGMS? are only inferred from error-message text and are marked undocumented."
+api_items:
+  - name: "WGFMU_openSession"
+    type: "function"
+    purpose: "Open communication session with the B1500A through the WGFMU instrument library."
+    parameters:
+      - {name: "address", type: "string", units: "GPIB resource", limits: "Example: GPIB0::17::INSTR"}
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [128]
+    printed_pages: ["4-52"]
+    notes: "Session-level prerequisite for online control."
+    implementation_status: "documented"
+
+  - name: "WGFMU_closeSession"
+    type: "function"
+    purpose: "Close the active WGFMU/B1500A communication session."
+    parameters: []
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [90]
+    printed_pages: ["4-14"]
+    notes: "Usually final online cleanup step."
+    implementation_status: "documented"
+
+  - name: "WGFMU_initialize"
+    type: "function"
+    purpose: "Reset all WGFMU channels."
+    parameters: []
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [125]
+    printed_pages: ["4-49"]
+    notes: "Examples often call initialize before setup and again at cleanup."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setTimeout"
+    type: "function"
+    purpose: "Set timeout of the present session."
+    parameters:
+      - {name: "timeout", type: "double", units: "s", limits: ">= 1 s; manual text says 1 us resolution; default 100 s"}
+    returns: "int status/error code"
+    units: {timeout: "s"}
+    limits:
+      timeout_min_s: 1
+      default_timeout_s: 100
+      self_test_cal_auto_timeout_s: 600
+    pdf_pages: [134, 135]
+    printed_pages: ["4-58", "4-59"]
+    notes: "Self-calibration/self-test temporarily raise timeout to 600 s when lower."
+    implementation_status: "documented"
+
+  - name: "WGFMU_doSelfCalibration"
+    type: "function"
+    purpose: "Perform self-calibration for mainframe and all modules."
+    parameters:
+      - {name: "result", type: "int*", units: "bitmask", limits: "0 pass; 2^(N-1) slot N fail; 1024 mainframe fail"}
+      - {name: "detail", type: "char*", units: "string", limits: "Must be allocated by caller; receives result detail string"}
+      - {name: "size", type: "int*", units: "characters", limits: "Specifies buffer size on input; returns actual detail string length on output"}
+    returns: "int status/error code (WGFMU_NO_ERROR on success); result bitmask 0=PASS, nonzero=FAIL"
+    units: {}
+    limits: {timeout_auto_s: 600, result_pass: 0, result_fail_slot_n: "2^(N-1)", result_fail_mainframe: 1024}
+    pdf_pages: [97, 154]
+    printed_pages: ["4-21", "4-78"]
+    notes: "Requires warm-up and proper cabling for reliable measurement accuracy. If size < detail string length, partial string is stored and warning occurs."
+    implementation_status: "documented"
+
+  - name: "WGFMU_doSelfTest"
+    type: "function"
+    purpose: "Perform self-test for mainframe and all modules."
+    parameters:
+      - {name: "result", type: "int*", units: "bitmask", limits: "0 pass; 2^(N-1) slot N fail; 1024 mainframe fail"}
+      - {name: "detail", type: "char*", units: "string", limits: "Must be allocated by caller; receives result detail string"}
+      - {name: "size", type: "int*", units: "characters", limits: "Specifies buffer size on input; returns actual detail string length on output"}
+    returns: "int status/error code (WGFMU_NO_ERROR on success); result bitmask 0=PASS, nonzero=FAIL"
+    units: {}
+    limits: {timeout_auto_s: 600, result_pass: 0, result_fail_slot_n: "2^(N-1)", result_fail_mainframe: 1024}
+    pdf_pages: [98, 154]
+    printed_pages: ["4-22", "4-78"]
+    notes: "Self-test failures are mapped in firmware errors 3400-3508. If size < detail string length, partial string is stored and warning occurs."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getChannelIdSize / WGFMU_getChannelIds"
+    type: "function"
+    purpose: "Discover installed WGFMU channel IDs in the connected B1500A."
+    parameters:
+      - {name: "size", type: "int*", units: "count", limits: "number of available WGFMU channels"}
+      - {name: "channels", type: "int[]", units: "chanId", limits: "101 to 1002"}
+    returns: "int status/error code"
+    units: {chanId: "slot*100 + channel"}
+    limits: {chanId_range: "101-1002"}
+    pdf_pages: [101, 142, 143]
+    printed_pages: ["4-25", "4-67"]
+    notes: "Slot 1 Ch1=101, Slot 1 Ch2=102, ... Slot 10 Ch2=1002."
+    implementation_status: "documented"
+
+  - name: "WGFMU_clear"
+    type: "function"
+    purpose: "Clear software setup: patterns, sequences, errors, and warnings."
+    parameters: []
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [90]
+    printed_pages: ["4-14"]
+    notes: "Does not change hardware output state."
+    implementation_status: "documented"
+
+  - name: "WGFMU_openLogFile / WGFMU_closeLogFile"
+    type: "function"
+    purpose: "Open or close a file used to log errors and warnings."
+    parameters:
+      - {name: "fileName", type: "string", units: "path", limits: "valid writable path for openLogFile"}
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [90, 127]
+    printed_pages: ["4-14", "4-51"]
+    notes: "Used by complex examples such as Id-Vg."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getErrorSize / WGFMU_getError"
+    type: "function"
+    purpose: "Read the next error string from the error queue."
+    parameters:
+      - {name: "size", type: "int*", units: "characters", limits: "string buffer sizing"}
+      - {name: "error", type: "char*", units: "string", limits: "must be allocated by caller"}
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [103]
+    printed_pages: ["4-27"]
+    notes: "Examples use getErrorSize before allocating char buffer."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getErrorSummarySize / WGFMU_getErrorSummary"
+    type: "function"
+    purpose: "Read accumulated error summary as one string."
+    parameters:
+      - {name: "size", type: "int*", units: "characters", limits: "string buffer sizing"}
+      - {name: "errorSummary", type: "char*", units: "string", limits: "must be allocated by caller"}
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [104]
+    printed_pages: ["4-28"]
+    notes: "Example 5 demonstrates post-execution summary retrieval."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setWarningLevel / WGFMU_getWarningLevel"
+    type: "function"
+    purpose: "Set or read warning reporting level."
+    parameters:
+      - {name: "level", type: "int", units: "constant", limits: "OFF=1000, SEVERE=1001, NORMAL=1002, INFORMATION=1003"}
+    returns: "int status/error code"
+    units: {}
+    limits: {constants: ["OFF", "SEVERE", "NORMAL", "INFORMATION"]}
+    pdf_pages: [124, 139, 144]
+    printed_pages: ["4-48", "4-63", "4-68"]
+    notes: "NORMAL is default for setWarningLevel."
+    implementation_status: "documented"
+
+  - name: "WGFMU_treatWarningsAsErrors"
+    type: "function"
+    purpose: "Promote warnings at or above a selected warning level to errors."
+    parameters:
+      - {name: "level", type: "int", units: "constant", limits: "OFF none; SEVERE severe only; NORMAL normal+severe; INFORMATION all"}
+    returns: "int status/error code"
+    units: {}
+    limits: {constants: ["OFF", "SEVERE", "NORMAL", "INFORMATION"]}
+    pdf_pages: [139]
+    printed_pages: ["4-63"]
+    notes: "Example 4 promotes severe warnings."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getWarningSummarySize / WGFMU_getWarningSummary"
+    type: "function"
+    purpose: "Read accumulated warnings as one string."
+    parameters:
+      - {name: "size", type: "int*", units: "characters", limits: "string buffer sizing"}
+      - {name: "warningSummary", type: "char*", units: "string", limits: "must be allocated by caller"}
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [124, 125]
+    printed_pages: ["4-48", "4-49"]
+    notes: "Use with warning-level configuration during validation."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setOperationMode / WGFMU_getOperationMode"
+    type: "function"
+    purpose: "Set or read operation mode of a WGFMU channel."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "mode", type: "int", units: "constant", limits: "DC=2000, FASTIV=2001, PG=2002, SMU=2003"}
+    returns: "int status/error code"
+    units: {}
+    limits:
+      modes:
+        DC: "VFIM or VFVM DC force/measure"
+        FASTIV: "VFIM or VFVM arbitrary waveform + fast measurement"
+        PG: "VFVM only; output divided by 50 ohm source/load impedance"
+        SMU: "SMU pass-through; default mode"
+    pdf_pages: [119, 133, 145]
+    printed_pages: ["4-43", "4-57", "4-69"]
+    notes: "Current measurement requires Fast IV or DC mode."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setForceVoltageRange / WGFMU_getForceVoltageRange"
+    type: "function"
+    purpose: "Set or read voltage output range."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "range", type: "int", units: "constant", limits: "AUTO=3000, 3V=3001, 5V=3002, -10V=3003, +10V=3004"}
+    returns: "int status/error code"
+    units: {voltage: "V"}
+    limits:
+      pg_mode_available: ["3V", "5V"]
+      fastiv_dc_available: ["3V", "5V", "-10V", "+10V"]
+      resolution_3v_uV: 96
+      resolution_other_uV: 160
+    pdf_pages: [107, 128, 142, 146]
+    printed_pages: ["4-31", "4-53", "4-66", "4-70"]
+    notes: "AUTO is default."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setMeasureMode / WGFMU_getMeasureMode"
+    type: "function"
+    purpose: "Set or read measurement mode: voltage or current."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "mode", type: "int", units: "constant", limits: "VOLTAGE=4000, CURRENT=4001"}
+    returns: "int status/error code"
+    units: {}
+    limits:
+      current_mode: "Fast IV/DC only"
+      default: "VOLTAGE"
+    pdf_pages: [114, 131, 132, 147]
+    printed_pages: ["4-38", "4-56", "4-71"]
+    notes: "Changing to current mode auto-sets voltage range to 5 V."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setMeasureCurrentRange / WGFMU_getMeasureCurrentRange"
+    type: "function"
+    purpose: "Set or read current measurement range."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "range", type: "int", units: "constant", limits: "1uA=6001, 10uA=6002, 100uA=6003, 1mA=6004, 10mA=6005"}
+    returns: "int status/error code"
+    units: {current: "A"}
+    limits:
+      ranges: ["1 uA", "10 uA", "100 uA", "1 mA", "10 mA"]
+      default: "10 mA"
+    pdf_pages: [108, 129, 148]
+    printed_pages: ["4-32", "4-53", "4-72"]
+    notes: "Not effective in voltage measurement mode."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setMeasureVoltageRange / WGFMU_getMeasureVoltageRange"
+    type: "function"
+    purpose: "Set or read voltage measurement range."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "range", type: "int", units: "constant", limits: "5V=5001, 10V=5002"}
+    returns: "int status/error code"
+    units: {voltage: "V"}
+    limits: {ranges: ["5 V", "10 V"], default: "10 V"}
+    pdf_pages: [118, 132, 147]
+    printed_pages: ["4-42", "4-56", "4-71"]
+    notes: "Not effective in current measurement mode."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setForceDelay / WGFMU_getForceDelay"
+    type: "function"
+    purpose: "Set or read source-channel device delay."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "delay", type: "double", units: "s", limits: "-50 ns to +50 ns, 625 ps resolution"}
+    returns: "int status/error code"
+    units: {delay: "s"}
+    limits: {min_s: -0.00000005, max_s: 0.00000005, resolution_s: 0.000000000625}
+    pdf_pages: [105, 128]
+    printed_pages: ["4-29", "4-52"]
+    notes: "Values not multiples of 625 ps are rounded."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setMeasureDelay / WGFMU_getMeasureDelay"
+    type: "function"
+    purpose: "Set or read measurement-channel device delay."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "delay", type: "double", units: "s", limits: "-50 ns to +50 ns, 625 ps resolution"}
+    returns: "int status/error code"
+    units: {delay: "s"}
+    limits: {min_s: -0.00000005, max_s: 0.00000005, resolution_s: 0.000000000625}
+    pdf_pages: [108, 109, 129]
+    printed_pages: ["4-33", "4-53"]
+    notes: "Used to align force/measurement timing in Fast IV or PG mode."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setMeasureEnabled / WGFMU_isMeasureEnabled"
+    type: "function"
+    purpose: "Enable/disable or read whether a channel can perform measurement."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "status", type: "int", units: "constant", limits: "DISABLE=7000, ENABLE=7001"}
+    returns: "int status/error code; isMeasureEnabled returns status"
+    units: {}
+    limits: {default: "ENABLE", not_available_for: "DC mode"}
+    pdf_pages: [126, 130, 149]
+    printed_pages: ["4-50", "4-54", "4-73"]
+    notes: "DISABLE prevents measurement even if pattern contains measurement events."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setTriggerOutMode / WGFMU_getTriggerOutMode"
+    type: "function"
+    purpose: "Set or read trigger output mode and polarity for a channel."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "mode", type: "int", units: "constant", limits: "DISABLE=8000, START_EXECUTION=8001, START_SEQUENCE=8002, START_PATTERN=8003, EVENT=8004"}
+      - {name: "polarity", type: "int", units: "constant", limits: "POSITIVE=8100, NEGATIVE=8101"}
+    returns: "int status/error code"
+    units: {}
+    limits: {default_mode: "DISABLE", default_polarity: "POSITIVE"}
+    pdf_pages: [124, 136, 149]
+    printed_pages: ["4-48", "4-60", "4-73"]
+    notes: "EVENT mode is required for setTriggerOutEvent."
+    implementation_status: "documented"
+
+  - name: "WGFMU_connect / WGFMU_disconnect"
+    type: "function"
+    purpose: "Enable or disable the specified WGFMU channel and connected RSU."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [91, 96]
+    printed_pages: ["4-15", "4-21"]
+    notes: "Online execution requires connecting channels after setup."
+    implementation_status: "documented"
+
+  - name: "WGFMU_createPattern"
+    type: "function"
+    purpose: "Create a named waveform pattern with an initial voltage at time zero."
+    parameters:
+      - {name: "pattern", type: "string", units: "name", limits: "must be unique"}
+      - {name: "initV", type: "double", units: "V", limits: "must fit force voltage range at validation"}
+    returns: "int status/error code"
+    units: {voltage: "V"}
+    limits: {unique_pattern_name_required: true}
+    pdf_pages: [94]
+    printed_pages: ["4-18"]
+    notes: "Pattern is the base container for vectors and events."
+    implementation_status: "documented"
+
+  - name: "WGFMU_addVector / WGFMU_addVectors"
+    type: "function"
+    purpose: "Append one or more incremental time/voltage scalar points to a pattern."
+    parameters:
+      - {name: "pattern", type: "string", units: "name", limits: "pattern must exist"}
+      - {name: "dTime", type: "double", units: "s", limits: "10 ns to 10995.11627775 s; 10 ns resolution"}
+      - {name: "voltage", type: "double", units: "V", limits: "must fit selected force range"}
+      - {name: "size", type: "int", units: "count", limits: "addVectors only"}
+    returns: "int status/error code"
+    units: {time: "s", voltage: "V"}
+    limits: {dTime_min_s: 0.00000001, dTime_max_s: 10995.11627775, resolution_s: 0.00000001}
+    pdf_pages: [88, 89, 159]
+    printed_pages: ["4-12", "4-13", "4-83"]
+    notes: "dTime is incremental from previous vector. Non-10 ns values are rounded; firmware limit from error 3311 is more precise than rounded spec table."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setVector / WGFMU_setVectors"
+    type: "function"
+    purpose: "Add or replace absolute-time scalar points in a pattern."
+    parameters:
+      - {name: "pattern", type: "string", units: "name", limits: "pattern must exist"}
+      - {name: "time", type: "double", units: "s", limits: "absolute time; 10 ns resolution"}
+      - {name: "voltage", type: "double", units: "V", limits: "must fit selected force range"}
+      - {name: "size", type: "int", units: "count", limits: "setVectors only"}
+    returns: "int status/error code"
+    units: {time: "s", voltage: "V"}
+    limits: {resolution_s: 0.00000001}
+    pdf_pages: [137, 138]
+    printed_pages: ["4-61", "4-62"]
+    notes: "time=0 replaces initial voltage; latest scalar at same time wins."
+    implementation_status: "documented"
+
+  - name: "WGFMU_createMergedPattern"
+    type: "function"
+    purpose: "Create a new pattern by merging two existing patterns in time or voltage direction."
+    parameters:
+      - {name: "pattern", type: "string", units: "new name", limits: "must be unique"}
+      - {name: "pattern1", type: "string", units: "name", limits: "must exist"}
+      - {name: "pattern2", type: "string", units: "name", limits: "must exist"}
+      - {name: "direction", type: "int", units: "constant", limits: "AXIS_TIME=9000, AXIS_VOLTAGE=9001"}
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [91, 92, 150]
+    printed_pages: ["4-15", "4-16", "4-74"]
+    notes: "AXIS_TIME concatenates and deletes pattern2 first point; AXIS_VOLTAGE adds voltages and extends shorter pattern with its last value. Event overwrite behavior can matter."
+    implementation_status: "documented"
+
+  - name: "WGFMU_createMultipliedPattern"
+    type: "function"
+    purpose: "Create scaled copy of an existing pattern by multiplying time and voltage."
+    parameters:
+      - {name: "pattern", type: "string", units: "new name", limits: "must be unique"}
+      - {name: "origin", type: "string", units: "source name", limits: "must exist"}
+      - {name: "factorT", type: "double", units: "multiplier", limits: "negative values reverse time"}
+      - {name: "factorV", type: "double", units: "multiplier", limits: "resulting voltage must fit range"}
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [92, 93]
+    printed_pages: ["4-16", "4-17"]
+    notes: "Event time/interval/average scale by factorT; measurement point count unchanged. Negative factorT uses recalculated measurement timing."
+    implementation_status: "documented"
+
+  - name: "WGFMU_createOffsetPattern"
+    type: "function"
+    purpose: "Create shifted copy of an existing pattern by adding time and voltage offsets."
+    parameters:
+      - {name: "pattern", type: "string", units: "new name", limits: "must be unique"}
+      - {name: "origin", type: "string", units: "source name", limits: "must exist"}
+      - {name: "offsetT", type: "double", units: "s", limits: "positive inserts initial-voltage vector; negative trims beginning"}
+      - {name: "offsetV", type: "double", units: "V", limits: "resulting voltage must fit range"}
+    returns: "int status/error code"
+    units: {time: "s", voltage: "V"}
+    limits: {}
+    pdf_pages: [93, 94]
+    printed_pages: ["4-17", "4-18"]
+    notes: "Measurement event time is shifted by offsetT."
+    implementation_status: "documented"
+
+  - name: "WGFMU_addSequence / WGFMU_addSequences"
+    type: "function"
+    purpose: "Add pattern and repeat count to source output sequence for a WGFMU channel."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "pattern", type: "string or string[]", units: "name", limits: "pattern must exist"}
+      - {name: "count", type: "double or double[]", units: "loop count", limits: "1 to 1099511627776; rounded to nearest integer"}
+      - {name: "size", type: "int", units: "array count", limits: "addSequences only"}
+    returns: "int status/error code"
+    units: {time: "s"}
+    limits:
+      count_min: 1
+      count_max: 1099511627776
+      inter_sequence_delay_s: 0.00000005
+    pdf_pages: [85, 86, 87]
+    printed_pages: ["4-9", "4-10", "4-11"]
+    notes: "No delay between repeats of the same sequence; 50 ns delay between different sequences: 10 ns last voltage + 40 ns next initial voltage."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setMeasureEvent"
+    type: "function"
+    purpose: "Define sampling measurement event performed while outputting a waveform pattern."
+    parameters:
+      - {name: "pattern", type: "string", units: "name", limits: "pattern must exist"}
+      - {name: "event", type: "string", units: "name", limits: "not unique; can be reused"}
+      - {name: "time", type: "double", units: "s", limits: "0 to total pattern time; 10 ns resolution"}
+      - {name: "points", type: "int", units: "samples", limits: "positive; total stored data about 4M/channel typical"}
+      - {name: "interval", type: "double", units: "s", limits: "10 ns to 1.34217728 s; 10 ns resolution"}
+      - {name: "average", type: "double", units: "s", limits: "0 or 10 ns to 0.020971512 s; <= interval; 10 ns resolution"}
+      - {name: "rdata", type: "int", units: "constant", limits: "AVERAGED=12000, RAW=12001"}
+    returns: "int status/error code"
+    units: {time: "s", interval: "s", average: "s"}
+    limits:
+      interval_min_s: 0.00000001
+      interval_max_s: 1.34217728
+      average_min_nonzero_s: 0.00000001
+      average_max_s: 0.020971512
+      resolution_s: 0.00000001
+      hardware_memory_typical_points_per_channel: 4000000
+    pdf_pages: [130, 131, 151]
+    printed_pages: ["4-54", "4-55", "4-56", "4-75"]
+    notes: "eventEndTime = time + interval*(points-1) + average; if average=0, add 10 ns. Nonzero averaging samples at 5 ns intervals; reported averaged time is midpoint. RAW data count = points*(1+int(average/(5 ns))). Adjacent events changing averaging need >=100 ns between start times."
+    implementation_status: "documented_key_function"
+
+  - name: "WGFMU_setRangeEvent"
+    type: "function"
+    purpose: "Define current-measurement range change during a waveform pattern."
+    parameters:
+      - {name: "pattern", type: "string", units: "name", limits: "pattern must exist"}
+      - {name: "event", type: "string", units: "name", limits: "range event name"}
+      - {name: "time", type: "double", units: "s", limits: "0 to total pattern time; 10 ns resolution"}
+      - {name: "range", type: "int", units: "constant", limits: "current range constants 6001-6005"}
+    returns: "int status/error code"
+    units: {time: "s"}
+    limits:
+      event_end_time: "time + 10 ns"
+      consecutive_range_changes_min_spacing_s: "> 2 us for three or more continuous changes"
+    pdf_pages: [133, 134]
+    printed_pages: ["4-57", "4-58"]
+    notes: "Fast IV current measurement only. Range event must be outside averaging period of a measurement event."
+    implementation_status: "documented"
+
+  - name: "WGFMU_setTriggerOutEvent"
+    type: "function"
+    purpose: "Define event-trigger output timing within a waveform pattern."
+    parameters:
+      - {name: "pattern", type: "string", units: "name", limits: "pattern must exist"}
+      - {name: "event", type: "string", units: "name", limits: "trigger event name"}
+      - {name: "time", type: "double", units: "s", limits: "0 to total pattern time; 10 ns resolution"}
+      - {name: "duration", type: "double", units: "s", limits: "duration of trigger output"}
+    returns: "int status/error code"
+    units: {time: "s", duration: "s"}
+    limits: {requires_trigger_mode: "WGFMU_TRIGGER_OUT_MODE_EVENT"}
+    pdf_pages: [135, 136]
+    printed_pages: ["4-59", "4-60"]
+    notes: "If time=duration=0, trigger is output when initial voltage of pattern starts."
+    implementation_status: "documented"
+
+  - name: "WGFMU_update / WGFMU_updateChannel"
+    type: "function"
+    purpose: "Apply pending setup and output initial voltage for all or one WGFMU channel."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "updateChannel only; 101 to 1002"}
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [140]
+    printed_pages: ["4-64"]
+    notes: "One of the functions that performs deferred high-limit setup validation."
+    implementation_status: "documented"
+
+  - name: "WGFMU_execute"
+    type: "function"
+    purpose: "Run sequencer of all enabled WGFMU channels in Fast IV or PG mode."
+    parameters: []
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [99]
+    printed_pages: ["4-23"]
+    notes: "If channels are already running, execute stops and restarts. Channels keep last voltage after completion. Also applies pending setup."
+    implementation_status: "documented"
+
+  - name: "WGFMU_waitUntilCompleted"
+    type: "function"
+    purpose: "Block until all connected channels complete and data is ready."
+    parameters: []
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [141]
+    printed_pages: ["4-65"]
+    notes: "Errors if no sequencer is running or no Fast IV/PG channel is connected."
+    implementation_status: "documented"
+
+  - name: "WGFMU_abort / WGFMU_abortChannel"
+    type: "function"
+    purpose: "Stop sequencer on all or specified WGFMU channels."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "abortChannel only; 101 to 1002"}
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [85]
+    printed_pages: ["4-9"]
+    notes: "After abort, channels keep output voltage at the moment abort executed."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getStatus / WGFMU_getChannelStatus"
+    type: "function"
+    purpose: "Read overall or channel execution status."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "getChannelStatus only; 101 to 1002"}
+      - {name: "status", type: "int*", units: "constant", limits: "10000-10006 status codes"}
+      - {name: "elapsedTime", type: "double*", units: "s", limits: "channel status only"}
+      - {name: "totalTime", type: "double*", units: "s", limits: "channel status only"}
+    returns: "int status/error code"
+    units: {time: "s"}
+    limits: {status_codes: ["COMPLETED=10000", "DONE=10001", "RUNNING=10002", "ABORT_COMPLETED=10003", "ABORTED=10004", "RUNNING_ILLEGAL=10005", "IDLE=10006"]}
+    pdf_pages: [101, 102, 123, 154, 155]
+    printed_pages: ["4-25", "4-26", "4-47", "4-78", "4-79"]
+    notes: "Data cannot be read in RUNNING_ILLEGAL or IDLE."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getCompletedMeasureEventSize"
+    type: "function"
+    purpose: "Read number of completed measurement events and total measurement events."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "completed", type: "int*", units: "events", limits: "completed event count"}
+      - {name: "total", type: "int*", units: "events", limits: "total event count"}
+    returns: "int status/error code"
+    units: {events: "count"}
+    limits: {}
+    pdf_pages: [102, 152]
+    printed_pages: ["4-26", "4-76"]
+    notes: "Useful for long stress/measurement sequences."
+    implementation_status: "documented"
+
+  - name: "WGFMU_isMeasureEventCompleted"
+    type: "function"
+    purpose: "Check whether a specific measurement event has completed and return its data index and length."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "pattern", type: "string", units: "name", limits: "pattern name"}
+      - {name: "event", type: "string", units: "name", limits: "event name"}
+      - {name: "cycle", type: "int", units: "count", limits: "pattern usage count"}
+      - {name: "loop", type: "double", units: "count", limits: "pattern loop count"}
+      - {name: "count", type: "int", units: "count", limits: "event count"}
+      - {name: "complete", type: "int*", units: "constant", limits: "NOT_COMPLETED=11000, COMPLETED=11001"}
+      - {name: "measId", type: "int*", units: "event index", limits: "used with getMeasureEventAttribute"}
+      - {name: "index", type: "int*", units: "data index", limits: "first data index for event"}
+      - {name: "size", type: "int*", units: "points", limits: "event data length"}
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [126, 127, 151]
+    printed_pages: ["4-50", "4-51", "4-75"]
+    notes: "Example 8 uses this for event-specific partial data retrieval."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getMeasureEventSize / WGFMU_getMeasureEvent / WGFMU_getMeasureEvents / WGFMU_getMeasureEventAttribute"
+    type: "function"
+    purpose: "Read measurement-event setup and attributes from channel sequence data."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "measId", type: "int", units: "event index", limits: "0 to total events - 1"}
+      - {name: "eventsNo", type: "int*", units: "count", limits: "getMeasureEvents only"}
+      - {name: "pattern/event", type: "char* or char**", units: "names", limits: "caller-allocated buffers"}
+      - {name: "cycle/loop/count/index/length", type: "output", units: "counts/index/points", limits: "event metadata"}
+      - {name: "time/points/interval/average/rdata", type: "output", units: "setMeasureEvent attributes", limits: "attribute readback"}
+    returns: "int status/error code"
+    units: {time: "s", interval: "s", average: "s"}
+    limits: {}
+    pdf_pages: [109, 110, 111, 112, 113]
+    printed_pages: ["4-33", "4-34", "4-35", "4-36", "4-37"]
+    notes: "getMeasureEventAttribute returns raw setMeasureEvent parameters."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getMeasureTimeSize / WGFMU_getMeasureTime / WGFMU_getMeasureTimes"
+    type: "function"
+    purpose: "Read measurement start times defined in sequences for a channel."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "index", type: "int", units: "point index", limits: "range must fit available measurement times"}
+      - {name: "size", type: "int* or int", units: "count", limits: "size read or requested count"}
+      - {name: "time", type: "double* or double[]", units: "s", limits: "measurement times"}
+    returns: "int status/error code"
+    units: {time: "s"}
+    limits: {}
+    pdf_pages: [114, 115, 116]
+    printed_pages: ["4-38", "4-39", "4-40"]
+    notes: "Sequence-level timing readback useful for preflight validation."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getMeasureValueSize / WGFMU_getMeasureValue / WGFMU_getMeasureValues"
+    type: "function"
+    purpose: "Read actual measurement data as time and voltage/current values."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "index", type: "int", units: "data index", limits: "0 to available points - 1"}
+      - {name: "size", type: "int* or int", units: "points", limits: "measured count or requested count"}
+      - {name: "time", type: "double* or double[]", units: "s", limits: "measurement time(s)"}
+      - {name: "value", type: "double* or double[]", units: "V or A", limits: "depends on measurement mode"}
+    returns: "int status/error code"
+    units: {time: "s", value: "V or A"}
+    limits: {data_unreadable_statuses: ["RUNNING_ILLEGAL", "IDLE"]}
+    pdf_pages: [116, 117, 118]
+    printed_pages: ["4-40", "4-41", "4-42"]
+    notes: "getMeasureValueSize returns measured count and total count; use for partial reads."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getForceValueSize / WGFMU_getForceValue / WGFMU_getForceValues"
+    type: "function"
+    purpose: "Read sequence-level force setup data as time and voltage points."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "index", type: "int", units: "point index", limits: "0 to available force points - 1"}
+      - {name: "size", type: "int* or double*", units: "count", limits: "function-specific"}
+      - {name: "time", type: "double* or double[]", units: "s", limits: "force point time"}
+      - {name: "voltage", type: "double* or double[]", units: "V", limits: "force voltage"}
+    returns: "int status/error code"
+    units: {time: "s", voltage: "V"}
+    limits: {}
+    pdf_pages: [105, 106, 107]
+    printed_pages: ["4-29", "4-30", "4-31"]
+    notes: "Sequence-level setup readback, not actual measured output."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getInterpolatedForceValue"
+    type: "function"
+    purpose: "Read interpolated voltage applied by a channel at an arbitrary time."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "time", type: "double", units: "s", limits: "0 to channel waveform length"}
+      - {name: "voltage", type: "double*", units: "V", limits: "returned interpolated force voltage"}
+    returns: "int status/error code"
+    units: {time: "s", voltage: "V"}
+    limits: {}
+    pdf_pages: [107, 108]
+    printed_pages: ["4-31", "4-32"]
+    notes: "Used by writeResults3 helper to correlate measured data with forced voltage."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getPatternForceValueSize / WGFMU_getPatternForceValue / WGFMU_getPatternForceValues"
+    type: "function"
+    purpose: "Read pattern-level force setup points as time and voltage."
+    parameters:
+      - {name: "pattern", type: "string", units: "name", limits: "pattern must exist"}
+      - {name: "index", type: "int", units: "point index", limits: "0 to available pattern points - 1"}
+      - {name: "size", type: "int* or int", units: "count", limits: "function-specific"}
+      - {name: "time", type: "double* or double[]", units: "s", limits: "pattern force point time"}
+      - {name: "voltage", type: "double* or double[]", units: "V", limits: "pattern force voltage"}
+    returns: "int status/error code"
+    units: {time: "s", voltage: "V"}
+    limits: {}
+    pdf_pages: [119, 120, 121]
+    printed_pages: ["4-43", "4-44", "4-45"]
+    notes: "Pattern-level, before channel sequence expansion."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getPatternInterpolatedForceValue"
+    type: "function"
+    purpose: "Read interpolated pattern voltage at specified time."
+    parameters:
+      - {name: "pattern", type: "string", units: "name", limits: "pattern must exist"}
+      - {name: "time", type: "double", units: "s", limits: "0 to pattern length"}
+      - {name: "voltage", type: "double*", units: "V", limits: "returned interpolated voltage"}
+    returns: "int status/error code"
+    units: {time: "s", voltage: "V"}
+    limits: {}
+    pdf_pages: [121]
+    printed_pages: ["4-45"]
+    notes: "Pattern-level interpolation."
+    implementation_status: "documented"
+
+  - name: "WGFMU_getPatternMeasureTimeSize / WGFMU_getPatternMeasureTime / WGFMU_getPatternMeasureTimes"
+    type: "function"
+    purpose: "Read pattern-level measurement start times."
+    parameters:
+      - {name: "pattern", type: "string", units: "name", limits: "pattern must exist"}
+      - {name: "index", type: "int", units: "point index", limits: "0 to available pattern measurement points - 1"}
+      - {name: "size", type: "int* or int", units: "count", limits: "function-specific"}
+      - {name: "time", type: "double* or double[]", units: "s", limits: "measurement start times"}
+    returns: "int status/error code"
+    units: {time: "s"}
+    limits: {}
+    pdf_pages: [121, 122, 123]
+    printed_pages: ["4-45", "4-46", "4-47"]
+    notes: "Pattern-level event timing readback."
+    implementation_status: "documented"
+
+  - name: "WGFMU_exportAscii"
+    type: "function"
+    purpose: "Export setup summary report as CSV file."
+    parameters:
+      - {name: "fileName", type: "string", units: "path", limits: "valid output path"}
+    returns: "int status/error code"
+    units: {}
+    limits: {}
+    pdf_pages: [99, 100]
+    printed_pages: ["4-23", "4-24"]
+    notes: "Exports pattern, event, and sequence setup. Figure 4-1 CSV sample is OCR-garbled; exact columns require image extraction."
+    implementation_status: "documented_with_ocr_limitation"
+
+  - name: "WGFMU_dcforceVoltage"
+    type: "function"
+    purpose: "Start immediate DC voltage output using a specified WGFMU channel."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "voltage", type: "double", units: "V", limits: "must fit force voltage range"}
+    returns: "int status/error code"
+    units: {voltage: "V"}
+    limits: {operation_mode: "DC only"}
+    pdf_pages: [95, 76]
+    printed_pages: ["4-19", "3-30"]
+    notes: "DC flow avoids pattern/sequence creation."
+    implementation_status: "documented"
+
+  - name: "WGFMU_dcmeasureValue"
+    type: "function"
+    purpose: "Start immediate single-point voltage or current measurement using a WGFMU channel."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "value", type: "double*", units: "V or A", limits: "depends on measure mode"}
+    returns: "int status/error code"
+    units: {value: "V or A"}
+    limits: {operation_mode: "DC only"}
+    pdf_pages: [96, 76]
+    printed_pages: ["4-20", "3-30"]
+    notes: "Immediate spot measurement."
+    implementation_status: "documented"
+
+  - name: "WGFMU_dcmeasureAveragedValue"
+    type: "function"
+    purpose: "Start immediate averaged DC sampling measurement and return average value."
+    parameters:
+      - {name: "chanId", type: "int", units: "channel id", limits: "101 to 1002"}
+      - {name: "points", type: "int", units: "samples", limits: "1 to 65535"}
+      - {name: "interval", type: "int", units: "5 ns ticks", limits: "1 to 65535"}
+      - {name: "value", type: "double*", units: "V or A", limits: "depends on measure mode"}
+    returns: "int status/error code"
+    units: {interval: "5 ns ticks", value: "V or A"}
+    limits: {points_min: 1, points_max: 65535, interval_min_ticks: 1, interval_max_ticks: 65535, operation_mode: "DC only"}
+    pdf_pages: [95, 96, 76]
+    printed_pages: ["4-19", "4-20", "3-30"]
+    notes: "Manual describes interval as 1-65535 multiplied by 5 ns."
+    implementation_status: "documented"
+
+  - name: "Operation mode constants"
+    type: "concept"
+    purpose: "Define channel mode behavior for tooling state machines."
+    parameters: []
+    returns: "N/A"
+    units: {}
+    limits:
+      WGFMU_OPERATION_MODE_DC: 2000
+      WGFMU_OPERATION_MODE_FASTIV: 2001
+      WGFMU_OPERATION_MODE_PG: 2002
+      WGFMU_OPERATION_MODE_SMU: 2003
+    pdf_pages: [145]
+    printed_pages: ["4-69"]
+    notes: "SMU mode is default; most WGFMU measurement functions not valid in SMU mode."
+    implementation_status: "documented_constant_table"
+
+  - name: "Channel ID mapping"
+    type: "concept"
+    purpose: "Map B1500A slot/channel to WGFMU chanId."
+    parameters: []
+    returns: "N/A"
+    units: {}
+    limits: {slot_range: "1-10", channel_per_module: 2, chanId_range: "101-1002"}
+    pdf_pages: [142, 143]
+    printed_pages: ["4-67"]
+    notes: "Formula: slot N Ch1 = N*100+1; slot N Ch2 = N*100+2."
+    implementation_status: "documented_constant_table"
+
+  - name: "WGMA?"
+    type: "internal_command"
+    purpose: "Undocumented low-level query referenced by firmware error message for query size."
+    parameters: []
+    returns: "unknown"
+    units: {}
+    limits: {known_only_from_error: "query size out of absolute limits"}
+    pdf_pages: [161]
+    printed_pages: ["4-85"]
+    notes: "Manual does not define syntax or behavior. Likely used internally by library for data query. PDF places this under 'Self-test/Calibration Error' header but the error relates to internal command operation."
+    implementation_status: "undocumented_inferred_from_error_message"
+
+  - name: "WGMB?"
+    type: "internal_command"
+    purpose: "Undocumented low-level query referenced by firmware error message for query size."
+    parameters: []
+    returns: "unknown"
+    units: {}
+    limits: {known_only_from_error: "query size out of absolute limits"}
+    pdf_pages: [161]
+    printed_pages: ["4-85"]
+    notes: "Manual does not define syntax or behavior. Likely used internally by library for data query. PDF places this under 'Self-test/Calibration Error' header but the error relates to internal command operation."
+    implementation_status: "undocumented_inferred_from_error_message"
+
+  - name: "WGMS?"
+    type: "internal_command"
+    purpose: "Undocumented low-level spot-measurement query/command referenced by error messages."
+    parameters:
+      - {name: "count", type: "unknown", units: "count", limits: "out-of-limit error 3325"}
+      - {name: "interval", type: "unknown", units: "unknown", limits: "out-of-limit error 3326"}
+      - {name: "operation_mode", type: "unknown", units: "mode", limits: "must be DC per error 3327"}
+    returns: "unknown"
+    units: {}
+    limits: {operation_mode: "DC only"}
+    pdf_pages: [161]
+    printed_pages: ["4-85"]
+    notes: "Manual does not define syntax or behavior. It may underlie DC spot/averaged measurement functions. PDF places these error messages under 'Self-test/Calibration Error' section header on page 161, but the errors relate to internal command operations."
+    implementation_status: "undocumented_inferred_from_error_message"
+
+  - name: "Two-level parameter validation"
+    type: "concept"
+    purpose: "Describe when WGFMU library checks parameter validity: immediate lowest-limit check vs deferred highest-limit check."
+    parameters: []
+    returns: "N/A"
+    units: {}
+    limits:
+      lowest_limit_check: "At function call time (immediate)"
+      highest_limit_check: "At execute, exportAscii, or update/updateChannel time (deferred)"
+    pdf_pages: [153]
+    printed_pages: ["4-77"]
+    notes: "Some parameter errors are not detected until execute/export/update. Tooling should run exportAscii or update before relying on waveform validity."
+    implementation_status: "documented_concept"
+
+  - name: "Self-test/calibration return codes"
+    type: "concept"
+    purpose: "Define PASS/FAIL return code constants used by doSelfCalibration and doSelfTest."
+    parameters: []
+    returns: "N/A"
+    units: {}
+    limits:
+      WGFMU_PASS: 0
+      WGFMU_FAIL: 1
+    pdf_pages: [154]
+    printed_pages: ["4-78"]
+    notes: "Table 4-16. These are the high-level result constants; the bitmask in the 'result' parameter provides slot-level detail."
+    implementation_status: "documented_constant_table"
+
+opus_review:
+  reviewer: "opus-4.6-max"
+  review_date: "2026-06-22"
+  passes_completed: 5
+  verification_method: "Multi-pass: (1) schema/field audit of all 50+ API items, (2) index cross-reference for function coverage, (3) PDF verification of setMeasureEvent parameters, doSelfCalibration/Test signatures, dcmeasureAveragedValue, error-code-revealed internal commands, (4) targeted corrections, (5) YAML syntax validation"
+  items_verified_against_pdf:
+    - "setMeasureEvent: interval 10ns-1.34217728s, average 0 or 10ns-0.020971512s, 5ns internal sampling, eventEndTime formula confirmed on PDF 130-131"
+    - "doSelfCalibration/doSelfTest: 3-parameter signature (result, detail, size) confirmed on PDF 97-98"
+    - "dcmeasureAveragedValue: points 1-65535, interval 1-65535 ×5ns confirmed on PDF 95-96"
+    - "WGMA?/WGMB?/WGMS? on PDF page 161 confirmed"
+    - "Operation mode constants DC=2000, FASTIV=2001, PG=2002, SMU=2003 confirmed on PDF 145"
+    - "Channel ID range 101-1002 and slot mapping confirmed on PDF 142-143"
+    - "Force voltage range constants AUTO=3000 through +10V=3004 confirmed on PDF 146"
+  corrections_made:
+    - "Added missing 'size' parameter to doSelfCalibration and doSelfTest"
+    - "Corrected pdf_pages for WGMA?/WGMB?/WGMS? from [160] to [161] based on PDF page boundary verification"
+    - "Added 'Two-level parameter validation' concept entry (PDF 153)"
+    - "Added 'Self-test/calibration return codes' concept entry (PDF 154)"
+    - "Improved returns field for doSelfCalibration/doSelfTest to clarify status vs result semantics"
+  remaining_uncertainties:
+    - "WGMA?/WGMB?/WGMS? internal command parameter details remain unknown"
+    - "Exact behavior of 'size' parameter truncation warning in doSelfCalibration/doSelfTest not tested"
+    - "HTBasic function name mappings are not exhaustively covered"
+    - "C# WGFMU.name form not fully cross-referenced"
+  completeness: "All ~50 documented API functions from Table 4-1 are represented. Three undocumented internal commands are included. Two concept entries added for parameter validation and return codes. Coverage is comprehensive for C++ API form."

@@ -1,0 +1,621 @@
+metadata:
+  source_pdf: "B1500A Programming Guide.pdf"
+  manual: "Keysight B1500A/B1505A/B1506A/B1507A Device Analyzer Series Programming Guide"
+  edition: "Edition 15, May 2022"
+  extraction_date: "2026-06-22"
+  source_chapter: "Chapter 5 Error Messages"
+  source_pages:
+    operation_errors: "PDF 574-600 / printed 5-3 to 5-29"
+    self_test_calibration_errors: "PDF 601-615 / printed 5-30 to 5-44"
+  opus_review:
+    date: "2026-06-22"
+    reviewer: "opus-4.6-max"
+    passes: 5
+    corrections_applied:
+      - "Added category notes explaining what each code range covers"
+      - "Added gap_400_to_599 category documenting undocumented range"
+      - "Clarified coverage notes: ~40/150+ operation errors transcribed, code range extends to 6413+"
+      - "Added note that index description 'codes 100-999' is misleading"
+    remaining_uncertainties:
+      - "Individual error code pdf_page values were transcribed from a prior extraction pass; not all re-verified against PDF page markers"
+      - "Full row-by-row extraction still needed for complete coverage (estimated 150+ operation errors, 100+ self-test/cal errors)"
+      - "Some error messages may differ slightly from PDF due to multi-line normalization"
+  coverage:
+    status: "partial_sampled"
+    operation_error_coverage: "Representative high-value errors from PDF 574-600; approximately 40 of ~150+ operation errors transcribed. Focus on syntax/safety/interlock/data-flow errors most relevant to driver development."
+    self_test_calibration_coverage: "Range/category extraction plus representative module errors from PDF 601-615; not all N-prefixed and module-specific codes transcribed."
+    exact_gaps:
+      - "Full operation error table from PDF 574-600 still needs complete row-by-row extraction (estimated 150+ total codes)."
+      - "Full self-test/calibration table from PDF 601-615 still needs complete row-by-row extraction."
+      - "Some messages in the source span multiple lines; this YAML normalizes messages and recovery hints."
+      - "Codes 400-599 are not documented in the manual and are absent from this file."
+      - "The index description 'codes 100-999' for operation errors is misleading; actual operation errors extend to code 6413+."
+  parser_notes:
+    - "ERRX? returns error code and message; supports all error codes."
+    - "ERR? and EMG? support error code 0 to 999. If ERR? returns 999, call ERRX?."
+    - "ERR? 1 may encode slot number as a prefix, for example 1305 means error 305 in slot 1."
+
+categories:
+  - name: "syntax_and_parameter"
+    code_ranges: ["100-199", "200-299"]
+    source_pages: "PDF 574-581 / printed 5-3 to 5-10"
+    note: "Command syntax errors, bad numeric data, wrong parameter values, channel count issues."
+  - name: "hardware_channel_condition"
+    code_ranges: ["300-399"]
+    source_pages: "PDF 582-583 / printed 5-11 to 5-12"
+    note: "Power failure, excess current, interlock open errors, module/cable faults."
+  - name: "measurement_setup"
+    code_ranges: ["600-699"]
+    source_pages: "PDF 583-587 / printed 5-12 to 5-16"
+    note: "Incompatible settings, missing required commands, channel assignment conflicts, CMU/SPGU setup errors."
+  - name: "operation_or_extended_setup"
+    code_ranges: ["900-1022", "2000-2206", "3000-3327", "4304-5413", "6401-6413"]
+    source_pages: "PDF 587-600 / printed 5-16 to 5-29"
+    note: "Extended operation errors spanning SPGU (2000s), WGFMU (3000s), selector/expander (4000-6000s). These are all in the Operation Error chapter section, not the Self-test section."
+  - name: "self_test_calibration"
+    code_ranges: ["700-740", "935", "2400-2502", "3002-3508", "4501-4701", "5501-5701", "6501-6606", "N760-N933"]
+    source_pages: "PDF 601-615 / printed 5-30 to 5-44"
+    note: "Hardware diagnostic failures by module type. N-prefix codes are slot-encoded (N=slot number). These overlap in code numbers with operation errors but are in a separate chapter section."
+  - name: "gap_400_to_599"
+    code_ranges: ["400-599"]
+    source_pages: "Not listed in manual"
+    note: "Codes 400-599 do not appear in either the Operation Error or Self-test/Calibration sections. May be reserved or firmware-version-specific."
+
+errors:
+  - code: 0
+    message: "No error."
+    category: "none"
+    meaning: "Normal condition; no error is stored."
+    likely_causes: []
+    recovery_hint: "Continue."
+    pdf_page: 573
+    printed_page: "5-2"
+
+  - code: 100
+    message: "Undefined GPIB command."
+    category: "syntax_and_parameter"
+    meaning: "The command header is not recognized."
+    likely_causes: ["Typo", "Unsupported command", "Wrong command mode"]
+    recovery_hint: "Send the correct command."
+    pdf_page: 574
+    printed_page: "5-3"
+
+  - code: 102
+    message: "Incorrect numeric data syntax."
+    category: "syntax_and_parameter"
+    meaning: "Numeric parameter could not be parsed."
+    likely_causes: ["Malformed exponent", "Invalid sign", "Non-numeric token"]
+    recovery_hint: "Correct the numeric syntax."
+    pdf_page: 574
+    printed_page: "5-3"
+
+  - code: 103
+    message: "Incorrect terminator position."
+    category: "syntax_and_parameter"
+    meaning: "Command terminator appeared where more parameters or separators were expected."
+    likely_causes: ["Too few parameters", "Bad separator"]
+    recovery_hint: "Correct command syntax and parameter count."
+    pdf_page: 574
+    printed_page: "5-3"
+
+  - code: 120
+    message: "Incorrect parameter value."
+    category: "syntax_and_parameter"
+    meaning: "A parameter value is outside allowed values."
+    likely_causes: ["Invalid enum", "Out-of-range numeric value"]
+    recovery_hint: "Correct the parameter value using the command page or parameter tables."
+    pdf_page: 574
+    printed_page: "5-3"
+
+  - code: 121
+    message: "Channel number must be 1 to 10."
+    category: "syntax_and_parameter"
+    meaning: "A channel number outside the main slot range was supplied where only 1-10 is allowed."
+    likely_causes: ["Wrong slot number", "Subchannel number used in a command that requires slot number"]
+    recovery_hint: "Use a valid B1500 channel number."
+    pdf_page: 574
+    printed_page: "5-3"
+
+  - code: 122
+    message: "Number of channels must be corrected."
+    category: "syntax_and_parameter"
+    meaning: "Command received an invalid count of channel arguments."
+    likely_causes: ["Wrong number of channels for MM/FL/CN/CL/IN/DZ/RZ"]
+    recovery_hint: "Check the affected command and correct channel count."
+    pdf_page: 574
+    printed_page: "5-3"
+
+  - code: 126
+    message: "Pulse base and peak must be same polarity."
+    category: "syntax_and_parameter"
+    meaning: "Pulse base/peak polarity is invalid."
+    likely_causes: ["PI base and peak with opposite polarity", "PWI base/start/stop with mixed polarity"]
+    recovery_hint: "Set base/peak, or base/start/stop, to the same polarity."
+    pdf_page: 574
+    printed_page: "5-3"
+
+  - code: 130
+    message: "Start and stop must be same polarity."
+    category: "syntax_and_parameter"
+    meaning: "Log sweep requires start and stop to have same non-zero polarity."
+    likely_causes: ["WV/WI/WSV/WSI/WNX log sweep crosses zero"]
+    recovery_hint: "Use same polarity start/stop values; zero is not allowed for log sweep."
+    pdf_page: 575
+    printed_page: "5-4"
+
+  - code: 150
+    message: "Command input buffer is full."
+    category: "syntax_and_parameter"
+    meaning: "B1500 received too many characters in one command input."
+    likely_causes: ["Command string exceeds 256 characters including terminator"]
+    recovery_hint: "Split long command strings."
+    pdf_page: 575
+    printed_page: "5-4"
+
+  - code: 152
+    message: "Cannot use failed module."
+    category: "hardware_channel_condition"
+    meaning: "A module failed self-test or calibration and cannot be used normally."
+    likely_causes: ["Self-test failure", "Calibration failure"]
+    recovery_hint: "Use another module or execute RCV for service-purpose recovery."
+    pdf_page: 575
+    printed_page: "5-4"
+
+  - code: 153
+    message: "No module for the specified channel."
+    category: "hardware_channel_condition"
+    meaning: "The selected slot has no installed module."
+    likely_causes: ["Wrong channel number", "Missing module"]
+    recovery_hint: "Check installed modules with UNT? and correct channel mapping."
+    pdf_page: 575
+    printed_page: "5-4"
+
+  - code: 160
+    message: "Incorrect ST execution."
+    category: "program_memory"
+    meaning: "Internal program recording was started incorrectly."
+    likely_causes: ["ST sent between ST and END"]
+    recovery_hint: "Start program memory with ST and end it with END; do not nest ST."
+    pdf_page: 575
+    printed_page: "5-4"
+
+  - code: 162
+    message: "Incorrect command for program memory."
+    category: "program_memory"
+    meaning: "A command that cannot be stored was used inside program memory."
+    likely_causes: ["Invalid command between ST and END"]
+    recovery_hint: "Check Program Memory section on PDF 136-139 / printed 2-49 to 2-52."
+    pdf_page: 575
+    printed_page: "5-4"
+
+  - code: 200
+    message: "Channel output switch must be ON."
+    category: "measurement_setup"
+    meaning: "The command requires the channel output switch to be enabled."
+    likely_causes: ["CN/CNX not executed before source/measurement setup"]
+    recovery_hint: "Execute CN or CNX for the target channel before the command."
+    pdf_page: 576
+    printed_page: "5-5"
+
+  - code: 201
+    message: "Compliance must be set."
+    category: "measurement_setup"
+    meaning: "Compliance is required to change source output mode."
+    likely_causes: ["DV/DI mode change without compliance"]
+    recovery_hint: "Set a valid compliance value."
+    pdf_page: 576
+    printed_page: "5-5"
+
+  - code: 202
+    message: "Interlock circuit must be closed."
+    category: "safety_interlock"
+    meaning: "High voltage state requires a closed interlock circuit."
+    likely_causes: ["Output voltage or voltage compliance exceeds allowable interlock-open threshold"]
+    recovery_hint: "Close interlock circuit, or lower output/compliance below threshold."
+    pdf_page: 576
+    printed_page: "5-5"
+
+  - code: 203
+    message: "Cannot enable channel."
+    category: "safety_interlock"
+    meaning: "The output switch cannot be set ON in high voltage state."
+    likely_causes: ["High voltage state while enabling channel"]
+    recovery_hint: "Set output voltage/compliance to allowable interlock-open value or less."
+    pdf_page: 576
+    printed_page: "5-5"
+
+  - code: 205
+    message: "DZ must be sent before RZ."
+    category: "channel_control"
+    meaning: "RZ can only restore settings saved by a prior DZ."
+    likely_causes: ["RZ executed without DZ"]
+    recovery_hint: "Use DZ before RZ, or avoid RZ when no saved state exists."
+    pdf_page: 576
+    printed_page: "5-5"
+
+  - code: 210
+    message: "Ext trigger could not start measurement."
+    category: "trigger"
+    meaning: "External trigger could not start measurement because the instrument was busy."
+    likely_causes: ["Busy condition", "Trigger received at wrong time"]
+    recovery_hint: "Wait for operation completion and re-arm trigger."
+    pdf_page: 577
+    printed_page: "5-6"
+
+  - code: 214
+    message: "Send MM before measurement trigger."
+    category: "measurement_setup"
+    meaning: "Measurement mode must be selected before trigger."
+    likely_causes: ["XE or trigger sent before MM"]
+    recovery_hint: "Send MM with mode and measurement channels before trigger."
+    pdf_page: 577
+    printed_page: "5-6"
+
+  - code: 220
+    message: "Send WV or WI to set primary sweep source."
+    category: "measurement_setup"
+    meaning: "Primary staircase sweep source is missing."
+    likely_causes: ["MM2/MM5 setup incomplete", "WSV/WSI/WNX sent before WV/WI"]
+    recovery_hint: "Send WV or WI before triggering sweep or configuring sync source."
+    pdf_page: 577
+    printed_page: "5-6"
+
+  - code: 227
+    message: "Sweep measurement was aborted."
+    category: "execution"
+    meaning: "Sweep stopped due to automatic abort or power compliance."
+    likely_causes: ["Compliance", "Overflow", "Oscillation", "Power compliance"]
+    recovery_hint: "Check sweep data/status codes and abort settings."
+    pdf_page: 578
+    printed_page: "5-7"
+
+  - code: 238
+    message: "Too large pulse width (max. 2 s)."
+    category: "measurement_setup"
+    meaning: "Pulse width exceeds maximum."
+    likely_causes: ["PT pulse width too large"]
+    recovery_hint: "Set pulse width to an allowed value; see PT command."
+    pdf_page: 579
+    printed_page: "5-8"
+
+  - code: 260
+    message: "Data output buffer is full."
+    category: "data_buffer"
+    meaning: "The data output buffer exceeded capacity."
+    likely_causes: ["Too many measurement data items", "Data not read/cleared"]
+    recovery_hint: "Read data promptly, use NUB?, or clear with BC."
+    pdf_page: 580
+    printed_page: "5-9"
+
+  - code: 301
+    message: "Line power failure."
+    category: "hardware_channel_condition"
+    meaning: "Line power failure detected."
+    likely_causes: ["Power interruption"]
+    recovery_hint: "Check AC power and instrument state."
+    pdf_page: 582
+    printed_page: "5-11"
+
+  - code: 305
+    message: "Excess current in HPSMU."
+    category: "hardware_channel_condition"
+    meaning: "HPSMU detected current exceeding maximum for the current voltage range; all output switches were set OFF."
+    likely_causes: ["DUT short", "Incorrect compliance/range", "Unexpected device breakdown"]
+    recovery_hint: "Inspect DUT and range/compliance settings before re-enabling output."
+    pdf_page: 582
+    printed_page: "5-11"
+
+  - code: 310
+    message: "Interlock open operation error. Initialized."
+    category: "safety_interlock"
+    meaning: "Initialization was performed because output could not be set to 0 V when interlock opened in high voltage condition."
+    likely_causes: ["Interlock opened during high voltage", "Possible module fault"]
+    recovery_hint: "Perform self-test; service may be required."
+    pdf_page: 582
+    printed_page: "5-11"
+
+  - code: 323
+    message: "Use SSP instead of CN for SCUU modules."
+    category: "module_control"
+    meaning: "SCUU connected modules should be controlled via SSP, not CN."
+    likely_causes: ["CN used for SCUU path"]
+    recovery_hint: "Use SSP for SCUU output path control."
+    pdf_page: 582
+    printed_page: "5-11"
+
+  - code: 603
+    message: "Sweep and pulse channels must be different."
+    category: "measurement_setup"
+    meaning: "MM5 cannot use same channel for sweep source and pulse source."
+    likely_causes: ["Staircase sweep with pulsed bias configured with same channel"]
+    recovery_hint: "Set different sweep and pulse channels."
+    pdf_page: 583
+    printed_page: "5-12"
+
+  - code: 650
+    message: "Data format must be ASCII to get time data."
+    category: "data_format"
+    meaning: "Timestamp function is not available for binary output format."
+    likely_causes: ["TSC with FMT 3 or FMT 4"]
+    recovery_hint: "Set FMT to ASCII when timestamp data is required."
+    pdf_page: 584
+    printed_page: "5-13"
+
+  - code: 680
+    message: "CMU correction mode must be manual."
+    category: "cmu_correction"
+    meaning: "ADJ? correction requires manual CMU correction mode."
+    likely_causes: ["ADJ? executed while ADJ mode is not manual"]
+    recovery_hint: "Set ADJ to manual mode before ADJ?."
+    pdf_page: 585
+    printed_page: "5-14"
+
+  - code: 690
+    message: "DIO control mode must be Ultra High Current Expander / Fixture control mode (ERMOD 4)."
+    category: "expander_control"
+    meaning: "N1265A control requires ERMOD 4."
+    likely_causes: ["ERPF* command used before ERMOD 4"]
+    recovery_hint: "Set ERMOD 4 before N1265A control commands."
+    pdf_page: 586
+    printed_page: "5-15"
+
+  - code: 694
+    message: "DIO control mode must be HVSMU Current Expander control mode (ERMOD 8)."
+    category: "expander_control"
+    meaning: "N1266A control requires ERMOD 8."
+    likely_causes: ["ERHV* command used before ERMOD 8"]
+    recovery_hint: "Set ERMOD 8 before N1266A control commands."
+    pdf_page: 586
+    printed_page: "5-15"
+
+  - code: 940
+    message: "DIO control mode must be Ultra High Voltage Expander control mode (ERMOD 16)."
+    category: "expander_control"
+    meaning: "N1268A control requires ERMOD 16."
+    likely_causes: ["ERUHVA command used before ERMOD 16"]
+    recovery_hint: "Set ERMOD 16 before N1268A control commands."
+    pdf_page: 586
+    printed_page: "5-15"
+
+  - code: 999
+    message: "Error not supported by ERR? command occurs."
+    category: "error_readout"
+    meaning: "An error outside ERR?/EMG? support occurred."
+    likely_causes: ["Extended error code present"]
+    recovery_hint: "Execute ERRX? to read full code and message."
+    pdf_page: 587
+    printed_page: "5-16"
+
+  - code: 1009
+    message: "The specified value is out of range defined by output limit function."
+    category: "output_limit"
+    meaning: "Requested voltage/current exceeds LIM output limit."
+    likely_causes: ["LIM set lower than requested output"]
+    recovery_hint: "Specify output within LIM or change limit with LIM."
+    pdf_page: 588
+    printed_page: "5-17"
+
+  - code: 1020
+    message: "Cannot change HVSMU operation mode in high voltage status."
+    category: "safety_interlock"
+    meaning: "HVSMUOP cannot be changed while high voltage is active."
+    likely_causes: ["HVSMU high voltage state"]
+    recovery_hint: "Solve high voltage status, force safe output, then execute HVSMUOP."
+    pdf_page: 589
+    printed_page: "5-18"
+
+  - code: 2000
+    message: "SPGU module does not exist."
+    category: "spgu"
+    meaning: "SPGU channel/module number is not valid."
+    likely_causes: ["No SPGU installed", "Wrong channel number"]
+    recovery_hint: "Check module inventory with UNT? and correct SPGU channel."
+    pdf_page: 589
+    printed_page: "5-18"
+
+  - code: 2003
+    message: "SPGU operation mode must be PG. (SIM 0)."
+    category: "spgu"
+    meaning: "Command requires SPGU PG mode."
+    likely_causes: ["SPGU set to ALWG mode"]
+    recovery_hint: "Set SIM 0 before PG-mode command."
+    pdf_page: 589
+    printed_page: "5-18"
+
+  - code: 2004
+    message: "SPGU operation mode must be ALWG (SIM 1)."
+    category: "spgu"
+    meaning: "Command requires SPGU ALWG mode."
+    likely_causes: ["SPGU set to PG mode"]
+    recovery_hint: "Set SIM 1 before ALWG command."
+    pdf_page: 590
+    printed_page: "5-19"
+
+  - code: 2051
+    message: "Over voltage emergency occurred."
+    category: "emergency"
+    meaning: "All modules stopped output and opened output relay."
+    likely_causes: ["Over-voltage emergency"]
+    recovery_hint: "Investigate DUT, wiring, and source settings before recovery."
+    pdf_page: 590
+    printed_page: "5-19"
+
+  - code: 2107
+    message: "Specified voltage is out of absolute limits (can't achieve amplitude)."
+    category: "spgu"
+    meaning: "SPGU voltage cannot be achieved under present load impedance."
+    likely_causes: ["SPV voltage too high for load impedance"]
+    recovery_hint: "Set voltage achievable under present load impedance."
+    pdf_page: 590
+    printed_page: "5-19"
+
+  - code: 2151
+    message: "ALWG Sequence Data is not ready."
+    category: "spgu_alwg"
+    meaning: "Sequence data must be loaded before ALWG output."
+    likely_causes: ["ALS not sent"]
+    recovery_hint: "Set sequence data using ALS before starting output."
+    pdf_page: 591
+    printed_page: "5-20"
+
+  - code: 2204
+    message: "Load voltage is too small for DUT impedance measurement."
+    category: "spgu_correction"
+    meaning: "CORRSER? failed terminal voltage measurement/load impedance calculation."
+    likely_causes: ["SPGU output voltage too low", "High impedance DUT"]
+    recovery_hint: "Set SPGU output voltage above 1 V; use higher voltage for high impedance."
+    pdf_page: 592
+    printed_page: "5-21"
+
+  - code: 3000
+    message: "WGFMU module does not exist."
+    category: "wgfmu"
+    meaning: "WGFMU channel/module number is invalid."
+    likely_causes: ["Wrong WGFMU channel", "No WGFMU installed"]
+    recovery_hint: "Check WGFMU channel number and installed modules."
+    pdf_page: 592
+    printed_page: "5-21"
+
+  - code: 3050
+    message: "Measurement data memory overflow error."
+    category: "wgfmu"
+    meaning: "WGFMU/ALWG sequencer memory overflow occurred."
+    likely_causes: ["Data exceeds memory size"]
+    recovery_hint: "Reduce data size, points, or sequence length."
+    pdf_page: 593
+    printed_page: "5-22"
+
+  - code: 4304
+    message: "HV/HC/HP SMU selector must be open state."
+    category: "selector_control"
+    meaning: "Module selector path must be open before command execution."
+    likely_causes: ["Path connected when command requires open state"]
+    recovery_hint: "Open selector input-output path first."
+    pdf_page: 595
+    printed_page: "5-24"
+
+  - code: 4401
+    message: "HVSMU over voltage emergency occurred."
+    category: "hvsmu_emergency"
+    meaning: "All module output is changed to 0 V and all output switches are disconnected."
+    likely_causes: ["HVSMU over-voltage"]
+    recovery_hint: "Investigate HVSMU setup and DUT before recovery."
+    pdf_page: 596
+    printed_page: "5-25"
+
+  - code: 5301
+    message: "Specified module is already assigned to voltage control, current control or gate control."
+    category: "expander_control"
+    meaning: "N1265A/B1506A assignment conflict."
+    likely_causes: ["Same module assigned to multiple roles"]
+    recovery_hint: "Specify a free MCSMU/HCSMU."
+    pdf_page: 596
+    printed_page: "5-25"
+
+  - code: 5330
+    message: "N1265A/B1506A: Cooling fan is not operating."
+    category: "fixture_hardware"
+    meaning: "Cooling fan fault detected."
+    likely_causes: ["Fan blocked", "Fan failure"]
+    recovery_hint: "Check cooling fan operation and airflow."
+    pdf_page: 599
+    printed_page: "5-28"
+
+  - code: 5401
+    message: "HCSMU high force over voltage emergency occurred."
+    category: "hcsmu_emergency"
+    meaning: "All module output is changed to 0 V and all output switches are disconnected."
+    likely_causes: ["HCSMU high-force over-voltage"]
+    recovery_hint: "Investigate DUT, cabling, and HCSMU settings."
+    pdf_page: 600
+    printed_page: "5-29"
+
+  - code: 6401
+    message: "MCSMU high force over voltage emergency occurred."
+    category: "mcsmu_emergency"
+    meaning: "All module output is changed to 0 V and all output switches are disconnected."
+    likely_causes: ["MCSMU high-force over-voltage"]
+    recovery_hint: "Investigate DUT, cabling, and MCSMU settings."
+    pdf_page: 600
+    printed_page: "5-29"
+
+  - code: 700
+    message: "CPU failed NVRAM read/write test."
+    category: "self_test_calibration"
+    meaning: "Main CPU NVRAM test failure."
+    likely_causes: ["Instrument hardware fault"]
+    recovery_hint: "Contact Keysight service if persistent."
+    pdf_page: 601
+    printed_page: "5-30"
+
+  - code: 935
+    message: "CMU FPGA version mismatch."
+    category: "self_test_calibration"
+    meaning: "CMU FPGA version mismatch detected."
+    likely_causes: ["Firmware/module mismatch"]
+    recovery_hint: "Check firmware and module compatibility; service may be required."
+    pdf_page: 602
+    printed_page: "5-31"
+
+  - code: 2400
+    message: "SPGU module is in TEST FAIL state."
+    category: "self_test_calibration"
+    meaning: "SPGU module failed test."
+    likely_causes: ["SPGU hardware failure"]
+    recovery_hint: "Run self-test again; contact Keysight service if persistent."
+    pdf_page: 602
+    printed_page: "5-31"
+
+  - code: 4501
+    message: "Digital H/W function test failed."
+    category: "self_test_calibration_hvsmu"
+    meaning: "HVSMU digital hardware test failed."
+    likely_causes: ["HVSMU hardware fault"]
+    recovery_hint: "Contact Keysight service if persistent."
+    pdf_page: 606
+    printed_page: "5-35"
+
+  - code: 5501
+    message: "Digital H/W function test failed."
+    category: "self_test_calibration_hcsmu"
+    meaning: "HCSMU digital hardware test failed."
+    likely_causes: ["HCSMU hardware fault"]
+    recovery_hint: "Contact Keysight service if persistent."
+    pdf_page: 608
+    printed_page: "5-37"
+
+  - code: 6501
+    message: "Digital H/W function test failed."
+    category: "self_test_calibration_mcsmu"
+    meaning: "MCSMU digital hardware test failed."
+    likely_causes: ["MCSMU hardware fault"]
+    recovery_hint: "Contact Keysight service if persistent."
+    pdf_page: 609
+    printed_page: "5-38"
+
+  - code: "N760"
+    message: "SMU failed function test."
+    category: "self_test_calibration_smu_slot_encoded"
+    meaning: "Slot-encoded SMU failure. N indicates slot number."
+    likely_causes: ["SMU hardware fault"]
+    recovery_hint: "Decode N as slot number; run self-test and contact service if persistent."
+    pdf_page: 610
+    printed_page: "5-39"
+
+  - code: "N800"
+    message: "CMU failed NULL DC offset adjustment."
+    category: "self_test_calibration_cmu_slot_encoded"
+    meaning: "Slot-encoded CMU adjustment failure. N indicates slot number."
+    likely_causes: ["CMU calibration/adjustment fault"]
+    recovery_hint: "Decode N as slot number; rerun calibration/self-test; service if persistent."
+    pdf_page: 611
+    printed_page: "5-40"
+
+  - code: "N933"
+    message: "CMU failed over current status test."
+    category: "self_test_calibration_cmu_slot_encoded"
+    meaning: "Slot-encoded CMU over-current status test failure. N indicates slot number."
+    likely_causes: ["CMU hardware fault"]
+    recovery_hint: "Decode N as slot number; contact service if persistent."
+    pdf_page: 615
+    printed_page: "5-44"

@@ -1,0 +1,973 @@
+metadata:
+  source_pdf: "B1500A Programming Guide.pdf"
+  source_index: "../b1500a-programming-guide-index.md"
+  manual: "Keysight B1500A/B1505A/B1506A/B1507A Device Analyzer Series Programming Guide"
+  edition: "Edition 15, May 2022"
+  extraction_date: "2026-06-22"
+  command_summary_source: "PDF 320-332 / printed 4-3 to 4-15"
+  command_reference_source: "PDF 349-571 / printed 4-32 to 4-254"
+  opus_review:
+    date: "2026-06-22"
+    reviewer: "opus-4.6-max"
+    passes: 5
+    corrections_applied:
+      - "*SRE pdf_pages corrected from [517] to [516]; verified against PDF page 516 content showing *SRE command start"
+      - "*STB? important_notes corrected: bit 3 is interlock open (not output buffer); bit 0 is data ready"
+      - "Added DIAG? and PA detailed command records"
+      - "Added known_gaps entries for missing detailed command records (AIT, AV, RI, RV, WV, WI, WT, FL, CMM, RC, SPGU commands)"
+    verification_method: "Direct PDF page text reading with page marker confirmation"
+    pages_verified: [75, 76, 77, 516, 517, 518, 537, 538, 539, 544, 545, 179]
+    remaining_uncertainties:
+      - "ER* family page references carried forward from index formula, not individually verified against PDF content"
+      - "*LRN? spans 4-129 to 4-135 per TOC; individual sub-pages not verified"
+      - "TV and UNT? both start on PDF 544; yaml records both as [544] which is correct per PDF verification"
+  coverage:
+    status: "broad_grouped_with_detailed_high_value_records"
+    detailed_command_records: "Focused on high-value driver/MCP commands and safety/data-path commands. Approximately 40 detailed records covering system, channel control, data output, measurement mode, source, high-speed spot, timestamp, interlock, and CMU correction commands."
+    grouped_command_index: "Command names extracted from Command Summary and revised index; page refs are group-level unless command-specific."
+    known_gaps:
+      - "Not every command has syntax/parameter fields transcribed."
+      - "ER* expander/selector families are grouped, not fully expanded with per-command syntax."
+      - "Command pages should still be read for exact parameter value ranges."
+      - "Missing detailed records for frequently-used commands: AIT, AV, RI, RV, WV, WI, WT, FL, CMM, RC."
+      - "SPGU commands (SIM, SPM, SPT, SPV, SPPER, SPRM, SRP, SPP, SPUPD) have no detailed records."
+
+page_formula:
+  chapter_4_printed_to_pdf: "PDF page = printed 4-N + 317"
+
+commands:
+  - command: "*IDN?"
+    name: "Identification query"
+    category: "Query"
+    function: "Returns instrument manufacturer/model and firmware revision."
+    syntax: "*IDN?"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [439]
+    printed_pages: ["4-122"]
+    important_notes:
+      - "Example response includes manufacturer, model, 0, revision."
+    safety_notes: []
+    parser_notes:
+      - "Parse comma-separated response."
+    implementation_status: "verified_from_command_page"
+
+  - command: "*RST"
+    name: "Reset"
+    category: "Reset"
+    function: "Resets B1500 to initial settings."
+    syntax: "*RST"
+    query: false
+    write: true
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [501]
+    printed_pages: ["4-184"]
+    important_notes:
+      - "Does not clear program memory; use IN when program memory clearing is required."
+      - "Default state also summarized in Table 2-13, PDF 179."
+    safety_notes: []
+    parser_notes: []
+    implementation_status: "verified_from_index_and_initial_settings"
+
+  - command: "IN"
+    name: "Initialize"
+    category: "Channel Control"
+    function: "Initializes channels to 0 V; index notes behavior similar to reset with program-memory clearing."
+    syntax: "IN [chnum[,chnum...]]"
+    query: false
+    write: true
+    measurement_modes: []
+    module_scope: ["mainframe", "SMU", "CMU", "SPGU"]
+    pdf_pages: [440]
+    printed_pages: ["4-123"]
+    important_notes:
+      - "Use when program memory must be cleared according to the revised index."
+    safety_notes:
+      - "Use safe output handling before disconnecting DUT."
+    parser_notes: []
+    implementation_status: "page_ref_verified"
+
+  - command: "*TST?"
+    name: "Self-test query"
+    category: "Self-test"
+    function: "Performs self-test and returns result."
+    syntax: "*TST?"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe", "installed_modules"]
+    pdf_pages: [539]
+    printed_pages: ["4-222"]
+    important_notes:
+      - "0 means pass; non-zero results need Ch5 error lookup."
+    safety_notes:
+      - "Cannot perform self-test or calibration in high voltage state."
+    parser_notes:
+      - "Read numeric result; use ERRX? for detailed errors."
+    implementation_status: "page_ref_from_index"
+
+  - command: "*CAL?"
+    name: "Self-calibration query"
+    category: "Self-Calibration"
+    function: "Performs self-calibration and returns result."
+    syntax: "*CAL?"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe", "installed_modules"]
+    pdf_pages: [375]
+    printed_pages: ["4-58"]
+    important_notes:
+      - "0 means pass."
+    safety_notes:
+      - "Calibration requires proper terminal/open conditions depending on module."
+      - "Cannot perform self-test or calibration in high voltage state."
+    parser_notes: []
+    implementation_status: "page_ref_from_index"
+
+  - command: "CA"
+    name: "Self-calibration"
+    category: "Self-Calibration"
+    function: "Performs self-calibration without returning a query result."
+    syntax: "CA"
+    query: false
+    write: true
+    measurement_modes: []
+    module_scope: ["mainframe", "installed_modules"]
+    pdf_pages: [374]
+    printed_pages: ["4-57"]
+    important_notes: []
+    safety_notes:
+      - "Cannot perform in high voltage state."
+    parser_notes: []
+    implementation_status: "page_ref_from_index"
+
+  - command: "UNT?"
+    name: "Unit type query"
+    category: "Query"
+    function: "Returns model and revision numbers of installed modules."
+    syntax: "UNT?"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe", "installed_modules"]
+    pdf_pages: [544]
+    printed_pages: ["4-227"]
+    important_notes:
+      - "Essential for hardware discovery before command selection."
+    safety_notes: []
+    parser_notes:
+      - "Use to map slot/module resources before enabling channels."
+    implementation_status: "page_ref_from_revised_index"
+
+  - command: "ERRX?"
+    name: "Extended error query"
+    category: "Error Management"
+    function: "Returns oldest error code and error message; supports all error codes."
+    syntax: "ERRX?"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [430]
+    printed_pages: ["4-113"]
+    important_notes:
+      - "Preferred over ERR? when full error range is needed."
+      - "Use when ERR? returns 999."
+    safety_notes: []
+    parser_notes:
+      - "Response includes code and message; message may include slot context."
+    implementation_status: "verified_from_error_chapter_and_index"
+
+  - command: "ERR?"
+    name: "Error query"
+    category: "Error Management"
+    function: "Returns oldest error code; supports codes 0 to 999."
+    syntax: "ERR? [mode]"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [429]
+    printed_pages: ["4-112"]
+    important_notes:
+      - "ERR? only supports 0-999. Use ERRX? for extended errors."
+      - "ERR? 1 may return slot-prefixed values such as 1305."
+    safety_notes: []
+    parser_notes:
+      - "If 999 is returned, immediately call ERRX?."
+    implementation_status: "verified_from_error_chapter_and_index"
+
+  - command: "EMG?"
+    name: "Error message query"
+    category: "Error Management"
+    function: "Returns message text for specified error code 0-999."
+    syntax: "EMG? code"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [397]
+    printed_pages: ["4-80"]
+    important_notes:
+      - "Does not support extended error codes beyond 999."
+    safety_notes: []
+    parser_notes: []
+    implementation_status: "page_ref_from_index"
+
+  - command: "*LRN?"
+    name: "Learn query"
+    category: "Query"
+    function: "Returns channel settings or B1500 command parameter settings by type parameter."
+    syntax: "*LRN? type"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe", "channels"]
+    pdf_pages: [446, 447, 448, 449, 450, 451, 452]
+    printed_pages: ["4-129 to 4-135"]
+    important_notes:
+      - "Powerful state-dump query; supports many type values."
+    safety_notes: []
+    parser_notes:
+      - "Response format varies by type; implement per-type parsing."
+    implementation_status: "page_ref_from_revised_index"
+
+  - command: "*OPC?"
+    name: "Operation complete query"
+    category: "Query"
+    function: "Starts monitoring pending operations or asks OPC bit setting; returns 1 when pending operations are complete."
+    syntax: "*OPC?"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [479]
+    printed_pages: ["4-162"]
+    important_notes:
+      - "Useful after ACH, long setup, measurement, self-test, or calibration."
+    safety_notes: []
+    parser_notes:
+      - "Read a scalar response."
+    implementation_status: "page_ref_from_index"
+
+  - command: "AB"
+    name: "Abort"
+    category: "Abort"
+    function: "Aborts present operation and subsequent command execution."
+    syntax: "AB"
+    query: false
+    write: true
+    measurement_modes: ["sweep", "sampling", "search", "QSCV", "program_execution"]
+    module_scope: ["mainframe"]
+    pdf_pages: [350, 351]
+    printed_pages: ["4-33 to 4-34"]
+    important_notes:
+      - "Does not necessarily stop existing DC bias output."
+      - "If other commands are queued before AB, AB may not enter buffer soon enough; device clear may be needed."
+    safety_notes:
+      - "After abort, output may remain at start/base value depending on mode."
+    parser_notes: []
+    implementation_status: "verified_from_command_page"
+
+  - command: "CN"
+    name: "Channel enable"
+    category: "Channel Control"
+    function: "Enables specified channels by setting output switches ON."
+    syntax: "CN chnum[,chnum...]"
+    query: false
+    write: true
+    measurement_modes: ["most_XE_modes"]
+    module_scope: ["SMU", "CMU"]
+    pdf_pages: [379]
+    printed_pages: ["4-62"]
+    important_notes:
+      - "Required before most source/measurement setup."
+      - "Use SSP instead of CN for SCUU modules."
+    safety_notes:
+      - "Cannot enable in high voltage state unless interlock conditions are satisfied."
+    parser_notes: []
+    implementation_status: "page_ref_from_index"
+
+  - command: "CNX"
+    name: "SPGU/channel enable"
+    category: "Channel Control"
+    function: "Enables specified channels/output switches; index notes use for SPGU."
+    syntax: "CNX chnum[,chnum...]"
+    query: false
+    write: true
+    measurement_modes: ["SPGU_related"]
+    module_scope: ["SPGU"]
+    pdf_pages: [380]
+    printed_pages: ["4-63"]
+    important_notes:
+      - "Paired with CN in command reference."
+    safety_notes: []
+    parser_notes: []
+    implementation_status: "page_ref_from_index"
+
+  - command: "CL"
+    name: "Channel disable"
+    category: "Channel Control"
+    function: "Disables specified channels by setting output switches OFF."
+    syntax: "CL [chnum[,chnum...]]"
+    query: false
+    write: true
+    measurement_modes: []
+    module_scope: ["SMU", "CMU", "SPGU"]
+    pdf_pages: [377]
+    printed_pages: ["4-60"]
+    important_notes:
+      - "CL with no parameter disables all relevant channels."
+    safety_notes:
+      - "High-voltage state can prevent disabling a specific channel; CL with no parameter may be used immediately per error text."
+    parser_notes: []
+    implementation_status: "page_ref_from_index"
+
+  - command: "DZ"
+    name: "Force 0 V and store settings"
+    category: "Channel Control"
+    function: "Stores channel source/settings and sets specified channels to 0 V."
+    syntax: "DZ [chnum[,chnum...]]"
+    query: false
+    write: true
+    measurement_modes: []
+    module_scope: ["SMU", "CMU", "SPGU"]
+    pdf_pages: [396]
+    printed_pages: ["4-79"]
+    important_notes:
+      - "Stored settings can be recovered by RZ."
+      - "Stored settings are cleared by *RST, RZ, CL, CA, *TST?, or device clear."
+    safety_notes:
+      - "Use before disconnecting DUT or after errors."
+    parser_notes: []
+    implementation_status: "verified_from_command_page"
+
+  - command: "RZ"
+    name: "Recover DZ settings"
+    category: "Channel Control"
+    function: "Returns channel to settings stored by DZ and clears stored channel settings."
+    syntax: "RZ [chnum[,chnum...]]"
+    query: false
+    write: true
+    measurement_modes: []
+    module_scope: ["SMU", "CMU"]
+    pdf_pages: [503]
+    printed_pages: ["4-186"]
+    important_notes:
+      - "Requires prior DZ."
+    safety_notes: []
+    parser_notes: []
+    implementation_status: "page_ref_from_index"
+
+  - command: "WZ?"
+    name: "Output voltage safety query"
+    category: "Query"
+    function: "Returns 0 if all channel outputs are within +/-2 V, or 1 if any output exceeds +/-2 V."
+    syntax: "WZ? [timeout]"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe", "channels"]
+    pdf_pages: [569]
+    printed_pages: ["4-252"]
+    important_notes:
+      - "Optional timeout waits until all output is within +/-2 V or timeout expires."
+    safety_notes:
+      - "Useful before fixture/DUT disconnect."
+    parser_notes:
+      - "Response 0=safe threshold, 1=one or more channels above threshold."
+    implementation_status: "verified_from_command_page"
+
+  - command: "FMT"
+    name: "Data output format"
+    category: "Data Output"
+    function: "Specifies measurement data output format and terminator/source-data options."
+    syntax: "FMT mode[,source_data_mode[,terminator]]"
+    query: false
+    write: true
+    measurement_modes: ["all_data_output_modes"]
+    module_scope: ["mainframe"]
+    pdf_pages: [435, 436]
+    printed_pages: ["4-118 to 4-119"]
+    important_notes:
+      - "Default from Table 2-13: ASCII with header, CR/LF^EOI."
+      - "FMT 3/4 are 4-byte binary; FMT 5 is 8-byte/double style."
+      - "Timestamp is not available with 4-byte binary formats."
+    safety_notes: []
+    parser_notes:
+      - "Parser must branch by FMT mode before reading measurement data."
+    implementation_status: "page_ref_from_index"
+
+  - command: "BC"
+    name: "Buffer clear"
+    category: "Data Output"
+    function: "Clears B1500 output data buffer storing measurement data and/or query response data."
+    syntax: "BC"
+    query: false
+    write: true
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [363]
+    printed_pages: ["4-46"]
+    important_notes:
+      - "Data output buffer default state is cleared after reset."
+    safety_notes: []
+    parser_notes: []
+    implementation_status: "page_ref_from_index"
+
+  - command: "NUB?"
+    name: "Number of data in buffer"
+    category: "Query"
+    function: "Returns number of measurement data items in output data buffer."
+    syntax: "NUB?"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [477]
+    printed_pages: ["4-160"]
+    important_notes:
+      - "Use before reading sweep/sampling data."
+    safety_notes: []
+    parser_notes:
+      - "Scalar count response."
+    implementation_status: "page_ref_from_index"
+
+  - command: "*STB?"
+    name: "Status byte query"
+    category: "Status Byte"
+    function: "Returns status byte register value."
+    syntax: "*STB?"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [522]
+    printed_pages: ["4-205"]
+    important_notes:
+      - "Bit 0=data ready, bit 1=wait, bit 2=N/A, bit 3=interlock open, bit 4=set ready, bit 5=error, bit 6=RQS, bit 7=N/A."
+      - "Use serial poll inside ISR; use *STB? for normal status polling."
+    safety_notes: []
+    parser_notes:
+      - "Parse as bit field; decimal value is sum of active bits."
+    implementation_status: "verified_from_pdf_page"
+
+  - command: "*SRE"
+    name: "Service request enable"
+    category: "Status Byte"
+    function: "Enables specified bits of the status byte register for SRQ generation; masks all bits not specified."
+    syntax: "*SRE bit"
+    query: false
+    write: true
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [516]
+    printed_pages: ["4-199"]
+    important_notes:
+      - "Default from Table 2-13: only bit 6 enabled."
+      - "bit parameter = sum of decimal values for bits to enable (0-255); 0 masks all except bit 6."
+      - "Bit 6 (RQS) cannot be masked."
+    safety_notes: []
+    parser_notes:
+      - "Mask controls which status byte bits generate SRQ."
+    implementation_status: "verified_from_pdf_page"
+
+  - command: "MM"
+    name: "Measurement mode"
+    category: "Measurement Mode"
+    function: "Sets measurement mode and measurement channels."
+    syntax: "MM mode,chnum[,chnum...]"
+    query: false
+    write: true
+    measurement_modes: [1, 2, 3, 4, 5, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 26, 27, 28]
+    module_scope: ["SMU", "CMU", "SPGU_related_modes"]
+    pdf_pages: [469]
+    printed_pages: ["4-152"]
+    important_notes:
+      - "Central selector for all XE-triggered measurement modes."
+      - "High-speed spot commands do not use MM/XE."
+    safety_notes: []
+    parser_notes: []
+    implementation_status: "page_ref_from_index"
+
+  - command: "XE"
+    name: "Execute measurement"
+    category: "Measurement Execution"
+    function: "Triggers B1500 to start measurement or recovers from PA wait state."
+    syntax: "XE"
+    query: false
+    write: true
+    measurement_modes: ["all_MM_modes_except_high_speed_spot"]
+    module_scope: ["mainframe"]
+    pdf_pages: [569, 570, 571]
+    printed_pages: ["4-252 to 4-254"]
+    important_notes:
+      - "Not available for high-speed spot measurement."
+      - "Required-command table is on PDF 570-571."
+    safety_notes:
+      - "If any channel enters high voltage state after XE, interlock terminal must be shorted."
+    parser_notes:
+      - "Measurement data is placed in output buffer after measurement."
+    implementation_status: "verified_from_command_page"
+
+  - command: "DV"
+    name: "Force DC voltage"
+    category: "Source Output"
+    function: "Forces DC voltage from specified SMU."
+    syntax: "DV chnum,vrange,voltage[,Icomp[,comp_polarity[,irange]]]"
+    query: false
+    write: true
+    measurement_modes: ["spot", "bias", "setup_for_high_speed_spot"]
+    module_scope: ["SMU", "HVSMU", "HCSMU", "MCSMU", "expanders"]
+    pdf_pages: [395]
+    printed_pages: ["4-78"]
+    important_notes:
+      - "CN/CNX must be executed for specified channel."
+      - "Compliance 0 A is not allowed."
+    safety_notes:
+      - "If output voltage exceeds interlock-open allowable voltage, interlock circuit must be shorted."
+    parser_notes: []
+    implementation_status: "verified_from_command_page"
+
+  - command: "DI"
+    name: "Force DC current"
+    category: "Source Output"
+    function: "Forces DC current from specified SMU."
+    syntax: "DI chnum,irange,current[,Vcomp]"
+    query: false
+    write: true
+    measurement_modes: ["spot", "bias"]
+    module_scope: ["SMU"]
+    pdf_pages: [390]
+    printed_pages: ["4-73"]
+    important_notes: []
+    safety_notes:
+      - "Set valid compliance."
+    parser_notes: []
+    implementation_status: "page_ref_from_revised_index"
+
+  - command: "TI"
+    name: "High-speed spot current measurement"
+    category: "High Speed Spot Measurement"
+    function: "Measures current and returns data without MM/XE."
+    syntax: "TI chnum,range"
+    query: true
+    write: false
+    measurement_modes: ["high_speed_spot"]
+    module_scope: ["SMU"]
+    pdf_pages: [534]
+    printed_pages: ["4-217"]
+    important_notes:
+      - "Fast path for spot measurement."
+    safety_notes: []
+    parser_notes:
+      - "Output format depends on FMT."
+    implementation_status: "page_ref_from_index"
+
+  - command: "TV"
+    name: "High-speed spot voltage measurement"
+    category: "High Speed Spot Measurement"
+    function: "Measures voltage and returns data without MM/XE."
+    syntax: "TV chnum,range"
+    query: true
+    write: false
+    measurement_modes: ["high_speed_spot"]
+    module_scope: ["SMU"]
+    pdf_pages: [544]
+    printed_pages: ["4-227"]
+    important_notes: []
+    safety_notes: []
+    parser_notes:
+      - "Output format depends on FMT."
+    implementation_status: "page_ref_from_index"
+
+  - command: "TIV"
+    name: "High-speed spot current and voltage measurement"
+    category: "High Speed Spot Measurement"
+    function: "Measures current and voltage and returns data without MM/XE."
+    syntax: "TIV chnum,irange,vrange"
+    query: true
+    write: false
+    measurement_modes: ["high_speed_spot"]
+    module_scope: ["SMU"]
+    pdf_pages: [534]
+    printed_pages: ["4-217"]
+    important_notes: []
+    safety_notes: []
+    parser_notes:
+      - "Returns multiple data elements; parse according to FMT."
+    implementation_status: "page_ref_from_index"
+
+  - command: "TSC"
+    name: "Timestamp control"
+    category: "Time Stamp"
+    function: "Enables time stamp function."
+    syntax: "TSC onoff"
+    query: false
+    write: true
+    measurement_modes: ["most_ASCII_data_modes"]
+    module_scope: ["mainframe"]
+    pdf_pages: [537]
+    printed_pages: ["4-220"]
+    important_notes:
+      - "Not available for FMT 3/4, high-speed spot, MM9, MM14, or MM15."
+    safety_notes: []
+    parser_notes:
+      - "Timestamp data appears with measurement data when supported."
+    implementation_status: "verified_from_ch3_and_index"
+
+  - command: "TSR"
+    name: "Timestamp reset"
+    category: "Timer Clear"
+    function: "Clears/resets timer count."
+    syntax: "TSR"
+    query: false
+    write: true
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [538]
+    printed_pages: ["4-221"]
+    important_notes:
+      - "Use periodically for best timestamp resolution."
+    safety_notes: []
+    parser_notes: []
+    implementation_status: "page_ref_from_index"
+
+  - command: "TSQ"
+    name: "Timestamp query"
+    category: "Time Stamp"
+    function: "Returns time data from timer reset to this command."
+    syntax: "TSQ"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [538]
+    printed_pages: ["4-221"]
+    important_notes: []
+    safety_notes: []
+    parser_notes:
+      - "Scalar time response."
+    implementation_status: "page_ref_from_index"
+
+  - command: "INTLKVTH"
+    name: "Interlock threshold"
+    category: "Interlock"
+    function: "Sets allowable voltage for interlock-open condition."
+    syntax: "INTLKVTH voltage"
+    query: false
+    write: true
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [441]
+    printed_pages: ["4-124"]
+    important_notes: []
+    safety_notes:
+      - "Affects whether high-voltage state requires closed interlock."
+    parser_notes: []
+    implementation_status: "page_ref_from_index"
+
+  - command: "INTLKVTH?"
+    name: "Interlock threshold query"
+    category: "Interlock"
+    function: "Returns allowable voltage for interlock-open condition."
+    syntax: "INTLKVTH?"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe"]
+    pdf_pages: [442]
+    printed_pages: ["4-125"]
+    important_notes: []
+    safety_notes: []
+    parser_notes:
+      - "Read scalar voltage threshold."
+    implementation_status: "page_ref_from_index"
+
+  - command: "CORR?"
+    name: "CMU correction data measurement"
+    category: "MFCMU Data Correction"
+    function: "Performs open/short/load correction data measurement."
+    syntax: "CORR? ..."
+    query: true
+    write: false
+    measurement_modes: ["CMU", "CV"]
+    module_scope: ["MFCMU"]
+    pdf_pages: [381]
+    printed_pages: ["4-64"]
+    important_notes:
+      - "Part of MFCMU correction/calibration workflow."
+    safety_notes: []
+    parser_notes:
+      - "Read specific command page for response fields."
+    implementation_status: "page_ref_from_revised_index"
+
+  - command: "CORRST"
+    name: "CMU correction enable"
+    category: "MFCMU Data Correction"
+    function: "Sets open/short/load correction function ON/OFF."
+    syntax: "CORRST ..."
+    query: false
+    write: true
+    measurement_modes: ["CMU", "CV"]
+    module_scope: ["MFCMU"]
+    pdf_pages: [386]
+    printed_pages: ["4-69"]
+    important_notes: []
+    safety_notes: []
+    parser_notes: []
+    implementation_status: "page_ref_from_revised_index"
+
+  - command: "ADJ"
+    name: "MFCMU phase compensation mode"
+    category: "MFCMU Data Correction"
+    function: "Selects MFCMU phase compensation mode."
+    syntax: "ADJ chnum,mode"
+    query: false
+    write: true
+    measurement_modes: ["CMU", "CV"]
+    module_scope: ["MFCMU"]
+    pdf_pages: [354]
+    printed_pages: ["4-37"]
+    important_notes:
+      - "Modes include auto, manual, and load-adaptive."
+    safety_notes: []
+    parser_notes: []
+    implementation_status: "verified_from_command_page"
+
+  - command: "ADJ?"
+    name: "MFCMU phase compensation"
+    category: "MFCMU Data Correction"
+    function: "Performs MFCMU phase compensation and returns execution result."
+    syntax: "ADJ? chnum[,mode]"
+    query: true
+    write: false
+    measurement_modes: ["CMU", "CV"]
+    module_scope: ["MFCMU"]
+    pdf_pages: [354, 355]
+    printed_pages: ["4-37 to 4-38"]
+    important_notes:
+      - "Manual mode should be set using ADJ before ADJ?."
+      - "Open measurement terminals at device side; execution takes about 30 seconds."
+    safety_notes: []
+    parser_notes:
+      - "Result 0=completed, 1=failed, 2=aborted, 3=not performed."
+    implementation_status: "verified_from_command_page"
+
+  - command: "DIAG?"
+    name: "Diagnostics query"
+    category: "Diagnostics"
+    function: "Performs diagnostics and returns result."
+    syntax: "DIAG? [slot[,option]]"
+    query: true
+    write: false
+    measurement_modes: []
+    module_scope: ["mainframe", "installed_modules"]
+    pdf_pages: [391]
+    printed_pages: ["4-74"]
+    important_notes:
+      - "Used for hardware diagnosis alongside *TST?."
+      - "Per Ch1 Getting Started (PDF 26-40), DIAG? is one of the first commands used after connection."
+    safety_notes:
+      - "Open measurement terminals before execution."
+    parser_notes:
+      - "Read numeric result; use ERRX? for detailed errors after non-zero result."
+    implementation_status: "page_ref_from_index"
+
+  - command: "PA"
+    name: "Pause"
+    category: "Abort / Pause / Continue"
+    function: "Pauses command execution for specified time or until trigger/event."
+    syntax: "PA time"
+    query: false
+    write: true
+    measurement_modes: ["used_within_program_memory_and_measurement_sequences"]
+    module_scope: ["mainframe"]
+    pdf_pages: [480]
+    printed_pages: ["4-163"]
+    important_notes:
+      - "PA within program memory waits specified time; in normal mode, waits for XE to recover from wait state."
+      - "Sets status byte bit 1 (Wait) to 1 during wait."
+    safety_notes: []
+    parser_notes: []
+    implementation_status: "page_ref_from_index"
+
+grouped_command_index:
+  - category: "Reset"
+    pdf_pages: [320]
+    printed_pages: ["4-3"]
+    commands: ["*RST"]
+  - category: "Diagnostics"
+    pdf_pages: [320]
+    printed_pages: ["4-3"]
+    commands: ["DIAG?"]
+  - category: "Self-test"
+    pdf_pages: [320]
+    printed_pages: ["4-3"]
+    commands: ["*TST?", "RCV"]
+  - category: "Self-Calibration"
+    pdf_pages: [320]
+    printed_pages: ["4-3"]
+    commands: ["CA", "*CAL?", "CM"]
+  - category: "Interlock"
+    pdf_pages: [320]
+    printed_pages: ["4-3"]
+    commands: ["INTLKVTH", "INTLKVTH?"]
+  - category: "MFCMU Data Correction"
+    pdf_pages: [320]
+    printed_pages: ["4-3"]
+    commands: ["ADJ", "ADJ?", "CLCORR", "CORRL", "CORRL?", "DCORR", "DCORR?", "CORR?", "CORRST", "CORRST?", "CORRDT", "CORRDT?"]
+  - category: "Abort / Pause / Continue"
+    pdf_pages: [320]
+    printed_pages: ["4-3"]
+    commands: ["AB", "PA", "PAX", "TM"]
+  - category: "Data Output and Timestamp"
+    pdf_pages: [320, 321]
+    printed_pages: ["4-3 to 4-4"]
+    commands: ["FMT", "BC", "TSR", "TSC", "TSQ"]
+  - category: "ASU / SCUU / SMU Conditioning"
+    pdf_pages: [321]
+    printed_pages: ["4-4"]
+    commands: ["SAL", "SAP", "SAR", "SSL", "SSP", "SSR", "FL", "LIM", "LIM?"]
+  - category: "Channel Control"
+    pdf_pages: [321]
+    printed_pages: ["4-4"]
+    commands: ["ACH", "CN", "CNX", "CL", "IN", "DZ", "PCH", "PCH?", "RZ", "WAT"]
+  - category: "SMU Integration Time and Averaging"
+    pdf_pages: [322]
+    printed_pages: ["4-5"]
+    commands: ["AV", "AAD", "AIT", "AITM", "AITM?", "AZ"]
+  - category: "High Speed Spot Measurement"
+    pdf_pages: [322]
+    printed_pages: ["4-5"]
+    commands: ["TC", "TI", "TIV", "TV", "TMACV", "TMDCV", "TTC", "TTI", "TTIV", "TTV"]
+  - category: "Source Output"
+    pdf_pages: [322]
+    printed_pages: ["4-5"]
+    commands: ["DI", "DV", "TDI", "TDV", "FC", "ACV", "DCV", "TACV", "TDCV"]
+  - category: "MFCMU Setup"
+    pdf_pages: [323]
+    printed_pages: ["4-6"]
+    commands: ["FC", "ACV", "ACT", "IMP", "LMN"]
+  - category: "Measurement Mode and Execution"
+    pdf_pages: [323]
+    printed_pages: ["4-6"]
+    commands: ["MM", "XE"]
+  - category: "Measurement Setup and Ranging"
+    pdf_pages: [323]
+    printed_pages: ["4-6"]
+    commands: ["CMM", "PAD", "RC", "RI", "RV", "RM"]
+  - category: "Staircase Sweep Source Setup"
+    pdf_pages: [323, 324]
+    printed_pages: ["4-6 to 4-7"]
+    commands: ["WT", "WI", "WV", "WM", "WSI", "WSV", "WNX"]
+  - category: "Output Comparison"
+    pdf_pages: [324]
+    printed_pages: ["4-7"]
+    commands: ["SOPC", "SOPC?", "SOVC", "SOVC?"]
+  - category: "Pulsed Source and Sweep"
+    pdf_pages: [324]
+    printed_pages: ["4-7"]
+    commands: ["PT", "PI", "PV", "PWI", "PWV"]
+  - category: "Multi-channel Pulse/Sweep Setup"
+    pdf_pages: [324]
+    printed_pages: ["4-7"]
+    commands: ["WNCC", "MCPT", "MCPNT", "MCPNX", "MCPWS", "MCPWNX"]
+  - category: "Quasi-pulsed Spot"
+    pdf_pages: [324]
+    printed_pages: ["4-7"]
+    commands: ["BDM", "BDT", "BDV"]
+  - category: "Sampling Measurement"
+    pdf_pages: [325]
+    printed_pages: ["4-8"]
+    commands: ["MCC", "MI", "MSC", "ML", "MT", "MV", "MSP"]
+  - category: "Binary Search"
+    pdf_pages: [325]
+    printed_pages: ["4-8"]
+    commands: ["BSM", "BST", "BSVM", "BSI", "BSSI", "BGV", "BSV", "BSSV", "BGI"]
+  - category: "Linear Search"
+    pdf_pages: [325]
+    printed_pages: ["4-8"]
+    commands: ["LSTM", "LSVM", "LSI", "LSSI", "LGV", "LSV", "LSSV", "LGI", "LSM"]
+  - category: "Quasi-static CV"
+    pdf_pages: [326]
+    printed_pages: ["4-9"]
+    commands: ["QSC", "QSO", "QSM", "QSL", "QSZ", "QST", "QSR", "QSV"]
+  - category: "MFCMU Sweep and Pulsed Source"
+    pdf_pages: [326]
+    printed_pages: ["4-9"]
+    commands: ["WDCV", "WMDCV", "WTDCV", "WFC", "WMFC", "WTFC", "WACV", "WMACV", "WTACV", "PDCV", "PTDCV", "PWDCV"]
+  - category: "MFCMU Sampling"
+    pdf_pages: [327]
+    printed_pages: ["4-10"]
+    commands: ["MSC", "MTDCV", "MDCV"]
+  - category: "SPGU Control"
+    pdf_pages: [327]
+    printed_pages: ["4-10"]
+    commands: ["SIM", "SIM?", "SPRM", "SPRM?", "SRP", "SPP", "SPUPD", "SPST?", "ODSW", "ODSW?", "SER", "SER?", "CORRSER?", "STGP", "STGP?"]
+  - category: "SPGU Pulse Setup"
+    pdf_pages: [327]
+    printed_pages: ["4-10"]
+    commands: ["SPPER", "SPPER?", "SPM", "SPM?", "SPT", "SPT?", "SPV", "SPV?"]
+  - category: "SPGU ALWG Setup"
+    pdf_pages: [327]
+    printed_pages: ["4-10"]
+    commands: ["ALW", "ALW?", "ALS", "ALS?"]
+  - category: "Signal Monitor"
+    pdf_pages: [327]
+    printed_pages: ["4-10"]
+    commands: ["DSMPLSETUP", "DSMPLARM", "DSMPLFLUSH"]
+  - category: "External Trigger"
+    pdf_pages: [328]
+    printed_pages: ["4-11"]
+    commands: ["TGP", "TGPC", "TGSI", "TGSO", "TGXO", "TGMO", "OS", "OSX", "WS", "WSX", "TM"]
+  - category: "Digital I/O and Selectors"
+    pdf_pages: [328, 329, 330]
+    printed_pages: ["4-11 to 4-13"]
+    commands: ["ERM", "ERS?", "ERC", "ERMOD", "ERMOD?", "ERSSP", "ERSSP?", "ERHPA", "ERHPA?", "ERHPL", "ERHPL?", "ERHPS", "ERHPS?", "ERHPP", "ERHPP?", "ERHPE", "ERHPE?", "ERHPR", "ERHPR?"]
+  - category: "N1265A Ultra High Current Expander / Fixture"
+    pdf_pages: [329]
+    printed_pages: ["4-12"]
+    commands: ["ERPFUHCA", "ERPFUHCA?", "ERPFUHCTST?", "ERPFUHCCAL?", "ERPFUHCMAX?", "ERPFGA", "ERPFGA?", "ERPFDA", "ERPFDA?", "ERPFDP", "ERPFDP?", "ERPFDS", "ERPFDS?", "ERPFGP", "ERPFGP?", "ERPFGR", "ERPFGR?", "ERPFTEMP?"]
+  - category: "N1266A HVSMU Current Expander"
+    pdf_pages: [330]
+    printed_pages: ["4-13"]
+    commands: ["ERHVCA", "ERHVCA?", "ERHVCTST?", "ERHVP", "ERHVP?", "ERHVS", "ERHVS?", "ERHVPV"]
+  - category: "N1268A Ultra High Voltage Expander"
+    pdf_pages: [330]
+    printed_pages: ["4-13"]
+    commands: ["ERUHVA", "ERUHVA?"]
+  - category: "N1272A/B1506A/B1507A Selector and Adapter Control"
+    pdf_pages: [330]
+    printed_pages: ["4-13"]
+    commands: ["ERCMAA", "ERCMAA?", "ERCMAGRD", "ERCMAGRD?", "ERCMAIO", "ERCMAIO?", "ERCMAPFGD", "ERPFQG", "ERPFQG?", "ERHPQG", "ERHPQG?"]
+  - category: "HVSMU Control and Variables"
+    pdf_pages: [330]
+    printed_pages: ["4-13"]
+    commands: ["HVSMUOP", "HVSMUOP?", "VAR", "VAR?"]
+  - category: "Program Memory"
+    pdf_pages: [331]
+    printed_pages: ["4-14"]
+    commands: ["ST", "END", "SCR", "LST?", "DO", "RU"]
+  - category: "Error Management"
+    pdf_pages: [331]
+    printed_pages: ["4-14"]
+    commands: ["ERRX?", "ERR?", "EMG?"]
+  - category: "Queries"
+    pdf_pages: [331]
+    printed_pages: ["4-14"]
+    commands: ["*IDN?", "LOP?", "*LRN?", "NUB?", "*OPC?", "UNT?", "WNU?", "WZ?"]
+  - category: "Status Byte"
+    pdf_pages: [331]
+    printed_pages: ["4-14"]
+    commands: ["*SRE", "*SRE?", "*STB?"]
+
+implementation_notes:
+  - "Use grouped_command_index for broad name discovery."
+  - "Use commands records for high-value command behavior."
+  - "For exact syntax and parameter domains, read individual command page."
+  - "Many command pairs share a command page, for example CN/CNX, ADJ/ADJ?, CORRST/CORRST?."

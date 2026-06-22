@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+dist/
+build/
+
+# Local and private configuration
+.env
+.env.*
+*.local.yaml
+*.local.toml
+config/local.yaml
+.codex/config.toml
+
+# Measurement outputs
+data/raw/*
+data/processed/*
+data/reports/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/reports/.gitkeep
+*.parquet
+*.h5
+*.hdf5
+*.png
+*.svg
+*.html
+
+# Logs
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

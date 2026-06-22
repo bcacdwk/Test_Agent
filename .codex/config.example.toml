@@ -1,0 +1,18 @@
+# Example Codex project configuration.
+# Copy this file to `.codex/config.toml` in a trusted project or merge the MCP
+# server section into `~/.codex/config.toml` when the server is implemented.
+
+project_doc_max_bytes = 65536
+
+[mcp_servers.b1500_test_agent]
+command = "python"
+args = ["-m", "b1500_test_agent.mcp.server"]
+cwd = "."
+startup_timeout_sec = 20
+tool_timeout_sec = 600
+enabled = false
+default_tools_approval_mode = "prompt"
+
+[mcp_servers.b1500_test_agent.env]
+B1500_TEST_AGENT_CONFIG = "config/default.example.yaml"
+B1500_TEST_AGENT_SAFETY_LIMITS = "config/safety_limits.example.yaml"

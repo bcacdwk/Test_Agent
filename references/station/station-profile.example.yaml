@@ -1,0 +1,21 @@
+station:
+  name: example-b1500-station
+  gpib_address: 17
+  controller: TBD
+
+modules:
+  - slot: 1
+    type: MPSMU
+    channels: [1]
+    alias: gate_smu
+  - slot: 2
+    type: MPSMU
+    channels: [2]
+    alias: drain_smu
+
+topology:
+  shield_box: unknown
+  interlock_available: unknown
+  guard_available: unknown
+  kelvin_available: unknown
+  switching_accessories: []

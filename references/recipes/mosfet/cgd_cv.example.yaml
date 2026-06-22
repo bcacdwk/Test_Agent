@@ -1,0 +1,16 @@
+name: mosfet_cgd_cv_example
+device_type: mosfet
+status: deferred_until_correction_flow_exists
+required_capabilities:
+  - measure_capacitance
+  - switch_path
+preconditions:
+  - leakage_check_passed
+  - open_short_correction_current
+  - pin_map_verified
+parameters:
+  frequency_hz: 1000000
+  ac_level_v: 0.03
+  dc_start_v: -3.0
+  dc_stop_v: 3.0
+  steps: 201

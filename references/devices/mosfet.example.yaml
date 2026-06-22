@@ -1,0 +1,18 @@
+device_type: mosfet
+safe_limits:
+  gate_voltage_v: [-3.0, 3.0]
+  drain_voltage_v: [0.0, 3.0]
+  max_current_a: 0.001
+measurements:
+  - idvg
+  - idvd
+  - gate_leakage
+  - cgd_cv
+analysis:
+  vth_methods:
+    - linear_extrapolation
+    - constant_current
+  quality_checks:
+    - compliance_status
+    - leakage_threshold
+    - hysteresis

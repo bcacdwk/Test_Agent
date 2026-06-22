@@ -1,0 +1,37 @@
+# Example safety policy. Real station limits should be reviewed and committed
+# only if they are safe to share.
+
+global:
+  max_voltage_v: 100.0
+  max_current_a: 0.1
+  require_interlock_above_v: 42.0
+  auto_zero_on_error: true
+  require_human_approval_for_unknown_dut: true
+
+module_limits:
+  HPSMU:
+    max_voltage_v: 200.0
+    max_current_a: 1.0
+  MPSMU:
+    max_voltage_v: 100.0
+    max_current_a: 0.1
+  HRSMU:
+    max_voltage_v: 100.0
+    max_current_a: 0.1
+  MCSMU:
+    max_voltage_v: 30.0
+    max_current_a: 1.0
+  HVSPGU:
+    max_voltage_v: 40.0
+    max_current_a: null
+  WGFMU:
+    max_voltage_v: null
+    max_current_a: null
+
+approval_required:
+  - voltage_above_interlock_threshold
+  - first_run_of_new_recipe
+  - unknown_pin_map
+  - stale_capacitance_correction
+  - long_batch_run
+  - destructive_or_breakdown_test

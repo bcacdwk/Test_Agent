@@ -1,0 +1,16 @@
+device_type: mosfet
+terminals:
+  gate:
+    channel: 1
+    role: sweep_or_bias
+  drain:
+    channel: 2
+    role: measure_or_bias
+  source:
+    channel: null
+    role: gndu_or_smu
+  bulk:
+    channel: null
+    role: gndu_or_smu
+notes:
+  - Replace null channels with the actual station wiring before measurement.

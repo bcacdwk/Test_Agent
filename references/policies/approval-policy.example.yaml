@@ -1,0 +1,13 @@
+approval_required:
+  high_voltage:
+    condition: abs(voltage_v) > 42
+    reason: Interlock and shielding must be confirmed.
+  unknown_dut:
+    condition: device_profile_missing
+    reason: Safe voltage and current envelopes are unknown.
+  new_recipe:
+    condition: recipe_validated == false
+    reason: First execution requires human review and dry run.
+  capacitance_without_correction:
+    condition: correction_state_missing
+    reason: C measurements are not trustworthy without correction metadata.

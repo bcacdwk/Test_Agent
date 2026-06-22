@@ -1,0 +1,17 @@
+records:
+  phase_compensation:
+    status: unknown
+    timestamp: null
+    frequency_range_hz: null
+  open_correction:
+    status: unknown
+    timestamp: null
+    frequency_range_hz: null
+  short_correction:
+    status: unknown
+    timestamp: null
+    frequency_range_hz: null
+  load_correction:
+    status: unknown
+    timestamp: null
+    frequency_range_hz: null

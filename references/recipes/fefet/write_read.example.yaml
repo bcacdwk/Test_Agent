@@ -1,0 +1,16 @@
+name: fefet_write_read_example
+device_type: fefet
+status: TBD-from-WGFMU-and-SPGU-manuals
+required_capabilities:
+  - pulse_source
+  - source_voltage
+  - measure_current
+sequence:
+  - program_pulse
+  - read_idvg
+  - erase_pulse
+  - read_idvg
+analysis:
+  - memory_window
+  - vth_shift
+  - endurance_trend

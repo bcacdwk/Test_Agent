@@ -1,0 +1,35 @@
+# Measurement mode map stub. Verify every entry against the Programming Guide.
+
+modes:
+  spot_iv:
+    mm: 1
+    priority: P0
+    modules: [SMU]
+  staircase_iv:
+    mm: 2
+    priority: P0
+    modules: [SMU]
+  pulsed_spot:
+    mm: 3
+    priority: P1
+    modules: [SMU]
+  pulsed_sweep:
+    mm: 4
+    priority: P1
+    modules: [SMU, HVSPGU]
+  sampling:
+    mm: 10
+    priority: P1
+    modules: [SMU, WGFMU]
+  cv_sweep:
+    mm: 18
+    priority: P2
+    modules: [MFCMU, SMU]
+  cf_sweep:
+    mm: 22
+    priority: P2
+    modules: [MFCMU]
+  ct_sampling:
+    mm: 26
+    priority: P2
+    modules: [MFCMU]

@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "b1500-test-agent"
+version = "0.1.0"
+description = "Codex-oriented MCP, skill, rule, and Python framework for safe Keysight B1500A semiconductor testing."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "bcacdwk", email = "17078434@qq.com" }
+]
+dependencies = [
+  "fastmcp",
+  "matplotlib",
+  "numpy",
+  "pandas",
+  "pydantic>=2",
+  "pyvisa",
+  "pyyaml",
+  "typer"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff"
+]
+
+[project.scripts]
+b1500-test-agent = "b1500_test_agent.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,19 @@
+name: mosfet_idvg_example
+device_type: mosfet
+status: unvalidated_example
+required_capabilities:
+  - source_voltage
+  - measure_current
+channels:
+  gate: sweep
+  drain: bias
+  source: ground
+parameters:
+  vgs_start_v: -1.0
+  vgs_stop_v: 3.0
+  steps: 101
+  vds_v: 0.05
+  compliance_a: 0.001
+cleanup:
+  - DZ
+  - CL

@@ -1,0 +1,30 @@
+# Example runtime configuration. Do not put private station settings here.
+
+gpib:
+  board: 0
+  address: 17
+  timeout_ms: 600000
+  visa_backend: ""
+
+session:
+  audit_log_path: logs/b1500_audit.log
+  auto_discover_modules: true
+  default_data_format: 1
+
+modules:
+  # Replace with the real module inventory after `UNT?` validation.
+  - slot: 1
+    type: MPSMU
+    alias: gate_smu
+  - slot: 2
+    type: MPSMU
+    alias: drain_smu
+  - slot: 3
+    type: HRSMU
+    alias: source_smu
+  - slot: 5
+    type: WGFMU
+    alias: pulse_wgfmu
+
+station_profile:
+  path: references/station/station-profile.example.yaml

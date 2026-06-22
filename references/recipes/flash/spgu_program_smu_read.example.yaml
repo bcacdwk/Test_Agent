@@ -1,0 +1,15 @@
+name: flash_spgu_program_smu_read_example
+device_type: flash_or_nvm
+status: TBD-from-16440A-manual
+required_capabilities:
+  - pulse_source
+  - selector_16440a
+  - source_voltage
+  - measure_current
+sequence:
+  - switch_to_spgu
+  - apply_program_pulse
+  - switch_to_smu
+  - read_iv_state
+notes:
+  - Validate selector topology before enabling this recipe.

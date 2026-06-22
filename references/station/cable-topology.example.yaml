@@ -1,0 +1,20 @@
+paths:
+  gate:
+    instrument: B1500A
+    module_alias: gate_smu
+    cable_type: triax
+    length_m: null
+    guard: unknown
+    kelvin: false
+  drain:
+    instrument: B1500A
+    module_alias: drain_smu
+    cable_type: triax
+    length_m: null
+    guard: unknown
+    kelvin: false
+
+switching:
+  asu: unknown
+  scuu: unknown
+  selector_16440a: unknown

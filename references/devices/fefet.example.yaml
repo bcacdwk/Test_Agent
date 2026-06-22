@@ -1,0 +1,13 @@
+device_type: fefet
+safe_limits:
+  gate_voltage_v: [-5.0, 5.0]
+  drain_voltage_v: [0.0, 1.0]
+  max_current_a: 0.001
+measurements:
+  - memory_window
+  - write_read
+  - endurance
+  - retention
+notes:
+  - Program and erase pulses must be reviewed against film thickness and coercive field.
+  - Read operations should use conservative SMU IV settings.

@@ -1,0 +1,13 @@
+# Runtime dependencies
+fastmcp
+matplotlib
+numpy
+pandas
+pydantic>=2
+pyvisa
+pyyaml
+typer
+
+# Development and validation
+pytest
+ruff

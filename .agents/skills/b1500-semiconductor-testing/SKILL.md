@@ -18,8 +18,15 @@ description: Plan, validate, execute, and analyze semiconductor measurements wit
 
 ## Knowledge Map
 
+- Instrument-interaction MCP tool map: `references/instrument-interaction-tools.md`
 - B1500A equipment and FLEX command references: `references/instruments/`
 - Station, cable, pin-map, and compensation profiles: `references/station/`
 - Device and recipe profiles: `references/devices/` and `references/recipes/`
 - Physics, FeFET, reliability, and HSPICE notes: `references/physics/` and `references/hspice/`
 - Debug runbooks: `references/debug/`
+
+## MCP Tool Guidance
+
+Before using B1500A MCP tools, read `references/instrument-interaction-tools.md`.
+Treat all tools marked `fake: true` as client-discovery and workflow-design stubs only.
+Do not infer that hardware connection, VISA transport, GPIB communication, or FLEX command execution is implemented until a tool explicitly reports `hardware_touched: true` and the driver safety layer is complete.

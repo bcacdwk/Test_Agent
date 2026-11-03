@@ -7,6 +7,7 @@ Detailed fake B1500A MCP tool references are split by family:
 - [C atoms](c-atoms.md)
 - [A flows](a-flows.md)
 - [B flows](b-flows.md)
+- [C flows](c-flows.md)
 - [AB flows](ab-flows.md)
 
 The parent overview remains at [`../instrument-interaction-tools.md`](../instrument-interaction-tools.md).

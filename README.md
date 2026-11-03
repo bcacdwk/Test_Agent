@@ -58,7 +58,14 @@ The example MCP configuration is in `.codex/config.example.toml`. Copy relevant 
 
 ## Development Status
 
-This is a skeleton repository. Most files are intentionally placeholders that document boundaries and naming. The next meaningful milestone is a safe local prototype:
+The fake MCP surface now includes A/B/C atoms and A/B/C/AB flows. Thirty C flows
+cover spot, sweep, pulse, waveform, sampling, search, and remote execution. See
+[the C flow catalog](.agents/skills/b1500-semiconductor-testing/references/mcp-tools/c-flows.md)
+for ordered atom compositions, typed requests, completion semantics, and explicit
+configuration-only gaps. These are synthetic orchestration tools; real transport,
+validated hardware recipes, and complete ABC transactions remain unimplemented.
+
+The driver and analysis layers remain skeletons. The next hardware-facing milestone is a safe local prototype:
 
 1. Mock B1500A session and parser tests.
 2. PyVISA transport wrapper.

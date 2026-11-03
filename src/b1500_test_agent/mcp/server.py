@@ -9,6 +9,7 @@ Naming convention:
   A_atom_<interface>_<action>    -- read/discover/connect/session/context atoms
   B_atom_<risk_category>_<target>_<action> -- safety/state-control atoms
   C_atom_<object>_<action> -- measurement/source/configuration/execution atoms
+  C_flow_<measurement_family>_<object>_<subject> -- C-only measurement compositions
   A_flow_<operation>_<interface>_<subject> -- A-only orchestration flows
   B_flow_<category>_<target>_<subject> -- B-only safety/state-control flows
   AB_flow_<category>_<scope>_<subject> -- user-facing observe/act/verify workflows
@@ -30,6 +31,7 @@ from .ab_flows import AB_FLOW_FUNCTIONS, register_ab_flows
 from .b_atoms import B_ATOM_FUNCTIONS, register_b_atoms
 from .b_flows import B_FLOW_FUNCTIONS, register_b_flows
 from .c_atoms import C_ATOM_FUNCTIONS, register_c_atoms
+from .c_flows import C_FLOW_FUNCTIONS, register_c_flows
 from .common import _fake_response
 
 mcp = FastMCP(
@@ -42,6 +44,7 @@ mcp = FastMCP(
         "C_atom tools are measurement/source/configuration/execution atoms. "
         "A_flow tools are A-only orchestration flows. "
         "B_flow tools are B-only safety/state-control flows. "
+        "C_flow tools are C-only fake measurement compositions with explicit completion/gap states. "
         "AB_flow tools are observe/act/verify workflow orchestrations. "
         "A second token: flex | wgfmu | easyexpert (interface). "
         "B second token: safety | output | lifecycle | diagnostic | "
@@ -63,6 +66,7 @@ register_a_flows(mcp)
 register_b_atoms(mcp)
 register_b_flows(mcp)
 register_c_atoms(mcp)
+register_c_flows(mcp)
 register_ab_flows(mcp)
 
 
@@ -77,10 +81,11 @@ def capabilities() -> dict:
         C_atoms=_function_names(C_ATOM_FUNCTIONS),
         A_flows=_function_names(A_FLOW_FUNCTIONS),
         B_flows=_function_names(B_FLOW_FUNCTIONS),
+        C_flows=_function_names(C_FLOW_FUNCTIONS),
         AB_flows=_function_names(AB_FLOW_FUNCTIONS),
         implementation_status=(
-            "A/B/C atom fake tools plus A_flow, B_flow, and AB_flow orchestration-only "
-            "compositions; C flows intentionally not added yet."
+            "A/B/C atom fake tools plus A_flow, B_flow, C_flow, and AB_flow "
+            "orchestration-only compositions; real hardware and ABC transactions are not implemented."
         ),
     )
 

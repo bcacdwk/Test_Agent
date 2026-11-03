@@ -1,7 +1,8 @@
 # C Atom MCP Tools
 
 C atoms are reusable measurement/source/configuration/execution/data-read primitives. They sit above
-A-class readback/session atoms and B-class safety/state-control atoms, but below future ergonomic C flows.
+A-class readback/session atoms and B-class safety/state-control atoms, but below
+[C flows](c-flows.md), which compose these primitives with explicit completion and contract-gap states.
 
 ```text
 C_atom_<object>_<action>

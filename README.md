@@ -1,95 +1,89 @@
 # B1500A Test Agent
 
-B1500A Test Agent is a Codex CLI oriented framework for building a safe, auditable, and extensible semiconductor test agent around the Keysight B1500A Semiconductor Device Analyzer.
+A safety-gated measurement kernel for the Keysight B1500A Semiconductor Device Analyzer, built to be driven by
+coding agents (Codex CLI and Claude Code) without letting them send raw instrument commands.
 
-The project is intentionally structured as an experimental operating layer, not as a chatbot that sends raw FLEX commands. Natural language intent should flow through skills, rules, typed schemas, deterministic Python tools, safety policies, and only then reach the instrument.
+A typed Python core plans, checks, runs, archives and analyzes measurements. Two thin adapters expose it: an MCP
+server with ten outcome-level tools and the `b1500` CLI. Every executable action is a **recipe**. It runs only
+through `validate_plan → run_plan` or, when a human must confirm, `run_confirmed_plan`, and the core enforces
+limits, tiers, per-command output guards and a guaranteed safe shutdown. An in-process FLEX simulator stands in
+for the instrument, so everything is developed and tested without hardware.
 
-## What This Repository Contains
+> **Status (2026-11-17): M0 re-baseline done; M1 next.** The simulator, MCP server, operator CLI, recipes and
+> skills described here are being built milestone by milestone (see [docs/roadmap.md](docs/roadmap.md)). Today the
+> repository contains the package skeleton, the FLEX status-code tables of the ASCII parser (data parsing comes in
+> M1), salvaged data models, the legacy driver map and the token-budget tool. Nothing in it can reach an instrument
+> yet.
 
-- A Python package skeleton for the B1500A driver kernel, MCP server, data schemas, and analysis layer.
-- Codex CLI project guidance through `AGENTS.md` and scoped nested `AGENTS.md` files.
-- Repo-scoped Codex skills under `.agents/skills`.
-- Example Codex MCP configuration under `.codex/config.example.toml`.
-- Structured reference stubs for instrument manuals, station profiles, device profiles, recipes, physics, HSPICE, and debugging notes.
-- Test and mock-instrument placeholders for safe development before real hardware validation.
+## Layers
 
-## System Boundaries
+The eight layers of the owner's design deck and where they live:
 
 ```text
-User intent
-  -> Codex skills
-  -> AGENTS.md rules and project memory
-  -> MCP tools
-  -> Python driver kernel
-  -> PyVISA / GPIB
-  -> B1500A and DUT
+L8 Agent           Codex CLI / Claude Code          AGENTS.md, CLAUDE.md, harness config      (M1–M3)
+L7 Skills + rules  b1500-test, b1500-debug          .agents/skills/  rules/  config/*.example  (M1–M2)
+L6 MCP + CLI       10 tools, `b1500` CLI            service.py  adapters/{mcp_server,cli}.py   (M1)
+L5 Analysis        quality, Vth/SS/gm, plots        analysis/  archive/                        (M1–M2)
+L4 Transaction     recipes, plans, lock, cleanup    catalog/  recipes/  session/               (M1)
+L3 Driver          FLEX builders, guard, parser     driver/                                    (M1)
+L2 GPIB / VISA     VISA or simulator transport      transport/  transport/sim/                 (M1)
+L1 Physical safety interlock, shield box, compliance station profile, M4 bring-up checklist    (M4)
 ```
 
-## Module Roadmap
+Dependencies point downward only: `adapters → service → {catalog, rules, archive, analysis} → session → driver →
+transport`, with `models` as a shared leaf. Details: [docs/architecture.md](docs/architecture.md); safety design:
+[docs/safety-model.md](docs/safety-model.md).
 
-This skeleton keeps SMU, WGFMU, SPGU/HVSPGU, and CMU/MFCMU as first-class areas so the repository can grow cleanly.
+## Quick start (development machine, simulator only)
 
-Current implementation maturity:
+Requires [uv](https://docs.astral.sh/uv/) and Python 3.11–3.13. From the repository root:
 
-- SMU: first implementation target for connection, preflight, spot IV, staircase IV, and gate leakage checks.
-- WGFMU: high-priority pulse and reliability direction; command details are stubbed pending manual extraction.
-- SPGU/HVSPGU: pulse programming and SMU readback workflows are stubbed, including 16440A selector references.
-- CMU/MFCMU: represented in the architecture, but C-V/QSCV implementation is delayed until correction and SCUU flows are verified.
+```bash
+uv sync                                               # creates .venv/ in the clone from uv.lock
+uv run pytest -m "not hardware and not acceptance"    # simulator-only test suite
+uv run b1500 --help                                   # CLI (today: developer tools only)
+uv run ruff check
+```
 
-## Safety Position
+Everything stays inside the clone: `.venv/`, `data/` (run archive and state), `config/local/` (human-owned live
+configuration) and `work/` (agent scratch) are gitignored. Only `*.example.yaml` configuration is committed.
 
-No code in this initial skeleton should control real hardware. The first real implementation must start with transport, session state, safety validation, audit logging, and mock-instrument tests.
+## How a measurement will run (planned, M1)
 
-Safety rules that must become executable policy:
+1. The agent reads `station_status` and the recipe list, then calls `validate_plan` with a recipe, parameters, a
+   pin map and a DUT profile.
+2. The plan gets a tier: `ok` → `run_plan(plan_id)`; `needs_confirmation` → the agent shows the one-line summary,
+   stops, and only after the human agrees calls `run_confirmed_plan(plan_id, summary)`, which the harness puts in
+   front of the human; `blocked` → never runs.
+3. The run executes inside a locked transaction that always ends with abort, zero, disconnect and a verified safe
+   state, and archives raw data, parsed data, the audit log and the manifest under `data/runs/`.
+4. `analyze_run` extracts parameters (first: Vth by linear extrapolation) from trusted points only.
 
-- Never expose raw FLEX command execution by default.
-- Validate channel maps, voltage/current limits, interlock state, and compliance before sourcing.
-- Use typed command builders instead of ad hoc command strings.
-- Ensure every measurement transaction has cleanup behavior that reaches `DZ` and `CL` where appropriate.
-- Persist raw data, parsed data, metadata, status codes, and assumptions for every run.
+## Lab PC (planned, M4)
 
-## Codex CLI Integration
+The real station is a Windows PC wired to the B1500A over GPIB that runs the same clone (`git clone`/`git pull`,
+`uv sync --frozen`, local config in `config/local/`). Step-by-step instructions will be in
+`docs/deployment-windows.md` and the staged hardware bring-up in `docs/hardware-bringup.md` (both M4).
 
-Codex reads project guidance from `AGENTS.md`. This repo also includes nested `AGENTS.md` files for driver and analysis subtrees.
+## Documentation
 
-Repo skills live in `.agents/skills`. They are intended for task-specific workflows, such as B1500A semiconductor testing and debug triage.
+| Document | Content |
+|---|---|
+| [docs/design/blueprint.md](docs/design/blueprint.md) | Plan of record: interfaces, rules, tools, skills, milestones |
+| [docs/design/progress.md](docs/design/progress.md) | Work-package log with acceptance results and handoff notes |
+| [docs/architecture.md](docs/architecture.md) | Layers, dependency rules, module map |
+| [docs/safety-model.md](docs/safety-model.md) | Rules, tiers, confirmation, cleanup, residual risks |
+| [docs/roadmap.md](docs/roadmap.md) | Milestones M0–M4 and their status |
+| [docs/migration.md](docs/migration.md) | What happened to the v0.2 fake-tool surface; token baseline |
+| [docs/manual-extraction.md](docs/manual-extraction.md) | How manual content becomes structured references |
+| [AGENTS.md](AGENTS.md) | Instructions for coding agents (also loaded by Claude Code via `CLAUDE.md`) |
 
-The example MCP configuration is in `.codex/config.example.toml`. Copy relevant parts into a trusted project `.codex/config.toml` or into `~/.codex/config.toml` when the MCP server is implemented.
+## Scope
 
-## Development Status
-
-The fake MCP surface now includes A/B/C/D atoms and A/B/C/AB/D/CD flows. 31 C flows
-cover spot, sweep, pulse, waveform, sampling, search, and remote execution. See
-[the C flow catalog](references/driver-map/legacy-catalog/c-flows.md)
-for ordered atom compositions, typed requests, completion semantics, and explicit
-configuration-only gaps. These are synthetic orchestration tools; real transport,
-validated hardware recipes, and complete ABC transactions remain unimplemented.
-
-42 D atoms (`D_atom_<stage>_<subject>_<action>`) define the hardware-free
-post-acquisition analysis surface: ingest, qualify, shape, derive, extract, assess,
-archive, and render. In this phase they are placeholder stubs that return content-free
-product references, label synthetic data `synthetic_only`, and write no files. See
-[the D atom catalog](references/driver-map/legacy-catalog/d-atoms.md).
-
-7 D flows (`D_flow_<operation>_<domain>_<subject>`) compose D atoms over a C flow
-envelope the caller already holds: qualify IV/CV/time-series datasets, screen IV
-leakage against declared criteria, analyze transfer and output curves, and plan an
-archive bundle. 4 CD flows (`CD_flow_<operation>_<domain>_<subject>`) run expect ->
-one C flow (closed `acquisition.kind`) -> its D flow -> archive; they are fake-only,
-interpret only a completed designated read record, never call A/B tools or C atoms
-directly, and write no files. See
-[the D flow catalog](references/driver-map/legacy-catalog/d-flows.md)
-and [the CD flow catalog](references/driver-map/legacy-catalog/cd-flows.md).
-
-The driver and analysis layers remain skeletons. The next hardware-facing milestone is a safe local prototype:
-
-1. Mock B1500A session and parser tests.
-2. PyVISA transport wrapper.
-3. Module discovery through `UNT?`.
-4. Safety policy validation.
-5. Spot IV and staircase IV recipes.
-6. MCP tools for connect, status, IV measurement, and safe shutdown.
+v1 covers SMU I-V measurements: contact/resistor check, diode I-V, MOSFET Id-Vg and Id-Vd, gate leakage and FeFET
+dual-sweep memory window. WGFMU, SPGU/HVSPGU, CMU (C-V, QSCV) and reliability stress workflows are reserved as
+`not_implemented` recipes until their manual extraction, correction flows and validation exist.
 
 ## License
 
-License is TBD. Choose an open-source license before publishing.
+To be decided before publishing.

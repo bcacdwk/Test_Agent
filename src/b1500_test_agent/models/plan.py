@@ -23,7 +23,7 @@ from b1500_test_agent.models.common import (
     Tier,
 )
 from b1500_test_agent.models.measurement import Channel
-from b1500_test_agent.models.recipe import RecipeId
+from b1500_test_agent.models.recipe import RecipeId, RoleFunction
 from b1500_test_agent.models.station import Alias, ModuleType, Slot
 
 PlanId = Annotated[str, Field(pattern=r"^P-[A-Z2-7]{10}$")]
@@ -74,11 +74,28 @@ class ChannelBinding(StrictModel):
 
 
 class ChannelEnvelope(StrictModel):
-    """Largest |V| and |I| (level or compliance) the plan may apply on one channel."""
+    """Largest |V| and |I| (level or compliance) the plan may apply on one channel.
+
+    ``function``, ``v_start`` and ``v_stop`` describe what the role does on the channel (first and last forced
+    voltage; equal for a bias) so that the canonical plan summary can show it (blueprint 2.5). They are optional and
+    must lie inside ``max_abs_v``, which stays the enforced limit.
+    """
 
     role: str
     max_abs_v: float = Field(ge=0)
     max_abs_i: float = Field(ge=0)
+    function: RoleFunction | None = None
+    v_start: float | None = None
+    v_stop: float | None = None
+
+    @model_validator(mode="after")
+    def _levels_inside_envelope(self) -> ChannelEnvelope:
+        if (self.v_start is None) != (self.v_stop is None):
+            raise ValueError("v_start and v_stop are set together.")
+        for level in (self.v_start, self.v_stop):
+            if level is not None and abs(level) > self.max_abs_v:
+                raise ValueError(f"level {level} V lies outside max_abs_v {self.max_abs_v} V.")
+        return self
 
 
 class CompiledEnvelope(StrictModel):

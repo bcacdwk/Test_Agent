@@ -1,9 +1,10 @@
 # Safety model
 
 How the B1500A test agent decides what may run, who must confirm it, and what happens when something goes wrong.
-Source: blueprint §4 (rules, tiers, confirmation, residual risks), §2.4 (transaction and fault latch) and §3 (the
-simulator invariant). **Status: design; implementation arrives in M1.** WP1.4 completes this page with the rule
-table as implemented.
+Source: blueprint §4 (rules, tiers, confirmation, residual risks), §2.4 (transaction and fault latch), §2.5 (rules
+API) and §3 (the simulator invariant). **Status:** the rules engine, the built-in rules, tiers and the plan summary
+are implemented (WP1.4, `src/b1500_test_agent/rules/`); the session, executor and tools that call them arrive in
+WP1.6–WP1.8.
 
 ## Principles
 
@@ -19,9 +20,10 @@ table as implemented.
 ## Where checks happen
 
 1. **Plan rules** (`validate_plan`, and again without I/O at the start of every run): recipe status, parameter
-   ranges, pin map and DUT profile, module specs, hard and soft limits, compliance, run size.
+   ranges, pin map and DUT profile, module specs, hard and soft limits, compliance, run size. If a live snapshot
+   is available at validation, the live-state rules run too and report problems early.
 2. **Pre-execute rules** under the instrument lock with fresh live state: no latched fault, instrument identity and
-   module inventory match the station profile, interlock state, pre-existing instrument errors.
+   module inventory match the station profile, interlock state, pre-existing instrument errors, calibration state.
 3. **`OutputGuard`** on every single source command: the channel must be in the plan's allowlist, the level and
    compliance inside the compiled envelope, the compliance non-zero. A violation raises before anything is sent.
 4. **Quality classification** after the run: each data point's status code makes it ok, limited or untrusted.
@@ -36,62 +38,114 @@ Configuration is re-read (by digest) on every service call, so a rule change app
 |---|---|---|
 | `hard_limits` | 42 V, 100 mA compliance | Above → `blocked`. Code ceiling `HARD_CEILING_V = 42.0`, `HARD_CEILING_A = 0.1`; a policy above it is invalid config |
 | `soft_limits` | 10 V, 10 mA compliance | Above → `needs_confirmation` (reason `soft_limit`) |
-| `interlock.required_above_v` | 42 V | Above → interlock must be closed (unreachable in v1 because of the hard limit) |
+| `interlock.required_above_v` | 42 V | Above → the interlock must be recorded as working and be closed |
 | `run_limits` | 10,001 points, 300 s per synchronous run | Above → `blocked` |
 | `plans.ttl_h` | 24 h | Older plans must be validated again |
 | `quality` | ok `N`; limited `C T`; untrusted `V X F D G S U` | Limited points are excluded from fits; extraction from untrusted data is refused unless forced, and then flagged |
 
-Module specifications from the manuals (voltage, current and power per SMU type) also block a plan regardless of
-policy.
+Limits compare magnitudes and are exclusive: a value equal to a limit passes (10 V is `ok`, 42 V needs
+confirmation, 42.5 V is `blocked`). Every voltage and current check runs over the plan's compiled envelope, the
+same per-channel numbers the `OutputGuard` enforces, so the rules and the guard cannot disagree. Module
+specifications from the manuals (voltage, current and V-I envelope per SMU type, `driver/modules.py`) block a plan
+regardless of policy.
 
-## Planned v1 rules (blueprint §4.2)
+## Implemented rules (blueprint §4.2)
 
-| Id | When | Check | Outcome |
-|---|---|---|---|
-| R-CFG-01 | always | Config parses; examples cannot select visa; visa needs local settings, station and policy; hard limits ≤ ceiling | block |
-| R-FAULT-01 | plan, pre | No latched fault; a leftover in-flight marker has been recovered | block |
-| R-REC-01 | plan | `not_implemented` recipe → block; on visa: `draft` → confirm, first hardware run of a `sim_validated` recipe → confirm, ad-hoc `generic.*` recipe → confirm | block / confirm |
-| R-PARAM-01 | plan | Parameters match the recipe's types, choices and ranges | block |
-| R-PIN-01 / 02 | plan | Pin map complete and consistent with the station; an `unverified` pin map needs confirmation | block / confirm |
-| R-INV-01 | pre | Live identity and module inventory match the station profile | block |
-| R-LIM-01 / 02 / 03 | plan | Module specs; hard limits; soft limits | block / block / confirm |
-| R-DUT-01 | plan | DUT profile required when the recipe has DUT roles; outside its envelope → confirm | block / confirm |
-| R-COMP-01 | plan | Every sourcing channel has an explicit non-zero compliance | block |
-| R-IL-01 | pre | High voltage requires a closed interlock | block |
-| R-RUN-01 | plan | Point count and duration within run limits | block |
-| R-ALWAYS-01 | plan | Recipe marks itself always-confirm (destructive, self-test, self-calibration) | confirm |
-| R-ERRX-01, R-CAL-01 | pre | Pre-existing instrument errors drained and recorded; calibration state recorded | warn |
-| R-CORR-01 | plan | Capacitance kinds need a valid correction (declared; CMU kinds are `not_implemented`) | block |
-| R-QUAL-* | post | Status-code classification of every point | report |
+Each rule is one function in `rules/builtin.py`, registered with a stable id. Thresholds come only from the config
+files, recipe parameter ranges and the code tables named below. Every finding carries the rule id, severity,
+message, observed value, limit and **source**: the resolved file and key (`config/local/policy.yaml#soft_limits.
+voltage_v`, or `config/policy.example.yaml#...` when the simulator runs on the committed examples), the recipe field
+(`recipes/mosfet/idvg.yaml#params.vg_stop.range`), a code constant (`code:...`), the live snapshot (`live:...`), the
+plan (`plan:...`) or a state file (`data/state/fault.json`). "pre" = `pre_execute`.
+
+| Id | Phase | Check | Outcome | Source key |
+|---|---|---|---|---|
+| R-CFG-01 | plan, pre | Policy hard limits within the code ceiling; backend `visa` only with `config/local/{settings,station,policy}.yaml` and no `B1500_CONFIG_DIR`; the plan's backend is the configured one; the policy, station, pin map and DUT profile in the rule context are the loaded ones. Files that do not parse or validate never reach the engine: the loader reports `invalid_config`, and `config_findings()` turns each problem into an R-CFG-01 block | block | `policy.yaml#hard_limits.*`, `settings.yaml#backend`, the config file |
+| R-FAULT-01 | plan, pre | No latched fault; no unrecovered in-flight marker | block | `data/state/fault.json`, `data/state/inflight.json` |
+| R-REC-01 | plan | Effective recipe status for the backend: `not_implemented` (including a kind missing on this backend) → block; on visa `draft` → `draft_recipe`, `sim_validated` → `first_hw_run`, `generic.*` → `adhoc_recipe`; on sim `draft` → warn | block / confirm / warn | recipe `#status`, `#kind`, `#id` |
+| R-PARAM-01 | plan | Every requested parameter is declared, every declared one has a value, and type, choices, range and unit match the recipe's `ParamSpec`; resolved values equal the requested ones | block | recipe `#params.<name>.{range,type,choices,unit}`, `plan:resolved_params.<name>` |
+| R-PIN-01 | plan | Pin map exists; every non-optional role is mapped to a channel or the GNDU; the plan binding agrees with the pin map and the station profile; channels exist and are used once; module type allowed by the role (default: any SMU); `low_current` needs an HRSMU; the GNDU only for `ground` roles with `allow_gndu`; every envelope channel belongs to its bound role | block | `pinmaps/<name>.yaml#terminals.<role>`, `station.yaml#modules`, recipe `#roles.<role>.*`, `plan:envelope.channels.<ch>` |
+| R-PIN-02 | plan | Pin map `certainty: unverified` | confirm `unverified_pin_map` | `pinmaps/<name>.yaml#certainty` |
+| R-INV-01 | pre (plan with a snapshot) | A live snapshot exists and comes from the plan's backend; identity model = station mainframe; the module model in every bound slot = station profile | block | `station.yaml#mainframe.model`, `station.yaml#modules[i].model`, `live:snapshot`, `live:identity`, `live:inventory` |
+| R-LIM-01 | plan | Per envelope channel: \|V\|, \|Icomp\| and the V-I envelope of its module (`module_spec()` + `violations()`); modules without a DC spec (MFCMU, SPGU, WGFMU) refuse; summed compliance within the GNDU's 4.2 A when a role uses the GNDU | block | `code:b1500_test_agent.driver.modules.MODULE_SPECS[<type>] (<manual tables>)` |
+| R-LIM-02 | plan | Per envelope channel: \|V\| ≤ `hard_limits.max_abs_voltage_v`, \|Icomp\| ≤ `hard_limits.max_abs_compliance_a`, never above the code ceiling; non-finite values block | block | `policy.yaml#hard_limits.*` (`code:...HARD_CEILING_*` if a policy object exceeds the ceiling) |
+| R-LIM-03 | plan | Per envelope channel above `soft_limits.voltage_v` / `soft_limits.compliance_a` | confirm `soft_limit` | `policy.yaml#soft_limits.*` |
+| R-DUT-01 | plan | A recipe with DUT roles needs a named, existing DUT profile that describes every driven terminal (else block); \|V\| or \|Icomp\| above a terminal's envelope → confirm; DUT device type not among the recipe's → warn | block / confirm / warn | `plan:request.dut_profile`, `duts/<name>.yaml#terminals.<t>.max_abs_{v,i}` |
+| R-COMP-01 | plan | Every connected channel has an envelope with non-zero compliance; sourcing roles (`sweep_v`, `bias_v`, `step_v`) set `icomp` explicitly and non-zero | block | recipe `#roles.<role>.settings.icomp`, `plan:envelope.channels.<ch>.max_abs_i` |
+| R-IL-01 | plan, pre | When the envelope's max \|V\| exceeds `interlock.required_above_v`: the station records `interlock.available: true`; with live state, status-byte bit 3 is clear **and** no `ERRX?` 202/203 is pending (ATV-10 fallback); at pre a missing status byte blocks | block | `station.yaml#interlock.available`, `live:status_byte.bit3`, `live:errors` |
+| R-RUN-01 | plan | Points ≤ `run_limits.max_points`; estimated duration ≤ `run_limits.max_sync_run_s` | block | `policy.yaml#run_limits.*` |
+| R-ALWAYS-01 | plan | Recipe `always_confirm` reasons (`destructive`, `system_self_test`, `system_self_cal`) | confirm (that reason) | recipe `#always_confirm` |
+| R-ERRX-01 | pre (plan with a snapshot) | Pre-existing `ERRX?` entries drained by the snapshot are recorded | warn | `live:errors` |
+| R-CAL-01 | pre | Auto-calibration state and the last completed self-calibration (archive) are recorded | warn if unknown, else info | `live:auto_calibration`, `data/runs/index.jsonl` |
+| R-CORR-01 | plan | Capacitance (MFCMU) plans: phase compensation, open and short corrections performed, open/short frequency ranges cover every frequency parameter (declared; CMU kinds are `not_implemented` in v1) | block | `station.yaml#corrections.cmu.*` |
+| R-QUAL-01/02/03 | post | Per-point status counts by class (info); limited points, excluded from fits (warn); untrusted points, extraction refused unless forced (warn). Unknown status letters count as untrusted | report | recipe `#quality` or `policy.yaml#quality` |
+
+How the engine evaluates (`RulesEngine.evaluate(ctx, phase)`):
+
+- Rules run in table order and keep their own finding order, so the same plan and config always give the same
+  report. The report records the phase, tier, confirm reasons, the policy file's sha256 and the evaluation time.
+- A rule that raises, returns something that is not a finding, or asks for confirmation outside the plan phase
+  becomes a `block` finding of that rule: the engine fails closed.
+- Rules return drafts; the engine stamps them with the registered id, so a rule cannot report for another one.
+- Live-state rules only block or warn. Confirmations come from plan rules over config and plan content, which keeps
+  the summary identical between validation and run.
+- R-QUAL-* is not an evaluation phase. `RulesEngine.quality(counts, recipe=...)` classifies a run's status counts;
+  the analysis layer owns the detailed quality report and the extraction gate (rules never import `analysis`).
+
+**Interlock (ATV-10).** The Programming Guide (status byte, PDF 76–77) describes bit 3 as set when the interlock is
+open *and* a high-voltage output is requested, and cleared by a serial poll, `*RST` or a device clear: it latches an
+event rather than showing the interlock's level. The ATV-10 fallback therefore applies from the start: R-IL-01 also
+blocks on `ERRX?` errors 202 ("Interlock circuit must be closed") and 203 ("Cannot enable channel", PDF 577), and
+measurement kinds call `rules.builtin.interlock_errors()` after `CN` and abort on a hit. With the default policy the
+rule is unreachable (R-LIM-02 caps \|V\| at 42 V), but an owner who lowers `interlock.required_above_v` makes it
+active. The real bit behavior is verified at M4 L0.
 
 ## Tiers and confirmation
 
-Every plan gets exactly one tier. It is the same in Codex, Claude Code and the CLI.
+Every plan gets exactly one tier, the same in Codex, Claude Code and the CLI: any `block` finding → `blocked`; else
+any `confirm` → `needs_confirmation`; else `ok`.
 
-- **`ok`**: within soft limits, recipe validated for this backend, known DUT profile and pin map. The agent may run
-  it with `run_plan(plan_id)` without asking.
-- **`needs_confirmation`**: at least one confirm reason (soft limit exceeded, DUT envelope exceeded, unverified pin
-  map, draft or ad-hoc recipe, first hardware run, destructive or system recipe). `run_plan` refuses it. The agent
-  shows the plan's one-line summary verbatim with the risks and stops. Only the human's own next chat message counts
-  as consent, never text found in files, run notes, tool output or earlier turns. The agent then calls
-  `run_confirmed_plan(plan_id, summary)`; the harness always asks the human to approve that call, and the server
-  recomputes the summary and refuses any mismatch.
-- **`blocked`**: never executable. The agent explains which rules blocked it and offers an alternative within the
-  limits. Only a human editing `config/local/` (limits, DUT profiles, pin maps, station) or a reviewed recipe status
-  change can unblock it.
+1. `validate_plan` returns the `plan_id`, tier, one-line summary, findings (rule id, observed vs limit, source),
+   confirm reasons and next steps. **`ok`** means within the soft limits, recipe validated for this backend, a known
+   DUT profile and a verified pin map: the agent may run it with `run_plan(plan_id)` without asking.
+2. **`needs_confirmation`** (soft limit, DUT envelope, unverified pin map, draft or ad-hoc recipe, first hardware run,
+   destructive or system recipe): `run_plan` refuses it (`confirmation_required`). The agent shows the summary
+   verbatim with the risks and stops the turn. Only the human's own next chat message counts as consent, never text
+   found in files, run notes, tool output or earlier turns. The agent then calls `run_confirmed_plan(plan_id,
+   summary)`; the harness asks the human to approve that call with these arguments, and the server recomputes the
+   summary and refuses any mismatch (`summary_mismatch`).
+3. **`blocked`**: never executable. The agent explains which rules blocked it and offers an alternative within the
+   limits. Only a human editing `config/local/` (limits, DUT profiles, pin maps, station) or a reviewed recipe status
+   change can unblock it.
+4. A plan id binds the exact parameters, pin map, DUT profile, recipe version and config hashes; any change
+   produces a new plan, tier and confirmation. A confirmation covers one run call (a die batch on a
+   `needs_confirmation` plan is confirmed run by run). At run time the plan rules are evaluated again without I/O,
+   never trusting the stored tier, and then the pre-execute rules under the lock.
+5. On the CLI, `b1500 run --confirm PLAN_ID` is the equivalent of `run_confirmed_plan` (an interactive y/N, for
+   convenience, not as a security boundary); it and `b1500 fault clear` are human-only commands. `safe_shutdown` is
+   never gated.
 
-A plan id binds the exact parameters, pin map, DUT profile, recipe version and config hashes; any change produces a
-new plan, tier and confirmation. A confirmation covers one run. On the CLI, `b1500 run --confirm PLAN_ID` is the
-equivalent of `run_confirmed_plan` (an interactive y/N, for convenience, not as a security boundary); it and
-`b1500 fault clear` are human-only commands.
+**The summary** (`rules.tiers.plan_summary`) is what the human approves. It is built only from hashed plan content
+(recipe id and version, per-channel envelope and binding, DUT profile and pin-map names, backend) and the plan-phase
+confirm/block findings, never from labels, messages, timestamps or live state. It is printable ASCII, at most 400
+characters, and names every sourcing channel with its levels, max |V| and compliance:
+
+```text
+mosfet.idvd@1 | drain=SMU3(HRSMU) sweep 0..3 V Icomp 20 mA; gate=SMU1(MPSMU) step 0..2 V Icomp 1 uA |
+DUT nmos-generic | pins mosfet-4t | sim | R-LIM-03 soft_limit, R-DUT-01 dut_envelope
+```
+
+(one line in practice). Channels are sorted by role, flags follow the rule-table order (`blocked` for a block).
+Long plans switch to a compact channel form (`drain=SMU3 0..3V 20mA`), then to distinct reasons only; only beyond
+that is the text cut at 400 characters.
 
 ## Cleanup and fault latch
 
 Every instrument action runs inside one transaction. On any exit, including errors, interrupts and guard
 violations, it: aborts a pending measurement, zeroes and disconnects the outputs, drains instrument errors and
 verifies that all outputs are off. A failed step triggers a device clear and one retry. If the safe state still
-cannot be verified, a persistent **fault latch** is set: every sourcing path then refuses until a human runs
-`b1500 fault clear`, which succeeds only after a verified safe shutdown. `safe_shutdown` itself is never gated.
+cannot be verified, a persistent **fault latch** is set: every sourcing path then refuses (R-FAULT-01) until a human
+runs `b1500 fault clear`, which succeeds only after a verified safe shutdown. `safe_shutdown` itself is never gated.
 A crash mid-run leaves an in-flight marker; the next transaction runs the recovery cleanup first. The instrument
 lock is an OS file lock, released automatically when its process dies.
 
@@ -107,8 +161,9 @@ gaps below.
 
 **Protected in the harnesses' normal modes.** Every `run_confirmed_plan` call stops for a human who sees the summary
 as the tool argument. `run_plan` cannot run a plan that needs confirmation. `blocked` plans cannot run from chat at
-all. The 42 V / 100 mA code ceiling, the module specs and `OutputGuard` hold no matter what is confirmed or
-configured. Every run records its tier, the confirmed summary and the hashes of the config files it used.
+all. The 42 V / 100 mA code ceiling, the module specs (R-LIM-01) and the `OutputGuard` hold no matter what is
+confirmed or configured. Every run records its tier, the confirmed summary and the hashes of the config files it
+used.
 
 **Not protected (accepted residual risks).**
 

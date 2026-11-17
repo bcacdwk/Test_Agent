@@ -23,6 +23,10 @@ RecipeId = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$"
 PARAM_REF = re.compile(r"^\$([a-z][a-z0-9_]{0,63})$")
 """A role-setting value that references a recipe parameter, e.g. ``$vg_start``."""
 
+RoleFunction = Literal["sweep_v", "bias_v", "step_v", "ground", "measure_only"]
+"""What a recipe role does on its channel: voltage sweep, constant voltage bias, host-stepped voltage list, 0 V
+reference, or measurement only (blueprint 2.6)."""
+
 
 def _is_real(value: object) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
@@ -88,7 +92,7 @@ class ParamSpec(StrictModel):
 class RoleSpec(StrictModel):
     """One DUT role of a recipe (``gate``, ``drain`` ...); bound to the pin-map terminal of the same name."""
 
-    function: Literal["sweep_v", "bias_v", "step_v", "ground", "measure_only"]
+    function: RoleFunction
     measure: list[Literal["I", "V"]] = Field(default_factory=list)
     module_types: list[ModuleType] = Field(default_factory=list)
     prefer: ModuleType | None = None

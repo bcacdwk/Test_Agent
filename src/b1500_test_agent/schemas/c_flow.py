@@ -7,7 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 Positive = Annotated[float, Field(gt=0)]
 Nonnegative = Annotated[float, Field(ge=0)]
 Channel = Annotated[int, Field(gt=0)]
-Count = Annotated[int, Field(ge=1, le=100_000)]
+MAX_COUNT = 100_000
+Count = Annotated[int, Field(ge=1, le=MAX_COUNT)]
 
 
 class FlowModel(BaseModel):
@@ -87,6 +88,14 @@ class SweepTiming(FlowModel):
     measure_delay_s: Nonnegative = 0.0
 
 
+def _check_log_endpoints(sweep_type: str, start: float, stop: float) -> None:
+    """Reject logarithmic staircase endpoints that touch or cross zero."""
+    if sweep_type == "log_positive" and min(start, stop) <= 0:
+        raise ValueError("Positive logarithmic sweeps require positive endpoints.")
+    if sweep_type == "log_negative" and max(start, stop) >= 0:
+        raise ValueError("Negative logarithmic sweeps require negative endpoints.")
+
+
 class SmuSweep(SmuSetup):
     """A primary staircase trajectory and its compliance."""
 
@@ -103,10 +112,7 @@ class SmuSweep(SmuSetup):
 
     @model_validator(mode="after")
     def check_log(self) -> "SmuSweep":
-        if self.sweep_type == "log_positive" and min(self.start, self.stop) <= 0:
-            raise ValueError("Positive logarithmic sweeps require positive endpoints.")
-        if self.sweep_type == "log_negative" and max(self.start, self.stop) >= 0:
-            raise ValueError("Negative logarithmic sweeps require negative endpoints.")
+        _check_log_endpoints(self.sweep_type, self.start, self.stop)
         return self
 
 
@@ -134,6 +140,75 @@ class MultiSweep(SmuSweep):
     def check_channels(self) -> "MultiSweep":
         if len(set(self.channels)) != len(self.channels) or self.channel not in self.channels:
             raise ValueError("Channels must be unique and include the primary channel.")
+        return self
+
+
+class BiasChannel(FlowModel):
+    """One constant DC bias held during the sweep; level and compliance are never defaulted."""
+
+    channel: Channel
+    source: Literal["voltage", "current"] = "voltage"
+    level: float = Field(description="V for voltage source; A for current source.")
+    compliance: Positive = Field(description="A for voltage source; V for current.")
+    comp_polarity: Literal["auto", "positive", "negative"] = "auto"
+    source_range_mode: str = "auto"
+    irange: Nonnegative = Field(
+        default=0.0, description="Compliance current range for voltage bias only; 0 means auto."
+    )
+
+    @model_validator(mode="after")
+    def irange_needs_voltage_source(self) -> "BiasChannel":
+        if self.source == "current" and self.irange != 0:
+            raise ValueError("irange applies only to voltage-source bias channels.")
+        return self
+
+
+class MeasuredChannel(FlowModel):
+    """One measured channel, listed in MM order, with its own measurement ranging."""
+
+    channel: Channel
+    ranging: Ranging = Field(default_factory=Ranging)
+
+
+class BiasedSweep(FlowModel):
+    """One staircase channel, declared constant-bias channels and an explicit measured list.
+
+    A measurement primitive only: no terminal roles, device defaults or extraction are implied.
+    Per-channel compliance is ``compliance`` for the swept channel and
+    ``bias_channels[].compliance`` for each bias channel.
+    """
+
+    channel: Channel = Field(description="Swept SMU channel.")
+    source: Literal["voltage", "current"] = "voltage"
+    start: float = 0.0
+    stop: float = 1.0
+    steps: Annotated[int, Field(ge=2, le=100_000)] = 11
+    compliance: Positive = Field(default=0.001, description="A for voltage source; V for current.")
+    sweep_type: Literal["linear", "log_positive", "log_negative"] = "linear"
+    comp_polarity: Literal["auto", "positive", "negative"] = "auto"
+    timing: SweepTiming = Field(default_factory=SweepTiming)
+    abort_mode: str = "continue"
+    post_output: str = "hold"
+    bias_channels: list[BiasChannel] = Field(min_length=1, max_length=9)
+    measured_channels: list[MeasuredChannel] = Field(min_length=1, max_length=10)
+    integration: Integration = Field(default_factory=Integration)
+    run: RunOptions = Field(default_factory=RunOptions)
+
+    @model_validator(mode="after")
+    def check_channels_and_points(self) -> "BiasedSweep":
+        _check_log_endpoints(self.sweep_type, self.start, self.stop)
+        bias = [b.channel for b in self.bias_channels]
+        measured = [m.channel for m in self.measured_channels]
+        if len(set(bias)) != len(bias):
+            raise ValueError("Bias channels must be unique.")
+        if self.channel in bias:
+            raise ValueError("The swept channel must not also be a bias channel.")
+        if len(set(measured)) != len(measured):
+            raise ValueError("Measured channels must be unique.")
+        if not set(measured) <= {self.channel, *bias}:
+            raise ValueError("Measured channels must be the swept channel or bias channels.")
+        if self.steps * len(measured) > MAX_COUNT:
+            raise ValueError(f"steps x measured channels exceeds the {MAX_COUNT}-element bound.")
         return self
 
 
@@ -298,6 +373,16 @@ class CmuSweep(CmuSetup):
     step_delay_s: Nonnegative = 0.0
     measure_delay_s: Nonnegative = 0.0
     abort_mode: str = "continue"
+
+
+class CmuPositiveSweep(CmuSweep):
+    """Frequency (Hz) or AC-level (V) CMU sweep; both endpoints must be positive."""
+
+    @model_validator(mode="after")
+    def positive_endpoints(self) -> "CmuPositiveSweep":
+        if min(self.start, self.stop) <= 0:
+            raise ValueError("Frequency and AC amplitude sweep endpoints must be positive.")
+        return self
 
 
 class CmuPulse(CmuSetup):

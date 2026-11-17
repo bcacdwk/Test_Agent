@@ -114,3 +114,45 @@ atom results. Real I/O is not supported by this runner.
 - Inject configuration, execute and read failures; preserve audit and skip later work.
 - Verify source/current compliance units, non-default channel forwarding, waveform
   event timing and duplicate channels/patterns, and unchanged legacy registration.
+
+## Amendment 2026-11-17: biased staircase (U8)
+
+Source: user decision U8 (`tmp/cd_flow_design_arbitration.md`, section 13; closes CG1 there).
+
+- **Name confirmed:** `C_flow_sweep_smu_staircase_biased` (family `sweep`, object `smu`,
+  subject `staircase_biased`, like `staircase_pulsed_bias`). It is a separate flow, not a
+  `SmuSweep` parameter: it adds source atoms, a multi-channel MM list and per-channel ranging,
+  and needs required channel declarations. Optional bias fields on `SmuSweep` would change
+  the existing `sweep_smu_staircase` CD kind.
+- **Request `BiasedSweep`** (required; no example default): swept `channel` plus the
+  `SmuSweep` trajectory, compliance, timing, abort, integration and run fields;
+  `bias_channels` 1-9 (`BiasChannel`: `level` and `compliance` required, A for voltage and
+  V for current, `irange` for voltage bias only); `measured_channels` 1-10 (`MeasuredChannel`:
+  channel plus its own `Ranging`, list order = MM order). Rejected before any atom: duplicate
+  bias or measured channels, swept channel also a bias channel, measured channels outside
+  swept plus bias, steps outside 2-100000, and steps x measured channels > 100000.
+- **Order:** integration -> ranging per measured channel -> MM 2 (measured list) -> WT -> WM
+  -> WV/WI (swept, own compliance) -> DV/DI per bias channel (own compliance) -> XE -> one
+  buffered read. All non-sourcing setup precedes bias forcing, so a configuration failure
+  skips every bias request.
+- **Executable (`simulated_complete`, no `contract_gaps`):** every step is an existing C atom
+  with explicit compliance (`force_voltage.compliance_a`, `force_current.compliance_v`,
+  `configure_staircase_sweep.compliance`); MM takes a channel list and ranging is per
+  channel. No atom was added. The swept-channel source range is limited exactly as in
+  `C_flow_sweep_smu_staircase`; no new gap. Like the other C flows, the measure function
+  is carried by ranging and CMM is not sent.
+- **CD handoff:** exactly one read-phase `C_atom_smu_read_measurement_data` record. Per-channel
+  data are described by `inputs`: `measured_channels` order and ranging, `steps` points per
+  channel, swept `compliance` and `bias_channels[].compliance`. The fake read returns
+  `rows: []`; real column order must be checked against the manual before D ingest relies
+  on it. `run.max_items >= steps x measured channels` stays a CD validator (CD section 8).
+  Bias outputs persist after XE until the outer cleanup.
+- **Not added:** terminal roles, Vth/Id-Vg labels, device defaults or extraction.
+- **Catalog:** 31 flows (sweep 8). Tests cover discovery, ordered C-only calls, fake
+  markers, unit forwarding, validation before any atom and failure audit retention.
+
+## Amendment 2026-11-17: review follow-ups
+
+- **CMU endpoint validation (coordinator-approved C change):** `C_flow_sweep_cmu_cf` and `C_flow_sweep_cmu_ac_level` take the new request model `CmuPositiveSweep` (a `CmuSweep` whose validator rejects `min(start, stop) <= 0`). The check moved out of `_cmu_sweep`, where it raised a plain `ValueError` at call time, into request-schema validation, so it fails before any atom call like other request errors. The message is unchanged: "Frequency and AC amplitude sweep endpoints must be positive."
+- `C_flow_sweep_cmu_cv` keeps `CmuSweep` (signed endpoints). `D_atom_ingest_request_build_expectation` and the CD acquisitions validate cf/ac_level requests with the same model.
+- **Tests:** `tests/test_c_flows.py` asserts a `ValidationError` with zero atom calls for zero or negative cf/ac_level endpoints and that C-V endpoints stay signed; the CD and D atom suites assert the same rejection before any child call.

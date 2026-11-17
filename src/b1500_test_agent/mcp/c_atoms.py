@@ -760,7 +760,7 @@ def C_atom_smu_configure_high_speed_spot(measurement: str = "current") -> dict:
     ``TIV`` in high-speed ADC mode; configuring it before
     ``C_atom_smu_measure_high_speed_spot`` gives controlled behavior.
 
-    Basis: B1500A Programming Guide ``HSS`` (PDF 434-439 / printed 4-117 to 4-122).
+    Basis: B1500A Programming Guide ``HSS`` (PDF 435-440 / printed 4-117 to 4-122).
     """
     return _c_response(
         "C_atom_smu_configure_high_speed_spot",

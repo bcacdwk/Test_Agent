@@ -9,14 +9,15 @@ C_flow_<measurement_family>_<object>_<subject>
 ```
 
 Families: `spot`, `sweep`, `pulse`, `waveform`, `sampling`, `search`, `remote`.
-Thirty tools are registered. Device experiments and complete safe transactions
+Thirty-one tools are registered. Device experiments and complete safe transactions
 belong to future ABC flows/recipes.
 
 ## Execution and Response Contract
 
 Inputs use Pydantic request models from `schemas/c_flow.py`, exposed as nested
 MCP `request` schemas. Omit optional requests for synthetic example defaults;
-WGFMU and SPGU waveform requests require explicit waveform content. Unknown
+WGFMU and SPGU waveform requests require explicit waveform content, and the
+biased staircase requires explicit swept, bias and measured channels. Unknown
 fields, non-finite values, invalid counts and basic inconsistent geometry are
 rejected before any atom is called. These checks are structural, not a station
 policy, hardware timing certification, or an approval mechanism.
@@ -88,12 +89,13 @@ records those intended steps but does not invoke them while contract gaps remain
 | Flow | Request | Ordered Atom Sequence | Purpose / Completion |
 |---|---|---|---|
 | `C_flow_sweep_smu_staircase` | `SmuSweep` | `C_atom_smu_configure_integration` -> `C_atom_smu_set_measurement_ranging` -> `C_atom_smu_set_measurement_mode` -> `C_atom_smu_configure_sweep_timing` -> `C_atom_smu_configure_sweep_abort` -> `C_atom_smu_configure_staircase_sweep` -> `C_atom_smu_execute` -> `C_atom_smu_read_measurement_data` | Primary staircase IV sweep. `simulated_complete`. |
+| `C_flow_sweep_smu_staircase_biased` | `BiasedSweep` | `C_atom_smu_configure_integration` -> `C_atom_smu_set_measurement_ranging` (one per measured channel, list order) -> `C_atom_smu_set_measurement_mode` -> `C_atom_smu_configure_sweep_timing` -> `C_atom_smu_configure_sweep_abort` -> `C_atom_smu_configure_staircase_sweep` -> `C_atom_smu_force_voltage` or `C_atom_smu_force_current` (one per bias channel, list order) -> `C_atom_smu_execute` -> `C_atom_smu_read_measurement_data` | Staircase on one channel while declared channels hold constant bias; MM2 over the listed measured channels, one buffered read. `simulated_complete`. |
 | `C_flow_sweep_smu_synchronous` | `SynchronousSweep` | `C_atom_smu_configure_integration` -> `C_atom_smu_set_measurement_ranging` -> `C_atom_smu_set_measurement_ranging` -> `C_atom_smu_set_measurement_mode` -> `C_atom_smu_configure_sweep_timing` -> `C_atom_smu_configure_sweep_abort` -> `C_atom_smu_configure_staircase_sweep` -> `C_atom_smu_configure_synchronous_sweep_source` -> `C_atom_smu_execute` (skipped) -> `C_atom_smu_read_measurement_data` (skipped) | Primary and synchronous source trajectories. `configuration_only`. Synchronous source atom omits independent compliance and source range. |
 | `C_flow_sweep_smu_multi_channel` | `MultiSweep` | `C_atom_smu_configure_integration` -> `C_atom_smu_set_measurement_ranging` -> `C_atom_smu_set_measurement_ranging` -> `C_atom_smu_set_measurement_mode` -> `C_atom_smu_configure_sweep_timing` -> `C_atom_smu_configure_sweep_abort` -> `C_atom_smu_configure_staircase_sweep` -> `C_atom_smu_configure_multi_sweep` -> `C_atom_smu_execute` (skipped) -> `C_atom_smu_read_measurement_data` (skipped) | Multi-channel sweep configuration. `configuration_only`. WNX atom omits per-channel trajectories, ranges and compliance. |
 | `C_flow_sweep_smu_qscv` | `Qscv` | `C_atom_smu_configure_integration` -> `C_atom_smu_set_measurement_ranging` -> `C_atom_smu_set_measurement_mode` -> `C_atom_smu_configure_qscv` -> `C_atom_smu_execute_qscv` -> `C_atom_smu_read_measurement_data` | SMU quasi-static capacitance sweep after external correction/leakage validation. `simulated_complete`. |
 | `C_flow_sweep_cmu_cv` | `CmuSweep` | `C_atom_cmu_set_impedance_model` -> `C_atom_cmu_configure_signal` -> `C_atom_cmu_set_ranging_integration` -> `C_atom_cmu_set_monitor_output` -> `C_atom_cmu_configure_cv_dc_sweep` -> `C_atom_cmu_execute_cv_dc_sweep` -> `C_atom_cmu_read_measurement_data` | CMU cv sweep with mode-specific timing. `simulated_complete`. |
-| `C_flow_sweep_cmu_cf` | `CmuSweep` | `C_atom_cmu_set_impedance_model` -> `C_atom_cmu_configure_signal` -> `C_atom_cmu_set_ranging_integration` -> `C_atom_cmu_set_monitor_output` -> `C_atom_cmu_configure_cf_sweep` -> `C_atom_cmu_execute_cf_sweep` -> `C_atom_cmu_read_measurement_data` | CMU cf sweep with mode-specific timing. `simulated_complete`. |
-| `C_flow_sweep_cmu_ac_level` | `CmuSweep` | `C_atom_cmu_set_impedance_model` -> `C_atom_cmu_configure_signal` -> `C_atom_cmu_set_ranging_integration` -> `C_atom_cmu_set_monitor_output` -> `C_atom_cmu_configure_ac_level_sweep` -> `C_atom_cmu_execute_ac_level_sweep` -> `C_atom_cmu_read_measurement_data` | CMU ac_level sweep with mode-specific timing. `simulated_complete`. |
+| `C_flow_sweep_cmu_cf` | `CmuPositiveSweep` | `C_atom_cmu_set_impedance_model` -> `C_atom_cmu_configure_signal` -> `C_atom_cmu_set_ranging_integration` -> `C_atom_cmu_set_monitor_output` -> `C_atom_cmu_configure_cf_sweep` -> `C_atom_cmu_execute_cf_sweep` -> `C_atom_cmu_read_measurement_data` | CMU cf sweep with mode-specific timing. `simulated_complete`. |
+| `C_flow_sweep_cmu_ac_level` | `CmuPositiveSweep` | `C_atom_cmu_set_impedance_model` -> `C_atom_cmu_configure_signal` -> `C_atom_cmu_set_ranging_integration` -> `C_atom_cmu_set_monitor_output` -> `C_atom_cmu_configure_ac_level_sweep` -> `C_atom_cmu_execute_ac_level_sweep` -> `C_atom_cmu_read_measurement_data` | CMU ac_level sweep with mode-specific timing. `simulated_complete`. |
 
 ## Pulse Tools
 
@@ -144,6 +146,7 @@ records those intended steps but does not invoke them while contract gaps remain
 |---|---|
 | `SmuSpot`, `SmuHighSpeed` | Channel, voltage/current source, level, compliance, compliance polarity, source range, integration/ranging; high-speed adds measurement type and timestamp. High-speed requires the high-speed ADC and uses HSS then TI/TV/TIV, never MM/XE. |
 | `SmuSweep` | Channel, source, start/stop/steps, compliance, linear/positive-log/negative-log, polarity, WT timing, abort/post-output and run/read options. |
+| `BiasedSweep` | Required swept `channel`, `bias_channels` (1-9) and `measured_channels` (1-10); no example default. Each `BiasChannel` has a required `level` and `compliance` (A for voltage bias via `compliance_a`, V for current bias via `compliance_v`), polarity, source range, and `irange` for voltage bias only. Each `MeasuredChannel` has its own `ranging`; list order is the MM channel order. Swept trajectory, compliance, timing, abort, integration and run fields match `SmuSweep`. Rejected before any atom: duplicate bias or measured channels, swept channel also a bias channel, missing or non-positive bias compliance, measured channels outside swept plus bias channels, and `steps x measured channels > 100000`. Bias DV/DI follow all non-sourcing setup and precede XE. Consumers needing complete data check `run.max_items >= steps x measured channels`. No terminal roles, device defaults or extraction. |
 | `SynchronousSweep`, `MultiSweep` | Primary sweep plus secondary channel/trajectory or unique channel list containing the primary. Independent secondary/per-channel source contracts are missing. |
 | `Qscv` | Channel, voltage endpoints, steps, leakage integration time and measurement voltage; external QSZ/correction/leakage prerequisites remain required. |
 | `SmuPulse` | Source, base/pulse levels, compliance, delay/width/period; PT is always before PV/PI. |
@@ -153,7 +156,8 @@ records those intended steps but does not invoke them while contract gaps remain
 | `SignalMonitor` | Unique channels, integration/ranging, interval and sample count. No undocumented MM mode or generic XE is invented for DSMPL. |
 | `Search` | Linear/binary, target and limit; MM14/MM15 respectively. Missing source/sense/start/step/tolerance/compliance remain explicit. |
 | `CmuSetup` | Channel, impedance model, frequency, AC amplitude, DC bias, range/integration and monitor selection; CMU high-speed uses timestamped direct spot. |
-| `CmuSweep` | Shared CMU setup plus endpoints (Hz for cf, V otherwise), points and CMU-specific timing/abort. Frequency and AC-amplitude endpoints must be positive. |
+| `CmuSweep` | Shared CMU setup plus endpoints (Hz for cf, V otherwise), points and CMU-specific timing/abort. C-V (`sweep_cmu_cv`) endpoints may be signed. |
+| `CmuPositiveSweep` | `CmuSweep` for the cf and ac_level flows: both endpoints must be positive, rejected by request validation before any atom (a `ValidationError`, like other request errors). |
 | `CmuPulse`, `CmuPulseSweep`, `CmuSampling` | Shared CMU setup plus pulse base/bias or sweep endpoints and pulse width/period, or sampling interval/count. CMU commands remain PTDCV/PDCV/PWDCV/MDCV/MTDCV, not SMU timing commands. |
 | `WgfmuDc` | Channel, voltage, force/current ranges. `averaged=True` appends `C_atom_wgfmu_dc_measure_averaged` after the immediate force/measure. DC mode does not call waveform measurement-enable or create patterns. |
 | `WgfmuWaveform` | Explicit unique channels/patterns, incremental vectors, measurement events and bounded repeats. For voltage measurement, `C_atom_wgfmu_set_measure_voltage_range` follows measure-mode selection. Each vector calls add_vectors(count=1); each event calls set_measure_event. All channel sequences are defined before one update and one execute; reads fan out serially per channel. Pattern-name collisions with earlier session state require external context validation. |
@@ -196,12 +200,15 @@ must never advertise itself as a complete safe shutdown transaction.
   remain atoms. They do not each require a same-name flow wrapper.
 - Id-Vg/Id-Vd, FeFET program/read, PUND, endurance and retention belong to device
   recipes/ABC workflows with their own limits and stop conditions.
+  `C_flow_sweep_smu_staircase_biased` is only the generic sweep-plus-held-bias
+  primitive they (and a future transfer CD flow) may measure with.
 - Full transaction approval, safety validation, persistence and recovery are outer
   layer responsibilities, not inferred from a fake flow result.
 
 ## Sources and Implementation
 
-- `tmp/c_flow_design_arbitration.md`: taxonomy, accepted catalog and gap decisions.
+- `tmp/c_flow_design_arbitration.md`: taxonomy, accepted catalog and gap decisions,
+  plus the 2026-11-17 biased staircase amendment (U8).
 - `src/b1500_test_agent/mcp/c_flows.py`: serial composition and failure handling.
 - `src/b1500_test_agent/schemas/c_flow.py`: typed request contracts.
 - `references/manuals/structured/b1500a-command-parameters.md`: existing MM/XE table.

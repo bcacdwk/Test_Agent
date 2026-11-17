@@ -4,8 +4,8 @@ metadata:
   manual: "Keysight B1500A/B1505A/B1506A/B1507A Device Analyzer Series Programming Guide"
   edition: "Edition 15, May 2022"
   extraction_date: "2026-06-22"
-  command_summary_source: "PDF 320-332 / printed 4-3 to 4-15"
-  command_reference_source: "PDF 349-571 / printed 4-32 to 4-254"
+  command_summary_source: "PDF 321-333 / printed 4-3 to 4-15"
+  command_reference_source: "PDF 350-572 / printed 4-32 to 4-254"
   opus_review:
     date: "2026-06-22"
     reviewer: "opus-4.6-max"
@@ -16,6 +16,7 @@ metadata:
       - "Added DIAG? and PA detailed command records"
       - "Added known_gaps entries for missing detailed command records (AIT, AV, RI, RV, WV, WI, WT, FL, CMM, RC, SPGU commands)"
     verification_method: "Direct PDF page text reading with page marker confirmation"
+    page_numbering_note: "2026-11-17: pdf_pages and PDF N strings are physical 1-based PDF pages, recomputed from printed_pages. The 2026-06-22 opus_review entries (corrections_applied, pages_verified, remaining_uncertainties) keep the old numbering, which was one lower (for example, old 516 is physical 517 = *SRE, printed 4-199)."
     pages_verified: [75, 76, 77, 516, 517, 518, 537, 538, 539, 544, 545, 179]
     remaining_uncertainties:
       - "ER* family page references carried forward from index formula, not individually verified against PDF content"
@@ -33,7 +34,7 @@ metadata:
       - "SPGU commands (SIM, SPM, SPT, SPV, SPPER, SPRM, SRP, SPP, SPUPD) have no detailed records."
 
 page_formula:
-  chapter_4_printed_to_pdf: "PDF page = printed 4-N + 317"
+  chapter_4_printed_to_pdf: "PDF page = printed 4-N + 318"
 
 commands:
   - command: "*IDN?"
@@ -45,7 +46,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [439]
+    pdf_pages: [440]
     printed_pages: ["4-122"]
     important_notes:
       - "Example response includes manufacturer, model, 0, revision."
@@ -63,11 +64,11 @@ commands:
     write: true
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [501]
+    pdf_pages: [502]
     printed_pages: ["4-184"]
     important_notes:
       - "Does not clear program memory; use IN when program memory clearing is required."
-      - "Default state also summarized in Table 2-13, PDF 179."
+      - "Default state also summarized in Table 2-13, PDF 180 / printed 2-92."
     safety_notes: []
     parser_notes: []
     implementation_status: "verified_from_index_and_initial_settings"
@@ -81,7 +82,7 @@ commands:
     write: true
     measurement_modes: []
     module_scope: ["mainframe", "SMU", "CMU", "SPGU"]
-    pdf_pages: [440]
+    pdf_pages: [441]
     printed_pages: ["4-123"]
     important_notes:
       - "Use when program memory must be cleared according to the revised index."
@@ -99,7 +100,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe", "installed_modules"]
-    pdf_pages: [539]
+    pdf_pages: [540]
     printed_pages: ["4-222"]
     important_notes:
       - "0 means pass; non-zero results need Ch5 error lookup."
@@ -118,7 +119,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe", "installed_modules"]
-    pdf_pages: [375]
+    pdf_pages: [376]
     printed_pages: ["4-58"]
     important_notes:
       - "0 means pass."
@@ -137,7 +138,7 @@ commands:
     write: true
     measurement_modes: []
     module_scope: ["mainframe", "installed_modules"]
-    pdf_pages: [374]
+    pdf_pages: [375]
     printed_pages: ["4-57"]
     important_notes: []
     safety_notes:
@@ -154,7 +155,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe", "installed_modules"]
-    pdf_pages: [544]
+    pdf_pages: [545]
     printed_pages: ["4-227"]
     important_notes:
       - "Essential for hardware discovery before command selection."
@@ -172,7 +173,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [430]
+    pdf_pages: [431]
     printed_pages: ["4-113"]
     important_notes:
       - "Preferred over ERR? when full error range is needed."
@@ -191,7 +192,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [429]
+    pdf_pages: [430]
     printed_pages: ["4-112"]
     important_notes:
       - "ERR? only supports 0-999. Use ERRX? for extended errors."
@@ -210,7 +211,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [397]
+    pdf_pages: [398]
     printed_pages: ["4-80"]
     important_notes:
       - "Does not support extended error codes beyond 999."
@@ -227,7 +228,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe", "channels"]
-    pdf_pages: [446, 447, 448, 449, 450, 451, 452]
+    pdf_pages: [447, 448, 449, 450, 451, 452, 453]
     printed_pages: ["4-129 to 4-135"]
     important_notes:
       - "Powerful state-dump query; supports many type values."
@@ -246,7 +247,7 @@ commands:
     measurement_modes: []
     module_scope: ["mainframe"]
     pdf_pages: [479]
-    printed_pages: ["4-162"]
+    printed_pages: ["4-161"]
     important_notes:
       - "Useful after ACH, long setup, measurement, self-test, or calibration."
     safety_notes: []
@@ -263,7 +264,7 @@ commands:
     write: true
     measurement_modes: ["sweep", "sampling", "search", "QSCV", "program_execution"]
     module_scope: ["mainframe"]
-    pdf_pages: [350, 351]
+    pdf_pages: [351, 352]
     printed_pages: ["4-33 to 4-34"]
     important_notes:
       - "Does not necessarily stop existing DC bias output."
@@ -282,7 +283,7 @@ commands:
     write: true
     measurement_modes: ["most_XE_modes"]
     module_scope: ["SMU", "CMU"]
-    pdf_pages: [379]
+    pdf_pages: [380]
     printed_pages: ["4-62"]
     important_notes:
       - "Required before most source/measurement setup."
@@ -301,7 +302,7 @@ commands:
     write: true
     measurement_modes: ["SPGU_related"]
     module_scope: ["SPGU"]
-    pdf_pages: [380]
+    pdf_pages: [381]
     printed_pages: ["4-63"]
     important_notes:
       - "Paired with CN in command reference."
@@ -318,7 +319,7 @@ commands:
     write: true
     measurement_modes: []
     module_scope: ["SMU", "CMU", "SPGU"]
-    pdf_pages: [377]
+    pdf_pages: [378]
     printed_pages: ["4-60"]
     important_notes:
       - "CL with no parameter disables all relevant channels."
@@ -336,7 +337,7 @@ commands:
     write: true
     measurement_modes: []
     module_scope: ["SMU", "CMU", "SPGU"]
-    pdf_pages: [396]
+    pdf_pages: [397]
     printed_pages: ["4-79"]
     important_notes:
       - "Stored settings can be recovered by RZ."
@@ -355,7 +356,7 @@ commands:
     write: true
     measurement_modes: []
     module_scope: ["SMU", "CMU"]
-    pdf_pages: [503]
+    pdf_pages: [504]
     printed_pages: ["4-186"]
     important_notes:
       - "Requires prior DZ."
@@ -372,7 +373,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe", "channels"]
-    pdf_pages: [569]
+    pdf_pages: [570]
     printed_pages: ["4-252"]
     important_notes:
       - "Optional timeout waits until all output is within +/-2 V or timeout expires."
@@ -385,17 +386,20 @@ commands:
   - command: "FMT"
     name: "Data output format"
     category: "Data Output"
-    function: "Specifies measurement data output format and terminator/source-data options."
-    syntax: "FMT mode[,source_data_mode[,terminator]]"
+    function: "Clears the output data buffer and specifies the data output format (Table 4-24) and the source data output mode (Table 4-25)."
+    syntax: "FMT format[,mode]"
     query: false
     write: true
     measurement_modes: ["all_data_output_modes"]
     module_scope: ["mainframe"]
-    pdf_pages: [435, 436]
+    pdf_pages: [436, 437]
     printed_pages: ["4-118 to 4-119"]
     important_notes:
       - "Default from Table 2-13: ASCII with header, CR/LF^EOI."
-      - "FMT 3/4 are 4-byte binary; FMT 5 is 8-byte/double style."
+      - "format 1/2/5 = ASCII 12 digits (1, 5 with ABC header; 2 without); 11/12/15 = ASCII 13 digits (11, 15 with ABC header); 21/22/25 = ASCII 13 digits (21, 25 with EEEFG header); 3/4 = 4-byte binary; 13/14 = 8-byte binary (Table 4-24, PDF 437)."
+      - "Terminator is fixed by format: CR/LF^EOI for 1, 2, 3, 11, 12, 13, 21, 22; ^EOI for 4, 14; comma for 5, 15, 25. FMT 5 is ASCII, not binary."
+      - "mode 0 to 10 selects source data returned with measurement data (Table 4-25, PDF 438)."
+      - "Multi-command statement is not allowed for FMT."
       - "Timestamp is not available with 4-byte binary formats."
     safety_notes: []
     parser_notes:
@@ -411,7 +415,7 @@ commands:
     write: true
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [363]
+    pdf_pages: [364]
     printed_pages: ["4-46"]
     important_notes:
       - "Data output buffer default state is cleared after reset."
@@ -428,7 +432,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [477]
+    pdf_pages: [478]
     printed_pages: ["4-160"]
     important_notes:
       - "Use before reading sweep/sampling data."
@@ -446,7 +450,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [522]
+    pdf_pages: [523]
     printed_pages: ["4-205"]
     important_notes:
       - "Bit 0=data ready, bit 1=wait, bit 2=N/A, bit 3=interlock open, bit 4=set ready, bit 5=error, bit 6=RQS, bit 7=N/A."
@@ -465,7 +469,7 @@ commands:
     write: true
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [516]
+    pdf_pages: [517]
     printed_pages: ["4-199"]
     important_notes:
       - "Default from Table 2-13: only bit 6 enabled."
@@ -485,7 +489,7 @@ commands:
     write: true
     measurement_modes: [1, 2, 3, 4, 5, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 26, 27, 28]
     module_scope: ["SMU", "CMU", "SPGU_related_modes"]
-    pdf_pages: [469]
+    pdf_pages: [470]
     printed_pages: ["4-152"]
     important_notes:
       - "Central selector for all XE-triggered measurement modes."
@@ -503,11 +507,11 @@ commands:
     write: true
     measurement_modes: ["all_MM_modes_except_high_speed_spot"]
     module_scope: ["mainframe"]
-    pdf_pages: [569, 570, 571]
+    pdf_pages: [570, 571, 572]
     printed_pages: ["4-252 to 4-254"]
     important_notes:
       - "Not available for high-speed spot measurement."
-      - "Required-command table is on PDF 570-571."
+      - "Required-command table (Table 4-33) is on PDF 571-572 / printed 4-253 to 4-254."
     safety_notes:
       - "If any channel enters high voltage state after XE, interlock terminal must be shorted."
     parser_notes:
@@ -523,7 +527,7 @@ commands:
     write: true
     measurement_modes: ["spot", "bias", "setup_for_high_speed_spot"]
     module_scope: ["SMU", "HVSMU", "HCSMU", "MCSMU", "expanders"]
-    pdf_pages: [395]
+    pdf_pages: [396]
     printed_pages: ["4-78"]
     important_notes:
       - "CN/CNX must be executed for specified channel."
@@ -542,7 +546,7 @@ commands:
     write: true
     measurement_modes: ["spot", "bias"]
     module_scope: ["SMU"]
-    pdf_pages: [390]
+    pdf_pages: [391]
     printed_pages: ["4-73"]
     important_notes: []
     safety_notes:
@@ -559,7 +563,7 @@ commands:
     write: false
     measurement_modes: ["high_speed_spot"]
     module_scope: ["SMU"]
-    pdf_pages: [534]
+    pdf_pages: [535]
     printed_pages: ["4-217"]
     important_notes:
       - "Fast path for spot measurement."
@@ -577,7 +581,7 @@ commands:
     write: false
     measurement_modes: ["high_speed_spot"]
     module_scope: ["SMU"]
-    pdf_pages: [544]
+    pdf_pages: [545]
     printed_pages: ["4-227"]
     important_notes: []
     safety_notes: []
@@ -594,7 +598,7 @@ commands:
     write: false
     measurement_modes: ["high_speed_spot"]
     module_scope: ["SMU"]
-    pdf_pages: [534]
+    pdf_pages: [535]
     printed_pages: ["4-217"]
     important_notes: []
     safety_notes: []
@@ -611,7 +615,7 @@ commands:
     write: true
     measurement_modes: ["most_ASCII_data_modes"]
     module_scope: ["mainframe"]
-    pdf_pages: [537]
+    pdf_pages: [538]
     printed_pages: ["4-220"]
     important_notes:
       - "Not available for FMT 3/4, high-speed spot, MM9, MM14, or MM15."
@@ -629,7 +633,7 @@ commands:
     write: true
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [538]
+    pdf_pages: [539]
     printed_pages: ["4-221"]
     important_notes:
       - "Use periodically for best timestamp resolution."
@@ -646,7 +650,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [538]
+    pdf_pages: [539]
     printed_pages: ["4-221"]
     important_notes: []
     safety_notes: []
@@ -663,7 +667,7 @@ commands:
     write: true
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [441]
+    pdf_pages: [442]
     printed_pages: ["4-124"]
     important_notes: []
     safety_notes:
@@ -680,7 +684,7 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe"]
-    pdf_pages: [442]
+    pdf_pages: [443]
     printed_pages: ["4-125"]
     important_notes: []
     safety_notes: []
@@ -697,7 +701,7 @@ commands:
     write: false
     measurement_modes: ["CMU", "CV"]
     module_scope: ["MFCMU"]
-    pdf_pages: [381]
+    pdf_pages: [382]
     printed_pages: ["4-64"]
     important_notes:
       - "Part of MFCMU correction/calibration workflow."
@@ -715,7 +719,7 @@ commands:
     write: true
     measurement_modes: ["CMU", "CV"]
     module_scope: ["MFCMU"]
-    pdf_pages: [386]
+    pdf_pages: [387]
     printed_pages: ["4-69"]
     important_notes: []
     safety_notes: []
@@ -731,7 +735,7 @@ commands:
     write: true
     measurement_modes: ["CMU", "CV"]
     module_scope: ["MFCMU"]
-    pdf_pages: [354]
+    pdf_pages: [355]
     printed_pages: ["4-37"]
     important_notes:
       - "Modes include auto, manual, and load-adaptive."
@@ -748,7 +752,7 @@ commands:
     write: false
     measurement_modes: ["CMU", "CV"]
     module_scope: ["MFCMU"]
-    pdf_pages: [354, 355]
+    pdf_pages: [355, 356]
     printed_pages: ["4-37 to 4-38"]
     important_notes:
       - "Manual mode should be set using ADJ before ADJ?."
@@ -767,11 +771,11 @@ commands:
     write: false
     measurement_modes: []
     module_scope: ["mainframe", "installed_modules"]
-    pdf_pages: [391]
+    pdf_pages: [392]
     printed_pages: ["4-74"]
     important_notes:
       - "Used for hardware diagnosis alongside *TST?."
-      - "Per Ch1 Getting Started (PDF 26-40), DIAG? is one of the first commands used after connection."
+      - "Per Ch1 Getting Started (PDF 27-41 / printed 1-7 to 1-21), DIAG? is one of the first commands used after connection."
     safety_notes:
       - "Open measurement terminals before execution."
     parser_notes:
@@ -787,7 +791,7 @@ commands:
     write: true
     measurement_modes: ["used_within_program_memory_and_measurement_sequences"]
     module_scope: ["mainframe"]
-    pdf_pages: [480]
+    pdf_pages: [481]
     printed_pages: ["4-163"]
     important_notes:
       - "PA within program memory waits specified time; in normal mode, waits for XE to recover from wait state."
@@ -798,171 +802,171 @@ commands:
 
 grouped_command_index:
   - category: "Reset"
-    pdf_pages: [320]
+    pdf_pages: [321]
     printed_pages: ["4-3"]
     commands: ["*RST"]
   - category: "Diagnostics"
-    pdf_pages: [320]
+    pdf_pages: [321]
     printed_pages: ["4-3"]
     commands: ["DIAG?"]
   - category: "Self-test"
-    pdf_pages: [320]
+    pdf_pages: [321]
     printed_pages: ["4-3"]
     commands: ["*TST?", "RCV"]
   - category: "Self-Calibration"
-    pdf_pages: [320]
+    pdf_pages: [321]
     printed_pages: ["4-3"]
     commands: ["CA", "*CAL?", "CM"]
   - category: "Interlock"
-    pdf_pages: [320]
+    pdf_pages: [321]
     printed_pages: ["4-3"]
     commands: ["INTLKVTH", "INTLKVTH?"]
   - category: "MFCMU Data Correction"
-    pdf_pages: [320]
+    pdf_pages: [321]
     printed_pages: ["4-3"]
     commands: ["ADJ", "ADJ?", "CLCORR", "CORRL", "CORRL?", "DCORR", "DCORR?", "CORR?", "CORRST", "CORRST?", "CORRDT", "CORRDT?"]
   - category: "Abort / Pause / Continue"
-    pdf_pages: [320]
+    pdf_pages: [321]
     printed_pages: ["4-3"]
     commands: ["AB", "PA", "PAX", "TM"]
   - category: "Data Output and Timestamp"
-    pdf_pages: [320, 321]
+    pdf_pages: [321, 322]
     printed_pages: ["4-3 to 4-4"]
     commands: ["FMT", "BC", "TSR", "TSC", "TSQ"]
   - category: "ASU / SCUU / SMU Conditioning"
-    pdf_pages: [321]
+    pdf_pages: [322]
     printed_pages: ["4-4"]
     commands: ["SAL", "SAP", "SAR", "SSL", "SSP", "SSR", "FL", "LIM", "LIM?"]
   - category: "Channel Control"
-    pdf_pages: [321]
+    pdf_pages: [322]
     printed_pages: ["4-4"]
     commands: ["ACH", "CN", "CNX", "CL", "IN", "DZ", "PCH", "PCH?", "RZ", "WAT"]
   - category: "SMU Integration Time and Averaging"
-    pdf_pages: [322]
+    pdf_pages: [323]
     printed_pages: ["4-5"]
     commands: ["AV", "AAD", "AIT", "AITM", "AITM?", "AZ"]
   - category: "High Speed Spot Measurement"
-    pdf_pages: [322]
+    pdf_pages: [323]
     printed_pages: ["4-5"]
     commands: ["TC", "TI", "TIV", "TV", "TMACV", "TMDCV", "TTC", "TTI", "TTIV", "TTV"]
   - category: "Source Output"
-    pdf_pages: [322]
+    pdf_pages: [323]
     printed_pages: ["4-5"]
     commands: ["DI", "DV", "TDI", "TDV", "FC", "ACV", "DCV", "TACV", "TDCV"]
   - category: "MFCMU Setup"
-    pdf_pages: [323]
+    pdf_pages: [324]
     printed_pages: ["4-6"]
     commands: ["FC", "ACV", "ACT", "IMP", "LMN"]
   - category: "Measurement Mode and Execution"
-    pdf_pages: [323]
+    pdf_pages: [324]
     printed_pages: ["4-6"]
     commands: ["MM", "XE"]
   - category: "Measurement Setup and Ranging"
-    pdf_pages: [323]
+    pdf_pages: [324]
     printed_pages: ["4-6"]
     commands: ["CMM", "PAD", "RC", "RI", "RV", "RM"]
   - category: "Staircase Sweep Source Setup"
-    pdf_pages: [323, 324]
+    pdf_pages: [324, 325]
     printed_pages: ["4-6 to 4-7"]
     commands: ["WT", "WI", "WV", "WM", "WSI", "WSV", "WNX"]
   - category: "Output Comparison"
-    pdf_pages: [324]
+    pdf_pages: [325]
     printed_pages: ["4-7"]
     commands: ["SOPC", "SOPC?", "SOVC", "SOVC?"]
   - category: "Pulsed Source and Sweep"
-    pdf_pages: [324]
+    pdf_pages: [325]
     printed_pages: ["4-7"]
     commands: ["PT", "PI", "PV", "PWI", "PWV"]
   - category: "Multi-channel Pulse/Sweep Setup"
-    pdf_pages: [324]
+    pdf_pages: [325]
     printed_pages: ["4-7"]
     commands: ["WNCC", "MCPT", "MCPNT", "MCPNX", "MCPWS", "MCPWNX"]
   - category: "Quasi-pulsed Spot"
-    pdf_pages: [324]
+    pdf_pages: [325]
     printed_pages: ["4-7"]
     commands: ["BDM", "BDT", "BDV"]
   - category: "Sampling Measurement"
-    pdf_pages: [325]
+    pdf_pages: [326]
     printed_pages: ["4-8"]
     commands: ["MCC", "MI", "MSC", "ML", "MT", "MV", "MSP"]
   - category: "Binary Search"
-    pdf_pages: [325]
+    pdf_pages: [326]
     printed_pages: ["4-8"]
     commands: ["BSM", "BST", "BSVM", "BSI", "BSSI", "BGV", "BSV", "BSSV", "BGI"]
   - category: "Linear Search"
-    pdf_pages: [325]
+    pdf_pages: [326]
     printed_pages: ["4-8"]
     commands: ["LSTM", "LSVM", "LSI", "LSSI", "LGV", "LSV", "LSSV", "LGI", "LSM"]
   - category: "Quasi-static CV"
-    pdf_pages: [326]
+    pdf_pages: [327]
     printed_pages: ["4-9"]
     commands: ["QSC", "QSO", "QSM", "QSL", "QSZ", "QST", "QSR", "QSV"]
   - category: "MFCMU Sweep and Pulsed Source"
-    pdf_pages: [326]
+    pdf_pages: [327]
     printed_pages: ["4-9"]
     commands: ["WDCV", "WMDCV", "WTDCV", "WFC", "WMFC", "WTFC", "WACV", "WMACV", "WTACV", "PDCV", "PTDCV", "PWDCV"]
   - category: "MFCMU Sampling"
-    pdf_pages: [327]
+    pdf_pages: [328]
     printed_pages: ["4-10"]
     commands: ["MSC", "MTDCV", "MDCV"]
   - category: "SPGU Control"
-    pdf_pages: [327]
+    pdf_pages: [328]
     printed_pages: ["4-10"]
     commands: ["SIM", "SIM?", "SPRM", "SPRM?", "SRP", "SPP", "SPUPD", "SPST?", "ODSW", "ODSW?", "SER", "SER?", "CORRSER?", "STGP", "STGP?"]
   - category: "SPGU Pulse Setup"
-    pdf_pages: [327]
+    pdf_pages: [328]
     printed_pages: ["4-10"]
     commands: ["SPPER", "SPPER?", "SPM", "SPM?", "SPT", "SPT?", "SPV", "SPV?"]
   - category: "SPGU ALWG Setup"
-    pdf_pages: [327]
+    pdf_pages: [328]
     printed_pages: ["4-10"]
     commands: ["ALW", "ALW?", "ALS", "ALS?"]
   - category: "Signal Monitor"
-    pdf_pages: [327]
+    pdf_pages: [328]
     printed_pages: ["4-10"]
     commands: ["DSMPLSETUP", "DSMPLARM", "DSMPLFLUSH"]
   - category: "External Trigger"
-    pdf_pages: [328]
+    pdf_pages: [329]
     printed_pages: ["4-11"]
     commands: ["TGP", "TGPC", "TGSI", "TGSO", "TGXO", "TGMO", "OS", "OSX", "WS", "WSX", "TM"]
   - category: "Digital I/O and Selectors"
-    pdf_pages: [328, 329, 330]
+    pdf_pages: [329, 330, 331]
     printed_pages: ["4-11 to 4-13"]
     commands: ["ERM", "ERS?", "ERC", "ERMOD", "ERMOD?", "ERSSP", "ERSSP?", "ERHPA", "ERHPA?", "ERHPL", "ERHPL?", "ERHPS", "ERHPS?", "ERHPP", "ERHPP?", "ERHPE", "ERHPE?", "ERHPR", "ERHPR?"]
   - category: "N1265A Ultra High Current Expander / Fixture"
-    pdf_pages: [329]
+    pdf_pages: [330]
     printed_pages: ["4-12"]
     commands: ["ERPFUHCA", "ERPFUHCA?", "ERPFUHCTST?", "ERPFUHCCAL?", "ERPFUHCMAX?", "ERPFGA", "ERPFGA?", "ERPFDA", "ERPFDA?", "ERPFDP", "ERPFDP?", "ERPFDS", "ERPFDS?", "ERPFGP", "ERPFGP?", "ERPFGR", "ERPFGR?", "ERPFTEMP?"]
   - category: "N1266A HVSMU Current Expander"
-    pdf_pages: [330]
+    pdf_pages: [331]
     printed_pages: ["4-13"]
     commands: ["ERHVCA", "ERHVCA?", "ERHVCTST?", "ERHVP", "ERHVP?", "ERHVS", "ERHVS?", "ERHVPV"]
   - category: "N1268A Ultra High Voltage Expander"
-    pdf_pages: [330]
+    pdf_pages: [331]
     printed_pages: ["4-13"]
     commands: ["ERUHVA", "ERUHVA?"]
   - category: "N1272A/B1506A/B1507A Selector and Adapter Control"
-    pdf_pages: [330]
+    pdf_pages: [331]
     printed_pages: ["4-13"]
     commands: ["ERCMAA", "ERCMAA?", "ERCMAGRD", "ERCMAGRD?", "ERCMAIO", "ERCMAIO?", "ERCMAPFGD", "ERPFQG", "ERPFQG?", "ERHPQG", "ERHPQG?"]
   - category: "HVSMU Control and Variables"
-    pdf_pages: [330]
+    pdf_pages: [331]
     printed_pages: ["4-13"]
     commands: ["HVSMUOP", "HVSMUOP?", "VAR", "VAR?"]
   - category: "Program Memory"
-    pdf_pages: [331]
+    pdf_pages: [332]
     printed_pages: ["4-14"]
     commands: ["ST", "END", "SCR", "LST?", "DO", "RU"]
   - category: "Error Management"
-    pdf_pages: [331]
+    pdf_pages: [332]
     printed_pages: ["4-14"]
     commands: ["ERRX?", "ERR?", "EMG?"]
   - category: "Queries"
-    pdf_pages: [331]
+    pdf_pages: [332]
     printed_pages: ["4-14"]
     commands: ["*IDN?", "LOP?", "*LRN?", "NUB?", "*OPC?", "UNT?", "WNU?", "WZ?"]
   - category: "Status Byte"
-    pdf_pages: [331]
+    pdf_pages: [332]
     printed_pages: ["4-14"]
     commands: ["*SRE", "*SRE?", "*STB?"]
 

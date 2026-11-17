@@ -7,9 +7,9 @@ This folder contains structured extraction artifacts derived from Keysight/Agile
 | File | Format | Purpose | Coverage |
 |---|---|---|---|
 | `b1500a-command-summary.yaml` | YAML | Command lookup data for agents/tools. Includes 42 detailed records for high-value commands and 42 grouped categories from the Command Summary. | Broad command-name coverage; sampled detailed fields; reviewed 2026-06-22 |
-| `b1500a-command-parameters.md` | Markdown tables | Channel numbers, MM modes, required commands before `XE`, FMT modes, status byte, query/data buffers, range concepts, timing parameters. | Practical reference extraction with verified status byte table; not a full numeric range database |
+| `b1500a-command-parameters.md` | Markdown tables | Channel numbers, MM modes, required commands before `XE`, FMT formats (Table 4-24), data status/channel/type codes (Tables 1-6 to 1-12), status byte, query/data buffers, range concepts, timing parameters. | Practical reference extraction with verified status byte, FMT, and data code tables; not a full numeric range database |
 | `b1500a-error-codes.yaml` | YAML | Error code lookup with 62 sampled operation/self-test errors and 6 category coverage notes. | Partial/sampled (~40/150+ operation errors); exact gaps declared |
-| `b1500a-initial-settings.md` | Markdown tables | Reset/default state, especially Table 2-13 initial settings. | Table 2-13 fully transcribed from PDF 179; CORRST annotation added; related reset notes included |
+| `b1500a-initial-settings.md` | Markdown tables | Reset/default state, especially Table 2-13 initial settings. | Table 2-13 fully transcribed from PDF 180; CORRST annotation added; related reset notes included |
 
 ## B1530A WGFMU Files
 
@@ -46,7 +46,7 @@ Index: `../keysight-easyexpert-software-index.md`
 
 ## Page References
 
-PDF page references follow the PDF page markers shown by text extraction, for example `-- 179 of 617 --` or `-- 510 of 700 --`. Printed page references use the manual's chapter-page numbering such as `2-92`, `6-13`, or `9-5`.
+PDF page references are physical 1-based PDF pages, as shown by a PDF viewer. If extracted text carries markers such as `-- N of 617 --`, check whether a marker ends or starts page N before mapping (the EasyEXPERT index records that it ends page N). Printed page references use the manual's chapter-page numbering such as `2-92`, `6-13`, or `9-5`. The B1500A Programming Guide files were corrected to this convention on 2026-11-17; before that, most of their PDF numbers were one lower.
 
 ## Extraction Notes
 

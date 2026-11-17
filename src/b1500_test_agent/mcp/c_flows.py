@@ -233,7 +233,7 @@ def _smu_setup(q: schema.SmuSetup, channels: list[int] | None = None) -> list[_S
     ]
 
 
-def _smu_read(q: schema.SmuSetup) -> list[_Step]:
+def _smu_read(q: schema.SmuSetup | schema.BiasedSweep) -> list[_Step]:
     return (
         [
             _step(
@@ -248,7 +248,7 @@ def _smu_read(q: schema.SmuSetup) -> list[_Step]:
     )
 
 
-def _force(q: schema.SmuSpot) -> _Step:
+def _force(q: schema.SmuSpot | schema.BiasChannel) -> _Step:
     shared = {
         "channel": q.channel,
         "range_mode": q.source_range_mode,
@@ -268,8 +268,13 @@ def _force(q: schema.SmuSpot) -> _Step:
 def _sweep_setup(
     q: schema.SmuSweep, mode: int = 2, channels: list[int] | None = None
 ) -> list[_Step]:
-    return _smu_setup(q, channels) + [
-        _step("smu_set_measurement_mode", mode=mode, channels=_channels(channels or [q.channel])),
+    mm = _step("smu_set_measurement_mode", mode=mode, channels=_channels(channels or [q.channel]))
+    return _smu_setup(q, channels) + [mm] + _staircase(q)
+
+
+def _staircase(q: schema.SmuSweep | schema.BiasedSweep) -> list[_Step]:
+    """WT, WM and WV/WI for the swept channel, with its own compliance."""
+    return [
         _step("smu_configure_sweep_timing", **q.timing.model_dump()),
         _step("smu_configure_sweep_abort", abort_mode=q.abort_mode, post_output=q.post_output),
         _step(
@@ -290,7 +295,9 @@ def _sweep_setup(
     ]
 
 
-def _smu_execute_read(q: schema.SmuSetup, operation: str, atom: str = "smu_execute") -> list[_Step]:
+def _smu_execute_read(
+    q: schema.SmuSetup | schema.BiasedSweep, operation: str, atom: str = "smu_execute"
+) -> list[_Step]:
     args = {"timeout_s": q.run.timeout_s}
     if atom == "smu_execute":
         args["operation"] = operation
@@ -376,6 +383,34 @@ def C_flow_sweep_smu_staircase(request: schema.SmuSweep | None = None) -> dict:
         q,
         _sweep_setup(q) + _smu_execute_read(q, "staircase"),
         "Primary staircase IV sweep.",
+    )
+
+
+def C_flow_sweep_smu_staircase_biased(request: schema.BiasedSweep) -> dict:
+    """Compose a staircase with declared constant biases, MM2 over listed channels, one read.
+
+    Every channel is declared: one swept channel, bias channels with their own compliance,
+    and the measured channels (MM order) with per-channel ranging. All non-sourcing setup
+    precedes the bias DV/DI calls so a configuration failure leaves no bias requested.
+    """
+    q = schema.BiasedSweep.model_validate(request)
+    measured = [m.channel for m in q.measured_channels]
+    steps = (
+        [_step("smu_configure_integration", **q.integration.model_dump())]
+        + [
+            _step("smu_set_measurement_ranging", channel=m.channel, **m.ranging.model_dump())
+            for m in q.measured_channels
+        ]
+        + [_step("smu_set_measurement_mode", mode=2, channels=_channels(measured))]
+        + _staircase(q)
+        + [_force(bias) for bias in q.bias_channels]
+    )
+    return _compose(
+        "C_flow_sweep_smu_staircase_biased",
+        q,
+        steps + _smu_execute_read(q, "staircase_biased"),
+        "Staircase sweep on one channel while declared channels hold constant bias; "
+        "listed channels are measured and read once.",
     )
 
 
@@ -716,8 +751,6 @@ def _cmu_sweep(q: schema.CmuSweep, subject: str) -> dict:
         "cf": ("cf_sweep", "cf_sweep"),
         "ac_level": ("ac_level_sweep", "ac_level_sweep"),
     }[subject]
-    if subject in {"cf", "ac_level"} and min(q.start, q.stop) <= 0:
-        raise ValueError("Frequency and AC amplitude sweep endpoints must be positive.")
     args = q.model_dump(
         include={"steps", "hold_s", "delay_s", "step_delay_s", "measure_delay_s", "abort_mode"}
     )
@@ -737,15 +770,18 @@ def C_flow_sweep_cmu_cv(request: schema.CmuSweep | None = None) -> dict:
     return _cmu_sweep(schema.CmuSweep.model_validate(request or {"start": -1.0, "stop": 1.0}), "cv")
 
 
-def C_flow_sweep_cmu_cf(request: schema.CmuSweep | None = None) -> dict:
-    """Compose frequency sweep with endpoints in Hz."""
-    return _cmu_sweep(schema.CmuSweep.model_validate(request or {"start": 1e3, "stop": 1e6}), "cf")
-
-
-def C_flow_sweep_cmu_ac_level(request: schema.CmuSweep | None = None) -> dict:
-    """Compose AC-level sweep with endpoints in V."""
+def C_flow_sweep_cmu_cf(request: schema.CmuPositiveSweep | None = None) -> dict:
+    """Compose frequency sweep with endpoints in Hz (positive, checked by the schema)."""
     return _cmu_sweep(
-        schema.CmuSweep.model_validate(request or {"start": 0.01, "stop": 0.1}), "ac_level"
+        schema.CmuPositiveSweep.model_validate(request or {"start": 1e3, "stop": 1e6}), "cf"
+    )
+
+
+def C_flow_sweep_cmu_ac_level(request: schema.CmuPositiveSweep | None = None) -> dict:
+    """Compose AC-level sweep with endpoints in V (positive, checked by the schema)."""
+    return _cmu_sweep(
+        schema.CmuPositiveSweep.model_validate(request or {"start": 0.01, "stop": 0.1}),
+        "ac_level",
     )
 
 
@@ -989,6 +1025,7 @@ C_FLOW_FUNCTIONS: list[Callable[..., dict]] = [
     C_flow_spot_cmu_impedance,
     C_flow_spot_cmu_high_speed,
     C_flow_sweep_smu_staircase,
+    C_flow_sweep_smu_staircase_biased,
     C_flow_sweep_smu_synchronous,
     C_flow_sweep_smu_multi_channel,
     C_flow_sweep_smu_qscv,

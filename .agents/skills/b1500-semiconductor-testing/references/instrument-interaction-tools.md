@@ -7,10 +7,13 @@ This is the short index for the fake-but-loadable B1500A MCP tool surface. The d
 - [A atoms](mcp-tools/a-atoms.md): interface/session/context/readback/discovery tools.
 - [B atoms](mcp-tools/b-atoms.md): safety/state-control tools categorized by risk or operation type.
 - [C atoms](mcp-tools/c-atoms.md): source, measurement configuration, execution and data-read primitives.
+- [D atoms](mcp-tools/d-atoms.md): hardware-free post-acquisition analysis placeholders (ingest, qualify, shape, derive, extract, assess, archive, render).
 - [A flows](mcp-tools/a-flows.md): A-only orchestration flows that compose A atoms serially.
 - [B flows](mcp-tools/b-flows.md): B-only safety/state-control compositions.
 - [C flows](mcp-tools/c-flows.md): C-only measurement compositions across seven families.
 - [AB flows](mcp-tools/ab-flows.md): observe/act/verify workflow orchestration.
+- [D flows](mcp-tools/d-flows.md): D-atom-only qualify/screen/analyze/archive compositions over a held C flow envelope.
+- [CD flows](mcp-tools/cd-flows.md): expect -> measure (one C flow) -> interpret (its D flow) -> archive; fake-only.
 
 ## Naming Taxonomy
 
@@ -50,6 +53,41 @@ Flow families: `spot`, `sweep`, `pulse`, `waveform`, `sampling`, `search`, `remo
 C flows call only C atoms and report external A/B prerequisites. They distinguish
 synthetic completion, configuration-only gaps, and pending completion. All tools
 remain fake; real hardware execution and complete ABC transactions are not implemented.
+
+**D atoms**
+
+```text
+D_atom_<stage>_<subject>_<action>
+```
+
+Stages (ordered): `ingest`, `qualify`, `shape`, `derive`, `extract`, `assess`, `archive`, `render`.
+Each stage has a closed subject set (for example `extract`: `leakage`, `transfer`, `output`, `cv`).
+D atoms consume evidence that A/C already returned and never touch hardware, never call A/B/C tools
+and never decode instrument bytes: A owns parser/buffer plumbing, C owns measurement-specific reads,
+D owns what the data means. Under U1 every D atom is a fake placeholder stub that returns a
+content-free `ProductRef` (`content: null`, deterministic id); synthetic data is labelled
+`synthetic_only` and can never pass. `ok: false` means a tool error only; data verdicts live in
+`check_outcome`, `trust_level`, `verdict` and `findings`. The only writer,
+`D_atom_archive_run_write_bundle`, returns planned paths and a refusal; no file is written.
+
+**D and CD flows**
+
+```text
+D_flow_<operation>_<domain>_<subject>
+CD_flow_<operation>_<domain>_<subject>
+```
+
+Operations: `qualify`, `screen`, `analyze` (D also `archive`); domains are data kinds:
+`iv`, `cv`, `timeseries` (D also `run`). D flows call only D atoms, serially and in
+catalog order, over a C flow envelope the caller already holds, and read only its
+designated read record (handoff `received` or `empty`). A CD flow calls exactly one
+`C_flow_<acquisition.kind>`, the D flow with the same name, and
+`D_flow_archive_run_bundle`; it never calls A/B tools or C atoms directly, reports A/B
+prerequisites, and treats caller-passed A/B evidence as unverified. Configuration-only,
+pending and failed C states skip interpretation with a reason but still plan the
+archive. `ok: false` means a composition error or taint violation, never a data
+verdict; synthetic data can never pass; cleanup stays with the outer transaction;
+nothing is written. CD stays fake-only (U7).
 
 **B and AB flows**
 

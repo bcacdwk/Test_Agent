@@ -42,6 +42,7 @@ from b1500_test_agent.models.common import (
     StrictModel,
 )
 from b1500_test_agent.models.policy import DutProfile, Policy
+from b1500_test_agent.models.sim import SimFaultProfile
 from b1500_test_agent.models.station import PinMap, Settings, SimScenario, StationProfile
 from b1500_test_agent.paths import ENV_CONFIG_DIR, Paths
 
@@ -186,6 +187,7 @@ class ConfigBundle(StrictModel):
     pin_maps: dict[str, PinMap]
     dut_profiles: dict[str, DutProfile]
     sim_scenario: SimScenario | None
+    sim_faults: SimFaultProfile | None = None
     files: dict[str, ConfigFile]
     backend_reason: str
     warnings: list[str]
@@ -230,6 +232,7 @@ class _Builder:
         self.problems: list[ConfigProblem] = []
         self.warnings: list[str] = []
         self.used: dict[str, _Found] = {}
+        self.sim_faults: SimFaultProfile | None = None
 
     def problem(self, file: str | None, message: str, location: str | None = None) -> None:
         self.problems.append(ConfigProblem(file=file, location=location, message=message))
@@ -325,14 +328,7 @@ class _Builder:
                 self.problem(self.paths.display(found.path), f"Fault profile {scenario.faults!r} not found; looked "
                              f"for {_tried(self.paths, fault_key, 'sim/faults')}.", "faults")
             else:
-                self.used[fault_key] = fault
-                try:
-                    data = load_yaml(fault.raw)
-                except (yaml.YAMLError, UnicodeDecodeError) as exc:
-                    self.problem(self.paths.display(fault.path), f"Not valid UTF-8 YAML: {exc}")
-                else:
-                    if not isinstance(data, dict | list):
-                        self.problem(self.paths.display(fault.path), "A fault profile is a mapping or a list.")
+                self.sim_faults = self.parse(fault, SimFaultProfile, named=True)
         return scenario
 
     def cross_checks(self, station: StationProfile, pin_maps: Mapping[str, PinMap],
@@ -395,6 +391,7 @@ class _Builder:
             pin_maps=pin_maps,
             dut_profiles=dut_profiles,
             sim_scenario=scenario,
+            sim_faults=self.sim_faults,
             files=files,
             backend_reason=reason,
             warnings=self.warnings,

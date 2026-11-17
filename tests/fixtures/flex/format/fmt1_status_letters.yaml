@@ -1,0 +1,18 @@
+# Every measurement status letter of Table 1-10 on one channel; V always carries the meaningless 199.999E+99.
+source: >-
+  PG Ed.15 Table 1-10 status letters N T C V X F G S U D, V with D = 199.999E+99 (PDF 53); element layout
+  (Table 1-6, PDF 50); data type I (Table 1-12, PDF 55); FMT 1 terminator (Table 4-24, PDF 437).
+kind: data
+fmt: 1
+elements:
+  - [N, 2, I, 1.0e-6]
+  - [T, 2, I, 1.0e-6]
+  - [C, 2, I, 1.0e-6]
+  - [V, 2, I, 1.0e-6]
+  - [X, 2, I, 1.0e-6]
+  - [F, 2, I, 1.0e-6]
+  - [G, 2, I, 1.0e-6]
+  - [S, 2, I, 1.0e-6]
+  - [U, 2, I, 1.0e-6]
+  - [D, 2, I, 1.0e-6]
+wire: "NBI+1.00000E-06,TBI+1.00000E-06,CBI+1.00000E-06,VBI+199.999E+99,XBI+1.00000E-06,FBI+1.00000E-06,GBI+1.00000E-06,SBI+1.00000E-06,UBI+1.00000E-06,DBI+1.00000E-06\r\n"

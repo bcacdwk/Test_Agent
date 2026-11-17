@@ -306,7 +306,8 @@ class SimDeviceModel(StrictModel):
     """A device model instance (``open``, ``resistor``, ``short``, ``mosfet_ekv`` in M1) with its truth parameters.
 
     The simulator (WP1.2) owns the parameter schema of each model; here only ``mosfet_ekv`` must state its threshold
-    voltage ``vth0`` (V) explicitly, because tests compare extracted Vth against it.
+    voltage ``vth0`` (V) explicitly, because tests compare extracted Vth against it. ``params`` must also validate
+    against the model's typed schema in ``models/sim.py`` (``DEVICE_PARAMS``); unknown models are rejected.
     """
 
     model: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
@@ -318,6 +319,9 @@ class SimDeviceModel(StrictModel):
             vth0 = self.params.get("vth0")
             if isinstance(vth0, bool) or not isinstance(vth0, int | float):
                 raise ValueError("mosfet_ekv needs a numeric vth0 (V).")
+        from b1500_test_agent.models.sim import device_params  # local: models.sim imports this module
+
+        device_params(self.model, dict(self.params))
         return self
 
 
@@ -334,7 +338,8 @@ class SimScenario(StrictModel):
 
     ``wiring`` is the physical wiring of the simulated prober (device name -> terminal -> channel/GNDU) and is
     independent of the agent's pin map, so a wrong pin map behaves like mis-wiring. ``models`` maps the same device
-    names to device models. ``faults`` names a file in ``config/sim/faults/`` (schema owned by WP1.2).
+    names to device models. ``faults`` names a file in ``config/sim/faults/`` (schema
+    ``models.sim.SimFaultProfile``).
     """
 
     name: ConfigName
@@ -359,6 +364,14 @@ class SimScenario(StrictModel):
             for terminal, target in terminals.items():
                 if isinstance(target, int) and channel_slot(target) not in slots:
                     raise ValueError(f"{device}.{terminal} is wired to channel {target} in an empty slot.")
+        from b1500_test_agent.models.sim import DEVICE_TERMINALS  # local: models.sim imports this module
+
+        for device, terminals in self.wiring.items():
+            allowed = DEVICE_TERMINALS.get(self.models[device].model)
+            unknown = sorted(set(terminals) - allowed) if allowed is not None else []
+            if unknown:
+                raise ValueError(f"{device} ({self.models[device].model}) has no terminal(s) {unknown}; "
+                                 f"terminals: {sorted(allowed or ())}.")
         return self
 
 

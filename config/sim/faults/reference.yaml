@@ -1,0 +1,25 @@
+# Fault profile schema reference (committed). Schema: b1500_test_agent.models.sim.SimFaultProfile; the `faults`
+# items are the SimFault union, selected by `kind`. A scenario activates a profile with `faults: <file name>`; the
+# simulator then applies every listed fault from instrument start (tests inject more with SimTransport.inject()).
+# Step indices are 0-based measurement steps; `nth` counters start when the fault becomes active.
+#
+# This file lists one entry per kind for documentation and the schema test. It is not meant to be run as is
+# (`disconnect` with after_writes 0 drops the link before the first command).
+
+description: One example of every fault kind (documentation only).
+faults:
+  - {kind: compliance_at, step: 10, ch: 3}            # step 10: SMU3 reports C (value +/-Icomp), others T
+  - {kind: errx, after_cmd: XE, code: 305, nth: 1}    # after the 1st XE, ERRX? returns 305 (one-shot)
+  - {kind: timeout, on: XE, nth: 1}                   # any mnemonic hangs; also on: read | on: "query:*OPC?"
+  - {kind: garbage_data, at_step: 5}                  # first element of step 5 is unparsable
+  - {kind: interlock_open, at_step: null}             # open now (or at a measurement step); >42 V -> 0 V + error 202
+  - {kind: disconnect, after_writes: 0}               # link lost after N more writes; outputs stay as they are
+  - {kind: oscillation, steps: [3, 4]}                # status X at these steps (null = every step)
+  - {kind: idn_override, idn: "Keysight Technologies,B1505A,0,A.06.01.2024.0101"}
+  - kind: modules_override                            # UNT? and channel validation see these modules
+    slots:
+      - {slot: 1, model: B1517A}
+      - {slot: 3, model: B1511B}
+  - {kind: ignore_dz, channels: [1]}                  # stuck output: zeroing accepted, voltage stays
+  - {kind: cleanup_failure, count: 1}                 # DZ/CL writes time out (count: null = always)
+  - {kind: slow, factor: 100.0}                       # measurements take 100 x their nominal time

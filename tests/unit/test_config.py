@@ -267,7 +267,13 @@ def test_missing_scenario_and_fault_profile(repo: Path, repo_paths: Paths) -> No
     report = check_config(repo_paths)
     assert [p.location for p in report.problems] == ["faults"]
     write_yaml(repo / "config" / "sim" / "faults" / "flaky.yaml", {"errx": {"after_cmd": "XE", "code": 100}})
+    report = check_config(repo_paths)  # not a SimFaultProfile (schema: models/sim.py)
+    assert sorted(p.location for p in report.problems) == ["errx", "faults"]  # extra key, missing list
+    write_yaml(repo / "config" / "sim" / "faults" / "flaky.yaml",
+               {"faults": [{"kind": "errx", "after_cmd": "XE", "code": 100}]})
     bundle = load_config(repo_paths)
+    assert bundle.sim_faults is not None and bundle.sim_faults.name == "flaky"
+    assert bundle.sim_faults.faults[0].kind == "errx"
     assert bundle.files["sim/faults/flaky"].source == "example"
     assert bundle.files["sim/scenarios/faulty"].source == "local"
 

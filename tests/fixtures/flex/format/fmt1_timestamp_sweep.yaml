@@ -1,0 +1,27 @@
+# FMT 1,1 + TSC 1 staircase sweep with one measurement channel (SMU5 = E), sweep source SMU3 (C), two steps:
+# Block = Time,Data,Source_data. The PG program example reads it with fixed positions (16 characters per element
+# including the comma): Mid(mret, 4+48i, 12) = time, Mid(mret, 17+48i, 3) = status/channel/type of the data,
+# Mid(mret, 20+48i, 12) = data, Mid(mret, 36+48i, 12) = source value.
+source: >-
+  PG Ed.15 Table 3-7 (PDF 205-206: FMT 1,1, TSC 1, NUB? = 3 x points, Mid() positions); time stamp block
+  Time1,Data1[,Time2,Data2]...[,Source_data] (PDF 46); data type T (Table 1-12, PDF 55); W/E (Table 1-7, PDF 52);
+  element layout (Table 1-6, PDF 50).
+kind: data
+fmt: 1
+elements:
+  - [N, 5, T, 5.44653]
+  - [N, 5, I, -3.685e-10]
+  - [W, 3, V, 0.0]
+  - [N, 5, T, 5.67838]
+  - [N, 5, I, 16.695e-9]
+  - [E, 3, V, 0.2]
+wire: "NET+5.44653E+00,NEI-368.500E-12,WCV+0.00000E+00,NET+5.67838E+00,NEI+16.6950E-09,ECV+200.000E-03\r\n"
+slices:  # [1-based Mid() start, length, expected] as in the PG example
+  - [4, 12, "+5.44653E+00"]
+  - [17, 3, "NEI"]
+  - [20, 12, "-368.500E-12"]
+  - [36, 12, "+0.00000E+00"]
+  - [52, 12, "+5.67838E+00"]
+  - [65, 3, "NEI"]
+  - [68, 12, "+16.6950E-09"]
+  - [84, 12, "+200.000E-03"]

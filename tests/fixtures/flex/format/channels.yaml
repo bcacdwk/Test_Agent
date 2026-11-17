@@ -1,0 +1,18 @@
+# Channel number (PG Table 4-1) to the one-character channel code B/F.
+source: >-
+  PG Ed.15 Table 1-11: A-J = subchannel 1 of slots 1-10, a-j = subchannel 2 of slots 1-10 (PDF 54); channel
+  numbers 1-10 equal 101-1001 (Table 4-1, PDF 334).
+kind: channels
+cases:
+  - [1, A]
+  - [2, B]
+  - [3, C]
+  - [7, G]
+  - [10, J]
+  - [101, A]
+  - [301, C]
+  - [1001, J]
+  - [102, a]
+  - [502, e]
+  - [602, f]
+  - [1002, j]

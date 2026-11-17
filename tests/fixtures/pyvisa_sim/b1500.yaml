@@ -1,0 +1,27 @@
+# pyvisa-sim device for the VisaTransport conformance test (tests/unit/test_transport_visa.py), loaded through
+# VisaSettings(library="<this file>@sim"). Not an instrument model: the FLEX behaviour lives in transport/sim/.
+# The B1500 terminates responses with CR/LF^EOI (PG Ed.15, e.g. *IDN? PDF 440), so responses end in "\r\n" here;
+# VisaTransport reads up to "\n" and strips the "\r" (ATV-2).
+spec: "1.1"
+devices:
+  b1500:
+    eom:
+      GPIB INSTR:
+        q: "\n"
+        r: "\r\n"
+    error: ERROR
+    dialogues:
+      - q: "*IDN?"
+        r: "Keysight Technologies,B1500A,0,A.06.01.2024.0101"
+      - q: "UNT?"
+        r: "B1511B,0;B1511B,0;B1517A,0;B1517A,0;B1530A,0;B1525A,0;B1520A,0;0,0;0,0;0,0"
+      - q: "*OPC?"
+        r: "1"
+      - q: "ERRX?"
+        r: "0,\"No Error.\""
+      - q: "CN 1"
+      - q: "DZ"
+      - q: "CL"
+resources:
+  GPIB0::17::INSTR:
+    device: b1500

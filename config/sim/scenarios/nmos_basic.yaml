@@ -1,7 +1,12 @@
-# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario; consumed by the simulator
-# (WP1.2). Name = file name. The slots mirror config/station.example.yaml. `wiring` is the physical wiring of the
-# simulated prober and is independent of the agent's pin map, so a wrong pin map behaves like mis-wiring.
-# `models` holds the device truth parameters that tests compare extractions against.
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario; device params are typed by
+# b1500_test_agent.models.sim (DEVICE_PARAMS: open, resistor, short, mosfet_ekv); consumed by the simulator
+# (transport/sim/). Name = file name. The slots mirror config/station.example.yaml. `wiring` is the physical wiring
+# of the simulated prober (terminal -> channel, GNDU or null) and is independent of the agent's pin map, so a wrong
+# pin map behaves like mis-wiring. `models` holds the device truth parameters that tests compare extractions
+# against. `noise`: current noise sigma = multiplier x sqrt(floor_a[module]^2 + (rel x |I|)^2), multiplier 3 / 1 /
+# 0.3 for short (< 0.25 PLC) / medium / long (>= 4 PLC) integration; seeded per measurement. `faults` names a fault
+# profile in config/sim/faults/ (schema reference: config/sim/faults/reference.yaml). `timing: instant` never
+# sleeps (time is virtual); `scaled` sleeps 1/100 of the virtual time.
 
 description: Healthy n-channel MOSFET wired like pin map mosfet-4t; interlock open; instant timing.
 idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101

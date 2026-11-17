@@ -1,0 +1,97 @@
+"""The ``Transport`` protocol and its errors (blueprint 2.2).
+
+A transport moves FLEX text to and from one instrument and knows nothing about FLEX semantics, plans or policy.
+Implementations: ``VisaTransport`` (real B1500A over VISA), ``SimTransport`` (in-process simulator) and the
+``AuditingTransport`` wrapper. Every method raises only ``TransportError`` subclasses on I/O problems.
+
+Reads return the message text with the read termination and any trailing ``\\r`` removed (ATV-2).
+"""
+
+from __future__ import annotations
+
+from typing import ClassVar, Protocol, runtime_checkable
+
+from b1500_test_agent.errors import B1500Error
+from b1500_test_agent.models.common import Backend, ErrorCode
+
+
+class TransportError(B1500Error):
+    """An I/O problem with the instrument link (result code ``transport_error``)."""
+
+    code: ClassVar[ErrorCode] = "transport_error"
+
+
+class TransportTimeout(TransportError):
+    """The instrument did not answer (or accept a command) within the timeout."""
+
+
+class TransportClosed(TransportError):
+    """The transport is not open (never opened, or already closed)."""
+
+
+@runtime_checkable
+class Transport(Protocol):
+    """Message-based link to one instrument; ``resource`` is e.g. ``GPIB0::17::INSTR`` or ``SIM::<scenario>``."""
+
+    backend: Backend
+    resource: str
+
+    def open(self) -> None:
+        """Connect; calling it on an open transport does nothing."""
+        ...
+
+    def close(self) -> None:
+        """Disconnect; calling it on a closed transport does nothing."""
+        ...
+
+    def write(self, cmd: str) -> None:
+        """Send one command line (the write termination is added by the transport)."""
+        ...
+
+    def read(self, *, timeout_s: float | None = None) -> str:
+        """Read one message; ``timeout_s`` overrides the default I/O timeout for this call."""
+        ...
+
+    def query(self, cmd: str, *, timeout_s: float | None = None) -> str:
+        """``write(cmd)`` then ``read()``."""
+        ...
+
+    def serial_poll(self) -> int:
+        """The status byte, read without touching the output buffer."""
+        ...
+
+    def device_clear(self) -> None:
+        """Selected device clear (SDC); recovery path only."""
+        ...
+
+
+@runtime_checkable
+class StatefulTransport(Protocol):
+    """A transport whose instrument state persists outside the process (the simulator, blueprint 3).
+
+    The session calls ``load_state()`` right after acquiring the instrument lock and ``save_state()`` right before
+    releasing it, so the MCP server and the CLI see one instrument.
+    """
+
+    def load_state(self) -> None:
+        """Replace the persistent part of the instrument state with the stored one (no-op if nothing is stored)."""
+        ...
+
+    def save_state(self) -> None:
+        """Store the persistent part of the instrument state (atomic write)."""
+        ...
+
+
+def unwrap(transport: object) -> object:
+    """The innermost transport behind wrappers that expose ``inner`` (such as ``AuditingTransport``)."""
+    seen: set[int] = set()
+    while id(transport) not in seen and hasattr(transport, "inner"):
+        seen.add(id(transport))
+        transport = transport.inner
+    return transport
+
+
+def state_hooks(transport: object) -> StatefulTransport | None:
+    """The persistent-state hooks of ``transport`` (looking through wrappers), or ``None`` for stateless links."""
+    inner = unwrap(transport)
+    return inner if isinstance(inner, StatefulTransport) else None

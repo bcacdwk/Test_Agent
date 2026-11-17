@@ -1,0 +1,19 @@
+# The 12-character D field: one to three integer digits, exponent a multiple of three, six significant digits.
+source: >-
+  PG Ed.15 element D "sn.nnnnnEsnn or snn.nnnnEsnn or snnn.nnnEsnn" (PDF 51) and the FMT note "12 digits data
+  will be sn.nnnnnEsnn, snn.nnnnEsnn, or snnn.nnnEsnn" (Table 4-24, PDF 437); dummy 199.999E+99 (PDF 53).
+kind: values
+cases:
+  - [0.0, "+0.00000E+00"]
+  - [1.0, "+1.00000E+00"]
+  - [-1.0, "-1.00000E+00"]
+  - [1.23456e-3, "+1.23456E-03"]
+  - [12.3456e-3, "+12.3456E-03"]
+  - [123.456e-3, "+123.456E-03"]
+  - [-4.5e-15, "-4.50000E-15"]
+  - [100.0e-6, "+100.000E-06"]
+  - [0.9999996, "+1.00000E+00"]
+  - [9.999996e-9, "+10.0000E-09"]
+  - [999.9996e-6, "+1.00000E-03"]
+  - [42.0, "+42.0000E+00"]
+  - [1.99999e101, "+199.999E+99"]

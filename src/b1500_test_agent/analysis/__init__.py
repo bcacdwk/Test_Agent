@@ -1,1 +1,1 @@
-"""Analysis helpers for B1500A measurement data."""
+"""Analysis of archived runs: datasets, quality, extraction methods and plots (blueprint 2.8)."""

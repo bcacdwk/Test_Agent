@@ -43,15 +43,6 @@ where = ["src"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-# Legacy v0.2 code (fake 379-tool MCP server and its tests); removed in WP0.5, which also drops this list.
-# Never add new code here.
-extend-exclude = [
-  "src/b1500_test_agent/instruments",
-  "src/b1500_test_agent/mcp",
-  "tests/test_cd_flows.py",
-  "tests/test_d_flows.py",
-  "tests/test_skeleton.py",
-]
 
 [tool.ruff.lint]
 # Ruff's default rule set (pinned through uv.lock) plus line length.

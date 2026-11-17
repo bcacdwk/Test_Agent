@@ -1,1 +1,0 @@
-"""Measurement recipe stubs."""

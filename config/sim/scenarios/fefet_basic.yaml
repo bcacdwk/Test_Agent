@@ -4,7 +4,7 @@
 # the agent's pin map); `models` holds the truth parameters tests compare extractions against; noise, faults and
 # timing as documented in nmos_basic.yaml.
 
-description: n-channel FeFET wired like pin map mosfet-4t (gate SMU1, drain SMU3, source/bulk GNDU); instant timing.
+description: n-channel FeFET wired like pin map mosfet-4t (gate SMU4, drain SMU3, source/bulk GNDU); instant timing.
 idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101
 slots:
   - {slot: 1, model: B1511B}
@@ -17,7 +17,7 @@ slots:
 interlock_closed: false
 wiring:
   dut:
-    gate: 1
+    gate: 4
     drain: 3
     source: GNDU
     bulk: GNDU

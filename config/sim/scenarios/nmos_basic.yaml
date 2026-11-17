@@ -21,7 +21,7 @@ slots:
 interlock_closed: false
 wiring:
   dut:
-    gate: 1
+    gate: 4
     drain: 3
     source: GNDU
     bulk: GNDU

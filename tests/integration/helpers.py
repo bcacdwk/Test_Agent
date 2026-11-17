@@ -95,6 +95,12 @@ class World:
         path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
         return path
 
+    def use_scenario(self, scenario: str) -> None:
+        """Select committed simulator scenario ``scenario`` through a temporary ``settings.yaml``."""
+        settings = yaml.safe_load((REPO_ROOT / "config/settings.example.yaml").read_text(encoding="utf-8"))
+        settings["sim"]["scenario"] = scenario
+        self.write_config("settings.yaml", settings)
+
     def use_faults(self, name: str, faults: list[dict[str, Any]]) -> None:
         """Select a copy of ``nmos_basic`` whose fault profile ``name`` holds ``faults``."""
         scenario = yaml.safe_load((REPO_ROOT / "config/sim/scenarios/nmos_basic.yaml").read_text(encoding="utf-8"))

@@ -39,7 +39,7 @@ def test_vertical_path_status_validate_run_get_analyze(world: World, monkeypatch
 
     plan = service.validate_plan(**IDVG, label="W3 batch")
     assert plan.ok and plan.status == "ok" and plan.tier == "ok" and plan.plan_id
-    assert plan.resolved is not None and plan.resolved.channels == {"drain": "SMU3(HRSMU)", "gate": "SMU1(MPSMU)",
+    assert plan.resolved is not None and plan.resolved.channels == {"drain": "SMU3(HRSMU)", "gate": "SMU4(HRSMU)",
                                                                     "source": "GNDU"}
     assert plan.resolved.points == 101 and plan.resolved.max_v == 3.0
 
@@ -156,7 +156,7 @@ def test_safe_shutdown_without_any_valid_config_refuses(world: World) -> None:
 
 
 def test_fault_clear_refuses_while_cleanup_is_unverified(world: World) -> None:
-    world.use_faults("stuck_gate", [{"kind": "ignore_dz", "channels": [1]}])
+    world.use_faults("stuck_gate", [{"kind": "ignore_dz", "channels": [4]}])
     env = world.env()
     planned = runner.invoke(app, ["plan", "mosfet.idvg", "--pin-map", "mosfet-4t", "--dut", "nmos-generic",
                                   "--json"], env=env)

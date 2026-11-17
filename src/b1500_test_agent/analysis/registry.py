@@ -1,7 +1,8 @@
 """Analysis method registry (blueprint 2.8 ``ANALYSIS_METHODS``) and the uniform runner used by ``analyze_run``.
 
-``run_method(name, data, options, criteria=...)`` returns ``list[ExtractionResult]`` (extraction methods) or a
-``QualityReport`` (``quality_report``). It raises ``InvalidInputError`` for an unknown method, an unknown or invalid
+``run_method(name, data, options, criteria=...)`` returns ``list[ExtractionResult]`` (extraction methods), a
+``QualityReport`` (``quality_report``) or a ``PlotSet`` (``plot_iv``: PNG bytes the caller stores through the archive
+as ``plots/<name>-<n>.png``). It raises ``InvalidInputError`` for an unknown method, an unknown or invalid
 option, or a method that does not apply to the run's recipe/kind, and ``MethodNotImplementedError`` (code
 ``not_implemented``) for a method that is only declared. Refusals on untrusted data are results (``outcome``
 ``refused``), not exceptions. ``options`` come from JSON (``analyze_run`` ``options{}`` or a recipe's
@@ -21,20 +22,34 @@ from typing import Any, Literal
 from pydantic import ValidationError
 
 from b1500_test_agent.analysis.dataset import RunData
+from b1500_test_agent.analysis.diode import diode_fit
 from b1500_test_agent.analysis.errors import MethodNotImplementedError
-from b1500_test_agent.analysis.mosfet import vth_linear_extrapolation
+from b1500_test_agent.analysis.fefet import memory_window
+from b1500_test_agent.analysis.leakage import leakage_at
+from b1500_test_agent.analysis.mosfet import (
+    gm_max,
+    ion_ioff,
+    output_metrics,
+    subthreshold_swing,
+    vth_constant_current,
+    vth_linear_extrapolation,
+    vth_max_gm,
+)
+from b1500_test_agent.analysis.plots import PlotSet, plot_iv_method
 from b1500_test_agent.analysis.quality import assess_quality
+from b1500_test_agent.analysis.resistor import resistance
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport, TrustPolicy
 
 MethodStatus = Literal["implemented", "declared"]
 MethodOutput = Literal["quality_report", "extraction", "plots"]
-MethodResult = list[ExtractionResult] | QualityReport
+MethodResult = list[ExtractionResult] | QualityReport | PlotSet
 
 _RESERVED_ARGS = frozenset({"d", "criteria"})
 
 _TRANSFER = ("mosfet.idvg", "fefet.dual_sweep_mw", "generic.*")
 _STAIRCASE = ("smu_staircase",)
+_SWEEPS = ("smu_staircase", "smu_stepped")
 
 
 @dataclass(frozen=True)
@@ -105,10 +120,10 @@ def _quality_report(d: RunData, *, criteria: TrustPolicy | None = None) -> Quali
     return assess_quality(d, criteria)
 
 
-def _declare(name: str, output: MethodOutput, summary: str, recipes: tuple[str, ...],
-             kinds: tuple[str, ...] = _STAIRCASE) -> AnalysisMethod:
-    return AnalysisMethod(name=name, status="declared", output=output, summary=summary, fn=_declared(name, "M2"),
-                          recipes=recipes, kinds=kinds, milestone="M2")
+def _method(name: str, output: MethodOutput, fn: Callable[..., Any], summary: str, recipes: tuple[str, ...],
+            kinds: tuple[str, ...] = _STAIRCASE) -> AnalysisMethod:
+    return AnalysisMethod(name=name, status="implemented", output=output, summary=summary, fn=fn, recipes=recipes,
+                          kinds=kinds, milestone="M2")
 
 
 _METHODS = [
@@ -122,22 +137,32 @@ _METHODS = [
         recipes=_TRANSFER, kinds=_STAIRCASE,
         summary="Vth = Vg-axis intercept of the tangent at max gm (or a given window) minus Vd/2.",
     ),
-    _declare("vth_constant_current", "extraction", "Vth where Id = i_crit_a (x W/L if w_over_l is given).", _TRANSFER),
-    _declare("vth_max_gm", "extraction", "Vth at the gate voltage of maximum gm.", _TRANSFER),
-    _declare("subthreshold_swing", "extraction", "Minimum dVg/dlog10(Id) in mV/dec (over `decades`).", _TRANSFER),
-    _declare("gm_max", "extraction", "Maximum transconductance and its gate voltage.", _TRANSFER),
-    _declare("ion_ioff", "extraction", "Ion at v_on, Ioff at v_off and their ratio.", _TRANSFER),
-    _declare("output_metrics", "extraction", "Output family: on-resistance and output conductance gds.",
-             ("mosfet.idvd", "generic.*"), ("smu_stepped", "smu_staircase")),
-    _declare("resistance", "extraction", "Resistance, offset and linearity of an I-V line.",
-             ("basic.contact_resistor", "generic.*")),
-    _declare("diode_fit", "extraction", "Diode saturation current Is, ideality n and series resistance Rs.",
-             ("basic.diode_iv", "generic.*")),
-    _declare("leakage_at", "extraction", "Leakage current at bias v compared with limit_a.",
-             ("mosfet.gate_leakage", "basic.diode_iv", "generic.*")),
-    _declare("memory_window", "extraction", "FeFET memory window: Vth(rev) - Vth(fwd) with vth_method.",
-             ("fefet.dual_sweep_mw", "generic.*")),
-    _declare("plot_iv", "plots", "I-V plots (linear/log scale) of the run table as PNG files.", ("*",), ("*",)),
+    _method("vth_constant_current", "extraction", vth_constant_current,
+            "Vth where |Id| first reaches i_crit_a (x w_over_l when given).", _TRANSFER),
+    _method("vth_max_gm", "extraction", vth_max_gm,
+            "Vth at the maximum of dgm/dVg (transconductance change) minus Vd/2.", _TRANSFER),
+    _method("subthreshold_swing", "extraction", subthreshold_swing,
+            "Minimum dVg/dlog10|Id| in mV/dec over fit_points points (or `decades` decades).", _TRANSFER),
+    _method("gm_max", "extraction", gm_max, "Maximum transconductance and its gate voltage.", _TRANSFER),
+    _method("ion_ioff", "extraction", ion_ioff, "Ion at v_on, Ioff at v_off (default: sweep ends) and their ratio.",
+            _TRANSFER),
+    _method("output_metrics", "extraction", output_metrics,
+            "Output family per step: Ron at the lowest |Vd|, gds in saturation, saturation onset Vd_sat.",
+            ("mosfet.idvd", "generic.*"), _SWEEPS),
+    _method("resistance", "extraction", resistance,
+            "Resistance, linearity and offset of an I-V line; classification open|short|in_range.",
+            ("basic.contact_resistor", "generic.*")),
+    _method("diode_fit", "extraction", diode_fit,
+            "Diode ideality n, saturation current Is and series resistance Rs from the forward branch.",
+            ("basic.diode_iv", "generic.*")),
+    _method("leakage_at", "extraction", leakage_at, "|I| at bias v against limit_a; classification pass|fail.",
+            ("mosfet.gate_leakage", "basic.diode_iv", "generic.*")),
+    _method("memory_window", "extraction", memory_window,
+            "FeFET memory window Vth(fwd) - Vth(rev) of a double sweep, per-branch Vth, Ion and Ioff.",
+            ("fefet.dual_sweep_mw", "generic.*")),
+    _method("plot_iv", "plots", plot_iv_method,
+            "I-V plots (linear and/or log scale) stored as PNG files under the run folder's plots/.", ("*",),
+            ("*",)),
 ]
 
 ANALYSIS_METHODS: Mapping[str, AnalysisMethod] = MappingProxyType({m.name: m for m in _METHODS})

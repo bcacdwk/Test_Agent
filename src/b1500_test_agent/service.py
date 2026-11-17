@@ -43,6 +43,7 @@ from pydantic import ValidationError
 
 from b1500_test_agent.analysis.dataset import DATA_FILE, MANIFEST_FILE, load_manifest, load_run, read_table
 from b1500_test_agent.analysis.errors import MethodNotImplementedError
+from b1500_test_agent.analysis.plots import PlotSet
 from b1500_test_agent.analysis.registry import ANALYSIS_METHODS, run_method
 from b1500_test_agent.archive.audit import RUN_AUDIT_FILE, read_audit
 from b1500_test_agent.archive.store import ANALYSIS_DIR, NOTES_FILE, QUALITY_FILE, RunFolder, RunStore, analysis_payload
@@ -115,6 +116,13 @@ _REFUSED_CODES = frozenset({"invalid_input", "unknown_plan", "plan_expired", "pl
                             "confirmation_required", "summary_mismatch"})
 
 R = TypeVar("R", bound=ResultEnvelope)
+
+
+def _value_text(result: ExtractionResult) -> str:
+    """``quantity = value unit`` with ``<=``/``>=`` for bounds and the classification, if any."""
+    relation = {"exact": "=", "upper": "<=", "lower": ">="}[result.bound]
+    tail = f" ({result.classification})" if result.classification else ""
+    return f"{result.quantity} {relation} {result.value:.4g} {result.unit}{tail}"
 
 
 def approx_tokens(text: str) -> int:
@@ -800,10 +808,18 @@ class B1500Service:
         criteria = registry.get(recipe_id).quality if recipe_id in registry.ids() else bundle.policy.quality
         out = run_method(method, data, options, criteria=criteria)
         folder = RunStore(bundle.paths.runs_dir).open(run_id)
-        rel = folder.add_analysis(method, analysis_payload(method, options, out, source="analyze_run"))
+        plots = folder.add_plots(out) if isinstance(out, PlotSet) else None
+        rel = folder.add_analysis(method, analysis_payload(method, options, out, source="analyze_run", plots=plots))
         artifact = bundle.paths.display(folder.path / rel)
         backend = data.manifest.backend
         sim = " (derived from SIMULATED data)" if backend == "sim" else " (derived)"
+        if isinstance(out, PlotSet):
+            shown = [bundle.paths.display(folder.path / p) for p in plots or []]
+            label = " of SIMULATED data" if backend == "sim" else ""
+            message = _clip(f"{len(shown)} plot(s){label}: " + ", ".join(shown))
+            hint = "plots show limited points as circles and untrusted ones as crosses; they extract nothing"
+            return AnalysisResult(ok=True, status="ok", **self._envelope(backend), run_id=run_id, method=method,
+                                  plots=shown, artifact=artifact, message=message, next_steps=[hint])
         if isinstance(out, QualityReport):
             return AnalysisResult(ok=True, status="ok", **self._envelope(backend), run_id=run_id, method=method,
                                   quality=out, artifact=artifact, message=f"quality verdict {out.verdict}{sim}",
@@ -825,7 +841,7 @@ class B1500Service:
                                   method=method, results=results, artifact=artifact,
                                   message=_clip(f"{method} failed: {errors}"),
                                   next_steps=["check the data shape (get_run include data) before re-measuring"])
-        values = ", ".join(f"{r.quantity} = {r.value:.4g} {r.unit}" for r in results if r.value is not None)
+        values = ", ".join(_value_text(r) for r in results if r.value is not None)
         forced = " FORCED on untrusted data" if any(r.forced_on_untrusted for r in results) else ""
         return AnalysisResult(ok=True, status="ok", **self._envelope(backend), run_id=run_id, method=method,
                               results=results, artifact=artifact, message=f"{values}{sim}{forced}",

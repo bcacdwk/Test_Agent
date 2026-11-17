@@ -273,7 +273,10 @@ class ExtractionResult(StrictModel):
     reason (e.g. status letter or ``outside_window``); ``fit`` holds named fit outputs (slope, intercept, r2 ...).
     ``forced_on_untrusted`` flags a value extracted from untrusted data on explicit request (``options.force``).
     ``outcome`` is ``ok`` exactly when ``value`` is set; otherwise ``error`` says why (refusal or failure), so a
-    refusal is a result, never an exception (``analyze_run`` reports it as ``refused``).
+    refusal is a result, never an exception (``analyze_run`` reports it as ``refused``). ``bound`` other than
+    ``exact`` marks a limit, e.g. a leakage current at the measurement floor (``upper``) or a resistance bounded by
+    the compliance (``upper``); ``classification`` is the categorical verdict of a classifying method (``resistance``:
+    ``open``/``short``/``in_range``; ``leakage_at``: ``pass``/``fail``).
     """
 
     method: Identifier
@@ -290,6 +293,8 @@ class ExtractionResult(StrictModel):
     forced_on_untrusted: bool = False
     outcome: ExtractionOutcome = "ok"
     error: str | None = None
+    bound: Bound = "exact"
+    classification: Identifier | None = None
 
     @model_validator(mode="after")
     def _value_iff_ok(self) -> ExtractionResult:
@@ -297,4 +302,6 @@ class ExtractionResult(StrictModel):
             raise ValueError("value is set exactly when outcome is 'ok'.")
         if (self.outcome != "ok") != bool(self.error):
             raise ValueError("error explains every outcome other than 'ok' and only those.")
+        if self.bound != "exact" and self.value is None:
+            raise ValueError("Only a value can be an upper or lower bound.")
         return self

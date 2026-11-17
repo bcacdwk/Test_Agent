@@ -30,7 +30,7 @@ def noiseless_reference(world: World, data: RunData) -> RunData:
     table = pd.DataFrame({
         "step": data.table["step"],
         "gate_V": data.table["gate_V"],
-        "drain_I": [circuit.channel_currents({1: vg, 3: vd})[3] for vg in data.table["gate_V"]],
+        "drain_I": [circuit.channel_currents({4: vg, 3: vd})[3] for vg in data.table["gate_V"]],
         "drain_I_status": "N",
     })
     return RunData(manifest=data.manifest, table=with_trust(table))
@@ -40,7 +40,7 @@ def test_vertical_path_idvg_vth(world: World) -> None:
     executor = world.executor()
     record = plan(executor, label="W3 batch")
     assert record.tier == "ok", record.rules.findings
-    assert record.summary == ("mosfet.idvg@1 | drain=SMU3(HRSMU) bias 0.05 V Icomp 1 mA; gate=SMU1(MPSMU) sweep "
+    assert record.summary == ("mosfet.idvg@1 | drain=SMU3(HRSMU) bias 0.05 V Icomp 1 mA; gate=SMU4(HRSMU) sweep "
                               "-1..3 V Icomp 1 uA | DUT nmos-generic | pins mosfet-4t | sim")
     result = run(executor, record.plan_id, dut="W3-D12")
     assert result.ok and result.status == "ok" and result.outcome == "completed", result.message

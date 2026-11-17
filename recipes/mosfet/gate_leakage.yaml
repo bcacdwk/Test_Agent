@@ -1,0 +1,69 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Gate leakage: staircase on the gate with drain and source at 0 V (drain held and measured by its SMU, source and
+# bulk on the GNDU). The gate current needs pA resolution, hence low_current (HRSMU, rule R-PIN-01), long
+# integration and a hold/delay for the displacement current to settle. Non-destructive envelope: a small gate
+# compliance (default 100 nA) and the automatic abort on compliance (WM 2,1) stop the sweep before an oxide could be
+# stressed; the gate range stays inside the DUT profile. A gate-drain short reaches the compliance at the first
+# non-zero step.
+# Analysis: leakage_at (|Ig| at v_op against leak_limit_a; a compliance stop before v_op is a fail with a lower bound).
+# status: sim_validated by tests/integration/test_recipes_mosfet.py (nmos_basic: Ig at v_op vs gate_leak_s x v_op;
+# gd_short: compliance -> fail); hw_validated only through an M4 validation record. card: set by WP2.5.
+id: mosfet.gate_leakage
+version: 1
+title: MOSFET gate leakage (Ig-Vg, drain and source at 0 V) - leakage at the operating bias vs a limit
+kind: smu_staircase
+status: sim_validated
+card: null
+device_types: [nmos, pmos, igzo_tft, fefet]
+roles:
+  gate:
+    function: sweep_v
+    measure: [I]
+    module_types: [HRSMU]
+    low_current: true
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, icomp: $icomp_gate, hold: $hold_s,
+               delay: $delay_s}
+  drain:
+    function: measure_only
+    measure: [I]
+    module_types: [HRSMU, MPSMU, HPSMU]
+    prefer: HRSMU
+  source: {function: ground, allow_gndu: true}
+  bulk: {function: ground, allow_gndu: true, optional: true}
+params:
+  vg_start: {unit: V, default: 0.0, recommended: [-1.0, 0.0], range: [-10.0, 10.0], doc: Gate sweep start.}
+  vg_stop: {unit: V, default: 3.0, recommended: [1.0, 5.0], range: [-10.0, 10.0], doc: Gate sweep stop.}
+  vg_points: {type: int, default: 31, recommended: [16, 61], range: [2, 1001], doc: Sweep points (equal steps).}
+  icomp_gate:
+    unit: A
+    default: 1.0e-7
+    recommended: [1.0e-9, 1.0e-6]
+    range: [1.0e-12, 1.0e-4]
+    doc: Gate compliance; keep it small so a breakdown cannot drive current through the oxide.
+  hold_s: {unit: s, default: 0.5, recommended: [0.1, 2.0], range: [0.0, 30.0], doc: Hold before the first step.}
+  delay_s: {unit: s, default: 0.05, recommended: [0.01, 0.5], range: [0.0, 10.0], doc: Delay per step (settling).}
+  v_op:
+    unit: V
+    default: 1.5
+    recommended: [0.5, 3.0]
+    range: [-10.0, 10.0]
+    doc: Operating gate bias at which the leakage is judged (analysis only; must lie inside the sweep).
+  leak_limit_a:
+    unit: A
+    default: 1.0e-9
+    recommended: [1.0e-12, 1.0e-7]
+    range: [1.0e-15, 1.0e-4]
+    doc: Leakage limit at v_op (analysis only; leakage_at pass/fail).
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: long
+    doc: ADC preset (long = 16 power-line cycles, the low-noise default for pA currents).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: leakage_at}
+provenance:
+  sources:
+    - blueprint 6.4 (gate-leakage card)
+    - Programming Guide Ed. 15 WV (PDF 568-569), WT (PDF 564-565), WM (PDF 552-553), FMT (PDF 436-438)
+  validation_runs: []

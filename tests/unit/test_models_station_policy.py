@@ -157,7 +157,7 @@ def test_station_rejects_inconsistent_profiles(change: dict[str, Any]) -> None:
 
 def test_pin_map_example() -> None:
     pin_map = PinMap.model_validate(named("mosfet-4t", example("pinmaps/mosfet-4t.example.yaml")))
-    assert pin_map.terminals == {"gate": 1, "drain": 3, "source": "GNDU", "bulk": "GNDU"}
+    assert pin_map.terminals == {"gate": 4, "drain": 3, "source": "GNDU", "bulk": "GNDU"}
     assert pin_map.certainty in ("verified", "unverified")
     assert_roundtrip(pin_map)
 
@@ -195,7 +195,7 @@ def test_nmos_basic_scenario() -> None:
     dut = scenario.models["dut"]
     assert dut.model == "mosfet_ekv" and isinstance(dut.params["vth0"], float)
     assert dut.params["polarity"] == "n"
-    assert scenario.wiring["dut"] == {"gate": 1, "drain": 3, "source": "GNDU", "bulk": "GNDU"}
+    assert scenario.wiring["dut"] == {"gate": 4, "drain": 3, "source": "GNDU", "bulk": "GNDU"}
     assert set(scenario.noise.floor_a) == {"MPSMU", "HRSMU"} and scenario.noise.seed == 1
     assert_roundtrip(scenario)
 

@@ -1,0 +1,53 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Diode I-V: one staircase on the anode from the reverse bias v_rev up through 0 V to the forward bias v_fwd, the
+# cathode on the GNDU. Reverse leakage needs pA resolution, hence low_current (HRSMU, rule R-PIN-01). Breakdown is
+# excluded: the reverse range stays inside the DUT profile, and a compliance anywhere aborts the sweep (WM 2,1). The
+# sweep starts at the reverse end, so the high-current forward points come last.
+# Analyses: diode_fit (n, Is, Rs from the forward branch) and leakage_at (|I| at v_rev against leak_limit_a).
+# status: sim_validated by tests/integration/test_recipes_basic.py (diode_basic: n, Is, Rs and leakage vs the model
+# truth); hw_validated only through an M4 validation record. card: set by WP2.5.
+id: basic.diode_iv
+version: 1
+title: Diode I-V (reverse + forward staircase) - Is, n, Rs and leakage at Vr
+kind: smu_staircase
+status: sim_validated
+card: null
+device_types: [diode]
+roles:
+  anode:
+    function: sweep_v
+    measure: [I]
+    module_types: [HRSMU]
+    low_current: true
+    settings: {start: $v_rev, stop: $v_fwd, points: $points, icomp: $icomp}
+  cathode: {function: ground, allow_gndu: true}
+params:
+  v_rev: {unit: V, default: -5.0, recommended: [-5.0, -1.0], range: [-20.0, 0.0], doc: Reverse bias (sweep start).}
+  v_fwd: {unit: V, default: 0.8, recommended: [0.6, 1.0], range: [0.0, 2.0], doc: Forward bias (sweep stop).}
+  points: {type: int, default: 291, recommended: [201, 581], range: [21, 2001], doc: Sweep points (equal steps).}
+  icomp:
+    unit: A
+    default: 1.0e-2
+    recommended: [1.0e-3, 1.0e-2]
+    range: [1.0e-9, 1.0e-1]
+    doc: Current compliance (forward current limit; a breakdown also stops the sweep here).
+  leak_limit_a:
+    unit: A
+    default: 1.0e-9
+    recommended: [1.0e-12, 1.0e-6]
+    range: [1.0e-15, 1.0e-3]
+    doc: Reverse leakage limit at v_rev (analysis only; leakage_at pass/fail).
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset (short = fastest/noisiest, long = 16 power-line cycles).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: diode_fit}
+  - {method: leakage_at, options: {v_param: v_rev, limit_param: leak_limit_a}}
+provenance:
+  sources:
+    - blueprint 6.4 (diode-iv card)
+    - Programming Guide Ed. 15 WV (PDF 568-569), WM (PDF 552-553), FMT (PDF 436-438)
+  validation_runs: []

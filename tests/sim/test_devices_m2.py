@@ -147,7 +147,7 @@ def fefet(state_file: Path | None = None, *, noisy: bool = True) -> SimTransport
 def dual_sweep(sim: SimTransport, lo: float = -4.0, hi: float = 4.0, points: int = 161
                ) -> tuple[list[float], list[float], list[float]]:
     """Gate double sweep ``lo → hi → lo`` at Vd = 50 mV; forward and reverse drain currents on the same Vg grid."""
-    data = sweep(sim, "CN 1,3", f"DV 3,0,{VD},1E-3", "MM 2,3", channel=1, start=lo, stop=hi, points=points,
+    data = sweep(sim, "CN 3,4", f"DV 3,0,{VD},1E-3", "MM 2,3", channel=4, start=lo, stop=hi, points=points,
                  icomp=1e-4, mode=3)
     return linspace(lo, hi, points), data[:points], data[points:][::-1]
 
@@ -187,7 +187,7 @@ def test_fefet_polarization_persists_across_two_transports(tmp_path: Path) -> No
     writer = fefet(path, noisy=False)
     device = writer.instrument.circuit.devices["dut"]
     assert isinstance(device, FefetDevice) and device.p == -1.0
-    run(writer, "CN 1,3", "DV 1,0,4.5,1E-6")  # program pulse (DC) on the gate
+    run(writer, "CN 3,4", "DV 4,0,4.5,1E-6")  # program pulse (DC) on the gate
     assert device.p == pytest.approx(device.p_up(4.5))
     run(writer, "DZ", "CL")  # 0 V retains the state
     assert device.p == pytest.approx(device.p_up(4.5))
@@ -199,16 +199,16 @@ def test_fefet_polarization_persists_across_two_transports(tmp_path: Path) -> No
     programmed = reader.instrument.circuit.devices["dut"]
     assert isinstance(programmed, FefetDevice) and programmed.p == device.p
     vg = linspace(-0.5, 1.5, 81)
-    read = sweep(reader, "CN 1,3", f"DV 3,0,{VD},1E-3", "MM 2,3", channel=1, start=-0.5, stop=1.5, points=81,
+    read = sweep(reader, "CN 3,4", f"DV 3,0,{VD},1E-3", "MM 2,3", channel=4, start=-0.5, stop=1.5, points=81,
                  icomp=1e-4)
     erased = fefet(None, noisy=False)
-    fresh = sweep(erased, "CN 1,3", f"DV 3,0,{VD},1E-3", "MM 2,3", channel=1, start=-0.5, stop=1.5, points=81,
+    fresh = sweep(erased, "CN 3,4", f"DV 3,0,{VD},1E-3", "MM 2,3", channel=4, start=-0.5, stop=1.5, points=81,
                   icomp=1e-4)
     shift = cc_vth(vg, fresh, 1e-7) - cc_vth(vg, read, 1e-7)
     assert shift == pytest.approx(programmed.vth_at(-1.0) - programmed.vth_at(programmed.p), abs=0.01)
     assert shift == pytest.approx(0.99, abs=0.02)  # a full memory window between the two states
 
-    run(reader, "DV 1,0,-4.5,1E-6", "DZ", "CL")  # erase
+    run(reader, "DV 4,0,-4.5,1E-6", "DZ", "CL")  # erase
     reader.save_state()
     writer.load_state()  # under the lock, process A reloads before its next transaction
     assert writer.instrument.circuit.devices["dut"].p == pytest.approx(programmed.p_down(-4.5))  # type: ignore[attr-defined]
@@ -218,10 +218,10 @@ def test_fefet_state_rolls_back_when_a_sweep_is_aborted() -> None:
     sim = fefet(noisy=False)
     device = sim.instrument.circuit.devices["dut"]
     assert isinstance(device, FefetDevice)
-    run(sim, "CN 1,3", f"DV 3,0,{VD},1E-3", "MM 2,3", "WT 0,0.01")
+    run(sim, "CN 3,4", f"DV 3,0,{VD},1E-3", "MM 2,3", "WT 0,0.01")
     before = device.p
     assert before == pytest.approx(device.p_up(0.0)) and before > -1.0  # 0 V on the gate (CN) clamps P_init
-    run(sim, "WV 1,1,0,0,4.5,46,1E-4", "XE")
+    run(sim, "WV 4,1,0,0,4.5,46,1E-4", "XE")
     sim.write("AB")  # no virtual time has passed: no step completed, so the program sweep never happened
     assert device.p == before and sim.instrument.state.devices["dut"]["p"] == before
     run(sim, "XE")
@@ -280,20 +280,20 @@ def test_gate_drain_short_mirrors_the_gate_current_into_the_drain() -> None:
 
 def test_gd_short_scenario_hits_the_gate_compliance_at_the_first_step(make_sim) -> None:
     sim = make_sim(load_scenario("gd_short"))
-    data = sweep(sim, "CN 1,3", f"DV 3,0,{VD},1E-3", "WM 2,1", "MM 2,1,3", channel=1, start=-1.0, stop=3.0,
+    data = sweep(sim, "CN 3,4", f"DV 3,0,{VD},1E-3", "WM 2,1", "MM 2,4,3", channel=4, start=-1.0, stop=3.0,
                  points=41, icomp=1e-6)
     gate, drain = data[0::2], data[1::2]
     assert gate[0] == pytest.approx(-1e-6, rel=0.01)  # clamped at the gate compliance (out of the gate)
     assert drain[0] == pytest.approx(1e-6, rel=0.05)  # the same current enters the drain through the short
-    applied = sim.instrument.solve({1: -1.0, 3: VD}, {1: 1e-6, 3: 1e-3})
-    assert applied[2] == {1} and applied[0][1] == pytest.approx(VD - 1e-6 * 1000.0, abs=1e-6)  # gate pulled to Vd
+    applied = sim.instrument.solve({4: -1.0, 3: VD}, {4: 1e-6, 3: 1e-3})
+    assert applied[2] == {4} and applied[0][4] == pytest.approx(VD - 1e-6 * 1000.0, abs=1e-6)  # gate pulled to Vd
     assert all(v > 1e90 for v in gate[1:])  # automatic abort: dummy data after the compliance step
 
 
 def test_open_drain_scenario_measures_only_the_noise_floor(make_sim) -> None:
     scenario = load_scenario("open_drain_noisy")
     sim = make_sim(scenario)
-    data = sweep(sim, "CN 1,3", f"DV 3,0,{VD},1E-3", "AIT 0,2,1", "MM 2,1,3", channel=1, start=-1.0, stop=3.0,
+    data = sweep(sim, "CN 3,4", f"DV 3,0,{VD},1E-3", "AIT 0,2,1", "MM 2,4,3", channel=4, start=-1.0, stop=3.0,
                  points=101, icomp=1e-6)  # 1 PLC: noise multiplier 1
     drain = data[1::2]
     sigma = scenario.noise.floor_a["HRSMU"]
@@ -302,10 +302,10 @@ def test_open_drain_scenario_measures_only_the_noise_floor(make_sim) -> None:
     assert std == pytest.approx(sigma, rel=0.3) and abs(mean) < 4 * sigma / math.sqrt(len(drain))
     assert max(abs(d) for d in drain) < 5 * sigma  # nothing but noise: no transfer curve
     healthy = make_sim(noiseless(load_scenario("nmos_basic")))
-    reference = sweep(healthy, "CN 1,3", f"DV 3,0,{VD},1E-3", "MM 2,3", channel=1, start=-1.0, stop=3.0,
+    reference = sweep(healthy, "CN 3,4", f"DV 3,0,{VD},1E-3", "MM 2,3", channel=4, start=-1.0, stop=3.0,
                       points=101, icomp=1e-6)
     assert reference[-1] > 1e-5  # the same device with the drain landed
-    # the gate-source half of the gate leakage remains (below the MPSMU noise floor here)
+    # the gate-source half of the gate leakage remains (below the raised HRSMU noise floor here)
     device = damaged("open_drain")
     assert device.terminal_currents({"gate": 2.0, "drain": 0.05, "source": 0.0, "bulk": 0.0}) == {
         "gate": pytest.approx(1e-12), "drain": 0.0, "source": pytest.approx(-1e-12), "bulk": 0.0}

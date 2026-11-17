@@ -6,12 +6,14 @@
 # station set `unverified` until a human has checked the wiring (contact check); every plan using an unverified map
 # needs confirmation (unverified_pin_map, rule R-PIN-02). The visa backend never reads this example file.
 
-description: 4-terminal MOSFET; gate on SMU1 (MPSMU), drain on SMU3 (HRSMU, low current), source and bulk on GNDU.
+description: 4-terminal MOSFET; gate on SMU4 and drain on SMU3 (both HRSMU, low current), source and bulk on GNDU.
 certainty: verified
 terminals:
-  gate: 1
+  gate: 4
   drain: 3
   source: GNDU
   bulk: GNDU
 notes:
+  - Gate and drain sit on the two HRSMUs, so one landing serves Id-Vg, Id-Vd, gate leakage (its gate role needs an
+    HRSMU, rule R-PIN-01 low_current) and the FeFET dual sweep.
   - Source and bulk share the ground unit; move bulk to an SMU channel for body-bias measurements.

@@ -190,7 +190,7 @@ def test_default_engine_uses_the_builtin_rules() -> None:
 def _loaded_context(repo: Path, **kw: object) -> tuple[object, RuleContext]:
     """A context whose station, policy, pin map and DUT come from the real loader over the hermetic repo copy."""
     cfg = load_config(Paths.from_env({}, repo_root=repo))
-    _, ctx = context(**kw)
+    _, ctx = context(pm=cfg.pin_maps["mosfet-4t"], **kw)  # the plan binds the committed pin map's channels
     ctx = ctx.model_copy(update={"policy": cfg.policy, "station": cfg.station,
                                  "pin_map": cfg.pin_maps["mosfet-4t"], "dut": cfg.dut_profiles["nmos-generic"]})
     return cfg, RuleContext.model_validate(ctx.model_dump())
@@ -199,9 +199,9 @@ def _loaded_context(repo: Path, **kw: object) -> tuple[object, RuleContext]:
 def test_sources_name_the_committed_example_files(repo: Path) -> None:
     cfg, ctx = _loaded_context(repo, params={"vg_stop": 3.5, "icomp_drain": 5e-3}, points=20000)
     report = RulesEngine(cfg).evaluate(ctx, "plan")  # type: ignore[arg-type]
-    assert [(f.rule_id, f.source) for f in report.findings] == [
-        ("R-DUT-01", "config/duts/nmos-generic.example.yaml#terminals.gate.max_abs_v"),
+    assert [(f.rule_id, f.source) for f in report.findings] == [  # per rule, in channel order (drain 3, gate 4)
         ("R-DUT-01", "config/duts/nmos-generic.example.yaml#terminals.drain.max_abs_i"),
+        ("R-DUT-01", "config/duts/nmos-generic.example.yaml#terminals.gate.max_abs_v"),
         ("R-RUN-01", "config/policy.example.yaml#run_limits.max_points"),
     ]
 

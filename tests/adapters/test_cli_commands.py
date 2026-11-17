@@ -177,8 +177,10 @@ def test_runs_show_analyze_note(cli_world: World) -> None:
     assert "vth = " in analyzed.stdout and "derived window" in analyzed.stdout
     quality = as_json(invoke("analyze", run_id, "quality_report", "--json"))
     assert quality["quality"]["verdict"] == "ok"
-    declared = invoke("analyze", run_id, "gm_max", "--json")
-    assert declared.exit_code == 1 and as_json(declared)["status"] == "not_implemented"
+    gm = invoke("analyze", run_id, "gm_max", "--json")  # implemented by WP2.2 (was a declared stub)
+    assert gm.exit_code == 0 and as_json(gm)["results"][0]["quantity"] == "gm_max"
+    leak = invoke("analyze", run_id, "leakage_at", "-o", "v=1.0", "-o", "limit_a=1e-9", "-o", "y=gate_I")
+    assert leak.exit_code == 1 and "does not apply" in leak.stdout  # leakage_at is not a method of mosfet.idvg
     bad_option = invoke("analyze", run_id, "vth_linear_extrapolation", "-o", "nonsense=1", "--json")
     assert bad_option.exit_code == 1 and as_json(bad_option)["error_code"] == "invalid_input"
 

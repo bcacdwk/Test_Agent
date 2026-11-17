@@ -61,8 +61,12 @@ def test_committed_statuses() -> None:
     assert status["mosfet.idvg"] == ("sim_validated", "sim_validated")
     assert status["generic.smu_staircase"] == ("sim_validated", "sim_validated")
     assert status["system.self_test"] == status["system.self_cal"] == ("sim_validated", "not_implemented")
-    assert status["mosfet.idvd"] == ("draft", "draft")  # smu_stepped has sim and visa code paths (WP2.1)
-    assert registry.get("mosfet.idvd").kind == "smu_stepped" and registry.get("mosfet.idvd").status == "draft"
+    # validated on the simulator by WP2.2 (tests/integration/test_recipes_*.py); smu_stepped has both code paths
+    for recipe_id in ("mosfet.idvd", "mosfet.gate_leakage", "basic.contact_resistor", "basic.diode_iv",
+                      "fefet.dual_sweep_mw"):
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+        assert registry.get(recipe_id).card is None  # WP2.5 sets the card paths
+    assert registry.get("mosfet.idvd").kind == "smu_stepped"
     assert registry.get("mosfet.idvg").card is None
     assert registry.get("system.self_test").always_confirm == ["system_self_test"]
     assert registry.get("system.self_cal").always_confirm == ["system_self_cal"]

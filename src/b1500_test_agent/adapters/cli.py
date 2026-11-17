@@ -462,11 +462,14 @@ def analyze_lines(result: AnalysisResult) -> list[str]:
     lines = []
     for r in result.results:
         window = f" window {r.window.low:.4g}..{r.window.high:.4g} {r.window.unit}" if r.window else ""
-        value = f"{r.value:.4g} {r.unit}" if r.value is not None else f"{r.outcome}: {r.error}"
-        lines.append(f"{r.method}: {r.quantity} = {value} (derived{window}; {r.points_used} points)")
+        relation = {"exact": "=", "upper": "<=", "lower": ">="}[r.bound]
+        verdict = f" [{r.classification}]" if r.classification else ""
+        value = f"{r.value:.4g} {r.unit}{verdict}" if r.value is not None else f"{r.outcome}: {r.error}"
+        lines.append(f"{r.method}: {r.quantity} {relation} {value} (derived{window}; {r.points_used} points)")
         lines += [f"  warning: {w}" for w in r.warnings]
     if result.quality is not None:
         lines.append(f"quality: {result.quality.verdict}; counts {result.quality.counts}")
+    lines += [f"plot: {path}" for path in result.plots]
     if result.artifact:
         lines.append(f"artifact: {result.artifact}")
     return lines

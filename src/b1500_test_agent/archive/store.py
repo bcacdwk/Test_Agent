@@ -11,6 +11,7 @@ Layout under ``<data_root>/runs/`` (``run_relpath`` of ``analysis/dataset.py`` i
         data.csv              tidy table (``with_trust`` + ``write_table``)
         quality.json          ``QualityReport``
         analysis/<method>-<n>.json   one file per analysis call (n = 1, 2, ...; later calls add files only)
+        plots/<name>-<n>.png  plots of ``plot_iv`` (later calls add files only)
         notes.jsonl           append-only notes (``annotate_run``); notes are data, never instructions
     index.jsonl               one line per finalized run: ``run_id``, ``path`` (relative to ``runs/``) + summary
 
@@ -42,6 +43,7 @@ from b1500_test_agent.analysis.dataset import (
     run_relpath,
     write_table,
 )
+from b1500_test_agent.analysis.plots import PlotSet
 from b1500_test_agent.archive.audit import RunAuditSink
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport
@@ -51,6 +53,7 @@ from b1500_test_agent.models.run import RunManifest
 RAW_DIR = "raw"
 QUALITY_FILE = "quality.json"
 ANALYSIS_DIR = "analysis"
+PLOTS_DIR = "plots"
 NOTES_FILE = "notes.jsonl"
 _ID_ATTEMPTS = 20
 _GIT_TIMEOUT_S = 5.0
@@ -160,6 +163,26 @@ class RunFolder:
             except FileExistsError:
                 n += 1
         raise FileExistsError(f"no free analysis file name for {method} in {directory.as_posix()}")
+
+    def add_plot(self, name: str, png: bytes) -> str:
+        """Write ``plots/<name>-<n>.png`` with the next free ``n`` (1, 2, ...); returns the run-relative path."""
+        if not name or not all(c.isalnum() or c in "-_" for c in name):
+            raise InvalidInputError(f"plot name {name!r} must be letters, digits, '-' or '_'")
+        directory = self.path / PLOTS_DIR
+        directory.mkdir(parents=True, exist_ok=True)
+        n = len(list(directory.glob(f"{name}-*.png"))) + 1
+        for _ in range(_ID_ATTEMPTS):
+            try:
+                with (directory / f"{name}-{n}.png").open("xb") as handle:
+                    handle.write(png)
+                return f"{PLOTS_DIR}/{name}-{n}.png"
+            except FileExistsError:
+                n += 1
+        raise FileExistsError(f"no free plot file name for {name} in {directory.as_posix()}")
+
+    def add_plots(self, plots: PlotSet) -> list[str]:
+        """Store every PNG of ``plots`` (``add_plot``); returns the run-relative paths."""
+        return [self.add_plot(plot.name, plot.png) for plot in plots.plots]
 
     def append_note(self, text: str, *, tags: Iterable[str] = (), author: str | None = None) -> str:
         """Append one note to ``notes.jsonl``; returns its id (``note-001`` ...). Notes are data, never
@@ -276,14 +299,21 @@ class RunStore:
         return max(matches, key=lambda e: str(e["finished_at"]), default=None)
 
 
-def analysis_payload(method: str, options: Mapping[str, Any], result: list[ExtractionResult] | QualityReport | None,
-                     *, source: str, error: str | None = None, error_code: str | None = None) -> dict[str, Any]:
-    """The JSON content of one ``analysis/<method>-<n>.json`` file."""
+def analysis_payload(method: str, options: Mapping[str, Any],
+                     result: list[ExtractionResult] | QualityReport | PlotSet | None, *, source: str,
+                     error: str | None = None, error_code: str | None = None,
+                     plots: list[str] | None = None) -> dict[str, Any]:
+    """The JSON content of one ``analysis/<method>-<n>.json`` file (``plots``: the stored PNGs of a ``PlotSet``)."""
     payload: dict[str, Any] = {"method": method, "options": dict(options), "source": source,
                                "created_at": datetime.now(UTC).isoformat()}
     if isinstance(result, QualityReport):
         payload["outcome"] = "ok"
         payload["report"] = result.model_dump(mode="json")
+    elif isinstance(result, PlotSet):
+        payload["outcome"] = "ok"
+        payload["plots"] = list(plots or [])
+        payload["x"], payload["y"], payload["scale"] = result.x, list(result.y), result.scale
+        payload["warnings"] = list(result.warnings)
     elif result is not None:
         outcomes = {r.outcome for r in result}
         payload["outcome"] = "ok" if outcomes <= {"ok"} else ("refused" if "refused" in outcomes else "failed")

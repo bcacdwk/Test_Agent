@@ -32,7 +32,7 @@ from tests.sim.helpers import load_scenario, noiseless
 
 RUN_ID = "S20261117T063012Z-7f3a"
 PLAN_ID = "P-ABCDEFGHIJ"
-GATE, DRAIN = 1, 3
+GATE, DRAIN = 4, 3  # the nmos_basic wiring (gate on HRSMU SMU4, drain on HRSMU SMU3)
 ENVELOPE = CompiledEnvelope(channels={
     GATE: ChannelEnvelope(role="gate", max_abs_v=2.0, max_abs_i=1e-4),
     DRAIN: ChannelEnvelope(role="drain", max_abs_v=0.5, max_abs_i=1e-3),
@@ -149,7 +149,7 @@ class Harness:
 
 def make_harness(state_dir: Path, scenario: SimScenario | None = None, *, adapter: str = "cli",
                  hook_type: Callable[[SimTransport], HookTransport] = HookTransport) -> Harness:
-    """A harness over the noiseless ``nmos_basic`` scenario (gate = SMU1, drain = SMU3) unless ``scenario`` is given;
+    """A harness over the noiseless ``nmos_basic`` scenario (gate = SMU4, drain = SMU3) unless ``scenario`` is given;
     ``hook_type`` builds the injection wrapper (``HookTransport`` or a subclass with other moments)."""
     scenario = scenario or noiseless(load_scenario("nmos_basic"))
     sim = SimTransport(scenario, state_file=sim_state_file(state_dir, scenario.name))

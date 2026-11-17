@@ -12,7 +12,15 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from b1500_test_agent.analysis.dataset import DATA_FILE, INDEX_FILE, MANIFEST_FILE, run_relpath, with_trust, write_table
+from b1500_test_agent.analysis.dataset import (
+    DATA_FILE,
+    INDEX_FILE,
+    MANIFEST_FILE,
+    RunData,
+    run_relpath,
+    with_trust,
+    write_table,
+)
 from b1500_test_agent.models.analysis import Quantity
 from b1500_test_agent.models.common import ConfigFile
 from b1500_test_agent.models.plan import (
@@ -149,3 +157,49 @@ def append_index(data_root: Path, run_id: str, path: str) -> None:
     index.parent.mkdir(parents=True, exist_ok=True)
     with index.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps({"run_id": run_id, "path": path, "outcome": "completed"}) + "\n")
+
+
+def iv_table(source: dict[str, Sequence[float]], measured: dict[str, Sequence[float]], *,
+             status: dict[str, Sequence[str]] | None = None, segment: Sequence[str] | None = None) -> pd.DataFrame:
+    """A tidy table of any shape: ``source`` columns (programmed values), ``measured`` columns with status letters
+    (``status`` per measured column, default all ``N``), optional ``segment``; ``trust`` computed."""
+    n = len(next(iter(source.values())))
+    columns: dict[str, Any] = {"step": np.arange(n)}
+    if segment is not None:
+        columns["segment"] = list(segment)
+    for name, values in source.items():
+        columns[name] = np.asarray(values, dtype=float)
+    for name, values in measured.items():
+        columns[name] = np.asarray(values, dtype=float)
+        columns[f"{name}_status"] = list((status or {}).get(name, ["N"] * n))
+    return with_trust(pd.DataFrame(columns))
+
+
+def run_of(table: pd.DataFrame, recipe_id: str, *, kind: str = "smu_staircase",
+           params: dict[str, Quantity] | None = None) -> RunData:
+    """``RunData`` of ``table`` under a manifest of ``recipe_id``/``kind`` with resolved ``params``."""
+    return RunData(manifest(recipe_id=recipe_id, kind=kind, params=params or {}), table)
+
+
+def subthreshold_id(vg: np.ndarray, *, v0: float = 0.3, i0: float = 1e-7, ss_mv: float = 80.0,
+                    i_on: float = 1e-4) -> np.ndarray:
+    """Exponential subthreshold current ``i0 * 10**((vg - v0) / ss)`` that saturates smoothly towards ``i_on``
+    (harmonic sum), so the steepest slope (the SS truth) is in the exponential part."""
+    exp = i0 * 10 ** ((np.asarray(vg, dtype=float) - v0) / (ss_mv / 1000.0))
+    return 1.0 / (1.0 / exp + 1.0 / i_on)
+
+
+def output_family(vd: np.ndarray, vg_levels: Sequence[float], *, vth: float = 0.4, beta: float = 1e-3,
+                  lam: float = 0.05) -> pd.DataFrame:
+    """Square-law Id-Vd family (triode beta (Vov Vd - Vd^2/2), saturation beta Vov^2/2 (1 + lam (Vd - Vov))) as a
+    stepped table: source ``drain_V``/``gate_V``, measured ``drain_I``. Truth: Ron = 1/(beta Vov), gds =
+    lam beta Vov^2/2, Vd_sat(gd = 0.1 g0) = 0.9 Vov."""
+    rows_vd, rows_vg, rows_id = [], [], []
+    for vg in vg_levels:
+        vov = vg - vth
+        triode = beta * (vov * vd - vd**2 / 2)
+        sat = beta * vov**2 / 2 * (1 + lam * (vd - vov))
+        rows_vd += list(vd)
+        rows_vg += [vg] * len(vd)
+        rows_id += list(np.where(vd < vov, triode, sat))
+    return iv_table({"drain_V": rows_vd, "gate_V": rows_vg}, {"drain_I": rows_id})

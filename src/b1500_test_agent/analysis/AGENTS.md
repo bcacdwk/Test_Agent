@@ -8,14 +8,16 @@ instrument.
   folders (`load_run`) and `models`. The `data.csv` contract (columns, CSV format, folder layout) is defined once in
   `dataset.py`; the archive writes through its helpers. Status letter meanings: `driver/parser.py`.
 - Measured vs derived: never modify measured columns. Every derived value is an `ExtractionResult`
-  (`derived=True`) with unit, method, `MethodRecord`, fit window, points used and excluded, fit and warnings.
+  (`derived=True`) with unit, method, `MethodRecord`, fit window, points used and excluded, fit and warnings;
+  `bound` marks floor- or compliance-limited values, `classification` a verdict (open/short/in_range, pass/fail).
 - Status-code trust policy (`TrustPolicy` from the recipe `quality:` block or `policy.quality`): `N` ok; `C`/`T`
   limited, excluded from fits; `V X F D G S U` untrusted, so extraction is refused unless forced, which sets
   `forced_on_untrusted` and a warning. `V` (incl. `199.999E+99`) is never limited; unknown letters are untrusted.
 - A refusal or failure is a result (`outcome` `refused`/`failed`, `value=None`, `error`), never an exception;
   exceptions only for unusable calls (unknown run/column/option, declared method → `not_implemented`).
 - Run `assess_quality` before any fit and report status-code counts with every result.
-- Definitions (Vth methods, SS, gm, Ion/Ioff, memory window) must match skill `b1500-test` knowledge file
+- Definitions live in the module docstrings (`mosfet.py`: trust rules + MOSFET methods; `resistor.py`, `diode.py`,
+  `leakage.py`, `fefet.py`, `plots.py`; shared code `common.py`) and must match skill `b1500-test` knowledge file
   `06-analysis-extraction.md`; change both together.
 - Deterministic algorithms only; language-model text may narrate results, never compute them.
 - Units on every quantity. Tables are pandas DataFrames.

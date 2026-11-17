@@ -1,4 +1,5 @@
-"""Analysis method registry, uniform runner and headless plot helpers (blueprint 2.8, 5.1 ``analyze_run``)."""
+"""Analysis method registry, uniform runner and headless plot helpers (blueprint 2.8, 5.1 ``analyze_run``). Since
+WP2.2 every registered method is implemented; the ``declared`` path is checked with a synthetic method."""
 
 from __future__ import annotations
 
@@ -15,16 +16,17 @@ from b1500_test_agent.analysis import (
     RunData,
     run_method,
 )
-from b1500_test_agent.analysis.plots import new_figure, save_figure
+from b1500_test_agent.analysis.plots import PlotSet, new_figure, plot_iv, save_figure
+from b1500_test_agent.analysis.registry import AnalysisMethod, _declared
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport
 from b1500_test_agent.models.recipe import AnalysisSpec, QualityCriteria
 from tests.unit.analysis_helpers import VTH, idvg_table, linear_region_id, manifest
 
 VG = np.linspace(-1.0, 3.0, 101)
-IMPLEMENTED = {"quality_report", "vth_linear_extrapolation"}
-DECLARED = {"vth_constant_current", "vth_max_gm", "subthreshold_swing", "gm_max", "ion_ioff", "output_metrics",
-            "resistance", "diode_fit", "leakage_at", "memory_window", "plot_iv"}
+M1 = {"quality_report", "vth_linear_extrapolation"}
+M2 = {"vth_constant_current", "vth_max_gm", "subthreshold_swing", "gm_max", "ion_ioff", "output_metrics",
+      "resistance", "diode_fit", "leakage_at", "memory_window", "plot_iv"}
 
 
 def idvg_run(recipe_id: str = "mosfet.idvg", drain_status: list[str] | None = None) -> RunData:
@@ -32,12 +34,14 @@ def idvg_run(recipe_id: str = "mosfet.idvg", drain_status: list[str] | None = No
     return RunData(manifest(recipe_id=recipe_id), table)
 
 
-def test_registry_lists_the_m1_and_declared_methods() -> None:
-    assert set(ANALYSIS_METHODS) == IMPLEMENTED | DECLARED
+def test_registry_lists_every_method_as_implemented() -> None:
+    assert set(ANALYSIS_METHODS) == M1 | M2
     for name, method in ANALYSIS_METHODS.items():
         assert method.name == name and callable(method.fn) and method.summary
-        assert method.status == ("implemented" if name in IMPLEMENTED else "declared")
-        assert method.milestone == ("M1" if name in IMPLEMENTED else "M2")
+        assert method.status == "implemented"
+        assert method.milestone == ("M1" if name in M1 else "M2")
+        assert "criteria" not in method.options and "d" not in method.options and "out_dir" not in method.options
+        assert (name == "quality_report") == (not method.options)
     assert ANALYSIS_METHODS["vth_linear_extrapolation"].options == (
         "window", "subtract_half_vd", "segment", "force", "x", "y", "vd", "vd_param", "smooth", "fit_points")
     assert ANALYSIS_METHODS["quality_report"].options == ()
@@ -45,15 +49,28 @@ def test_registry_lists_the_m1_and_declared_methods() -> None:
         ANALYSIS_METHODS["x"] = ANALYSIS_METHODS["gm_max"]  # type: ignore[index]
 
 
-@pytest.mark.parametrize("name", sorted(DECLARED))
-def test_declared_methods_report_not_implemented(name: str) -> None:
+def test_a_declared_method_reports_not_implemented() -> None:
     data = idvg_run("generic.smu_staircase")
+    declared = AnalysisMethod(name="cv_fit", status="declared", output="extraction", summary="later",
+                              fn=_declared("cv_fit", "M2"), milestone="M2")
     with pytest.raises(MethodNotImplementedError, match="declared but not implemented") as info:
-        run_method(name, data)
+        declared.run(data)
     assert info.value.code == "not_implemented" and "M2" in str(info.value)
     with pytest.raises(MethodNotImplementedError):
-        ANALYSIS_METHODS[name].fn(data)
-    assert ANALYSIS_METHODS[name].options == ()
+        declared.fn(data)
+    assert declared.options == ()
+
+
+@pytest.mark.parametrize(("name", "quantities"), [
+    ("vth_constant_current", ["vth"]), ("vth_max_gm", ["vth"]), ("subthreshold_swing", ["ss"]),
+    ("gm_max", ["gm_max"]), ("ion_ioff", ["ion", "ioff", "on_off_ratio"]),
+])
+def test_transfer_methods_run_through_the_registry(name: str, quantities: list[str]) -> None:
+    from tests.unit.analysis_helpers import ekv_like_id, idvg_table
+
+    data = RunData(manifest(), idvg_table(VG, ekv_like_id(VG)))
+    results = run_method(name, data)
+    assert [r.quantity for r in results] == quantities and all(r.outcome == "ok" for r in results)
 
 
 def test_quality_report_runner() -> None:
@@ -128,6 +145,21 @@ def test_plots_render_headless_png(tmp_path: Path) -> None:
     axes.semilogy(VG, linear_region_id(VG) + 1e-12)
     path = save_figure(figure, tmp_path / "plots" / "idvg.png")
     assert path.read_bytes().startswith(b"\x89PNG")
+
+
+def test_plot_iv_renders_a_plot_set_and_writes_files(tmp_path: Path) -> None:
+    out = run_method("plot_iv", idvg_run(), {"scale": "log"})
+    assert isinstance(out, PlotSet) and [p.name for p in out.plots] == ["iv-log"]
+    assert out.x == "gate_V" and out.y == ("gate_I", "drain_I") and out.plots[0].png.startswith(b"\x89PNG")
+    both = run_method("plot_iv", idvg_run())
+    assert [p.name for p in both.plots] == ["iv-linear", "iv-log"]
+    paths = plot_iv(idvg_run(), out_dir=tmp_path / "work")
+    assert [p.name for p in paths] == ["iv-linear.png", "iv-log.png"] and all(p.read_bytes()[:4] == b"\x89PNG"
+                                                                              for p in paths)
+    with pytest.raises(InvalidInputError):
+        run_method("plot_iv", idvg_run(), {"out_dir": str(tmp_path)})  # the server decides where plots go
+    with pytest.raises(InvalidInputError):
+        run_method("plot_iv", idvg_run(), {"scale": "cubic"})
 
 
 def test_plots_module_never_imports_pyplot() -> None:

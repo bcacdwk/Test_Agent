@@ -114,7 +114,7 @@ def test_unknown_and_tampered_plans(world: World) -> None:
     path = world.state_dir / "plans" / f"{record.plan_id}.json"
     original = path.read_text(encoding="utf-8")
     data = json.loads(original)
-    data["envelope"]["channels"]["1"]["max_abs_v"] = 30.0
+    data["envelope"]["channels"]["4"]["max_abs_v"] = 30.0  # the gate
     path.write_text(json.dumps(data), encoding="utf-8")
     before = world.io_marker()
     result = run(executor, record.plan_id)

@@ -34,6 +34,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from b1500_test_agent.analysis.dataset import DATA_FILE, MANIFEST_FILE, RunData, with_trust
+from b1500_test_agent.analysis.plots import PlotSet
 from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.registry import run_method
 from b1500_test_agent.archive.audit import RUN_AUDIT_FILE
@@ -508,8 +509,9 @@ class Executor:
                 flags.append(f"{spec.method}: {exc}")
                 artifacts[rel] = rel
                 continue
+            plots = folder.add_plots(out) if isinstance(out, PlotSet) else None
             rel = folder.add_analysis(spec.method, analysis_payload(spec.method, spec.options, out,
-                                                                    source="analysis_defaults"))
+                                                                    source="analysis_defaults", plots=plots))
             artifacts[rel] = rel
             if isinstance(out, list):
                 results.extend(out)

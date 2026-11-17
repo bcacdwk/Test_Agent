@@ -1,14 +1,17 @@
-# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe).
-# MOSFET output family (Id-Vd): drain staircase sweep for each gate step (host loop over the gate role). Values
-# reused from the v0.2 idvd example (Vds 0..3 V, 101 points, Vgs 0.5..2.0 V in 4 steps, 1 mA compliance).
-# Kind smu_stepped (WP2.1): one drain sweep per gate step (start/stop/points), all in one transaction; the loop stops
-# after a sweep in compliance. Table: gate_V = the step level of each curve. Status stays draft until WP2.2 validates
-# this recipe on the simulator.
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOSFET output family (Id-Vd): drain staircase sweep for each gate step (host loop over the gate role). Drain sweep
+# reused from the v0.2 idvd example (Vds 0..3 V, 101 points, 1 mA compliance); gate steps 0.5..1.5 V in 5 steps
+# (WP2.2; the v0.2 2.0 V top step drives the reference device into the 1 mA compliance of the DUT envelope).
+# Kind smu_stepped: one drain sweep per gate step (start/stop/points), all in one transaction; the loop stops after
+# a sweep in compliance. Table: gate_V = the step level of each curve. Analysis output_metrics (Ron, gds, Vd_sat per
+# curve). Self-heating and compliance: keep the drain compliance inside the DUT profile.
+# status: sim_validated by tests/integration/test_recipes_mosfet.py (nmos_basic: Ron, gds and Vd_sat per curve vs
+# the model); hw_validated only through an M4 validation record. card: set by WP2.5.
 id: mosfet.idvd
 version: 1
 title: MOSFET output curves (Id-Vd family over gate steps) for Ron, gds and saturation onset
 kind: smu_stepped
-status: draft
+status: sim_validated
 card: null
 device_types: [nmos, pmos, igzo_tft]
 roles:
@@ -26,11 +29,12 @@ roles:
 params:
   vd_start: {unit: V, default: 0.0, range: [-10, 10], doc: Drain sweep start.}
   vd_stop: {unit: V, default: 3.0, recommended: [1, 3], range: [-10, 10], doc: Drain sweep stop.}
-  vd_points: {type: int, default: 101, range: [11, 1001], doc: Drain sweep points.}
-  vg_start: {unit: V, default: 0.5, range: [-10, 10], doc: First gate step.}
-  vg_stop: {unit: V, default: 2.0, range: [-10, 10], doc: Last gate step.}
-  vg_points: {type: int, default: 4, range: [1, 21], doc: Number of gate steps.}
-  icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-1], doc: Drain current compliance.}
+  vd_points: {type: int, default: 101, recommended: [51, 201], range: [11, 1001], doc: Drain sweep points.}
+  vg_start: {unit: V, default: 0.5, recommended: [0.0, 1.0], range: [-10, 10], doc: First gate step.}
+  vg_stop: {unit: V, default: 1.5, recommended: [1.0, 3.0], range: [-10, 10], doc: Last gate step.}
+  vg_points: {type: int, default: 5, recommended: [3, 6], range: [1, 21], doc: Number of gate steps.}
+  icomp_drain: {unit: A, default: 1.0e-3, recommended: [1.0e-4, 1.0e-2], range: [1.0e-12, 1.0e-1],
+                doc: Drain current compliance.}
   icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance.}
   integration: {type: enum, choices: [short, medium, long], default: medium, doc: ADC preset.}
 quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
@@ -40,4 +44,5 @@ provenance:
   sources:
     - deck slide 6
     - v0.2 references/recipes/mosfet/idvd.example.yaml (tag archive/v0.2-fake-mcp)
+    - Programming Guide Ed. 15 WV (PDF 568-569), DV, WM (PDF 552-553), FMT (PDF 436-438)
   validation_runs: []

@@ -18,9 +18,9 @@ VD_LIN = 0.1
 
 def idvg(make_sim, scenario: SimScenario, *, vd: float, start: float = -0.5, stop: float = 2.0,
          points: int = 251) -> tuple[list[float], list[float]]:
-    """Gate sweep on SMU1, drain bias and current on SMU3 (the ``nmos_basic`` wiring)."""
+    """Gate sweep on SMU4, drain bias and current on SMU3 (the ``nmos_basic`` wiring)."""
     sim = make_sim(scenario)
-    run(sim, "CN 1,3", f"DV 3,0,{vd},1E-2", "MM 2,3", f"WV 1,1,0,{start},{stop},{points},1E-4", "XE")
+    run(sim, "CN 3,4", f"DV 3,0,{vd},1E-2", "MM 2,3", f"WV 4,1,0,{start},{stop},{points},1E-4", "XE")
     vg = [start + (stop - start) * i / (points - 1) for i in range(points)]
     return vg, values(sim.read())
 
@@ -110,9 +110,9 @@ def test_resistor_short_and_open() -> None:
 
 def test_circuit_follows_the_physical_wiring_not_the_pin_map() -> None:
     """A wrong pin map behaves like mis-wiring: forcing a channel the DUT is not wired to measures nothing."""
-    scenario = noiseless(load_scenario("nmos_basic"))  # gate on SMU1, drain on SMU3
+    scenario = noiseless(load_scenario("nmos_basic"))  # gate on SMU4, drain on SMU3
     circuit = Circuit(scenario)
-    on = circuit.channel_currents({1: 1.5, 3: 0.1})
+    on = circuit.channel_currents({4: 1.5, 3: 0.1})
     swapped = circuit.channel_currents({2: 1.5, 3: 0.1})  # agent believes the gate is on SMU2
     assert on[3] > 1e-5
     assert abs(swapped[3]) < 1e-12 and swapped[2] == 0.0

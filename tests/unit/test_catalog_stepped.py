@@ -45,7 +45,7 @@ def with_gate(**settings: Any) -> dict[str, Any]:
 
 
 def test_idvd_compiles_to_envelope_estimate_preview_and_program() -> None:
-    compiled = compile_stepped()
+    compiled = compile_stepped(vg_stop=2.0, vg_points=4)  # four gate steps 0.5 .. 2.0 V
     gate, drain = compiled.envelope.channels[1], compiled.envelope.channels[3]
     assert (gate.role, gate.function, gate.max_abs_v, gate.max_abs_i, gate.v_start, gate.v_stop) == \
         ("gate", "step_v", 2.0, 1e-6, 0.5, 2.0)
@@ -124,7 +124,7 @@ def test_values_and_range_are_exclusive() -> None:
 def test_registered_for_sim_and_visa() -> None:
     kind = default_kinds()["smu_stepped"]
     assert isinstance(kind, SmuSteppedKind) and kind.implemented_on == {"sim", "visa"}
-    assert REGISTRY.effective_status("mosfet.idvd", "sim") == "draft"
+    assert REGISTRY.effective_status("mosfet.idvd", "sim") == "sim_validated"  # WP2.2
     assert REGISTRY.problems() == []
 
 
@@ -140,10 +140,10 @@ def make_plan(**params: Any) -> PlanRecord:
 
 def test_plan_tier_and_summary() -> None:
     plan = make_plan()
-    assert plan.kind == "smu_stepped" and plan.tier == "ok"  # draft on sim: a warning only
-    assert any(f.rule_id == "R-REC-01" and f.severity == "warn" for f in plan.rules.findings)
+    assert plan.kind == "smu_stepped" and plan.tier == "ok"
+    assert not any(f.rule_id == "R-REC-01" for f in plan.rules.findings)  # sim_validated on sim (WP2.2)
     assert plan.summary == ("mosfet.idvd@1 | drain=SMU3(HRSMU) sweep 0..3 V Icomp 1 mA; gate=SMU1(MPSMU) step "
-                            "0.5..2 V Icomp 1 uA | DUT nmos-generic | pins mosfet-4t | sim")
+                            "0.5..1.5 V Icomp 1 uA | DUT nmos-generic | pins mosfet-4t | sim")
     beyond = make_plan(vg_stop=3.5)  # the DUT gate envelope is 3 V: every step value is checked
     assert beyond.tier == "needs_confirmation" and beyond.rules.confirm_reasons == ["dut_envelope"]
 
@@ -169,7 +169,7 @@ def _block(currents: list[tuple[float, float]], *, abort_from: int | None = None
 
 
 def test_to_table_names_the_step_column_and_numbers_steps_globally() -> None:
-    plan = make_plan(vd_points=11, vg_points=3)
+    plan = make_plan(vd_points=11, vg_points=3, vg_stop=2.0)
     sweep = [(1e-6 * k, 1e-12) for k in range(11)]
     table = KIND.to_table(RawAcquisition(blocks=[_block(sweep), _block(sweep), _block(sweep)]), plan)
     assert list(table.columns) == ["step", "drain_V", "gate_V", "drain_I", "drain_I_status", "gate_I",
@@ -183,7 +183,7 @@ def test_to_table_names_the_step_column_and_numbers_steps_globally() -> None:
 
 
 def test_to_table_after_an_early_stop_has_only_the_measured_curves() -> None:
-    plan = make_plan(vd_points=11, vg_points=4)
+    plan = make_plan(vd_points=11, vg_points=4, vg_stop=2.0)
     sweep = [(1e-6 * k, 1e-12) for k in range(11)]
     table = KIND.to_table(RawAcquisition(blocks=[_block(sweep), _block(sweep, abort_from=6)]), plan)
     assert len(table) == 22 and table["gate_V"].unique().tolist() == [0.5, 1.0]

@@ -56,7 +56,7 @@ def test_last_self_calibration_reaches_rule_r_cal_01(world: World) -> None:
 
 def test_generic_staircase_with_a_matching_pin_map(world: World) -> None:
     world.write_config("pinmaps/generic-3t.yaml", {"certainty": "verified",
-                                                    "terminals": {"sweep": 3, "bias": 1, "ground": "GNDU"}})
+                                                    "terminals": {"sweep": 3, "bias": 4, "ground": "GNDU"}})
     world.write_config("duts/generic-3t.yaml", {"device_type": "nmos", "terminals": {
         "sweep": {"max_abs_v": 2.0, "max_abs_i": 1e-3}, "bias": {"max_abs_v": 2.0, "max_abs_i": 1e-3},
         "ground": {"max_abs_v": 0.0, "max_abs_i": 1e-2}}})

@@ -1,0 +1,56 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# FeFET memory window: one gate staircase double sweep vg_start -> vg_stop -> vg_start (the `fwd` and `rev`
+# segments) at a small constant drain bias, source and bulk on the GNDU. Sweeping beyond the coercive voltage both
+# ways programs and erases the ferroelectric (the state persists after the run; this is the measurement, not a
+# fault). Sweep rate and read disturb matter on hardware (card); pulse write/read is the reserved recipe
+# fefet.pulse_write_read.
+# Analysis: memory_window (MW = Vth_fwd - Vth_rev by the constant-current method, plus per-branch Ion/Ioff).
+# status: sim_validated by tests/integration/test_recipes_fefet.py (fefet_basic: MW within 10 % of the model loop
+# truth, both branch thresholds); hw_validated only through an M4 validation record. card: set by WP2.5.
+id: fefet.dual_sweep_mw
+version: 1
+title: FeFET dual gate sweep (Id-Vg double sweep) - Vth_fwd, Vth_rev, memory window, per-branch Ion/Ioff
+kind: smu_staircase
+status: sim_validated
+card: null
+device_types: [fefet]
+roles:
+  gate:
+    function: sweep_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, icomp: $icomp_gate, mode: double}
+  drain:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {v: $vd, icomp: $icomp_drain}
+  source: {function: ground, allow_gndu: true}
+  bulk: {function: ground, allow_gndu: true, optional: true}
+params:
+  vg_start: {unit: V, default: -4.0, recommended: [-5.0, -3.0], range: [-10.0, 10.0], doc: Start and end of the loop.}
+  vg_stop: {unit: V, default: 4.0, recommended: [3.0, 5.0], range: [-10.0, 10.0], doc: Turning point of the loop.}
+  vg_points:
+    type: int
+    default: 161
+    recommended: [81, 321]
+    range: [11, 1001]
+    doc: Points per branch (the double sweep runs 2 x vg_points steps).
+  vd: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [-1.0, 1.0], doc: Drain read bias (linear region).}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance.}
+  icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-2], doc: Drain current compliance.}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset (short = fastest/noisiest, long = 16 power-line cycles).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: memory_window, options: {vth_method: vth_constant_current, i_crit_a: 1.0e-7}}
+provenance:
+  sources:
+    - blueprint 6.4 (fefet-dual-sweep-mw card)
+    - v0.2 references/recipes/fefet/write_read.example.yaml (tag archive/v0.2-fake-mcp)
+    - Programming Guide Ed. 15 WV double sweep (PDF 568-569), WM (PDF 552-553), FMT (PDF 436-438)
+  validation_runs: []

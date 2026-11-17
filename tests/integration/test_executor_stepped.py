@@ -3,7 +3,8 @@ the Id-Vd family of ``mosfet.idvd`` on ``nmos_basic`` against the model truth, t
 and the ``fefet_basic`` scenario through ``generic.smu_staircase``: a double sweep whose ``segment`` rows give the
 model's memory window, and the FeFET polarization persisting from one executor (process) to the next.
 
-``mosfet.idvd`` stays ``draft`` here; WP2.2 validates it with ``output_metrics`` and sets ``sim_validated``."""
+``mosfet.idvd`` is validated with ``output_metrics`` by ``test_recipes_mosfet.py`` (WP2.2); these tests keep the
+four-step family of WP2.1 by passing ``vg_points=4``."""
 
 from __future__ import annotations
 
@@ -33,13 +34,12 @@ def nmos_truth(world: World) -> MosfetEkv:
 
 def test_idvd_family_on_nmos_basic(world: World) -> None:
     executor = world.executor()
-    record = plan(executor, **IDVD, params={"vg_stop": 1.5})
+    record = plan(executor, **IDVD, params={"vg_stop": 1.5, "vg_points": 4})
     assert record.tier == "ok" and record.kind == "smu_stepped", record.rules.findings
-    assert record.summary == ("mosfet.idvd@1 | drain=SMU3(HRSMU) sweep 0..3 V Icomp 1 mA; gate=SMU1(MPSMU) step "
+    assert record.summary == ("mosfet.idvd@1 | drain=SMU3(HRSMU) sweep 0..3 V Icomp 1 mA; gate=SMU4(HRSMU) step "
                               "0.5..1.5 V Icomp 1 uA | DUT nmos-generic | pins mosfet-4t | sim")
     result = run(executor, record.plan_id)
-    # output_metrics is a declared stub until WP2.2: then the run is completed_with_flags for that reason only
-    assert result.ok and result.outcome in ("completed", "completed_with_flags"), result.message
+    assert result.ok and result.outcome == "completed", result.message  # output_metrics ran (WP2.2)
     assert result.quality_verdict == "ok" and result.status_counts == {"N": 808}
     assert result.cleanup_verified == "sim_state"
 
@@ -71,7 +71,7 @@ def test_idvd_family_on_nmos_basic(world: World) -> None:
 
 def test_compliance_stops_the_host_loop(world: World) -> None:
     executor = world.executor()
-    record = plan(executor, **IDVD, params={"vg_start": 2.0, "vg_stop": 0.5})  # hardest step first: 1 mA compliance
+    record = plan(executor, **IDVD, params={"vg_start": 2.0, "vg_stop": 0.5, "vg_points": 4})  # hardest step first
     assert record.tier == "ok"
     result = run(executor, record.plan_id)
     assert result.ok and result.outcome == "completed_with_flags", result.message
@@ -91,13 +91,13 @@ def test_compliance_stops_the_host_loop(world: World) -> None:
 
 
 def use_fefet(world: World) -> FefetDevice:
-    """Select ``fefet_basic`` and a pin map/DUT profile for ``generic.smu_staircase`` (sweep = gate on SMU1, bias =
+    """Select ``fefet_basic`` and a pin map/DUT profile for ``generic.smu_staircase`` (sweep = gate on SMU4, bias =
     drain on SMU3, ground = GNDU); returns a fresh device with the scenario's truth parameters."""
     settings = yaml.safe_load((REPO_ROOT / "config/settings.example.yaml").read_text(encoding="utf-8"))
     settings["sim"]["scenario"] = "fefet_basic"
     world.write_config("settings.yaml", settings)
     world.write_config("pinmaps/fefet-3t.yaml", {"certainty": "verified",
-                                                  "terminals": {"sweep": 1, "bias": 3, "ground": "GNDU"}})
+                                                  "terminals": {"sweep": 4, "bias": 3, "ground": "GNDU"}})
     world.write_config("duts/fefet-3t.yaml", {"device_type": "fefet", "terminals": {
         "sweep": {"max_abs_v": 5.0, "max_abs_i": 1e-4}, "bias": {"max_abs_v": 1.0, "max_abs_i": 1e-3},
         "ground": {"max_abs_v": 0.0, "max_abs_i": 1e-2}}})

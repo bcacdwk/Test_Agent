@@ -1,0 +1,16 @@
+{
+  "harness": "claude",
+  "version": "2.1.326 (Claude Code)",
+  "captured": "2026-11-17",
+  "how": "claude -p --output-format stream-json --verbose --mcp-config <turn>.json --strict-mcp-config --effort low, project .claude/settings.json loaded (ask on mcp__b1500__run_confirmed_plan)",
+  "files": {
+    "probe-turn-1.jsonl": "no --allowedTools: station_status allowed, run_confirmed_plan denied (permission_denied, ask rule), Bash pwd allowed (read-only), Write denied",
+    "allowedtools-ask-denied.jsonl": "resume with --allowedTools mcp__b1500__run_confirmed_plan: still denied, the project ask rule outranks --allowedTools",
+    "probe-turn-2.jsonl": "resume with --permission-prompt-tool (the runner's approver allows run_confirmed_plan): reaches the server, refused unknown_plan",
+    "atv12-flag-denied.jsonl": "policy flag on (_meta requiresUserInteraction), project settings excluded, --allowedTools: denied 'MCPTool requires permission.'",
+    "atv12-flag-prompt-tool.jsonl": "policy flag on with the approver: 'MCP tool requires user interaction; not supported via --permission-prompt-tool'",
+    "probe-audit.jsonl": "the b1500 server's daily audit of that session (session tag acc-probe-claude-1)",
+    "probe-session.json": "session.json for re-grading the recorded probe (turn 1 = probe-turn-1, turn 2 = probe-turn-2) with tests/acceptance/probes/atv-confirm-tool.yaml"
+  },
+  "sanitized": "paths replaced by <REPO>, <SESSION>, <HOME>, <TMP>; init trimmed to core and mcp__ tools; thinking signatures blanked; rate-limit events dropped"
+}

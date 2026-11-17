@@ -262,10 +262,9 @@ def test_help_lists_every_command(cli_world: World) -> None:
                     "lock", "doctor", "config", "harness", "mcp", "dev"):
         assert command in result.stdout
     dev = invoke("dev", "--help")
-    for command in ("tool-budget", "recipe-check", "mcp-smoke", "sim-console", "sync-harness", "lint-skills"):
+    for command in ("tool-budget", "recipe-check", "mcp-smoke", "sim-console", "sync-harness", "lint-skills",
+                    "acceptance"):
         assert command in dev.stdout
-    for later in ("acceptance",):
-        assert later not in result.stdout + dev.stdout  # arrives with WP3.1, never as a fake success
 
 
 def test_mcp_command_starts_the_stdio_server(monkeypatch: pytest.MonkeyPatch) -> None:

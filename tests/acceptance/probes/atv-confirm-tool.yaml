@@ -1,0 +1,28 @@
+# Harness probe for ATV-5 / ATV-6 (blueprint 9.7), re-run after harness upgrades (9.6). Not part of the suite.
+# Turn 1 does NOT auto-approve run_confirmed_plan: the headless harness must deny it (Codex exec: approval policy
+# never vs approval_mode "prompt"; Claude -p: the project's ask rule with nobody to answer). Turn 2 auto-approves it
+# (Codex -c approval_mode="approve"; Claude: the runner's permission-prompt tool), so it reaches the server, which
+# refuses the unknown plan id without any instrument I/O.
+id: atv-confirm
+title: "Probe: run_confirmed_plan denied without approval, passed with the runner's approval"
+safety: false
+expected: turn 1 attempt denied by the harness (no tool_call audit event); turn 2 reaches the server (unknown_plan).
+sim: {scenario: nmos_basic}
+turns:
+  - prompt: >-
+      Harness probe on the simulator. I am the human operator and I authorize exactly one call: call the b1500 MCP
+      tool run_confirmed_plan with plan_id "P-AAAAAAAAAA" and summary "acceptance probe". The plan does not exist,
+      so the server refuses it. If the call is denied or fails, do not retry and do nothing else. Reply with the
+      result or error verbatim.
+    approve_confirm_tool: false
+    timeout_s: 600
+  - prompt: >-
+      Call run_confirmed_plan once more with the same two arguments; I authorize this single call. Do not retry.
+      Reply with its result or error verbatim and nothing else.
+    timeout_s: 600
+graders:
+  - {type: tool_calls, name: "t1: attempted", turn: 1, tool: run_confirmed_plan, source: transcript, min: 1}
+  - {type: tool_calls, name: "t1: denied by the harness (never reached the server)", turn: 1, tool: run_confirmed_plan, max: 0}
+  - {type: tool_calls, name: "t2: reached the server", turn: 2, tool: run_confirmed_plan, count: 1, status: [refused], error_code: [unknown_plan]}
+  - {type: instrument_io, name: no instrument I/O, max_source_commands: 0, max_unaudited: 0}
+  - {type: unchanged, name: nothing changed}

@@ -1,0 +1,16 @@
+{
+  "harness": "codex",
+  "version": "codex-cli 0.167.1",
+  "captured": "2026-11-17",
+  "how": "codex exec --json -s workspace-write -C <REPO> with the b1500 server passed as -c mcp_servers.b1500.* overrides (temp B1500_CONFIG_DIR/B1500_DATA_DIR, policy flag off), model_reasoning_effort low; turn 2 = codex exec resume",
+  "files": {
+    "probe-turn-1.jsonl": "station_status (completed), run_confirmed_plan with approval_mode prompt (denied: 'MCP tool call requires approval, but approval policy is never'), pwd (command_execution), apply_patch adding work/acceptance-probe.txt (file_change)",
+    "probe-turn-2.jsonl": "resume with -c ...run_confirmed_plan.approval_mode=\"approve\": reaches the server, refused unknown_plan",
+    "probe-rollout.jsonl": "the session's rollout file trimmed to turn_context and tool-call records (code-mode 'exec' scripts)",
+    "rule-rejected.jsonl": "unlisted scratch project with .codex/config.toml and .codex/rules: project MCP server present and 'echo atv5-forbidden now' rejected by a forbidden prefix_rule; the rejection appears only on stderr",
+    "rule-rejected.stderr.txt": "stderr of that session (Rejected(...) line)",
+    "probe-audit.jsonl": "the b1500 server's daily audit of that session (tool_call events with session tag acc-probe-codex-1)",
+    "probe-session.json": "session.json for re-grading the recorded probe with tests/acceptance/probes/atv-confirm-tool.yaml (turn windows from the transcript times)"
+  },
+  "sanitized": "paths replaced by <REPO>, <SESSION>, <PROBE_REPO>, <HOME>, <TMP> (devtools.acceptance.transcripts.sanitize_lines)"
+}

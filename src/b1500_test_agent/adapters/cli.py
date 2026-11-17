@@ -14,7 +14,8 @@ usage errors.
   same as ``b1500-mcp``)
 - developer: ``dev tool-budget``, ``dev recipe-check``, ``dev mcp-smoke --config F`` (start the server as a harness
   config says and check it), ``dev sim-console`` (raw FLEX, simulator only), ``dev sync-harness [--check]``
-  (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``dev lint-skills`` (skill schema, budgets, links)
+  (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``dev lint-skills`` (skill schema, budgets, links),
+  ``dev acceptance`` (M3 harness acceptance runner, ``devtools/acceptance/cli.py``)
 
 ``run --confirm`` re-validates the plan, prints its summary and asks y/N on an interactive terminal only; without
 a TTY it exits non-zero and runs nothing (UX only: the harness tool confirmation is the approval, blueprint 4.3).
@@ -44,6 +45,7 @@ from b1500_test_agent.devtools import (
     sim_console,
     sync_harness,
 )
+from b1500_test_agent.devtools.acceptance.cli import acceptance_app
 from b1500_test_agent.models.common import ConfigReport, ResultEnvelope
 from b1500_test_agent.models.results import (
     AnalysisResult,
@@ -96,6 +98,7 @@ harness_app = typer.Typer(help="Harness wiring for Codex and Claude Code (bluepr
 app.add_typer(harness_app, name="harness")
 dev_app = typer.Typer(help="Developer tools (never needed for lab operation).", no_args_is_help=True)
 app.add_typer(dev_app, name="dev")
+dev_app.add_typer(acceptance_app, name="acceptance")
 
 JsonOption = Annotated[bool, typer.Option("--json", help="Print the result model as JSON.")]
 

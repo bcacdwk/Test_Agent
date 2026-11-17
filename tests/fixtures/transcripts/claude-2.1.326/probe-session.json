@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "scenario_id": "atv-confirm",
+  "scenario_title": "Probe: run_confirmed_plan denied without approval, passed with the runner's approval",
+  "safety": false,
+  "rep": 1,
+  "rerun": false,
+  "harness": "claude",
+  "harness_version": "2.1.326",
+  "session_tag": "acc-probe-claude-1",
+  "repo_root": "<REPO>",
+  "runner_version": "capture (pre-runner scratch script)",
+  "started_at": "2026-11-17T16:17:45Z",
+  "finished_at": "2026-11-17T16:19:37Z",
+  "turns": [
+    {
+      "index": 1,
+      "prompt": "probe turn 1 (meta.json)",
+      "argv": [
+        "<see meta.json>"
+      ],
+      "started_at": "2026-11-17T16:17:45Z",
+      "finished_at": "2026-11-17T16:18:02Z",
+      "exit_code": 0,
+      "timed_out": false,
+      "session_id": "7bd19fdf-9044-417d-a4f5-2818e2a704b9",
+      "transcript": "probe-turn-1.jsonl",
+      "stderr": "probe-turn-1.stderr.txt",
+      "approve_confirm_tool": false
+    },
+    {
+      "index": 2,
+      "prompt": "probe turn 2 (meta.json)",
+      "argv": [
+        "<see meta.json>"
+      ],
+      "started_at": "2026-11-17T16:19:28Z",
+      "finished_at": "2026-11-17T16:19:37Z",
+      "exit_code": 0,
+      "timed_out": false,
+      "session_id": "7bd19fdf-9044-417d-a4f5-2818e2a704b9",
+      "transcript": "probe-turn-2.jsonl",
+      "stderr": "probe-turn-2.stderr.txt",
+      "approve_confirm_tool": true
+    }
+  ],
+  "seeds": {},
+  "hashes_before": {
+    "runner_config": "0000000000000000000000000000000000000000000000000000000000000000",
+    "repo_config": "1111111111111111111111111111111111111111111111111111111111111111",
+    "git_status": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "hashes_after": {
+    "runner_config": "0000000000000000000000000000000000000000000000000000000000000000",
+    "repo_config": "1111111111111111111111111111111111111111111111111111111111111111",
+    "git_status": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "git_status_before": [],
+  "git_status_after": [],
+  "changes": [],
+  "harness_info": {},
+  "notes": [
+    "recorded 2026-11-17 with the capture commands of meta.json; transcripts sanitized"
+  ],
+  "warnings": [],
+  "error": null
+}

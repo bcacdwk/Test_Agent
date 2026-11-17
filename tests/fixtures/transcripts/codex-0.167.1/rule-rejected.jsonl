@@ -1,0 +1,5 @@
+{"type": "thread.started", "thread_id": "01a1ea4f-9f1a-7441-befa-1d174299f44a"}
+{"type": "turn.started"}
+{"type": "item.completed", "item": {"id": "item_0", "type": "agent_message", "text": "I’ll inspect the available tool names, then run the command once.\n"}}
+{"type": "item.completed", "item": {"id": "item_1", "type": "agent_message", "text": "MCP servers: atvprobe, codex_apps, cua_repl, node_repl.\nCommand blocked: \"`/bin/zsh -lc 'echo atv5-forbidden now'` rejected: ATV-5 probe rule: project rules are active.\""}}
+{"type": "turn.completed", "usage": {"input_tokens": 41734, "cached_input_tokens": 32000, "cache_write_input_tokens": 0, "output_tokens": 122, "reasoning_output_tokens": 0}}

@@ -33,6 +33,10 @@ StatusLetter = Literal["N", "T", "C", "V", "X", "F", "G", "S", "U", "D"]
 TrustLevel = Literal["ok", "limited", "untrusted"]
 """Per-point trust written to the ``trust`` column of ``data.csv``."""
 
+ExtractionOutcome = Literal["ok", "refused", "failed"]
+"""Outcome of one extraction: ``ok`` (value set), ``refused`` (untrusted data without ``force``) or ``failed`` (the
+data does not allow the method, e.g. too few trusted points). Only ``ok`` carries a value."""
+
 VthMethod = Literal["vth_linear_extrapolation", "vth_constant_current", "vth_max_gm"]
 """Threshold-voltage methods of blueprint section 2.8 (names as in ``ANALYSIS_METHODS``)."""
 
@@ -245,9 +249,11 @@ class Criterion(StrictModel):
 class QualityReport(StrictModel):
     """Post-run data-quality classification (blueprint 2.8 ``assess_quality``, rule R-QUAL-*; ``quality.json``).
 
-    ``counts`` maps each status letter seen (unknown codes included verbatim) to its number of points; ``fractions``
-    gives the share of points per trust level; ``noise`` holds named noise estimates (e.g. per data column, in the
-    column's unit); ``verdict`` is the overall trust level. WP1.5 may add fields.
+    ``counts`` maps each status letter seen (unknown codes included verbatim) to its number of measured values over
+    all measured columns, ``columns`` gives the same counts per measured column; ``points`` is the number of table
+    rows and ``fractions`` the share of rows per trust level (a row takes the worst level of its measured values);
+    ``noise`` holds a robust noise estimate per measured column (in the column's unit) and ``snr`` its signal range
+    over that noise (omitted when the noise estimate is zero); ``verdict`` is the worst row trust level.
     """
 
     counts: dict[str, Annotated[int, Field(ge=0)]]
@@ -255,6 +261,9 @@ class QualityReport(StrictModel):
     noise: dict[str, float] = Field(default_factory=dict)
     verdict: TrustLevel
     warnings: list[str] = Field(default_factory=list)
+    points: Annotated[int, Field(ge=0)] = 0
+    columns: dict[str, dict[str, Annotated[int, Field(ge=0)]]] = Field(default_factory=dict)
+    snr: dict[str, Annotated[float, Field(ge=0)]] = Field(default_factory=dict)
 
 
 class ExtractionResult(StrictModel):
@@ -263,6 +272,8 @@ class ExtractionResult(StrictModel):
     ``window`` is the fit window (``None`` when the method has none); ``points_excluded`` counts excluded points by
     reason (e.g. status letter or ``outside_window``); ``fit`` holds named fit outputs (slope, intercept, r2 ...).
     ``forced_on_untrusted`` flags a value extracted from untrusted data on explicit request (``options.force``).
+    ``outcome`` is ``ok`` exactly when ``value`` is set; otherwise ``error`` says why (refusal or failure), so a
+    refusal is a result, never an exception (``analyze_run`` reports it as ``refused``).
     """
 
     method: Identifier
@@ -277,3 +288,13 @@ class ExtractionResult(StrictModel):
     fit: dict[str, float]
     warnings: list[str]
     forced_on_untrusted: bool = False
+    outcome: ExtractionOutcome = "ok"
+    error: str | None = None
+
+    @model_validator(mode="after")
+    def _value_iff_ok(self) -> ExtractionResult:
+        if (self.value is not None) != (self.outcome == "ok"):
+            raise ValueError("value is set exactly when outcome is 'ok'.")
+        if (self.outcome != "ok") != bool(self.error):
+            raise ValueError("error explains every outcome other than 'ok' and only those.")
+        return self

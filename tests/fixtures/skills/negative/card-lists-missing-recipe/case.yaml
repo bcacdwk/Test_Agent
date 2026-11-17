@@ -1,0 +1,7 @@
+description: The card lists a recipe that is not registered (dangling card link).
+edits:
+  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+    old: "recipes: [mosfet.idvg]"
+    new: "recipes: [mosfet.idvg, mosfet.idvg_pulsed]"
+expect:
+  - {code: card_recipe, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "recipes lists mosfet.idvg_pulsed, which is not a registered recipe"}

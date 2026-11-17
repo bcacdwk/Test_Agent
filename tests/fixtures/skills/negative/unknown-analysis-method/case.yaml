@@ -1,0 +1,7 @@
+description: A recipe default analysis that is not in ANALYSIS_METHODS.
+edits:
+  - file: recipes/mosfet/idvg.yaml
+    old: "method: vth_linear_extrapolation"
+    new: "method: vth_magic"
+expect:
+  - {code: analysis_method, file: recipes/mosfet/idvg.yaml, contains: "method 'vth_magic' is not in ANALYSIS_METHODS"}

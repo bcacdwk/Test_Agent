@@ -1,0 +1,7 @@
+description: An example plan with a key outside the contract and a recipe the card does not list.
+edits:
+  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+    old: "sim_scenario: nmos_basic\n"
+    new: "sim_scenario: nmos_basic\nbackend: visa\n"
+expect:
+  - {code: example_plan, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "example plan backend: Extra inputs are not permitted"}

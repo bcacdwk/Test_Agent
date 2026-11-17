@@ -1,7 +1,6 @@
-"""Agent instruction files (blueprint §6.6–6.7): size limits, import shape and the driver-map isolation rule.
-
-The combined always-loaded budget (AGENTS.md + CLAUDE.md + skill descriptions ≤ 2,500 tokens) arrives with the
-skills in WP2.3/WP2.4; this module pins what exists since WP0.6, plus the skill frontmatter (WP1.9 placeholder).
+"""Agent instruction files (blueprint §5.2, §6.6–6.7): size limits, import shape, the driver-map isolation rule,
+the skill frontmatter and the always-loaded budget (AGENTS.md + CLAUDE.md + every skill's frontmatter description
+≤ 2,500 tokens, counted by ``lint_skills.always_loaded_budget`` with the ``devtools/budget.py`` counter).
 """
 
 from __future__ import annotations
@@ -13,6 +12,7 @@ import pytest
 import yaml
 
 from b1500_test_agent.devtools.budget import load_counter
+from b1500_test_agent.devtools.lint_skills import ALWAYS_LOADED_LIMIT, always_loaded_budget
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / "src" / "b1500_test_agent"
@@ -24,6 +24,7 @@ MAX_CLAUDE_SPECIFIC_LINES = 10
 MAX_NESTED_AGENTS_LINES = 30
 MAX_SKILL_NAME_CHARS = 64
 MAX_SKILL_DESCRIPTION_CHARS = 300
+MAX_ALWAYS_LOADED_TOKENS = 2500
 
 
 def _read(path: Path) -> str:
@@ -85,3 +86,16 @@ def test_skill_frontmatter() -> None:
         front = yaml.safe_load(text.split("---\n", 2)[1])
         assert front["name"] == path.parent.name and len(front["name"]) <= MAX_SKILL_NAME_CHARS
         assert 0 < len(front["description"]) <= MAX_SKILL_DESCRIPTION_CHARS
+
+
+def test_always_loaded_token_budget() -> None:
+    """AGENTS.md + CLAUDE.md + both skills' descriptions stay within 2,500 tokens (tiktoken o200k_base)."""
+    assert ALWAYS_LOADED_LIMIT == MAX_ALWAYS_LOADED_TOKENS
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        counter = load_counter()
+    budget = always_loaded_budget(ROOT, counter)
+    assert {"AGENTS.md", "CLAUDE.md", ".agents/skills/b1500-test/SKILL.md#description"} <= set(budget.parts)
+    if counter.warning and budget.total > MAX_ALWAYS_LOADED_TOKENS:
+        pytest.skip(f"only the chars/3.5 estimate is available ({budget.total} tokens): {counter.warning}")
+    assert budget.total <= MAX_ALWAYS_LOADED_TOKENS, f"always-loaded text has {budget.total} tokens: {budget.parts}"

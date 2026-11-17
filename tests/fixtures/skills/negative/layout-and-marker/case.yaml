@@ -1,0 +1,8 @@
+description: A folder under .agents/skills without SKILL.md, and a source file carrying the generated-copy marker.
+edits:
+  - file: .agents/skills/b1500-test/knowledge/README.md
+    old: "# Knowledge index (fixture)\n"
+    new: "# Knowledge index (fixture)\n<!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->\n"
+expect:
+  - {code: skill_layout, file: .agents/skills/notes, contains: "notes has no SKILL.md"}
+  - {code: generated_marker, file: .agents/skills/b1500-test/knowledge/README.md, contains: "carries the generated-copy marker"}

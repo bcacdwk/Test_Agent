@@ -13,7 +13,8 @@ usage errors.
   ``config/harness/`` templates into the gitignored ``.codex/config.toml`` / ``.mcp.json``), ``mcp`` (stdio server,
   same as ``b1500-mcp``)
 - developer: ``dev tool-budget``, ``dev recipe-check``, ``dev mcp-smoke --config F`` (start the server as a harness
-  config says and check it), ``dev sim-console`` (raw FLEX, simulator only)
+  config says and check it), ``dev sim-console`` (raw FLEX, simulator only), ``dev sync-harness [--check]``
+  (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``dev lint-skills`` (skill schema, budgets, links)
 
 ``run --confirm`` re-validates the plan, prints its summary and asks y/N on an interactive terminal only; without
 a TTY it exits non-zero and runs nothing (UX only: the harness tool confirmation is the approval, blueprint 4.3).
@@ -33,7 +34,16 @@ import typer
 import yaml
 
 from b1500_test_agent.config import ConfigLoader
-from b1500_test_agent.devtools import budget, doctor, harness, mcp_smoke, recipe_check, sim_console
+from b1500_test_agent.devtools import (
+    budget,
+    doctor,
+    harness,
+    lint_skills,
+    mcp_smoke,
+    recipe_check,
+    sim_console,
+    sync_harness,
+)
 from b1500_test_agent.models.common import ConfigReport, ResultEnvelope
 from b1500_test_agent.models.results import (
     AnalysisResult,
@@ -685,6 +695,38 @@ def mcp_smoke_command(
         raise typer.Exit(code=2) from exc
     report = mcp_smoke.run_smoke(launch, data_dir=data_dir, expect_backend=expect_backend)
     typer.echo(report.model_dump_json(indent=2) if as_json else mcp_smoke.format_report(report))
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@dev_app.command("sync-harness")
+def sync_harness_command(
+    check: Annotated[bool, typer.Option("--check", help="Write nothing; exit 1 on any drift (missing, extra or "
+                                                        "changed file).")] = False,
+    root: Annotated[Path | None, typer.Option("--root", help="Repository root (default: this clone).")] = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Copy .agents/skills/<skill>/ into .claude/skills/ for Claude Code (full copy, GENERATED line after each
+    Markdown frontmatter, stale files deleted); --check only reports drift. Exit 1 on drift or problems."""
+    repo_root = root if root is not None else find_repo_root()
+    report = sync_harness.check(repo_root) if check else sync_harness.sync(repo_root)
+    typer.echo(report.model_dump_json(indent=2) if as_json else sync_harness.format_report(report))
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@dev_app.command("lint-skills")
+def lint_skills_command(
+    root: Annotated[Path | None, typer.Option("--root", help="Root with .agents/skills/, recipes/ and config/ "
+                                                             "(default: this clone).")] = None,
+    config_dir: Annotated[Path | None, typer.Option("--config-dir", help="Config folder for the example plans "
+                                                                         "(default: <root>/config).")] = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Check skill frontmatter, budgets, links and the card/recipe/knowledge/runbook graph; validate each card's
+    example plan on the simulator. Exit 1 with one line per problem."""
+    report = lint_skills.lint_skills(root, config_dir=config_dir)
+    typer.echo(report.model_dump_json(indent=2) if as_json else lint_skills.format_report(report))
     if not report.ok:
         raise typer.Exit(code=1)
 

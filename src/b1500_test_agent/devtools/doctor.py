@@ -4,8 +4,9 @@ Each check is PASS, WARN or FAIL; the command exits non-zero when any check FAIL
 architecture; ``uv.lock`` in sync with ``pyproject.toml`` (``uv lock --check --offline``); imports of the runtime
 dependencies (``pyvisa`` only located, never imported outside ``transport/visa.py``); configuration (rule R-CFG-01:
 schemas, active files example vs local, why the backend was chosen); ``data/`` writable and free space; clone path
-length (WARN above 80 characters on Windows); stale inflight marker or latched fault; skills mirror (WARN "not set
-up yet" until WP2.3 builds it); harness files (the committed ``.claude/settings.json``, Codex rules, guard hook and
+length (WARN above 80 characters on Windows); stale inflight marker or latched fault; skills mirror
+(``.claude/skills/`` = the generated copy of ``.agents/skills/``: FAIL on drift, WARN when there is no skill); harness
+files (the committed ``.claude/settings.json``, Codex rules, guard hook and
 examples wired as blueprint 5.4 says; each generated ``.codex/config.toml`` / ``.mcp.json`` free of drift, both on
 the same ``b1500-mcp`` entry point, ``run_confirmed_plan`` = ``prompt`` / ``ask``; WARN when none is generated yet);
 the MCP server starts with exactly the ten tools within the token budget; ``PYTHONUTF8`` and ``LongPathsEnabled``
@@ -34,7 +35,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from b1500_test_agent.config import ConfigBundle, ConfigLoader
-from b1500_test_agent.devtools import budget, harness
+from b1500_test_agent.devtools import budget, harness, sync_harness
 from b1500_test_agent.errors import InvalidConfigError
 from b1500_test_agent.paths import Paths
 from b1500_test_agent.service import TOOL_NAMES
@@ -50,7 +51,6 @@ BUDGET_TOTAL = 4500
 BUDGET_PER_TOOL = 700
 WINDOWS_PATH_WARN = 80
 MIN_FREE_BYTES = 1 << 30
-NOT_SET_UP = "not set up yet"
 
 
 class DoctorCheck(BaseModel):
@@ -181,8 +181,21 @@ def check_state(bundle: ConfigBundle | None, paths: Paths) -> DoctorCheck:
     return _check("state", "PASS", "no fault latched, no inflight marker")
 
 
-def check_skills_mirror() -> DoctorCheck:
-    return _check("skills mirror", "WARN", f"{NOT_SET_UP} (b1500 dev sync-harness --check arrives in WP2.3)")
+def check_skills_mirror(repo_root: Path) -> DoctorCheck:
+    """``.claude/skills/`` (Claude Code) is the up-to-date generated copy of ``.agents/skills/`` (blueprint 6.6)."""
+    report = sync_harness.check(repo_root)
+    fix = "run uv run b1500 dev sync-harness"
+    if report.problems:
+        return _check("skills mirror", "FAIL", "; ".join(report.problems[:3]))
+    if report.drift:
+        listed = ", ".join(f"{item.kind} {item.path}" for item in report.drift[:3])
+        more = f" (+{len(report.drift) - 3} more)" if len(report.drift) > 3 else ""
+        return _check("skills mirror", "FAIL", f"{sync_harness.MIRROR_DIR} drifted from {sync_harness.SOURCE_DIR}: "
+                                               f"{listed}{more}; {fix}")
+    if not report.skills:
+        return _check("skills mirror", "WARN", f"no skill under {sync_harness.SOURCE_DIR} (git pull)")
+    return _check("skills mirror", "PASS", f"{sync_harness.MIRROR_DIR} in sync ({report.files} files; "
+                                           f"{', '.join(report.skills)})")
 
 
 def check_harness_files(repo_root: Path) -> DoctorCheck:
@@ -269,7 +282,7 @@ def run_doctor(*, environ: Mapping[str, str] | None = None, windows: bool | None
         check_data_dir(paths),
         check_path_length(paths, windows=on_windows),
         check_state(bundle, paths),
-        check_skills_mirror(),
+        check_skills_mirror(paths.repo_root),
         check_harness_files(paths.repo_root),
         (mcp_check or check_mcp_server)(),
         check_pythonutf8(env, windows=on_windows),

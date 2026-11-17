@@ -1,0 +1,19 @@
+description: Card parameter table values outside the recipe ranges or different from the recipe.
+edits:
+  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+    old: "| `vd` | 50 mV | 20..100 mV | -5 to 5 V |"
+    new: "| `vd` | 50 mV | 20 mV..20 V | -5 to 5 V |"
+  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+    old: "| `icomp_drain` | 1e-3 | | 1 pA..10 mA |"
+    new: "| `icomp_drain` | 20 mA | | 1 pA..10 mA |"
+  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+    old: "| `vg_points` | 101 | - | 11..1001 |"
+    new: "| `vg_points` | 101 | - | 11..2001 |"
+  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+    old: "| `integration` | `medium` | `medium`, `long` |"
+    new: "| `integration` | `medium` | `medium`, `extra_long` |"
+expect:
+  - {code: param_range, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "param vd (recipe mosfet.idvg): recommended 0.02..20 V lies outside the recipe range -5..5 V"}
+  - {code: param_range, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "param icomp_drain (recipe mosfet.idvg): default 20 mA lies outside the recipe range 1e-12..0.01 A"}
+  - {code: param_range, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "recipe range 11..2001 differs from the recipe's range 11..1001"}
+  - {code: param_range, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "recommended ['extra_long'] outside the recipe choices"}

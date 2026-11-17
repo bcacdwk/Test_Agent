@@ -1,0 +1,27 @@
+description: Frontmatter that violates the SKILL.md, card and knowledge schemas.
+edits:
+  - file: .agents/skills/b1500-test/SKILL.md
+    old: "description: Test fixture for b1500 dev lint-skills (positive tree), not a real skill."
+    new: "description: Test fixture for b1500 dev lint-skills (bad-frontmatter case), not a real skill. This description keeps going far beyond the budget that both harnesses expect for an always-loaded skill description, because every extra word is paid in every session of every user, whether or not the skill is ever used, and the lint refuses it."
+  - file: .agents/skills/b1500-test/SKILL.md
+    old: "---\n\n# Fixture entry skill"
+    new: "allowed-tools: mcp__b1500__run_confirmed_plan\n---\n\n# Fixture entry skill"
+  - file: .agents/skills/b1500-debug/SKILL.md
+    old: "name: b1500-debug"
+    new: "name: b1500-debugging"
+  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+    old: "status: sim_validated"
+    new: "status: validated"
+  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+    old: "version: 1\n"
+    new: ""
+  - file: .agents/skills/b1500-test/knowledge/06-analysis-extraction.md
+    old: "maturity: seed"
+    new: "maturity: final"
+expect:
+  - {code: frontmatter, file: .agents/skills/b1500-test/SKILL.md, contains: "description: String should have at most 300 characters"}
+  - {code: frontmatter, file: .agents/skills/b1500-test/SKILL.md, contains: "allowed-tools: Extra inputs are not permitted"}
+  - {code: frontmatter, file: .agents/skills/b1500-debug/SKILL.md, contains: "name 'b1500-debugging' must equal the folder name 'b1500-debug'"}
+  - {code: frontmatter, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "status: Input should be"}
+  - {code: frontmatter, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "version: Field required"}
+  - {code: frontmatter, file: .agents/skills/b1500-test/knowledge/06-analysis-extraction.md, contains: "maturity: Input should be"}

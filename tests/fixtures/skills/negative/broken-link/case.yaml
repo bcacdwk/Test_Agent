@@ -1,0 +1,10 @@
+description: Relative links that do not resolve inside the skill folder, and an anchor that is not a heading id.
+edits:
+  - file: .agents/skills/b1500-test/SKILL.md
+    old: "- [Knowledge index](knowledge/README.md)\n"
+    new: "- [Knowledge index](knowledge/README.md)\n- [Missing](knowledge/missing.md)\n- [Bad anchor](knowledge/06-analysis-extraction.md#no-such-section)\n- [Outside](../b1500-debug/SKILL.md)\n- [Wrong case](Cards/mosfet-idvg.md)\n"
+expect:
+  - {code: link, file: .agents/skills/b1500-test/SKILL.md, contains: "broken link 'knowledge/missing.md'"}
+  - {code: anchor, file: .agents/skills/b1500-test/SKILL.md, contains: "has no heading id 'no-such-section'"}
+  - {code: link, file: .agents/skills/b1500-test/SKILL.md, contains: "leaves the skill folder"}
+  - {code: link, file: .agents/skills/b1500-test/SKILL.md, contains: "broken link 'Cards/mosfet-idvg.md'"}

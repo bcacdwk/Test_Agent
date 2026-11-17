@@ -9,8 +9,11 @@ usage errors.
   ``show RUN_ID`` · ``analyze RUN_ID METHOD -o k=v`` · ``note RUN_ID TEXT`` · ``shutdown [--reason]``
 - human-only: ``fault clear`` (safe shutdown, then clears the latch only when the shutdown verified the safe state)
   and ``lock status``
-- ``doctor`` (non-probe checks), ``config check``, ``mcp`` (stdio server, same as ``b1500-mcp``)
-- developer: ``dev tool-budget``, ``dev recipe-check``, ``dev sim-console`` (raw FLEX, simulator only)
+- ``doctor`` (non-probe checks), ``config check``, ``harness init --codex|--claude [--check]`` (renders
+  ``config/harness/`` templates into the gitignored ``.codex/config.toml`` / ``.mcp.json``), ``mcp`` (stdio server,
+  same as ``b1500-mcp``)
+- developer: ``dev tool-budget``, ``dev recipe-check``, ``dev mcp-smoke --config F`` (start the server as a harness
+  config says and check it), ``dev sim-console`` (raw FLEX, simulator only)
 
 ``run --confirm`` re-validates the plan, prints its summary and asks y/N on an interactive terminal only; without
 a TTY it exits non-zero and runs nothing (UX only: the harness tool confirmation is the approval, blueprint 4.3).
@@ -30,7 +33,7 @@ import typer
 import yaml
 
 from b1500_test_agent.config import ConfigLoader
-from b1500_test_agent.devtools import budget, doctor, recipe_check, sim_console
+from b1500_test_agent.devtools import budget, doctor, harness, mcp_smoke, recipe_check, sim_console
 from b1500_test_agent.models.common import ConfigReport, ResultEnvelope
 from b1500_test_agent.models.results import (
     AnalysisResult,
@@ -46,6 +49,7 @@ from b1500_test_agent.models.results import (
     StationStatus,
 )
 from b1500_test_agent.models.run import RunSummary
+from b1500_test_agent.paths import find_repo_root
 from b1500_test_agent.service import DEFAULT_MAX_POINTS, DEFAULT_RUN_LIMIT, B1500Admin, B1500Service
 
 DEFAULT_MCP_APP_SPEC = "b1500_test_agent.adapters.mcp_server:create_server"
@@ -78,6 +82,8 @@ fault_app = typer.Typer(help="Fault latch (human only).", no_args_is_help=True)
 app.add_typer(fault_app, name="fault")
 lock_app = typer.Typer(help="Instrument lock.", no_args_is_help=True)
 app.add_typer(lock_app, name="lock")
+harness_app = typer.Typer(help="Harness wiring for Codex and Claude Code (blueprint 5.4).", no_args_is_help=True)
+app.add_typer(harness_app, name="harness")
 dev_app = typer.Typer(help="Developer tools (never needed for lab operation).", no_args_is_help=True)
 app.add_typer(dev_app, name="dev")
 
@@ -589,6 +595,32 @@ def config_check(as_json: JsonOption = False) -> None:
         raise typer.Exit(code=1)
 
 
+@harness_app.command("init")
+def harness_init_command(
+    codex: Annotated[bool, typer.Option("--codex", help="Render .codex/config.toml (Codex).")] = False,
+    claude: Annotated[bool, typer.Option("--claude", help="Render .mcp.json (Claude Code).")] = False,
+    check: Annotated[bool, typer.Option("--check", help="Write nothing; fail on drift or wiring problems.")] =
+    False,
+    examples: Annotated[bool, typer.Option("--examples", help="Also rewrite the committed examples (developers, "
+                                                              "after editing config/harness/).")] = False,
+    force: Annotated[bool, typer.Option("--force", help="Overwrite a config not written by harness init.")] = False,
+    as_json: JsonOption = False,
+) -> None:
+    """Render the harness MCP configs from config/harness/ with this clone's absolute path and check the committed
+    harness files (.claude/settings.json, .codex/rules/b1500.rules, guard hook). Exit 1 on any problem."""
+    names: list[harness.HarnessName] = [n for n, on in (("codex", codex), ("claude", claude)) if on]
+    if not names:
+        raise typer.BadParameter("give --codex, --claude or both")
+    if check and (examples or force):
+        raise typer.BadParameter("--check writes nothing; drop --examples/--force")
+    repo_root = find_repo_root()
+    report = harness.check(repo_root, names) if check else harness.init(repo_root, names, force=force,
+                                                                         examples=examples)
+    typer.echo(report.model_dump_json(indent=2) if as_json else harness.format_report(report))
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
 @app.command("mcp")
 def mcp_command() -> None:
     """Serve the ten MCP tools on stdio (same as b1500-mcp)."""
@@ -630,6 +662,29 @@ def recipe_check_command(as_json: JsonOption = False) -> None:
     $param references, reserved slots). Exit code 0 iff there are none."""
     report = recipe_check.check_recipes()
     typer.echo(report.model_dump_json(indent=2) if as_json else recipe_check.format_report(report))
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@dev_app.command("mcp-smoke")
+def mcp_smoke_command(
+    config: Annotated[Path, typer.Option("--config", help="Harness config: .mcp.json or .codex/config.toml.")],
+    server: Annotated[str, typer.Option("--server", help="Server name in the config.")] = mcp_smoke.DEFAULT_SERVER,
+    data_dir: Annotated[Path | None, typer.Option("--data-dir", help="B1500_DATA_DIR for the server (default: a "
+                                                                     "temporary folder, removed afterwards).")] = None,
+    expect_backend: Annotated[str, typer.Option("--expect-backend", help="Backend station_status must report.")] =
+    "sim",
+    as_json: JsonOption = False,
+) -> None:
+    """Start the MCP server exactly as a harness config says, list its tools (exactly ten) and call
+    station_status without instrument I/O (backend must match). Exit 1 on any problem."""
+    try:
+        launch = mcp_smoke.load_launch(config, server)
+    except mcp_smoke.SmokeConfigError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    report = mcp_smoke.run_smoke(launch, data_dir=data_dir, expect_backend=expect_backend)
+    typer.echo(report.model_dump_json(indent=2) if as_json else mcp_smoke.format_report(report))
     if not report.ok:
         raise typer.Exit(code=1)
 

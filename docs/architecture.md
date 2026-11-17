@@ -16,8 +16,8 @@ Milestone tags in parentheses say when a part arrives (see [roadmap](roadmap.md)
 | L4 Measurement transaction | Lock, transaction with guaranteed cleanup, fault latch; recipes, kinds, planner, executor; run archive | `session/`, `catalog/`, `recipes/`, `archive/` (M1) |
 | L5 Analysis | Quality classification, extraction (Vth, SS, gm, ...), plots | `analysis/` (M1–M2) |
 | L6 MCP / CLI | Ten MCP tools and the `b1500` CLI over `B1500Service` | `service.py`, `adapters/{mcp_server,cli}.py` (WP1.8) |
-| L7 Skills + rules | Rule engine and tiers; human-owned limits; entry and debug skills | `rules/`, `config/*.example.yaml` → `config/local/`, `.agents/skills/` (M1–M2) |
-| L8 Agent | Codex CLI and Claude Code | `AGENTS.md`, `CLAUDE.md`, generated harness config (M1) |
+| L7 Skills + rules | Rule engine and tiers; human-owned limits; entry and debug skills | `rules/`, `config/*.example.yaml` → `config/local/`, `.agents/skills/` (rules M1; placeholder entry skill WP1.9; skills M2) |
+| L8 Agent | Codex CLI and Claude Code | `AGENTS.md`, `CLAUDE.md`, harness wiring: `config/harness/` templates → generated `.codex/config.toml` / `.mcp.json`, committed `.codex/rules/b1500.rules`, `.claude/settings.json`, `scripts/hooks/b1500_guard.py` (WP1.9) |
 
 ## Dependency direction
 
@@ -46,8 +46,8 @@ Hardware access or FLEX text added to a recipe, a tool or an analysis function t
 | `archive/` | Run folders, manifest, `audit.jsonl`, `index.jsonl`, sha256 of every file | done (WP1.7; raw blocks kept on failure, append-only notes) |
 | `analysis/` | `load_run`, `assess_quality`, extraction methods, plots, `ANALYSIS_METHODS` registry | M1 core done (WP1.5: `quality_report`, `vth_linear_extrapolation`); other methods M2 |
 | `service.py` | `B1500Service`: one method per MCP tool; reloads changed config, audits every call, never raises to adapters | done (WP1.8; result models in `models/results.py`, responses ≤2k tokens, human-only `B1500Admin` for `fault clear`/`lock status`) |
-| `adapters/` | `mcp_server.py` (10 tools), `cli.py` (`b1500`, `b1500-mcp`) | done (WP1.8: 10 tools at 1,469 tokens, `requiresUserInteraction` on `run_confirmed_plan`; all §5.3 operator commands, `fault clear`, `lock status`, `doctor`, `mcp`); `harness init` WP1.9 |
-| `devtools/` | `budget.py` (tool-schema token counter), `doctor.py`, `sim_console.py`, sync-harness, lint-skills, recipe-check, mcp-smoke, acceptance runner | `budget.py` (M0), `recipe_check.py` (WP1.7), `doctor.py` (non-probe) + `sim_console.py` (WP1.8); rest WP1.9–M3 |
+| `adapters/` | `mcp_server.py` (10 tools), `cli.py` (`b1500`, `b1500-mcp`) | done (WP1.8: 10 tools at 1,474 tokens, `requiresUserInteraction` on `run_confirmed_plan`; all §5.3 operator commands, `fault clear`, `lock status`, `doctor`, `mcp`; WP1.9: `harness init --codex\|--claude [--check]`, `dev mcp-smoke`) |
+| `devtools/` | `budget.py` (tool-schema token counter), `doctor.py`, `sim_console.py`, `harness.py`, `mcp_smoke.py`, sync-harness, lint-skills, recipe-check, acceptance runner | `budget.py` (M0), `recipe_check.py` (WP1.7), `doctor.py` (non-probe) + `sim_console.py` (WP1.8), `harness.py` (render/check harness configs, doctor harness check) + `mcp_smoke.py` (WP1.9); sync-harness, lint-skills WP2.3; acceptance runner WP3.1 |
 
 Outside the package: `recipes/` (registry source YAML), `config/` (examples, sim scenarios and faults, harness
 templates), `.agents/skills/` (canonical skills) with a generated copy in `.claude/skills/`, `references/manuals/`
@@ -83,4 +83,7 @@ backend never falls back to examples. The lab PC runs the same clone.
 imports it). Nested `AGENTS.md`/`CLAUDE.md` pairs in `driver/` and `analysis/` hold layer-specific rules. Skills are
 canonical in `.agents/skills/` (Codex) and copied to `.claude/skills/` by `b1500 dev sync-harness` with a drift test
 (M2). Harness configuration (`.codex/config.toml`, `.mcp.json`) is generated per machine by `b1500 harness init`
-(M1); only examples, `.claude/settings.json` and Codex rules are committed.
+from the templates in `config/harness/` (WP1.9); only examples, `.claude/settings.json`, the Codex rules and the
+guard hook are committed. Both configs start the same entry point (`uv run --frozen --project <clone> b1500-mcp`);
+`run_confirmed_plan` always asks the human (Codex `prompt`, Claude Code `ask`), `run_plan` and `safe_shutdown`
+never do.

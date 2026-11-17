@@ -1,18 +1,20 @@
-# Example Codex project configuration.
-# Copy this file to `.codex/config.toml` in a trusted project or merge the MCP
-# server section into `~/.codex/config.toml` when the server is implemented.
+# Example only: uv run b1500 harness init --codex writes .codex/config.toml with this clone's path for <ABS_REPO>.
+# Template: config/harness/codex.config.toml (blueprint 5.4); b1500 harness init --codex --check detects drift.
+# Codex loads a project's .codex/ config and rules only when the project is trusted; launch it from the repo root.
+[mcp_servers.b1500]
+command = "uv"
+args = ["run", "--frozen", "--project", "<ABS_REPO>", "b1500-mcp"]
+cwd = "<ABS_REPO>"
+startup_timeout_sec = 30
+tool_timeout_sec = 600                       # Codex default 60 s is too short; above policy max_sync_run_s (300 s)
+env = { PYTHONUTF8 = "1" }
+default_tools_approval_mode = "auto"         # auto decides from the tools' MCP annotations
 
-project_doc_max_bytes = 65536
+[mcp_servers.b1500.tools.run_plan]
+approval_mode = "approve"                    # never asks; the server runs plans of tier ok only
 
-[mcp_servers.b1500_test_agent]
-command = "python"
-args = ["-m", "b1500_test_agent.mcp.server"]
-cwd = "."
-startup_timeout_sec = 20
-tool_timeout_sec = 600
-enabled = false
-default_tools_approval_mode = "prompt"
+[mcp_servers.b1500.tools.run_confirmed_plan]
+approval_mode = "prompt"                     # always asks the human, with the plan summary as the argument
 
-[mcp_servers.b1500_test_agent.env]
-B1500_TEST_AGENT_CONFIG = "config/default.example.yaml"
-B1500_TEST_AGENT_SAFETY_LIMITS = "config/safety_limits.example.yaml"
+[mcp_servers.b1500.tools.safe_shutdown]
+approval_mode = "approve"                    # never asks; a safe shutdown is never gated

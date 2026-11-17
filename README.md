@@ -9,11 +9,12 @@ through `validate_plan → run_plan` or, when a human must confirm, `run_confirm
 limits, tiers, per-command output guards and a guaranteed safe shutdown. An in-process FLEX simulator stands in
 for the instrument, so everything is developed and tested without hardware.
 
-> **Status (2026-11-17): M0 re-baseline done; M1 next.** The simulator, MCP server, operator CLI, recipes and
-> skills described here are being built milestone by milestone (see [docs/roadmap.md](docs/roadmap.md)). Today the
-> repository contains the package skeleton, the FLEX status-code tables of the ASCII parser (data parsing comes in
-> M1), salvaged data models, the legacy driver map and the token-budget tool. Nothing in it can reach an instrument
-> yet.
+> **Status (2026-11-18): M1 runnable skeleton done; M2 (skill system) next.** One vertical path runs on the
+> simulator: `station_status` → `validate_plan` → staircase Id-Vg → run archive → Vth, through the 10-tool MCP
+> server or the `b1500` CLI, with Codex and Claude Code wiring (`b1500 harness init`). Recipes `mosfet.idvg`,
+> `generic.smu_staircase` and `system.*` are simulator-validated; the entry skill is a placeholder until M2 adds
+> the test cards, knowledge files and the debug skill. The hardware probe and lab bring-up are M4 (see
+> [docs/roadmap.md](docs/roadmap.md)); no code path has run against a real instrument yet.
 
 ## Layers
 
@@ -41,14 +42,31 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.11–3.13. From the repos
 ```bash
 uv sync                                               # creates .venv/ in the clone from uv.lock
 uv run pytest -m "not hardware and not acceptance"    # simulator-only test suite
-uv run b1500 --help                                   # CLI (today: developer tools only)
+uv run b1500 --help                                   # operator, human-only and developer commands
 uv run ruff check
+uv run b1500 doctor                                   # installation checks (PASS/WARN/FAIL)
 ```
 
 Everything stays inside the clone: `.venv/`, `data/` (run archive and state), `config/local/` (human-owned live
 configuration) and `work/` (agent scratch) are gitignored. Only `*.example.yaml` configuration is committed.
 
-## How a measurement will run (planned, M1)
+## Connect a coding agent
+
+Launch the harness from the repository root. The MCP config is machine-specific (it holds the clone's absolute
+path), so it is generated, not committed:
+
+```bash
+uv run b1500 harness init --codex     # writes .codex/config.toml (Codex loads it for trusted projects)
+uv run b1500 harness init --claude    # writes .mcp.json (Claude Code asks once to approve the server)
+uv run b1500 harness init --codex --claude --check    # drift and approval wiring check
+uv run b1500 dev mcp-smoke --config .mcp.json         # starts the server as configured: 10 tools, backend sim
+```
+
+Committed alongside: `.codex/rules/b1500.rules` (Codex `forbidden` rules), `.claude/settings.json` (Claude Code
+allow/ask/deny rules and the `scripts/hooks/b1500_guard.py` hook). `run_confirmed_plan` always asks the human
+(Codex `prompt`, Claude Code `ask`); `run_plan` and `safe_shutdown` never do.
+
+## How a measurement runs
 
 1. The agent reads `station_status` and the recipe list, then calls `validate_plan` with a recipe, parameters, a
    pin map and a DUT profile.

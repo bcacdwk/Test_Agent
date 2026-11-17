@@ -1,0 +1,20 @@
+# {{NOTE}}
+# Template: config/harness/codex.config.toml (blueprint 5.4); b1500 harness init --codex --check detects drift.
+# Codex loads a project's .codex/ config and rules only when the project is trusted; launch it from the repo root.
+[mcp_servers.b1500]
+command = "uv"
+args = ["run", "--frozen", "--project", "{{REPO}}", "b1500-mcp"]
+cwd = "{{REPO}}"
+startup_timeout_sec = 30
+tool_timeout_sec = 600                       # Codex default 60 s is too short; above policy max_sync_run_s (300 s)
+env = { PYTHONUTF8 = "1" }
+default_tools_approval_mode = "auto"         # auto decides from the tools' MCP annotations
+
+[mcp_servers.b1500.tools.run_plan]
+approval_mode = "approve"                    # never asks; the server runs plans of tier ok only
+
+[mcp_servers.b1500.tools.run_confirmed_plan]
+approval_mode = "prompt"                     # always asks the human, with the plan summary as the argument
+
+[mcp_servers.b1500.tools.safe_shutdown]
+approval_mode = "approve"                    # never asks; a safe shutdown is never gated

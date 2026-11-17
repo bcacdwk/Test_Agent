@@ -1,7 +1,7 @@
 """Agent instruction files (blueprint §6.6–6.7): size limits, import shape and the driver-map isolation rule.
 
 The combined always-loaded budget (AGENTS.md + CLAUDE.md + skill descriptions ≤ 2,500 tokens) arrives with the
-skills in WP2.3/WP2.4; this module only pins what exists since WP0.6.
+skills in WP2.3/WP2.4; this module pins what exists since WP0.6, plus the skill frontmatter (WP1.9 placeholder).
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ import warnings
 from pathlib import Path
 
 import pytest
+import yaml
 
 from b1500_test_agent.devtools.budget import load_counter
 
@@ -21,6 +22,8 @@ MAX_AGENTS_TOKENS = 1200
 MAX_DEVELOPER_LINES = 25
 MAX_CLAUDE_SPECIFIC_LINES = 10
 MAX_NESTED_AGENTS_LINES = 30
+MAX_SKILL_NAME_CHARS = 64
+MAX_SKILL_DESCRIPTION_CHARS = 300
 
 
 def _read(path: Path) -> str:
@@ -70,3 +73,15 @@ def test_driver_map_is_never_auto_loaded() -> None:
             candidates.extend(p for p in skills_root.rglob("*") if p.is_file())
     offenders = [p.relative_to(ROOT).as_posix() for p in candidates if b"driver-map" in p.read_bytes()]
     assert offenders == []
+
+
+def test_skill_frontmatter() -> None:
+    """Every canonical skill has frontmatter with ``name`` = its folder (≤64 chars) and a ≤300-char description."""
+    skills = sorted((ROOT / ".agents" / "skills").glob("*/SKILL.md"))
+    assert [p.parent.name for p in skills][:1] == ["b1500-test"]
+    for path in skills:
+        text = _read(path)
+        assert text.startswith("---\n"), path
+        front = yaml.safe_load(text.split("---\n", 2)[1])
+        assert front["name"] == path.parent.name and len(front["name"]) <= MAX_SKILL_NAME_CHARS
+        assert 0 < len(front["description"]) <= MAX_SKILL_DESCRIPTION_CHARS

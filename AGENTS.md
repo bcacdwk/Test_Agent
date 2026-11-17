@@ -5,7 +5,7 @@ Safety-gated measurement kernel for a Keysight B1500A: typed Python core (`src/b
 L1 physical safety (interlock, shield box) · L2 GPIB → `transport/` · L3 driver → `driver/` · L4 transaction →
 `session/`, `catalog/`, `recipes/`, `archive/` · L5 analysis → `analysis/` · L6 MCP → `service.py`, `adapters/` ·
 L7 skills + rules → `.agents/skills/`, `rules/`, `config/` · L8 agent → you.
-Status: `docs/roadmap.md`; the MCP tools, operator CLI commands and skills below arrive in M1–M2.
+Status: `docs/roadmap.md`; the full skills below (test cards, `b1500-debug`) arrive in M2.
 
 ## Hard rules (measurement and analysis work)
 

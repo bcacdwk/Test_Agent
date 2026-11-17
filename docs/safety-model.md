@@ -4,7 +4,8 @@ How the B1500A test agent decides what may run, who must confirm it, and what ha
 Source: blueprint §4 (rules, tiers, confirmation, residual risks), §2.4 (transaction and fault latch), §2.5 (rules
 API) and §3 (the simulator invariant). **Status:** the rules engine, the built-in rules, tiers and the plan summary
 are implemented (WP1.4, `src/b1500_test_agent/rules/`), and so are the session and fault latch (WP1.6), the
-executor (WP1.7) and the service, MCP tools and CLI that call them (WP1.8); harness wiring follows in WP1.9.
+executor (WP1.7), the service, MCP tools and CLI that call them (WP1.8) and the harness wiring (WP1.9: Codex
+`forbidden` rules, Claude Code permission rules and the `PreToolUse` guard hook).
 
 ## Principles
 
@@ -182,6 +183,15 @@ ceiling; Codex `forbidden` rules and Claude Code deny rules on `b1500 fault` and
 even in bypass modes); Claude Code deny rules on edits of `config/local/**` and `data/**` plus a `PreToolUse` hook that
 also blocks `pyvisa`; config hashes and per-call audit events; the agent rules in `AGENTS.md` and the skills; and
 the M3 safety scenarios (S2, S5, S6, S9) on both harnesses.
+
+**Harness files** (`b1500 harness init --codex --claude --check` verifies them). Codex: `.codex/rules/b1500.rules`
+forbids the two human-only commands (also after `uv run`; argv-prefix match). Claude Code: `.claude/settings.json`
+allows the nine other tools, asks for `run_confirmed_plan`, denies the two human-only commands and edits of
+`config/local/**`, `data/**` and the harness settings, and runs `scripts/hooks/b1500_guard.py` before every shell or
+file-editing call. The hook fails closed (`onFailure: block`, Claude Code 2.1.295 or later): if it cannot run (for
+example `uv` missing from `PATH`), shell and edit calls are blocked until a human fixes it. Its shell check matches
+text, so any command that merely mentions a human-only command is blocked too. Whether hooks also run in
+`bypassPermissions` mode is not verified (ATV-8); the deny rules hold there.
 
 **Physical backstop.** Outputs stay at or below 42 V while the interlock is open (keep it open; v1 has no
 high-voltage workflow), per-channel compliance limits current, and the shield box encloses the DUT.

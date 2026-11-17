@@ -4,9 +4,12 @@ Each check is PASS, WARN or FAIL; the command exits non-zero when any check FAIL
 architecture; ``uv.lock`` in sync with ``pyproject.toml`` (``uv lock --check --offline``); imports of the runtime
 dependencies (``pyvisa`` only located, never imported outside ``transport/visa.py``); configuration (rule R-CFG-01:
 schemas, active files example vs local, why the backend was chosen); ``data/`` writable and free space; clone path
-length (WARN above 80 characters on Windows); stale inflight marker or latched fault; skills mirror and harness
-files (WARN "not set up yet" until WP2.3/WP1.9 build them); the MCP server starts with exactly the ten tools within
-the token budget; ``PYTHONUTF8`` and ``LongPathsEnabled`` (Windows).
+length (WARN above 80 characters on Windows); stale inflight marker or latched fault; skills mirror (WARN "not set
+up yet" until WP2.3 builds it); harness files (the committed ``.claude/settings.json``, Codex rules, guard hook and
+examples wired as blueprint 5.4 says; each generated ``.codex/config.toml`` / ``.mcp.json`` free of drift, both on
+the same ``b1500-mcp`` entry point, ``run_confirmed_plan`` = ``prompt`` / ``ask``; WARN when none is generated yet);
+the MCP server starts with exactly the ten tools within the token budget; ``PYTHONUTF8`` and ``LongPathsEnabled``
+(Windows).
 
 The hardware probe (``--probe``: VISA library, resource, ``*IDN?``, ``UNT?``, ``ERRX?``, STB; read-only, never
 ``CN``) belongs to hardware bring-up (M4) and is not implemented; ``probe_refusal`` explains why it does not run.
@@ -31,7 +34,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from b1500_test_agent.config import ConfigBundle, ConfigLoader
-from b1500_test_agent.devtools import budget
+from b1500_test_agent.devtools import budget, harness
 from b1500_test_agent.errors import InvalidConfigError
 from b1500_test_agent.paths import Paths
 from b1500_test_agent.service import TOOL_NAMES
@@ -182,8 +185,24 @@ def check_skills_mirror() -> DoctorCheck:
     return _check("skills mirror", "WARN", f"{NOT_SET_UP} (b1500 dev sync-harness --check arrives in WP2.3)")
 
 
-def check_harness_files() -> DoctorCheck:
-    return _check("harness files", "WARN", f"{NOT_SET_UP} (b1500 harness init arrives in WP1.9)")
+def check_harness_files(repo_root: Path) -> DoctorCheck:
+    """Committed harness files wired per blueprint 5.4; generated configs free of drift on one entry point."""
+    _, problems = harness.committed_problems(repo_root, harness.TARGETS)
+    generated = [t for t in harness.TARGETS.values() if (repo_root / t.output).is_file()]
+    for target in generated:
+        problems += harness.rendered_problems(repo_root, target)
+    if problems:
+        more = f" (+{len(problems) - 3} more; b1500 harness init --codex --claude --check)" if len(problems) > 3 else ""
+        return _check("harness files", "FAIL", "; ".join(problems[:3]) + more)
+    modes = {"codex": f"{harness.CONFIRM_TOOL} prompt", "claude": f"{harness.CONFIRM_TOOL} ask"}
+    parts = [f"{t.name}: {t.output} ({modes[t.name]})" if t in generated else f"{t.name}: not generated"
+             for t in harness.TARGETS.values()]
+    launch = harness.expected_launch("<clone>")
+    entry = f"{launch.command} {' '.join(launch.args)} -> {harness.ENTRY_POINT_TARGET}"
+    detail = "; ".join(parts) + f"; entry point {entry}"
+    if not generated:
+        return _check("harness files", "WARN", detail + " (run b1500 harness init --codex and/or --claude)")
+    return _check("harness files", "PASS", detail)
 
 
 def check_mcp_server(spec: str = MCP_SERVER_SPEC) -> DoctorCheck:
@@ -251,7 +270,7 @@ def run_doctor(*, environ: Mapping[str, str] | None = None, windows: bool | None
         check_path_length(paths, windows=on_windows),
         check_state(bundle, paths),
         check_skills_mirror(),
-        check_harness_files(),
+        check_harness_files(paths.repo_root),
         (mcp_check or check_mcp_server)(),
         check_pythonutf8(env, windows=on_windows),
         check_long_paths(windows=on_windows),

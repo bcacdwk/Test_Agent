@@ -95,7 +95,7 @@ until then the v0.2 file stays in place as source material.
 | `tmp/*` (42 tracked design notes) | remove; `tmp/` gitignored | kept by the tag; the plan was promoted to `docs/design/blueprint.md` first | done WP0.1, WP0.5 |
 | `data/**` (tracked), `requirements.txt` | remove (untrack) | `data/` is the gitignored runtime dir; `pyproject.toml` + `uv.lock` are the single dependency source | done WP0.3, WP0.5 |
 | `README.md`, `AGENTS.md`, `docs/*.md` | rewrite | blueprint §6.7; `docs/contributing.md` folded into the `AGENTS.md` developer section; `docs/manual-extraction.md` kept | done WP0.6 |
-| `.codex/config.example.toml` | rewrite | generated configs from `b1500 harness init` (blueprint §5.4) | pending WP1.9 |
+| `.codex/config.example.toml` | rewrite | generated configs from `b1500 harness init` (blueprint §5.4) | done WP1.9 (templates `config/harness/`, examples `.codex/config.example.toml`, `.mcp.example.json`) |
 | `pyproject.toml` | fix | `requires-python >=3.11` (the parser uses `StrEnum`); scripts `b1500`, `b1500-mcp` | done WP0.3 |
 
 ## Where the v0.2 concepts went

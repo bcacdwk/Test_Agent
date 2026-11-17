@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "b1500": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--frozen", "--project", "{{REPO}}", "b1500-mcp"],
+      "env": {"PYTHONUTF8": "1"}
+    }
+  }
+}

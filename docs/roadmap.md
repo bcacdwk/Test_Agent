@@ -7,8 +7,8 @@ source of truth for status. This page is updated at milestone boundaries.
 | Milestone | Goal | Status |
 |---|---|---|
 | M0 Re-baseline | Plan promoted, legacy archived and pruned, tooling, docs | **done** (2026-11-17) |
-| M1 Runnable skeleton | One vertical path on the simulator: status → validate → staircase Id-Vg → archive → Vth | next |
-| M2 Skill system | Six SMU test cards with recipes that run on the simulator; knowledge files; debug skill | planned |
+| M1 Runnable skeleton | One vertical path on the simulator: status → validate → staircase Id-Vg → archive → Vth | **done** (2026-11-18) |
+| M2 Skill system | Six SMU test cards with recipes that run on the simulator; knowledge files; debug skill | next |
 | M3 Harness acceptance | Ten scenarios on Codex and Claude Code against the simulator | planned |
 | M4 Hardware bring-up | Checklists for the Windows lab PC and staged hardware validation | planned (docs only; execution later with the owner) |
 
@@ -23,11 +23,14 @@ source of truth for status. This page is updated at milestone boundaries.
 | 0.5 Prune + salvage | Legacy fake MCP surface, schemas, mock and skills removed; parser moved to `driver/`; models salvaged |
 | 0.6 Docs | README, `AGENTS.md`/`CLAUDE.md` (root and nested), architecture, safety model, roadmap, migration |
 
-## M1 — Runnable skeleton (simulator, one vertical path)
+## M1 — Runnable skeleton (simulator, one vertical path; done)
 
-Order: 1.1 → (1.2 ∥ 1.3 ∥ 1.4 ∥ 1.5) → 1.6 → 1.7 → 1.8 → 1.9.
+Order: 1.1 → (1.2 ∥ 1.3 ∥ 1.4 ∥ 1.5) → 1.6 → 1.7 → 1.8 → 1.9. Result: `b1500 plan mosfet.idvg …` → `run` →
+`analyze … vth_linear_extrapolation` gives Vth within ±100 mV of the simulated device on the simulator, through the
+CLI or the 10-tool MCP server (1,474 schema tokens, down from 104,691 for the 379 v0.2 tools); both harness configs
+start the same server (`b1500 dev mcp-smoke`).
 
-| WP | Deliverable |
+| WP | Result |
 |---|---|
 | 1.1 Models + config | Shared models, config resolution, repo-relative paths, migrated example configs, sim scenario `nmos_basic` |
 | 1.2 Transport + simulator core | Transport protocol, audit, VISA transport, in-process FLEX simulator with first device models and faults |
@@ -37,7 +40,7 @@ Order: 1.1 → (1.2 ∥ 1.3 ∥ 1.4 ∥ 1.5) → 1.6 → 1.7 → 1.8 → 1.9.
 | 1.6 Session + transaction | Instrument lock, transaction with verified cleanup, fault latch, recovery; full fault matrix |
 | 1.7 Catalog + executor + archive | Recipe registry (`mosfet.idvg`, `generic.smu_staircase`, `system.*`, reserved), executor, run archive |
 | 1.8 Service + adapters | `B1500Service`, 10-tool MCP server, operator CLI, `doctor`, token budget after-value |
-| 1.9 Harness wiring | `b1500 harness init`, Codex rules, `.claude/settings.json`, guard hook, MCP smoke test, CI (macOS + Windows) |
+| 1.9 Harness wiring | `b1500 harness init` (templates in `config/harness/`), Codex rules, `.claude/settings.json` + guard hook, `b1500 dev mcp-smoke`, placeholder skill, CI workflow (macOS + Windows) |
 
 ## M2 — Skill system and recipe pack
 

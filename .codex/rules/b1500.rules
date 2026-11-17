@@ -1,0 +1,37 @@
+# Codex execution-policy rules of the B1500A test agent (blueprint 5.4; Codex rules are experimental).
+# Loaded from <repo>/.codex/rules/ when the project is trusted. `forbidden` holds even under --yolo/full access.
+# Matching is by argv prefix only, hence `--confirm` directly after `run`. `b1500 fault clear` and
+# `b1500 run --confirm` belong to the human in their own terminal, never to the agent.
+# Self-check: codex execpolicy check --rules .codex/rules/b1500.rules b1500 fault clear
+
+prefix_rule(
+    pattern = ["b1500", "fault"],
+    decision = "forbidden",
+    justification = "b1500 fault is human-only: the operator clears the fault latch after reviewing the fault.",
+    match = [["b1500", "fault", "clear"]],
+    not_match = [["b1500", "status"]],
+)
+
+prefix_rule(
+    pattern = ["uv", "run", "b1500", "fault"],
+    decision = "forbidden",
+    justification = "b1500 fault is human-only: the operator clears the fault latch after reviewing the fault.",
+    match = [["uv", "run", "b1500", "fault", "clear"]],
+    not_match = [["uv", "run", "b1500", "status"]],
+)
+
+prefix_rule(
+    pattern = ["b1500", "run", "--confirm"],
+    decision = "forbidden",
+    justification = "Confirming a plan is the human's act; the agent uses the run_confirmed_plan MCP tool.",
+    match = [["b1500", "run", "--confirm", "P-EXAMPLE"]],
+    not_match = [["b1500", "run", "P-EXAMPLE"]],
+)
+
+prefix_rule(
+    pattern = ["uv", "run", "b1500", "run", "--confirm"],
+    decision = "forbidden",
+    justification = "Confirming a plan is the human's act; the agent uses the run_confirmed_plan MCP tool.",
+    match = [["uv", "run", "b1500", "run", "--confirm", "P-EXAMPLE"]],
+    not_match = [["uv", "run", "b1500", "run", "P-EXAMPLE"]],
+)

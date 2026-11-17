@@ -195,6 +195,11 @@ def test_shutdown_fault_clear_and_lock_status(cli_world: World) -> None:
 def test_doctor(cli_world: World) -> None:
     shutil.copy(REPO_ROOT / "pyproject.toml", cli_world.root / "pyproject.toml")
     shutil.copy(REPO_ROOT / "uv.lock", cli_world.root / "uv.lock")
+    for rel in (".claude", ".codex/rules", "config/harness", "scripts/hooks"):
+        shutil.copytree(REPO_ROOT / rel, cli_world.root / rel, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("*.lock", "config.toml"))
+    for rel in (".codex/config.example.toml", ".mcp.example.json"):
+        shutil.copy(REPO_ROOT / rel, cli_world.root / rel)
     result = invoke("doctor", "--json")
     report = as_json(result)
     checks = {c["name"]: c for c in report["checks"]}
@@ -203,7 +208,7 @@ def test_doctor(cli_world: World) -> None:
     assert checks["config"]["status"] == "PASS" and "sim" in checks["config"]["detail"]
     assert checks["mcp server"]["status"] == "PASS" and checks["mcp server"]["detail"].startswith("10 tools")
     assert checks["skills mirror"]["status"] == "WARN" and "not set up yet" in checks["skills mirror"]["detail"]
-    assert checks["harness files"]["status"] == "WARN" and "not set up yet" in checks["harness files"]["detail"]
+    assert checks["harness files"]["status"] == "WARN" and "harness init" in checks["harness files"]["detail"]
     assert checks["data dir"]["status"] == "PASS" and checks["state"]["status"] == "PASS"
     assert report["ok"] is (result.exit_code == 0)
     assert all(c["status"] != "FAIL" for c in report["checks"]), report
@@ -253,13 +258,13 @@ def test_sim_console_refuses_any_other_backend(world: World) -> None:
 def test_help_lists_every_command(cli_world: World) -> None:
     result = invoke("--help")
     for command in ("status", "recipes", "plan", "run", "runs", "show", "analyze", "note", "shutdown", "fault",
-                    "lock", "doctor", "config", "mcp", "dev"):
+                    "lock", "doctor", "config", "harness", "mcp", "dev"):
         assert command in result.stdout
     dev = invoke("dev", "--help")
-    for command in ("tool-budget", "recipe-check", "sim-console"):
+    for command in ("tool-budget", "recipe-check", "mcp-smoke", "sim-console"):
         assert command in dev.stdout
-    for later in ("harness", "acceptance", "mcp-smoke", "sync-harness", "lint-skills"):
-        assert later not in result.stdout + dev.stdout  # arrive with WP1.9/2.3/3.1, never as fake successes
+    for later in ("acceptance", "sync-harness", "lint-skills"):
+        assert later not in result.stdout + dev.stdout  # arrive with WP2.3/3.1, never as fake successes
 
 
 def test_mcp_command_starts_the_stdio_server(monkeypatch: pytest.MonkeyPatch) -> None:

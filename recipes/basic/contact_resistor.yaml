@@ -11,7 +11,7 @@ version: 1
 title: Contact / resistor check (+-0.1 V staircase) - R, linearity, offset; open/short/in-range
 kind: smu_staircase
 status: sim_validated
-card: null
+card: .agents/skills/b1500-test/cards/contact-resistor-check.md
 device_types: [resistor, nmos, pmos, igzo_tft, fefet, diode]
 roles:
   a:

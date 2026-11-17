@@ -16,7 +16,7 @@ Milestone tags in parentheses say when a part arrives (see [roadmap](roadmap.md)
 | L4 Measurement transaction | Lock, transaction with guaranteed cleanup, fault latch; recipes, kinds, planner, executor; run archive | `session/`, `catalog/`, `recipes/`, `archive/` (M1) |
 | L5 Analysis | Quality classification, extraction (Vth, SS, gm, ...), plots | `analysis/` (M1–M2) |
 | L6 MCP / CLI | Ten MCP tools and the `b1500` CLI over `B1500Service` | `service.py`, `adapters/{mcp_server,cli}.py` (WP1.8) |
-| L7 Skills + rules | Rule engine and tiers; human-owned limits; entry and debug skills | `rules/`, `config/*.example.yaml` → `config/local/`, `.agents/skills/` (rules M1; placeholder entry skill WP1.9; skills M2) |
+| L7 Skills + rules | Rule engine and tiers; human-owned limits; entry and debug skills | `rules/`, `config/*.example.yaml` → `config/local/`, `.agents/skills/` with the generated `.claude/skills/` copy (rules M1; skills M2: entry skill + card template WP2.4, six test cards + reserved slots WP2.5, knowledge 01–07 WP2.6, `b1500-debug` WP2.7) |
 | L8 Agent | Codex CLI and Claude Code | `AGENTS.md`, `CLAUDE.md`, harness wiring: `config/harness/` templates → generated `.codex/config.toml` / `.mcp.json`, committed `.codex/rules/b1500.rules`, `.claude/settings.json`, `scripts/hooks/b1500_guard.py` (WP1.9) |
 
 ## Dependency direction

@@ -43,13 +43,18 @@ The gate-leakage card measures Ig(Vg) with drain and source grounded; it must no
   1 V across 10 nm is 1 MV/cm.
 - Breakdown fields: thermal SiO2 about 10 MV/cm; high-k (HfO2) and ferroelectric HZO films a few MV/cm
   `TODO(verify)` per stack. Long-term safe operating fields are far lower than the ramp breakdown field.
-- Safe-envelope principles (non-destructive; the recipe and card fix the actual sweep, `TODO(verify)` against
-  `mosfet.gate_leakage` after WP2.2):
+- Safe-envelope principles (non-destructive), as `mosfet.gate_leakage` implements them (checked against the
+  recipe in WP2.5; the recipe and the card fix the actual values):
   - gate voltage within the DUT profile `max_abs_v` of the gate (the authority), never extended by the agent;
-  - sweep from 0 V outwards, one polarity per run, so the high-field point is reached last and briefly;
-  - low gate compliance (nA to uA, per card) with automatic abort on compliance, so a breakdown is current-limited;
-  - drain and source on the GNDU (or 0 V SMUs) so the gate current is the only path being measured;
-  - HRSMU on the gate when the expected leakage is below about 100 pA (MPSMU smallest native range is 1 nA).
+    a plan above it needs confirmation (`dut_envelope`); default sweep 0 → 3 V in 31 points;
+  - sweep from 0 V outwards, one polarity per run, so the high-field point is reached last and briefly (the
+    recommended start, -1..0 V, allows only a small low-field excursion before 0 V);
+  - low gate compliance (default 100 nA, recommended 1 nA to 1 uA, at most 100 uA) with automatic abort on
+    compliance, so a breakdown is current-limited and the sweep stops at once;
+  - drain held at 0 V by its SMU and measured (a gate-drain path shows there), source and bulk on the GNDU, so
+    the gate current is the only path being driven;
+  - the gate always on an HRSMU (the recipe requires `low_current`; an MPSMU's smallest native range is 1 nA),
+    long integration (16 PLC) and a hold (0.5 s) and step delay (50 ms) against displacement current.
 - Read the result as leakage at the operating bias versus the limit: `leakage_at(v, limit_a)`
   ([06](06-analysis-extraction.md#leakage-at-bias)); normalise by gate area (A/cm^2) only when the area is known.
 - Signs of damage: an abrupt, irreversible current jump (hard breakdown), a noisy step-like increase (soft

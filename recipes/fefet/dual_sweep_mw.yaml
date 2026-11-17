@@ -12,7 +12,7 @@ version: 1
 title: FeFET dual gate sweep (Id-Vg double sweep) - Vth_fwd, Vth_rev, memory window, per-branch Ion/Ioff
 kind: smu_staircase
 status: sim_validated
-card: null
+card: .agents/skills/b1500-test/cards/fefet-dual-sweep-mw.md
 device_types: [fefet]
 roles:
   gate:

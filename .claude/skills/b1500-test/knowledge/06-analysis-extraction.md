@@ -5,7 +5,8 @@ sources:
   - deck slide 6 (Vth by linear extrapolation, quality check)
   - deck slide 9 (status codes, report rules)
   - deck slide 15 (domain 6 seed; Vth three methods, SS, gm, gds, on/off, C-V extraction)
-  - src/b1500_test_agent/analysis/mosfet.py (gm, vth_linear_extrapolation; M1)
+  - src/b1500_test_agent/analysis/mosfet.py (gm, three Vth methods, SS, gm_max, Ion/Ioff, output metrics)
+  - src/b1500_test_agent/analysis/resistor.py, diode.py, leakage.py, fefet.py, plots.py (M2 methods)
   - src/b1500_test_agent/analysis/quality.py, dataset.py, registry.py (trust, noise, run table; M1)
   - docs/design/blueprint.md section 2.8 (M2 method names and options)
 last_reviewed: null
@@ -14,10 +15,10 @@ last_reviewed: null
 
 # Analysis and extraction (knowledge domain 6)
 
-Seeded from deck slide 15. Definitions here must be identical to the code in `src/b1500_test_agent/analysis/`;
-the code wins on any difference. Sections for M1 methods restate the code. Sections for M2 methods follow the
-plan and carry `TODO(verify): sync with analysis/<module>.py docstring after WP2.2`. `list_recipes` and
-`analyze_run` say which methods are implemented; a declared method returns `not_implemented`.
+Seeded from deck slide 15. Definitions here are identical to the docstrings of the code in
+`src/b1500_test_agent/analysis/` (`quality.py`, `mosfet.py`, `resistor.py`, `diode.py`, `leakage.py`, `fefet.py`,
+`plots.py`); the code wins on any difference and a change to either must change both. Synced with the M2 code in
+WP2.5. `list_recipes` and `analyze_run` say which methods apply to a run.
 
 ## Run table and trust classes
 
@@ -27,9 +28,14 @@ plan and carry `TODO(verify): sync with analysis/<module>.py docstring after WP2
 - Trust per value from the recipe's `quality` block: `N` ok; `C`, `T` limited; `V X F D G S U` and any unknown
   letter untrusted (letters: [02](02-b1500-instrument.md#data-status-codes)). A row's trust is the worst of its
   measured values.
-- Limited and untrusted rows never enter a derivative or a fit. An extraction is refused (`outcome` `refused`, no
-  value) when the analysed segment holds any untrusted row, unless `force=true`: then it uses the trusted rows and
-  is flagged (`forced_on_untrusted`, warning). Never force silently; say why in the report.
+- Limited and untrusted rows never enter a derivative, a fit or an interpolation. An extraction is refused
+  (`outcome` `refused`, no value) when the analysed segment (curve) holds any untrusted row or its trusted response
+  is noise-dominated (range < 10x noise), unless `force=true`: then it uses the trusted rows and is flagged
+  (`forced_on_untrusted`, warning). Never force silently; say why in the report.
+- Data that do not allow the method (too few points, no crossing, no subthreshold region): `outcome` `failed`.
+  `resistance` and `leakage_at` read a compliance stop as a result (short; leakage above the compliance) and a
+  noise-dominated response as a measurement at the floor; rows after an automatic abort count as `aborted`.
+- M2 methods round derived numbers to 7 significant digits, finer than the instrument resolves.
 - `points_excluded` counts excluded rows by status letter, `missing` (empty cell) and `outside_window`.
 
 ## Quality gate and noise
@@ -78,102 +84,147 @@ Implemented (`vth_linear_extrapolation`, M1; default of `mosfet.idvg`; deck slid
 
 ## Vth constant current
 
-Planned (`vth_constant_current`, M2). `TODO(verify): sync with analysis/mosfet.py docstring after WP2.2`.
+Implemented (`vth_constant_current`, M2; option of `memory_window`, the usual definition for TFTs).
 
-- Vth = Vg at which |Id| equals the criterion current: `i_crit_a`, multiplied by W/L when `w_over_l` is given (deck
-  slide 15: W/L x 100 nA). Interpolation between the two trusted points that bracket the criterion (expected:
-  linear in log10|Id|).
-- No value when the trusted curve never crosses the criterion. Report the criterion with the value.
+- Vth = the gate voltage at which |Id| first reaches the critical current I_crit = `i_crit_a` x `w_over_l`
+  (`i_crit_a` alone without `w_over_l`; default 100 nA; deck slide 15: W/L x 100 nA), walking the trusted points
+  in the direction of increasing |Id| (rising Vg for n-type, falling Vg for p-type). log10|Id| is interpolated
+  linearly in Vg between the two bracketing points. More than one crossing gives a warning.
+- No crossing on the trusted curve: `failed`, no value. Report the criterion with the value.
 
 ## Vth at maximum gm
 
-Planned (`vth_max_gm`, M2). `TODO(verify): sync with analysis/mosfet.py docstring after WP2.2`.
+Implemented (`vth_max_gm`, M2): the maximum of the gm *change*, the second-derivative or transconductance-change
+method, not the gate voltage of maximum gm.
 
-- Vth = Vg at the maximum of |gm| (same `gm` definition as above). Simple but method-specific: it lies above the
-  extrapolated Vth (deck slide 15); never compare it with linear-extrapolation values.
+- Vth = the gate voltage where gm rises fastest, the maximum of s·dgm/dVg (s = +1 when |Id| grows with Vg, -1
+  otherwise; both derivatives with `smooth` points), refined by a parabola through the peak and its two
+  neighbours, minus Vd/2 (`subtract_half_vd`, default true: in the linear region gm turns on between Vth and
+  Vth + Vd). `fit` also reports the gate voltage of maximum gm.
+- Vd as for linear extrapolation (`vd` option, else the plan's `vd`). Method-specific: never compare it with
+  linear-extrapolation or constant-current values.
 
 ## Subthreshold swing
 
-Planned (`subthreshold_swing`, M2). `TODO(verify): sync with analysis/mosfet.py docstring after WP2.2`.
+Implemented (`subthreshold_swing`, M2; mV/dec).
 
-- SS = dVg / d(log10 |Id|) in mV/dec; the plan reports the minimum over the subthreshold region, optionally as the
-  average over `decades` decades of current around the steepest part.
-- Only trusted points clearly above the noise floor count. Deck slide 15 fits a line to log10(Id) versus Vg below
-  Vth (Id > 1 pA); report the window either way.
+- SS = 1000 / |d log10|Id| / dVg| from a straight-line fit of log10|Id| against Vg over a sliding window, reported
+  for the window with the smallest SS (the steepest part of the subthreshold region).
+- Window: `fit_points` (default 5) consecutive trusted points, or, with `decades`, the shortest run of consecutive
+  points whose |Id| spans at least `decades` decades. A window counts only when |Id| is non-zero and strictly
+  monotonic in it, grows in the transfer direction and its fit has r2 ≥ `min_r2` (default 0.99); this rejects the
+  noise floor, where log10|Id| scatters. No such window: `failed`.
 - Physics and red flags: [01](01-device-physics.md#mosfet-subthreshold-swing).
 
 ## Maximum transconductance
 
-Planned (`gm_max`, M2). `TODO(verify): sync with analysis/mosfet.py docstring after WP2.2`.
+Implemented (`gm_max`, M2; S).
 
-- gm_max = maximum of |gm| over the trusted points of a segment, with the gate voltage where it occurs. Same value
-  as `fit.gm_max` of `vth_linear_extrapolation` when the options match.
+- gm_max = gm at the trusted point of maximum |gm| (signed value, `gm` definition above, `smooth` points), with its
+  gate voltage and drain current in `fit` (`x_at_gm_max`, `y_at_gm_max`). The same quantity as `fit.gm_max` of
+  `vth_linear_extrapolation` with the same `smooth` and segment. A maximum at a sweep end gives a warning.
 
 ## On and off current
 
-Planned (`ion_ioff`, M2). `TODO(verify): sync with analysis/mosfet.py docstring after WP2.2`.
+Implemented (`ion_ioff`, M2): results `ion`, `ioff` (A) and `on_off_ratio`.
 
-- Ion = |Id| at Vg = `v_on`, Ioff = |Id| at Vg = `v_off` (trusted points; interpolated or nearest point), ratio
-  Ion/Ioff. Report both bias points and Vd.
-- An Ioff at the noise floor is an upper bound and the ratio a lower bound
+- Ion = |Id| at `v_on`, Ioff = |Id| at `v_off`, each linearly interpolated between the bracketing trusted points;
+  on/off ratio = Ion/Ioff. Defaults: `v_on` = the sweep end with the larger |Id|, `v_off` = the other end. Report
+  both bias points and Vd.
+- A current at the noise floor (log10|Id| rough around the point) is reported as an upper bound of 3 noise
+  standard deviations (`bound: upper`); the ratio is then a lower bound
   ([01](01-device-physics.md#mosfet-on-off-current-ratio)).
 
 ## Output metrics Ron and gds
 
-Planned (`output_metrics`, M2; recipe `mosfet.idvd`). `TODO(verify): sync with analysis/mosfet.py docstring
-after WP2.2`.
+Implemented (`output_metrics`, M2; recipe `mosfet.idvd`): x `drain_V`, y `drain_I`, curves grouped by the step
+column `step` (default the other varying source voltage, `gate_V`).
 
-- Per gate step (rows grouped by the stepped gate voltage `gate_V`): Ron = dVd/dId from a linear fit at the
-  smallest drain voltages, gds = dId/dVd near the highest drain voltages (saturation).
+- Per curve: **Ron** = 1/gd at the lowest |Vd| (gd = dId/dVd, local quadratic fit over `smooth` points: the
+  deep-linear-region on-resistance including series resistance); **gds** = slope of a straight-line fit of Id
+  against Vd over the trusted points in the top `sat_window` (default 0.2) fraction of the |Vd| span (saturation
+  output conductance); **Vd_sat** = the first |Vd|, walking away from Vd = 0, at which gd falls to `sat_ratio`
+  (default 0.1) x gd(Vd_min), interpolated linearly (saturation onset).
+- The results (`ron` Ohm, `gds` S, `vd_sat` V) are those of one curve: `curve` = its step level, default the
+  strongest drive (largest |step|, in `fit.step_v`). Each result lists that quantity for every curve in `fit` under
+  `<step>=<level>` (for example `gate_V=1.5`), and the other curves' refusals or failures as warnings.
 - Physics: [01](01-device-physics.md#mosfet-output-characteristics).
 
 ## Resistance fit
 
-Planned (`resistance`, M2; recipe `basic.contact_resistor`). `TODO(verify): sync with analysis/resistor.py docstring
-after WP2.2`.
+Implemented (`resistance`, M2; recipe `basic.contact_resistor`).
 
-- Linear least-squares fit of I versus V over trusted points: R = 1 / slope, offset (current at 0 V), linearity
-  (r2 and residuals). Class `open`, `short` or `in_range` against the expected resistance; thresholds are defined
-  in the code.
+- Straight-line least-squares fit I = G·V + I0 of the measured current against the forced voltage (defaults: the
+  source voltage column that varies most and the measured current of the same role, e.g. `a_V`/`a_I`) over the
+  trusted points: R = 1/G (`resistance`, Ohm), linearity r2 (`linearity_r2`), offset current I0 at 0 V
+  (`offset_current`, A; `fit.v_offset` = -I0/G).
+- `classification`, thresholds as options: `short` = the forced terminal reached its compliance (status C): R ≤
+  |V|/|I| at the first compliance point, reported as that upper bound with nothing fitted, when the bound is at most
+  `r_short_ohm` (default 100 Ohm); or a fitted R ≤ `r_short_ohm`. A compliance stop with a bound above `r_short_ohm`
+  cannot be classified: `failed`. `open` = the current is noise-dominated (range < 10x noise): R ≥ ΔV / (10 x noise),
+  reported as that lower bound; or a fitted R ≥ `r_open_ohm` (default 1 GOhm). Otherwise `in_range`.
+- A non-positive fitted conductance with a clean signal: `failed` (not a resistor: check the wiring).
 - Two-wire: R includes probes, cables and contacts ([03](03-probe-station-wiring.md#contact-checks)).
 
 ## Diode fit Is n and Rs
 
-Planned (`diode_fit`, M2; recipe `basic.diode_iv`). `TODO(verify): sync with analysis/diode.py docstring after
-WP2.2`.
+Implemented (`diode_fit`, M2; recipe `basic.diode_iv`): results `n` (1), `is` (A), `rs` (Ohm).
 
-- Forward branch: in the exponential region, fit log(I) versus V; n = 1 / (Vt x slope of ln I), Is = I at the
-  line's V = 0 intercept; Vt = kT/q at the stated temperature (300 K unless given). Rs from the deviation at high
-  current: V - n Vt ln(I/Is + 1) = I Rs.
-- Report the fit windows; compliance-limited points (C) at the top of the forward sweep are excluded.
+- On the forward branch (V > 0 and I > 0) the Shockley diode with series resistance satisfies
+  V = n·U_T·ln(I/Is) + Rs·I (I ≫ Is; U_T = kT/q at `temperature_k`, default 300 K), linear in the unknowns
+  (n·U_T, -n·U_T·ln Is, Rs). One linear least-squares fit of V against (ln I, 1, I) over the fit window gives n, Is
+  and Rs, with r2 and the rms voltage residual in `fit`.
+- Fit window: forward points with `i_min_a` ≤ I ≤ `i_max_a`. Default `i_min_a`: 100 x the larger of the reverse
+  branch's noise estimate and the shunt leakage G·V at that forward voltage (G = median |I/V| of the reverse points
+  below -0.1 V); 1 nA when the run has no reverse branch. Default `i_max_a`: the largest trusted forward current.
+  The window needs at least 5 points spanning at least one decade of current; else `failed`.
+- Compliance points (C/T) are excluded; the reverse branch, and with it any breakdown, never enters the fit.
 - Physics: [01](01-device-physics.md#pn-diode-shockley-equation-and-ideality-factor).
 
 ## Leakage at bias
 
-Planned (`leakage_at`, M2; recipes `mosfet.gate_leakage`, `basic.diode_iv`). `TODO(verify): sync with
-analysis/leakage.py docstring after WP2.2`.
+Implemented (`leakage_at`, M2; recipes `mosfet.gate_leakage`, `basic.diode_iv`).
 
-- |I| at the bias `v` (trusted points; interpolated or nearest), compared with `limit_a`: pass when below.
-- A value at the noise floor means "below the floor", not a measured leakage; report the floor.
+- Leakage = |I(v)| of the measured current at the forced voltage v (defaults: the swept source voltage and the
+  measured current of the same role, e.g. `gate_V`/`gate_I`), linearly interpolated between the bracketing trusted
+  points, compared with `limit_a`: `classification` `pass` when |I(v)| ≤ limit, else `fail`. `v` and `limit_a`
+  default to the plan parameters named `v_param` (default `v_op`) and `limit_param` (default `leak_limit_a`); the
+  diode recipe passes `v_param: v_rev`. Without a limit no classification is made.
+- Compliance stop: the current reached its compliance (C) between 0 V and v (inclusive): the leakage at v is at
+  least the compliance current, reported as that lower bound and `fail` when the limit is at most that current (a
+  limit above the compliance cannot be decided: `failed`). A compliance stop beyond v leaves the value at v exact.
+- Noise floor: log10|I| rough around v means below the detection limit: the result is an upper bound of 3 noise
+  standard deviations, `pass` when that bound is within the limit. A floor value is a measurement, not a refusal.
 - Envelope and damage signs: [05](05-reliability-defects.md#gate-leakage-and-tddb-safe-envelope).
 
 ## Memory window
 
-Planned (`memory_window`, M2; recipe `fefet.dual_sweep_mw`). `TODO(verify): sync with analysis/fefet.py docstring
-after WP2.2` (the M1 registry stub still describes rev - fwd; WP2.2 fixes the sign).
+Implemented (`memory_window`, M2; recipe `fefet.dual_sweep_mw`).
 
-- MW = Vth_fwd - Vth_rev: Vth extracted on the `fwd` and `rev` segments with the same `vth_method` and options
-  (constant current is the usual choice for FeFETs `TODO(verify)` default). Positive for ferroelectric switching
-  in an n-channel FeFET, negative when charge trapping dominates
-  ([04](04-ferroelectric-oxide.md#fefet-memory-window-by-dual-sweep)).
-- Report Vth_fwd, Vth_rev, MW with sign, the method, and per-branch Ion/Ioff when asked.
+- The threshold voltage of each branch of a double sweep is extracted with one transfer-curve method
+  (`vth_method`: `vth_constant_current` (default; I_crit = `i_crit_a` x `w_over_l`), `vth_linear_extrapolation` or
+  `vth_max_gm`) on segment `fwd` (the first branch, start → stop) and `rev` (stop → start); MW = Vth_fwd - Vth_rev.
+- Positive for the counter-clockwise loop of an n-channel FeFET swept upwards first; a negative MW gets a warning
+  (sweep direction, polarity, or charge trapping dominating:
+  [04](04-ferroelectric-oxide.md#fefet-memory-window-by-dual-sweep)). Method offsets (for example (n - 1)·Vd/2 of
+  linear extrapolation, or I_crit below the threshold current) are the same on both branches and cancel in MW.
+- Results: `memory_window`, `vth_fwd`, `vth_rev` (V), `ion_fwd`, `ioff_fwd`, `ion_rev`, `ioff_rev` (A; per-branch
+  on/off ratio in the Ion result's `fit`, from `ion_ioff` with `v_on`/`v_off`). When a branch Vth is refused or
+  fails, the call returns both branch results with their outcomes and a non-ok `memory_window`.
+- Report Vth_fwd, Vth_rev, MW with sign, the method and criterion, and per-branch Ion/Ioff.
 
 ## Plots
 
-Planned (`plot_iv`, M2). `TODO(verify): sync with analysis/plots.py docstring after WP2.2`.
+Implemented (`plot_iv`, M2; never refuses, never extracts).
 
-- PNG plots of the run table, `scale` linear or log (deck slide 15: linear and log axes), written by the server
-  next to the run's analysis results; returns the file paths. Rendering uses a non-interactive backend.
+- One figure per scale (`linear`: I against V; `log`: |I| on a log axis; `both`, the default), one panel per
+  measured current column (`y`, default all), x = the swept source voltage. A stepped run draws one curve per step
+  level, a double sweep one line per segment. Trusted points are joined by lines, limited (C/T) points drawn as
+  open circles and untrusted ones as crosses; invalid data (199.999E+99) and zero currents on a log axis are left out
+  and counted in the figure's note.
+- `analyze_run` stores the PNG files in the run folder (`plots/<name>-<n>.png`); agent scripts call `plot_iv` with
+  `out_dir` (default `work/<run_id>/plots/`), because run folders are written only by the server. Rendering uses a
+  non-interactive backend (no display needed).
 
 ## Reporting rules measured versus derived
 

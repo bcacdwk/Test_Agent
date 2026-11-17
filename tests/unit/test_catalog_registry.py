@@ -65,9 +65,13 @@ def test_committed_statuses() -> None:
     for recipe_id in ("mosfet.idvd", "mosfet.gate_leakage", "basic.contact_resistor", "basic.diode_iv",
                       "fefet.dual_sweep_mw"):
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
-        assert registry.get(recipe_id).card is None  # WP2.5 sets the card paths
     assert registry.get("mosfet.idvd").kind == "smu_stepped"
-    assert registry.get("mosfet.idvg").card is None
+    cards = {"mosfet.idvg": "mosfet-idvg", "mosfet.idvd": "mosfet-idvd", "mosfet.gate_leakage": "gate-leakage",
+             "basic.contact_resistor": "contact-resistor-check", "basic.diode_iv": "diode-iv",
+             "fefet.dual_sweep_mw": "fefet-dual-sweep-mw"}  # WP2.5: the six first test cards
+    for recipe_id in registry.ids():
+        expected = f".agents/skills/b1500-test/cards/{cards[recipe_id]}.md" if recipe_id in cards else None
+        assert registry.get(recipe_id).card == expected, recipe_id
     assert registry.get("system.self_test").always_confirm == ["system_self_test"]
     assert registry.get("system.self_cal").always_confirm == ["system_self_cal"]
 

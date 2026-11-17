@@ -18,11 +18,13 @@ runner = CliRunner()
 
 @pytest.fixture
 def clone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A temporary clone with a copy of recipes/, selected through B1500_HOME."""
+    """A temporary clone with a copy of recipes/ and the test cards they point at, selected through B1500_HOME."""
     for name in (ENV_CONFIG_DIR, ENV_DATA_DIR):
         monkeypatch.delenv(name, raising=False)
     root = tmp_path / "clone"
     shutil.copytree(REPO_ROOT / "recipes", root / "recipes")
+    cards = Path(".agents", "skills", "b1500-test", "cards")
+    shutil.copytree(REPO_ROOT / cards, root / cards)  # recipe `card:` paths must resolve (WP2.5)
     (root / "pyproject.toml").write_text("[project]\nname = 'copy'\n", encoding="utf-8")
     monkeypatch.setenv(ENV_HOME, str(root))
     return root

@@ -9,12 +9,13 @@ through `validate_plan → run_plan` or, when a human must confirm, `run_confirm
 limits, tiers, per-command output guards and a guaranteed safe shutdown. An in-process FLEX simulator stands in
 for the instrument, so everything is developed and tested without hardware.
 
-> **Status (2026-11-18): M1 runnable skeleton done; M2 (skill system) next.** One vertical path runs on the
-> simulator: `station_status` → `validate_plan` → staircase Id-Vg → run archive → Vth, through the 10-tool MCP
-> server or the `b1500` CLI, with Codex and Claude Code wiring (`b1500 harness init`). Recipes `mosfet.idvg`,
-> `generic.smu_staircase` and `system.*` are simulator-validated; the entry skill is a placeholder until M2 adds
-> the test cards, knowledge files and the debug skill. The hardware probe and lab bring-up are M4 (see
-> [docs/roadmap.md](docs/roadmap.md)); no code path has run against a real instrument yet.
+> **Status (2026-11-18): M1 runnable skeleton and M2 skill system done; M3 (harness acceptance) next.** On the
+> simulator, six SMU measurements (contact/resistor check, diode I-V, MOSFET Id-Vg and Id-Vd, gate leakage, FeFET
+> dual-sweep memory window) run through the 10-tool MCP server or the `b1500` CLI and are analyzed by their
+> extraction methods; these recipes, `generic.smu_staircase` and `system.*` are simulator-validated. Skill
+> `b1500-test` routes requests to six test cards and seven knowledge files, skill `b1500-debug` handles abnormal
+> data; Codex and Claude Code wiring comes from `b1500 harness init`. The hardware probe and lab bring-up are M4
+> (see [docs/roadmap.md](docs/roadmap.md)); no code path has run against a real instrument yet.
 
 ## Layers
 
@@ -75,7 +76,8 @@ allow/ask/deny rules and the `scripts/hooks/b1500_guard.py` hook). `run_confirme
    front of the human; `blocked` → never runs.
 3. The run executes inside a locked transaction that always ends with abort, zero, disconnect and a verified safe
    state, and archives raw data, parsed data, the audit log and the manifest under `data/runs/`.
-4. `analyze_run` extracts parameters (first: Vth by linear extrapolation) from trusted points only.
+4. `analyze_run` extracts parameters (the card's default method, for example Vth by linear extrapolation) from
+   trusted points only.
 
 ## Lab PC (planned, M4)
 

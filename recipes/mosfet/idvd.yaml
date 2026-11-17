@@ -12,7 +12,7 @@ version: 1
 title: MOSFET output curves (Id-Vd family over gate steps) for Ron, gds and saturation onset
 kind: smu_stepped
 status: sim_validated
-card: null
+card: .agents/skills/b1500-test/cards/mosfet-idvd.md
 device_types: [nmos, pmos, igzo_tft]
 roles:
   drain:

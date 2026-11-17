@@ -8,8 +8,8 @@ source of truth for status. This page is updated at milestone boundaries.
 |---|---|---|
 | M0 Re-baseline | Plan promoted, legacy archived and pruned, tooling, docs | **done** (2026-11-17) |
 | M1 Runnable skeleton | One vertical path on the simulator: status → validate → staircase Id-Vg → archive → Vth | **done** (2026-11-18) |
-| M2 Skill system | Six SMU test cards with recipes that run on the simulator; knowledge files; debug skill | next |
-| M3 Harness acceptance | Ten scenarios on Codex and Claude Code against the simulator | planned |
+| M2 Skill system | Six SMU test cards with recipes that run on the simulator; knowledge files; debug skill | **done** (2026-11-18) |
+| M3 Harness acceptance | Ten scenarios on Codex and Claude Code against the simulator | next |
 | M4 Hardware bring-up | Checklists for the Windows lab PC and staged hardware validation | planned (docs only; execution later with the owner) |
 
 ## M0 — Re-baseline (done)
@@ -42,15 +42,20 @@ start the same server (`b1500 dev mcp-smoke`).
 | 1.8 Service + adapters | `B1500Service`, 10-tool MCP server, operator CLI, `doctor`, token budget after-value |
 | 1.9 Harness wiring | `b1500 harness init` (templates in `config/harness/`), Codex rules, `.claude/settings.json` + guard hook, `b1500 dev mcp-smoke`, placeholder skill, CI workflow (macOS + Windows) |
 
-## M2 — Skill system and recipe pack
+## M2 — Skill system and recipe pack (done)
 
-| WP | Deliverable |
+Order: (2.1 → 2.2) ∥ 2.3 → 2.4 → (2.5 ∥ 2.6 ∥ 2.7). Result: six SMU recipes are simulator-validated against model
+truth, each with a test card whose example plan `b1500 dev lint-skills` validates on its simulator scenario; the
+entry skill `b1500-test` (card index, tiers, report template), seven knowledge files and the `b1500-debug` skill
+(eight runbooks) are canonical in `.agents/skills/` and copied to `.claude/skills/` by `b1500 dev sync-harness`.
+
+| WP | Result |
 |---|---|
 | 2.1 Sim models + kinds | Diode, FeFET and damaged-device models; double sweep; stepped sweep kind; more scenarios |
 | 2.2 Recipes + analysis | Five more recipes and the remaining extraction methods, each validated against model truth |
 | 2.3 Skill tooling | `b1500 dev sync-harness` (Claude Code copy + drift check), `b1500 dev lint-skills` |
 | 2.4 Entry skill | `b1500-test` skill, card template, final `AGENTS.md`/`CLAUDE.md`, generated `.claude/skills/` |
-| 2.5 Six cards | Contact/resistor check, diode I-V, MOSFET Id-Vg, MOSFET Id-Vd, gate leakage, FeFET dual-sweep memory window |
+| 2.5 Six cards | Contact/resistor check, diode I-V, MOSFET Id-Vg, MOSFET Id-Vd, gate leakage, FeFET dual-sweep memory window, each with a simulator validation record; reserved slots with their preconditions |
 | 2.6 Knowledge 01–07 | Device physics, instrument, wiring, ferroelectrics/oxides, reliability, extraction, HSPICE (reserved) |
 | 2.7 Debug skill | `b1500-debug` with eight runbooks and the deck's three cases |
 

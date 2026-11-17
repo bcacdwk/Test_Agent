@@ -84,13 +84,13 @@ until then the v0.2 file stays in place as source material.
 | `analysis/*.py`, `cli.py` | rewrite | `analysis/`, `adapters/cli.py` | done (removed WP0.5; CLI skeleton WP0.3; analysis WP1.5; CLI WP1.8) |
 | `tests/test_parser_ascii.py` | keep, fix import | `tests/unit/test_parser.py` | done WP0.5 |
 | `tests/test_{c_flows,cd_flows,d_atoms,d_flows,skeleton}.py`, `tests/mock_b1500.py` | remove | new suites; the simulator replaces the mock | removed WP0.5; simulator WP1.2 |
-| v0.2 testing skill (`.agents/skills/<name>/**`, name listed by the tag) | rewrite | `.agents/skills/b1500-test/`; its `references/mcp-tools/*.md` → `references/driver-map/legacy-catalog/` | catalogs moved WP0.4; removed WP0.5; WP2.4 |
-| `.agents/skills/b1500-debug-workflow/**` | rewrite | `.agents/skills/b1500-debug/` | removed WP0.5; WP2.7 |
+| v0.2 testing skill (`.agents/skills/<name>/**`, name listed by the tag) | rewrite | `.agents/skills/b1500-test/`; its `references/mcp-tools/*.md` → `references/driver-map/legacy-catalog/` | done (catalogs moved WP0.4; removed WP0.5; rewritten WP2.4–WP2.6, cards WP2.5) |
+| `.agents/skills/b1500-debug-workflow/**` | rewrite | `.agents/skills/b1500-debug/` | done (removed WP0.5; rewritten WP2.7) |
 | `config/default.example.yaml`, `references/station/{station-profile,cable-topology}.example.yaml` | merge | `config/settings.example.yaml` (transport, paths) + `config/station.example.yaml` (inventory, topology, corrections) | done WP1.1 |
 | `config/safety_limits.example.yaml`, `references/policies/*` | merge | `config/policy.example.yaml` | done WP1.1 |
 | `references/station/pin-maps/*`, `references/station/compensation/*`, `references/devices/*` | move | `config/pinmaps/`, `config/station.example.yaml#corrections`, `config/duts/` | done WP1.1 |
 | `references/recipes/**` | rewrite to the recipe schema | `recipes/` (Id-Vg/Id-Vd values reused; FeFET write-read, flash, CGD C-V → `recipes/reserved/`) | done WP1.7 (`mosfet.idvd` validated in WP2.2) |
-| `references/{instruments,physics,hspice,debug}/` READMEs | fold | knowledge files 01/02/05/07 and skill `b1500-debug` | pending WP2.6, WP2.7 |
+| `references/{instruments,physics,hspice,debug}/` READMEs | fold | knowledge files 01/02/05/07 and skill `b1500-debug` | done WP2.6, WP2.7 (folders removed) |
 | `references/manuals/**`, `scripts/extract_manuals.py` | keep | unchanged | kept |
 | `tmp/*` (42 tracked design notes) | remove; `tmp/` gitignored | kept by the tag; the plan was promoted to `docs/design/blueprint.md` first | done WP0.1, WP0.5 |
 | `data/**` (tracked), `requirements.txt` | remove (untrack) | `data/` is the gitignored runtime dir; `pyproject.toml` + `uv.lock` are the single dependency source | done WP0.3, WP0.5 |

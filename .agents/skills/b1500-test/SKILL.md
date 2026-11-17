@@ -59,13 +59,13 @@ batch: vary only `dut_instance`. CLI: `uv run b1500 status|recipes|plan|run|runs
 
 | Intent keywords | Card | Recipe | Status |
 |---|---|---|---|
-| contact check, landing, resistance, open/short | `cards/contact-resistor-check.md` | `basic.contact_resistor` | sim_validated |
-| diode, Is, ideality, Rs, reverse leakage | `cards/diode-iv.md` | `basic.diode_iv` | sim_validated |
-| Vth, gm, SS, Ion/Ioff, Id-Vg | `cards/mosfet-idvg.md` | `mosfet.idvg` | sim_validated |
-| output, Id-Vd, Ron, gds, saturation | `cards/mosfet-idvd.md` | `mosfet.idvd` | sim_validated |
-| gate leakage, Ig, oxide | `cards/gate-leakage.md` | `mosfet.gate_leakage` | sim_validated |
-| FeFET, memory window, hysteresis | `cards/fefet-dual-sweep-mw.md` | `fefet.dual_sweep_mw` | sim_validated |
-| WGFMU, pulses, PUND, BTI, HCI, TDDB, C-V | `cards/reserved/README.md` | `recipes/reserved/` | not_implemented |
+| contact check, landing, resistance, open/short | [contact-resistor-check](cards/contact-resistor-check.md) | `basic.contact_resistor` | sim_validated |
+| diode, Is, ideality, Rs, reverse leakage | [diode-iv](cards/diode-iv.md) | `basic.diode_iv` | sim_validated |
+| Vth, gm, SS, Ion/Ioff, Id-Vg | [mosfet-idvg](cards/mosfet-idvg.md) | `mosfet.idvg` | sim_validated |
+| output, Id-Vd, Ron, gds, saturation | [mosfet-idvd](cards/mosfet-idvd.md) | `mosfet.idvd` | sim_validated |
+| gate leakage, Ig, oxide | [gate-leakage](cards/gate-leakage.md) | `mosfet.gate_leakage` | sim_validated |
+| FeFET, memory window, hysteresis | [fefet-dual-sweep-mw](cards/fefet-dual-sweep-mw.md) | `fefet.dual_sweep_mw` | sim_validated |
+| WGFMU, pulses, PUND, BTI, HCI, TDDB, C-V | [reserved](cards/reserved/README.md) | `recipes/reserved/` | not_implemented |
 
 `list_recipes` shows the effective status on the current backend and wins. Self-test and self-calibration:
 `system.self_test`, `system.self_cal` (always confirmed). No card fits: ask before using

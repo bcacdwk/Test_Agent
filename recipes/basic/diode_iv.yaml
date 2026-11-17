@@ -11,7 +11,7 @@ version: 1
 title: Diode I-V (reverse + forward staircase) - Is, n, Rs and leakage at Vr
 kind: smu_staircase
 status: sim_validated
-card: null
+card: .agents/skills/b1500-test/cards/diode-iv.md
 device_types: [diode]
 roles:
   anode:

@@ -40,7 +40,7 @@ Hardware access or FLEX text added to a recipe, a tool or an analysis function t
 | `transport/` | `Transport` protocol, `AuditingTransport`, `VisaTransport`, `make_transport` (never selects visa implicitly) | done (WP1.2; audit event model `models/audit.py`) |
 | `transport/sim/` | Deterministic FLEX state machine, output formatter, device models, fault injection, persisted state | done for the v1 subset and open/resistor/short/`mosfet_ekv` (WP1.2; schemas `models/sim.py`); diode/FeFET/damaged in M2 |
 | `driver/` | `commands.py` builders, `b1500.py` driver, `guard.py` `OutputGuard`, `parser.py`, `discovery.py`, `errors.py`, `modules.py` | parser status tables moved (M0); data parsing and the rest M1 |
-| `session/` | `InstrumentLock` (OS file lock), `Session`, `Transaction` (cleanup `AB → DZ → CL → verify`), `FaultLatch` | M1 |
+| `session/` | `InstrumentLock` (OS file lock), `Session`, `Transaction` (cleanup `AB → DZ → CL → verify`), `FaultLatch` | done (WP1.6; inflight recovery, daily audit sink, `RunHandle` protocol for the archive) |
 | `rules/` | Rule registry and engine, built-in rules, tiers, hard-limit code ceiling, `plan_summary` | done (WP1.4; rule table in [safety-model.md](safety-model.md)) |
 | `catalog/` | Recipe schema and registry, planner, executor, measurement kinds (`smu_staircase`, `system`, `unimplemented`; `smu_stepped` in M2) | M1 |
 | `archive/` | Run folders, manifest, `audit.jsonl`, `index.jsonl`, sha256 of every file | M1 |

@@ -23,7 +23,7 @@ from b1500_test_agent.models.common import (
 )
 from b1500_test_agent.models.plan import PlanId, PlanRecord, RulesReport
 from b1500_test_agent.models.recipe import RecipeId
-from b1500_test_agent.models.station import Identity, ModuleInventory
+from b1500_test_agent.models.station import Identity, InstrumentError, ModuleInventory
 
 Adapter = Literal["mcp", "cli"]
 RunOutcome = Literal[
@@ -62,12 +62,14 @@ class CleanupStep(StrictModel):
 
 class CleanupReport(StrictModel):
     """Result of a cleanup: the steps run, how the safe state was verified, per-channel output state afterwards
-    and whether the fault latch was set because verification failed."""
+    and whether the fault latch was set because verification failed. ``errors`` are the ``ERRX?`` entries drained
+    by the cleanup (WP1.6; ``FaultLatch.clear`` requires none)."""
 
     steps: list[CleanupStep]
     verified: CleanupVerification
     outputs_after: dict[int, str]
     latched_fault: bool
+    errors: list[InstrumentError] = Field(default_factory=list)
 
 
 class FaultRecord(StrictModel):

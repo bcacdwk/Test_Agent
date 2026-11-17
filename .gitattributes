@@ -1,0 +1,29 @@
+# Normalize text to LF in the repo and in working trees (macOS dev and Windows lab clones alike).
+* text=auto eol=lf
+
+# Windows-native scripts keep CRLF.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary formats: never diff or convert.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svgz binary
+*.xlsx binary
+*.xls binary
+*.docx binary
+*.pptx binary
+*.zip binary
+*.gz binary
+*.7z binary
+*.whl binary
+*.npy binary
+*.npz binary
+*.parquet binary
+*.h5 binary
+*.hdf5 binary

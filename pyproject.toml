@@ -5,39 +5,63 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "b1500-test-agent"
 version = "0.1.0"
-description = "Codex-oriented MCP, skill, rule, and Python framework for safe Keysight B1500A semiconductor testing."
+description = "Safety-gated Keysight B1500A measurement kernel with a 10-tool MCP server, CLI and agent skills."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.14"
 authors = [
   { name = "bcacdwk", email = "17078434@qq.com" }
 ]
 dependencies = [
-  "fastmcp",
+  "fastmcp>=4,<5",
+  "filelock",
   "matplotlib",
   "numpy",
   "pandas",
   "pydantic>=2",
   "pyvisa",
   "pyyaml",
-  "typer"
-]
-
-[project.optional-dependencies]
-dev = [
-  "pytest",
-  "ruff"
+  "typer",
 ]
 
 [project.scripts]
-b1500-test-agent = "b1500_test_agent.cli:app"
+b1500 = "b1500_test_agent.adapters.cli:main"
+b1500-mcp = "b1500_test_agent.adapters.cli:mcp_main"
+
+[dependency-groups]
+# `uv sync` installs the `dev` group by default.
+dev = [
+  "hypothesis",
+  "pytest",
+  "pyvisa-sim",
+  "ruff",
+  "tiktoken",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.ruff]
-line-length = 100
-target-version = "py310"
+line-length = 120
+target-version = "py311"
+# Legacy v0.2 code (fake 379-tool MCP server and its tests); removed in WP0.5, which also drops this list.
+# Never add new code here.
+extend-exclude = [
+  "src/b1500_test_agent/instruments",
+  "src/b1500_test_agent/mcp",
+  "tests/test_cd_flows.py",
+  "tests/test_d_flows.py",
+  "tests/test_skeleton.py",
+]
+
+[tool.ruff.lint]
+# Ruff's default rule set (pinned through uv.lock) plus line length.
+extend-select = ["E501"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = [
+  "hardware: needs a real B1500A over VISA; skipped unless B1500_HW=1 and backend visa (M4, owner present)",
+  "acceptance: M3 harness acceptance scenarios (Codex / Claude Code); run explicitly",
+]

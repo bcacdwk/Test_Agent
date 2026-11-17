@@ -5,26 +5,31 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.hypothesis/
 .venv/
 venv/
 dist/
 build/
 
-# Local and private configuration
+# Local and private configuration (human-owned; generated harness configs are machine-specific)
 .env
 .env.*
 *.local.yaml
 *.local.toml
 config/local.yaml
+config/local/
 .codex/config.toml
+.mcp.json
+.claude/settings.local.json
+
+# Runtime data (server-written run archive and state) and agent scratch
+data/
+work/
+
+# Design scratch (history lives in tag archive/v0.2-fake-mcp)
+tmp/
 
 # Measurement outputs
-data/raw/*
-data/processed/*
-data/reports/*
-!data/raw/.gitkeep
-!data/processed/.gitkeep
-!data/reports/.gitkeep
 *.parquet
 *.h5
 *.hdf5

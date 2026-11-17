@@ -18,15 +18,15 @@ fields `name, description, inputSchema, outputSchema, annotations` are serialize
 `tiktoken` `o200k_base`; the total is the sum over tools. Environment: fastmcp 4.2.0, tiktoken 0.14.0,
 CPython 3.12.7. The legacy server's `instructions` string is not part of the tool schemas and is listed separately.
 
-| Metric | v0.2 legacy (measured) | v1 target (blueprint §5.1–5.2) |
-|---|---|---|
-| Tools | **379** (282 atoms, 97 flows) | 10 (hard cap 20) |
-| Tool-schema tokens, `o200k_base` | **104,691** | target ≤ 3,500; test cap 4,500 |
-| Cross-check `ceil(chars / 4)` | 104,902 | — |
-| Serialized characters | 419,029 | — |
-| Largest tool | 3,678 (`CD_flow_analyze_iv_transfer`) | ≤ 700 per tool |
-| Mean / median per tool | 276 / 115 | — |
-| Server `instructions` | 1,304 chars (287 tokens) | ≤ 400 chars |
+| Metric | v0.2 legacy (measured) | v1 target (blueprint §5.1–5.2) | v1 measured (WP1.8) |
+|---|---|---|---|
+| Tools | **379** (282 atoms, 97 flows) | 10 (hard cap 20) | **10** |
+| Tool-schema tokens, `o200k_base` | **104,691** | target ≤ 3,500; test cap 4,500 | **1,474** (−98.6 %) |
+| Cross-check `ceil(chars / 4)` | 104,902 | — | 1,564 |
+| Serialized characters | 419,029 | — | 6,243 |
+| Largest tool | 3,678 (`CD_flow_analyze_iv_transfer`) | ≤ 700 per tool | 252 (`validate_plan`) |
+| Mean / median per tool | 276 / 115 | — | 147 / 142 |
+| Server `instructions` | 1,304 chars (287 tokens) | ≤ 400 chars | 354 chars (85 tokens) |
 
 Per family (tools / tokens): A atoms 82 / 7,229 · B atoms 59 / 5,817 · C atoms 99 / 13,032 · D atoms 42 / 34,543 ·
 A flows 20 / 2,512 · B flows 16 / 1,794 · C flows 31 / 14,636 · AB flows 19 / 2,978 · D flows 7 / 8,875 ·
@@ -61,7 +61,10 @@ uv run b1500 dev tool-budget --app b1500_test_agent.mcp.server:mcp
 This gave the same 104,691 tokens on `c1b1caa` (fastmcp 4.2.0); a later lock with another fastmcp version may
 shift the count slightly. Remove the worktree afterwards as above.
 
-The after-value (10-tool v1 server, same counter, `uv run b1500 dev tool-budget`) is recorded when WP1.8 lands.
+After-value (WP1.8, 2026-11-17): `uv run b1500 dev tool-budget` (default app
+`b1500_test_agent.adapters.mcp_server:create_server`, same counter and fields, fastmcp 4.2.0) → 10 tools, 1,474
+tokens. Generated output schemas are suppressed (blueprint §5.2); each description states the result shape and the
+server `instructions` name the fields every result shares. `tests/adapters/test_budget.py` keeps the caps.
 
 ## Path-by-path migration (blueprint §1)
 
@@ -70,7 +73,7 @@ until then the v0.2 file stays in place as source material.
 
 | v0.2 path | Action | v1 target | Status |
 |---|---|---|---|
-| `mcp/*` (21 files, 379 tools) | remove | `adapters/mcp_server.py` (10 tools); taxonomy extracted first | taxonomy WP0.4, removed WP0.5; server WP1.8 |
+| `mcp/*` (21 files, 379 tools) | remove | `adapters/mcp_server.py` (10 tools); taxonomy extracted first | done (taxonomy WP0.4, removed WP0.5, server WP1.8) |
 | `schemas/c_flow.py` | salvage, remove | `Integration`, `Ranging`, `SweepTiming`, `BiasChannel` → `models/measurement.py` (trimmed, no fake fields) | done WP0.5 |
 | `schemas/d_atom.py`, `schemas/d_flow.py` | salvage, remove | `Quantity`, `QuantityRange`, `TrustPolicy`, `DerivativeMethod`, `VthSpec`, `MethodRecord`, `Provenance`, `Criterion` → `models/analysis.py` | done WP0.5 |
 | `schemas/cd_flow.py`, `schemas/{measurement,policy,recipe,result,station}.py` | remove, rewrite | `models/*` | removed WP0.5; rewritten WP1.1 |
@@ -78,7 +81,7 @@ until then the v0.2 file stays in place as source material.
 | `instruments/b1500/{transport,session,safety,state_machine,discovery,calibration,flex_commands}.py` | rewrite | `transport/`, `session/`, `rules/`, `driver/` | removed WP0.5; WP1.2–1.6 |
 | `instruments/b1500/{modules,switching,recipes}/*` | remove | `recipes/reserved/*.yaml` (`not_implemented`) | removed WP0.5; reserved slots WP1.7 |
 | `instruments/b1500/AGENTS.md`, `analysis/AGENTS.md` | move, trim (≤30 lines) | `driver/AGENTS.md`, `analysis/AGENTS.md`, each with a one-line `CLAUDE.md` (`@AGENTS.md`) | done WP0.5 + WP0.6 |
-| `analysis/*.py`, `cli.py` | rewrite | `analysis/`, `adapters/cli.py` | removed WP0.5; CLI skeleton WP0.3; WP1.5, WP1.8 |
+| `analysis/*.py`, `cli.py` | rewrite | `analysis/`, `adapters/cli.py` | done (removed WP0.5; CLI skeleton WP0.3; analysis WP1.5; CLI WP1.8) |
 | `tests/test_parser_ascii.py` | keep, fix import | `tests/unit/test_parser.py` | done WP0.5 |
 | `tests/test_{c_flows,cd_flows,d_atoms,d_flows,skeleton}.py`, `tests/mock_b1500.py` | remove | new suites; the simulator replaces the mock | removed WP0.5; simulator WP1.2 |
 | v0.2 testing skill (`.agents/skills/<name>/**`, name listed by the tag) | rewrite | `.agents/skills/b1500-test/`; its `references/mcp-tools/*.md` → `references/driver-map/legacy-catalog/` | catalogs moved WP0.4; removed WP0.5; WP2.4 |

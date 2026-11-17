@@ -24,3 +24,5 @@ def world(tmp_path: Path) -> Iterator[World]:
     yield w
     for executor in w.executors:
         executor.close()
+    for service in w.services:
+        service.close()

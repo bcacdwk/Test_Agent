@@ -15,7 +15,7 @@ Milestone tags in parentheses say when a part arrives (see [roadmap](roadmap.md)
 | L3 Driver | FLEX builders, guarded `B1500Driver`, parser, discovery, error decoding, module specs | `driver/` (`parser.py` status tables exist; rest M1) |
 | L4 Measurement transaction | Lock, transaction with guaranteed cleanup, fault latch; recipes, kinds, planner, executor; run archive | `session/`, `catalog/`, `recipes/`, `archive/` (M1) |
 | L5 Analysis | Quality classification, extraction (Vth, SS, gm, ...), plots | `analysis/` (M1–M2) |
-| L6 MCP / CLI | Ten MCP tools and the `b1500` CLI over `B1500Service` | `service.py`, `adapters/{mcp_server,cli}.py` (M1) |
+| L6 MCP / CLI | Ten MCP tools and the `b1500` CLI over `B1500Service` | `service.py`, `adapters/{mcp_server,cli}.py` (WP1.8) |
 | L7 Skills + rules | Rule engine and tiers; human-owned limits; entry and debug skills | `rules/`, `config/*.example.yaml` → `config/local/`, `.agents/skills/` (M1–M2) |
 | L8 Agent | Codex CLI and Claude Code | `AGENTS.md`, `CLAUDE.md`, generated harness config (M1) |
 
@@ -39,15 +39,15 @@ Hardware access or FLEX text added to a recipe, a tool or an analysis function t
 | `config.py`, `paths.py`, `errors.py` | Config loading and resolution, repo-relative default paths, error types | done (WP1.1; `b1500 config check`) |
 | `transport/` | `Transport` protocol, `AuditingTransport`, `VisaTransport`, `make_transport` (never selects visa implicitly) | done (WP1.2; audit event model `models/audit.py`) |
 | `transport/sim/` | Deterministic FLEX state machine, output formatter, device models, fault injection, persisted state | done for the v1 subset and open/resistor/short/`mosfet_ekv` (WP1.2; schemas `models/sim.py`); diode/FeFET/damaged in M2 |
-| `driver/` | `commands.py` builders, `b1500.py` driver, `guard.py` `OutputGuard`, `parser.py`, `discovery.py`, `errors.py`, `modules.py` | parser status tables moved (M0); data parsing and the rest M1 |
+| `driver/` | `commands.py` builders, `b1500.py` driver, `guard.py` `OutputGuard`, `parser.py`, `discovery.py`, `errors.py`, `modules.py` | done for the staircase path (WP1.3: FMT 1/5 parser, discovery, `OutputGuard`, module specs) |
 | `session/` | `InstrumentLock` (OS file lock), `Session`, `Transaction` (cleanup `AB → DZ → CL → verify`), `FaultLatch` | done (WP1.6; inflight recovery, daily audit sink, `RunHandle` protocol for the archive) |
 | `rules/` | Rule registry and engine, built-in rules, tiers, hard-limit code ceiling, `plan_summary` | done (WP1.4; rule table in [safety-model.md](safety-model.md)) |
 | `catalog/` | Recipe schema and registry, planner, executor, measurement kinds (`smu_staircase`, `system`, `unimplemented`; `smu_stepped` in M2) | done (WP1.7; recipes `mosfet.idvg`, `generic.smu_staircase`, `system.*` sim-validated, `mosfet.idvd` draft, 13 reserved slots; `b1500 dev recipe-check`) |
 | `archive/` | Run folders, manifest, `audit.jsonl`, `index.jsonl`, sha256 of every file | done (WP1.7; raw blocks kept on failure, append-only notes) |
-| `analysis/` | `load_run`, `assess_quality`, extraction methods, plots, `ANALYSIS_METHODS` registry | M1–M2 |
-| `service.py` | `B1500Service`: one method per MCP tool; reloads changed config, audits every call, never raises to adapters | M1 |
-| `adapters/` | `mcp_server.py` (10 tools), `cli.py` (`b1500`, `b1500-mcp`) | CLI skeleton (M0), `config check` (WP1.1); M1 |
-| `devtools/` | `budget.py` (tool-schema token counter), sync-harness, lint-skills, recipe-check, mcp-smoke, acceptance runner | `budget.py` (M0), `recipe_check.py` (WP1.7); rest M1–M3 |
+| `analysis/` | `load_run`, `assess_quality`, extraction methods, plots, `ANALYSIS_METHODS` registry | M1 core done (WP1.5: `quality_report`, `vth_linear_extrapolation`); other methods M2 |
+| `service.py` | `B1500Service`: one method per MCP tool; reloads changed config, audits every call, never raises to adapters | done (WP1.8; result models in `models/results.py`, responses ≤2k tokens, human-only `B1500Admin` for `fault clear`/`lock status`) |
+| `adapters/` | `mcp_server.py` (10 tools), `cli.py` (`b1500`, `b1500-mcp`) | done (WP1.8: 10 tools at 1,469 tokens, `requiresUserInteraction` on `run_confirmed_plan`; all §5.3 operator commands, `fault clear`, `lock status`, `doctor`, `mcp`); `harness init` WP1.9 |
+| `devtools/` | `budget.py` (tool-schema token counter), `doctor.py`, `sim_console.py`, sync-harness, lint-skills, recipe-check, mcp-smoke, acceptance runner | `budget.py` (M0), `recipe_check.py` (WP1.7), `doctor.py` (non-probe) + `sim_console.py` (WP1.8); rest WP1.9–M3 |
 
 Outside the package: `recipes/` (registry source YAML), `config/` (examples, sim scenarios and faults, harness
 templates), `.agents/skills/` (canonical skills) with a generated copy in `.claude/skills/`, `references/manuals/`

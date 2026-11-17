@@ -3,8 +3,8 @@
 How the B1500A test agent decides what may run, who must confirm it, and what happens when something goes wrong.
 Source: blueprint §4 (rules, tiers, confirmation, residual risks), §2.4 (transaction and fault latch), §2.5 (rules
 API) and §3 (the simulator invariant). **Status:** the rules engine, the built-in rules, tiers and the plan summary
-are implemented (WP1.4, `src/b1500_test_agent/rules/`); the session, executor and tools that call them arrive in
-WP1.6–WP1.8.
+are implemented (WP1.4, `src/b1500_test_agent/rules/`), and so are the session and fault latch (WP1.6), the
+executor (WP1.7) and the service, MCP tools and CLI that call them (WP1.8); harness wiring follows in WP1.9.
 
 ## Principles
 

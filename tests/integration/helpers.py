@@ -23,7 +23,8 @@ from b1500_test_agent.config import ConfigLoader
 from b1500_test_agent.models.audit import TRANSPORT_EVENTS, AuditEvent
 from b1500_test_agent.models.plan import PlanRecord, PlanRequest
 from b1500_test_agent.models.run import ClientInfo, RunSummary
-from b1500_test_agent.paths import ENV_CONFIG_DIR, ENV_DATA_DIR, Paths
+from b1500_test_agent.paths import ENV_CONFIG_DIR, ENV_DATA_DIR, ENV_HOME, Paths
+from b1500_test_agent.service import B1500Service
 from b1500_test_agent.transport.sim.state import CommandRecord, load_state_file, sim_state_file
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -50,6 +51,7 @@ class World:
     recipes: Path
     clock: Clock
     executors: list[Executor] = field(default_factory=list)
+    services: list[B1500Service] = field(default_factory=list)
 
     @property
     def paths(self) -> Paths:
@@ -70,6 +72,21 @@ class World:
         executor = Executor(ConfigLoader(self.paths), registry=registry, **kwargs)
         self.executors.append(executor)
         return executor
+
+    def service(self, **kwargs: Any) -> B1500Service:
+        """A ``B1500Service`` over this world (adapter ``cli`` unless given); closed by the fixture."""
+        kwargs.setdefault("registry", RecipeRegistry.load(self.recipes, repo_root=REPO_ROOT))
+        kwargs.setdefault("clock", self.clock)
+        service = B1500Service(paths=self.paths, **kwargs)
+        self.services.append(service)
+        return service
+
+    def env(self) -> dict[str, str]:
+        """``B1500_HOME``/``B1500_CONFIG_DIR``/``B1500_DATA_DIR`` for a CLI process in this world; copies
+        ``recipes/`` into the temporary root first (the CLI loads recipes from ``$B1500_HOME/recipes``)."""
+        if not (self.root / "recipes").exists():
+            shutil.copytree(REPO_ROOT / "recipes", self.root / "recipes")
+        return {ENV_HOME: str(self.root), ENV_CONFIG_DIR: str(self.cfg), ENV_DATA_DIR: str(self.data)}
 
     def write_config(self, rel: str, data: Any) -> Path:
         """A YAML file in the temporary ``B1500_CONFIG_DIR`` (e.g. ``duts/nmos-generic.yaml``)."""

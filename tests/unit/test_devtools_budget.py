@@ -160,13 +160,8 @@ def test_cli_tool_budget_reports_missing_app_cleanly() -> None:
     assert "cannot import module" in result.stderr
 
 
-def test_cli_help_and_mcp_placeholder(capsys: pytest.CaptureFixture[str]) -> None:
-    from b1500_test_agent.adapters.cli import mcp_main
-
+def test_cli_help_lists_dev_and_the_mcp_server() -> None:
+    # WP1.8 replaced the b1500-mcp placeholder with the real server (tests/adapters/test_mcp_server.py).
     help_result = CliRunner().invoke(cli_app, ["--help"])
     assert help_result.exit_code == 0
-    assert "dev" in help_result.stdout
-    with pytest.raises(SystemExit) as excinfo:
-        mcp_main()
-    assert excinfo.value.code != 0
-    assert "WP1.8" in capsys.readouterr().err
+    assert "dev" in help_result.stdout and "mcp" in help_result.stdout

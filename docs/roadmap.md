@@ -71,8 +71,9 @@ iteration until safety scenarios pass 3/3 and functional scenarios pass on both 
 - [`docs/hardware-bringup.md`](hardware-bringup.md) (written, WP4.1): staged bring-up with sign-off lines: physical
   checks, read-only probing, 0 V open circuit, known resistors, known diode, known-good MOSFET compared with
   EasyEXPERT; recipes are promoted to `hw_validated` only with a validation record.
-- `docs/deployment-windows.md`: lab PC setup (Python + uv, VISA + GPIB adapter, `git clone`, `uv sync --frozen`,
-  `config/local/`, `b1500 doctor --probe`, `b1500 harness init`), residual risks in plain words, facts to collect.
+- [`docs/deployment-windows.md`](deployment-windows.md) (written, WP4.2): lab PC setup (Python + uv, VISA + GPIB
+  adapter, `git clone`, `uv sync --frozen`, `config/local/`, `b1500 doctor --probe`, `b1500 harness init`),
+  residual risks in plain words, facts to collect.
 
 ## Later (reserved, not scheduled)
 

@@ -22,7 +22,8 @@ from b1500_test_agent.adapters.cli import app
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BRINGUP = REPO_ROOT / "docs" / "hardware-bringup.md"
-DOCS = (BRINGUP,)
+DEPLOYMENT = REPO_ROOT / "docs" / "deployment-windows.md"
+DOCS = (BRINGUP, DEPLOYMENT)
 
 CODE_SPAN = re.compile(r"`([^`\n]+)`")
 COMMAND_START = re.compile(r"(?:^|(?<=[\s(]))b1500(?=\s|$)")
@@ -204,3 +205,55 @@ def test_bringup_attaches_each_atv_with_its_fallback() -> None:
         for atv in atvs:
             assert re.search(rf"{atv}(?!\d)", body), f"{stage}: {atv} missing"
             assert "allback" in body[body.index(atv):], f"{stage}: no fallback after {atv}"
+
+
+# -- deployment-windows.md (WP4.2) ----------------------------------------------------------------------------------
+
+REQUIRED_FACTS = ("GPIB adapter", "VISA vendor", "Internet", "wheelhouse", "EasyEXPERT", "versions", "Backup")
+PROCEDURE_ORDER = (  # blueprint 7: Python + uv + VISA -> clone -> sync -> config/local -> probe -> harness -> Codex
+    "uv python install", "VISA stack", "git clone", "uv sync --frozen", "Copy-Item config\\settings.example.yaml",
+    "b1500 doctor --probe", "b1500 harness init --codex", "```powershell\ncodex\n```",
+)
+DEPLOYMENT_ATVS = ("ATV-4", "ATV-7", "ATV-8", "ATV-11")
+
+
+def deployment_sections() -> dict[str, str]:
+    return sections(DEPLOYMENT.read_text(encoding="utf-8"), 2)
+
+
+def table_rows(body: str) -> list[list[str]]:
+    rows = [line.strip().strip("|").split("|") for line in body.splitlines() if line.startswith("|")]
+    return [[cell.strip() for cell in row] for row in rows if not set("".join(row)) <= set("-: ")]
+
+
+def test_deployment_facts_each_have_a_default() -> None:
+    facts = next(body for heading, body in deployment_sections().items() if heading.startswith("Facts to collect"))
+    header, *rows = table_rows(facts)
+    column = header.index("Default if unknown")
+    assert rows, "no facts listed"
+    for row in rows:
+        assert len(row) == len(header) and row[column], f"fact without a default: {row[0]}"
+    for fact in REQUIRED_FACTS:
+        assert any(fact in row[0] for row in rows), f"fact missing: {fact}"
+
+
+def test_deployment_procedure_is_ordered() -> None:
+    procedure = deployment_sections()["Procedure"]
+    steps = [int(n) for n in re.findall(r"^### Step (\d+) ", procedure, re.MULTILINE)]
+    assert steps == list(range(1, len(steps) + 1)) and len(steps) >= 7
+    positions = [procedure.find(marker) for marker in PROCEDURE_ORDER]
+    assert all(position >= 0 for position in positions), dict(zip(PROCEDURE_ORDER, positions, strict=True))
+    assert positions == sorted(positions), dict(zip(PROCEDURE_ORDER, positions, strict=True))
+
+
+def test_deployment_checks_sandbox_risks_and_one_hardening_note() -> None:
+    text = DEPLOYMENT.read_text(encoding="utf-8")
+    headings = list(deployment_sections())
+    assert "codex doctor --summary" in text and "workspace-write" in text and "danger-full-access" in text
+    assert "--yolo" in text and "approve the project MCP server `b1500` once" in text.replace("**", "")
+    assert any(h.startswith("Residual risks") for h in headings)
+    hardening = [h for h in headings if h.startswith("Optional future hardening")]
+    assert len(hardening) == 1 and "administrator-managed" in deployment_sections()[hardening[0]]
+    for atv in DEPLOYMENT_ATVS:
+        assert re.search(rf"{atv}(?!\d)", text), f"{atv} missing"
+        assert "allback" in text[text.index(atv):], f"no fallback after {atv}"

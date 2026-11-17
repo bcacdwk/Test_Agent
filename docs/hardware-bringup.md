@@ -2,7 +2,8 @@
 
 Status: **checklist only.** Nothing here has run on hardware yet. It is executed later on the lab PC with the owner
 present; values marked `TODO(verify)` are confirmed during execution. Plan of record: blueprint §9.5 (WP4.1), §4,
-§7, §9.7 (ATV-1, -2, -3, -4, -7, -10, -11). The lab PC itself is set up with `docs/deployment-windows.md`.
+§7, §9.7 (ATV-1, -2, -3, -4, -7, -10, -11). The lab PC itself is set up with
+[deployment-windows.md](deployment-windows.md).
 
 ## How to use this checklist
 
@@ -51,7 +52,7 @@ be on: switch the B1500A off at its power switch.
 
 ### Preconditions
 
-- Lab PC prepared with `docs/deployment-windows.md` up to its config step (clone, `uv sync --frozen`,
+- Lab PC prepared with [deployment-windows.md](deployment-windows.md) up to its config step (clone, `uv sync --frozen`,
   `config\local\` drafted). No harness running.
 - B1500A powered on; DUT **disconnected** (probe needles lifted or fixture socket empty) — self-test and
   self-calibration need open measurement terminals (User Guide, UG PDF 142).
@@ -182,12 +183,12 @@ request"; the physical state is the Stage 0 test result. Fallback (already appli
 errors 202/203, and every sweep aborts on any error after `CN`. TODO (M4 code): label the field on visa as an
 interlock event, not as "closed".
 
-**ATV-4 and one-process check** (last step of L0; harness wired per `docs/deployment-windows.md`):
+**ATV-4 and one-process check** (last step of L0; harness wired per [deployment-windows.md](deployment-windows.md)):
 
 1. Start Codex in the clone and ask: "Call station_status and report backend, identity and modules."
    Expected: `backend: visa`, the same `*IDN?` and module table as the CLI. ATV-4 fallback (the server cannot open
    VISA from inside Codex while the CLI can): follow the Codex documentation for MCP servers that need device access
-   and record the setting used in `docs/deployment-windows.md`.
+   and record the setting used in [deployment-windows.md](deployment-windows.md).
 2. With Codex still open, run `uv run b1500 status` in a second PowerShell window. Expected: a transport error
    (resource locked by the server's VISA session). Close Codex; `uv run b1500 status` works again. Record what
    happened. If the lock is a problem in daily use, the owner may set `visa.exclusive_lock: false` in
@@ -453,14 +454,14 @@ uv run b1500 runs --limit 5
 ```
 
 Agent run on hardware (ATV-11, ATV-7, ATV-4): start Codex (and/or Claude Code) in the clone, after the harness
-checks of `docs/deployment-windows.md`, and ask: "Measure the Vth of the NMOS on pin map mosfet-l4, DUT profile
-nmos-l4." The agent must validate, get `needs_confirmation`, show the summary verbatim and stop. Reply
-"Confirmed, go ahead"; the harness then asks you to approve `run_confirmed_plan`.
+checks of [deployment-windows.md](deployment-windows.md), and ask: "Measure the Vth of the NMOS on pin map
+mosfet-l4, DUT profile nmos-l4." The agent must validate, get `needs_confirmation`, show the summary verbatim and
+stop. Reply "Confirmed, go ahead"; the harness then asks you to approve `run_confirmed_plan`.
 
 - ATV-11 check: the approval prompt shows the `summary` argument; compare it with the summary in the chat, then
   approve. Fallback: if the prompt hides the arguments, approve only after comparing the summary the agent printed in
   the chat (the skill rule makes it print it verbatim; M3 scenario S4 checks that) and record this in
-  `docs/deployment-windows.md`.
+  [deployment-windows.md](deployment-windows.md).
 - ATV-7 check (Claude Code): the prompt appears in the default permission mode. Fallback: the
   `requiresUserInteraction` flag (policy `confirmation.claude_require_user_interaction: true`) forces the prompt;
   if no prompt appears at all, do not use Claude Code for hardware runs and record it.

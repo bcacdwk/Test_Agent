@@ -1,0 +1,146 @@
+---
+domain: 03-probe-station-wiring
+maturity: seed
+sources:
+  - deck slide 12 (domain 3 seed)
+  - deck slide 2 (layer 1 physical safety)
+  - deck text PPT_slides_content.md (domain 3 page; contact resistance below 1 ohm)
+  - "B1500A User's Guide Ed. 17 (UG), PDF pages cited inline"
+  - "B1500A Configuration and Connection Guide (CCG), PDF pages cited inline"
+  - config/station.example.yaml (topology fields)
+last_reviewed: null
+---
+
+# Probe station and wiring (knowledge domain 3)
+
+Seeded from deck slide 12, which itself notes that probe-station details still need the prober vendor's manual.
+All physical work (landing, cabling, shield box, interlock) is done by the human. The agent explains, asks, and
+uses safe software checks; it never claims a physical state it cannot observe. The station's real cabling is
+recorded by a human in the station profile (`topology`); `station_status` shows it, `null` means unknown.
+
+## Signal path from SMU to pad
+
+- SMU force (and sense) -> triaxial cable -> connector plate on the shield box or prober -> manipulator or probe
+  card -> probe needle -> DUT pad (deck slide 12).
+- Standard cable lengths are 1.5 m or 3 m (CCG PDF 12-14); 0.4, 0.8 and 4 m triaxial cables exist too (CCG PDF 44).
+  Longer cables add capacitance (slower settling, displacement current in sweeps) and more insulation leakage. The
+  deck recommends 1.5 m and at most 3 m `TODO(verify)` against the specification for low-current ranges.
+- Every interface (connector plate, manipulator coax, probe tip) can add leakage and noise; the weakest link sets
+  the noise floor, so measure the floor of the actual path (see contact checks).
+
+## Triaxial cables and terminals
+
+- SMU terminals: Force, Sense, Guard, Circuit Common. Force, Guard and Sense normally sit at the same potential
+  (UG PDF 9).
+- Triaxial cable: centre conductor = signal, inner shield = guard (driven to the signal potential, so no leakage
+  flows through the insulation), outer shield = circuit common (CCG PDF 44).
+- BNC (coaxial) cables are not suitable below about nA level; use triaxial cables for low current (CCG PDF 44); the
+  16494A triaxial cable in a low-noise environment maximises the guard effect (CCG PDF 46).
+- GNDU: use the 16493L GNDU cable (4.2 A); an ordinary triaxial cable is rated 1 A (UG PDF 93, CCG PDF 46).
+- Never connect Guard to anything: not to an output, circuit common, chassis or another guard. Doing so damages the
+  SMU (UG PDF 93, CCG PDF 77). Guard carries the output voltage: do not touch it.
+
+## Guard for low current
+
+Seeded from deck slide 12 (guard driven to the signal potential; required for pA-level currents).
+
+- A unity-gain buffer keeps the guard at the force potential, so no current flows between force and guard and the
+  current measured equals the current at the DUT terminal (CCG PDF 76-77).
+- Extend the guard (outer conductor of the probe coax) as close to the needle as possible; never connect it to the
+  needle or the DUT (UG PDF 9, CCG PDF 76). This also reduces induced noise.
+- Needed whenever the current of interest is in the pA range: gate leakage, Ioff, subthreshold region, reverse
+  diode leakage, open-circuit floor checks. Without guarding, cable and fixture leakage adds to the reading and
+  rises with the applied voltage (it looks like a resistive leak, I proportional to V).
+- Low-current points also need settling time: charging the cable and fixture capacitance through a small current
+  range is slow, so short integration or short delays show up as drift, `X` statuses or a sweep-direction offset.
+
+## Kelvin four-wire connection
+
+Seeded from deck slide 12 (separate force and sense; cancels cable and contact resistance).
+
+- Force and Sense lines run separately to the DUT and meet at the pad (or as close to it as possible); the SMU
+  regulates the voltage at the sense point, so the drop across cables, probes and contacts is excluded
+  (CCG PDF 78-79, UG PDF 94). Sense-line residual resistance up to about 10 ohm does not matter (CCG PDF 79).
+- Use it for low-resistance and high-current measurements (milliohm to ohm level, deck slide 12).
+- Non-Kelvin (two-wire): connect Force only and leave Sense open (UG PDF 9, 94). The reading then includes leads
+  and contacts, typically ohms in total, so a two-wire R below about 10 ohm says more about the contacts than the
+  DUT `TODO(verify)` with this station's probes.
+- v1 pin maps bind one channel per terminal and v1 recipes are two-wire; Kelvin wiring is recorded in the station
+  profile (`topology.kelvin`, per-cable `kelvin`) for later recipes.
+
+## ASU and the 1 pA range
+
+Seeded from deck slide 12.
+
+- E5288A ASU (atto sense and switch unit): enables the 1 pA range of HRSMU or B1511B MPSMU and switches the DUT
+  terminal between the SMU and an AUX input (UG PDF 44-45, 98). With an ASU all SMU measurements are Kelvin; the
+  sense information returns over the ASU's D-sub cable (CCG PDF 81).
+- Connect or disconnect the ASU only with the instrument off (UG PDF 57, 98). The ASU must stay with the SMU it
+  was calibrated with (UG PDF 98).
+- Commands: `SAP` path, `SAR` 1 pA auto range (PG PDF 505-506); after reset the path is SMU side and 1 pA auto
+  ranging is disabled (PG Table 2-13, PDF 180). v1 does not drive the ASU; `topology.switching.asu` records it.
+
+## SCUU GSWU and the 16440A selector
+
+- N1301A-100 SCUU (SMU CMU unify unit): switches the DUT between the MFCMU and one of two HRSMU/MPSMU, so I-V and
+  C-V run on the same pads without re-probing (deck slide 12; UG PDF 45, 103). With SMUs its outputs behave like
+  Kelvin SMU outputs; for C-V only the force outputs are used (CCG PDF 80).
+- N1301A-200 GSWU (guard switch unit): joins the CMU high and low guards near the DUT for accurate impedance
+  measurements; it opens while the SCUU is in SMU state (UG PDF 103).
+- 16440A SMU/PGU selector (with the 16445A adapter): switches a DUT terminal between an SMU and an SPGU channel,
+  used for pulse program plus SMU read (UG PDF 44-45). Reserved recipe `spgu.program_smu_read`.
+- SCUU path command `SSP` (PG PDF 519); initial path open (PG PDF 180). C-V and selector work is reserved in v1.
+
+## Shielding grounding and interlock
+
+Seeded from deck slide 12 (shield box tied to the instrument chassis; GNDU reference sinks up to 4.2 A) and deck
+slide 2 (layer 1: interlock, shield box, grounding, cables).
+
+- Put the DUT in a closed, dark shield box connected to the B1500A chassis or circuit common. Light causes
+  photocurrent in semiconductors (oxide TFTs and photodiodes especially); an open lid also lets in mains pickup.
+- One ground reference: the GNDU and circuit common; avoid ground loops through the prober chuck, microscope lamp
+  supply or other instruments. A floating chuck or a chuck tied to a noisy ground shows up as mains-frequency noise.
+- Vibration and air flow move probes and cables (triboelectric currents); let the setup settle after touching it.
+- Interlock: the shield box door switch must open the B1500A Interlock terminal; while it is open SMU output is
+  limited to ±42 V (UG PDF 55). Check the interlock function daily (UG PDF 142). v1 stays at or below 42 V, and
+  whether the station's interlock is wired is recorded as `interlock.available` (unknown until bring-up).
+
+## Probe contact and overdrive
+
+Seeded from deck slide 12 and the deck text.
+
+- Overdrive (travel after first touch) too small: high, unstable contact resistance through pad oxide or
+  contamination; too large: pad damage, probe skating off the pad, damage to underlying layers or nearby tracks.
+- Good probe-to-pad contact on metal pads is typically below about 1 ohm (deck text) `TODO(verify)` for this
+  station's tips and pad metal. Aluminium pads carry a native oxide that a light scrub breaks.
+- A probe touching a neighbouring track or pad gives currents orders of magnitude too high (deck slide 17 case);
+  re-landing and a fresh contact check are the first response, never higher voltage or compliance.
+- Every fresh landing gets a contact check before the real measurement (skill workflow, card
+  `contact-resistor-check`).
+
+## Contact checks
+
+What the contact check is for and how to read it. The method that classifies the result is the `resistance`
+analysis ([06](06-analysis-extraction.md#resistance-fit)); the physics of contact versus bulk is in
+[01](01-device-physics.md#resistor-contact-versus-bulk-resistance).
+
+- Contact (resistor) check: a small ±0.1 V staircase between two terminals of a known structure (resistor, the
+  two ends of a metal line, or two probes on one pad). Outputs: R, linearity, offset, and a class open / short /
+  in-range against the expected value from the DUT profile.
+- Open: current at the noise floor (for example below 10 pA at 0.1 V means more than about 10 Gohm): probe not
+  down, wrong pad, broken track, or wrong pin map.
+- Short: R far below the expected value: probes touching each other, a shorted structure, or the wrong pads.
+- Non-linear or asymmetric: oxide or barrier at one contact; repeat the landing before trusting the DUT.
+- Offset at 0 V: leakage from another biased channel, thermoelectric voltage, or a charging cable.
+- Open-circuit floor check: with the probes lifted, a 0 V or low-voltage measurement shows the noise and leakage
+  floor of the path; compare it with the smallest current the measurement must resolve.
+- These are safe software checks the agent may propose; physical actions (re-landing, cleaning tips, closing the
+  box, checking guard) are requests to the human. Triage order and symptoms: skill `b1500-debug`.
+
+## Station topology records
+
+- `config/local/station.yaml` (human-owned, gitignored; the agent never edits it) records `topology`: `shield_box`,
+  `guard`, `kelvin`, per-module `cables` (cable type, `length_m`, guard, kelvin) and `switching` (`asu`, `scuu`,
+  `selector_16440a`), plus `interlock.available`. `null` means nobody has checked.
+- When a measurement depends on an unknown wiring fact (guarded low-current path, Kelvin sense), say so in the
+  report's assumptions and ask the human to confirm or record it.

@@ -114,15 +114,15 @@ Assumptions, next steps: <...>
 
 ## 8. Knowledge map
 
-Load only the sections a card links (index: `knowledge/README.md`).
+Load only the sections a card links ([index](knowledge/README.md)).
 
-- `knowledge/01-device-physics.md`: resistor, diode, MOSFET (Vth, gm, SS), MOS-C
-- `knowledge/02-b1500-instrument.md`: modules, channels, modes, status codes
-- `knowledge/03-probe-station-wiring.md`: triax, guard, Kelvin, shielding, contact checks
-- `knowledge/04-ferroelectric-oxide.md`: FeFET memory window, PUND, IGZO TFTs
-- `knowledge/05-reliability-defects.md`: BTI, HCI, TDDB, trapping (reserved)
-- `knowledge/06-analysis-extraction.md`: Vth, SS, gm, Ion/Ioff, MW as the code computes them
-- `knowledge/07-hspice-simulation.md`: reserved HSPICE comparison
+- [01](knowledge/01-device-physics.md): resistor, diode, MOSFET (Vth, gm, SS), MOS-C
+- [02](knowledge/02-b1500-instrument.md): modules, channels, modes, status codes, integration
+- [03](knowledge/03-probe-station-wiring.md): triax, guard, Kelvin, shielding, contact checks
+- [04](knowledge/04-ferroelectric-oxide.md): FeFET memory window, PUND, IGZO TFTs
+- [05](knowledge/05-reliability-defects.md): gate leakage envelope; BTI, HCI, TDDB (reserved)
+- [06](knowledge/06-analysis-extraction.md): Vth, SS, gm, Ion/Ioff, MW as the code computes them
+- [07](knowledge/07-hspice-simulation.md): reserved HSPICE comparison
 - Skill `b1500-debug` (domain 08): noisy, impossible, compliance-limited or drifting data; faults; VISA errors
 
 ## 9. Ad-hoc analysis

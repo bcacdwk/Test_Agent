@@ -11,7 +11,9 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
+from pydantic import Field, JsonValue, model_validator
+
+from b1500_test_agent.models.common import StrictModel
 
 Unit = Literal[
     "V", "A", "s", "Hz", "F", "S", "Ohm", "H", "rad", "deg", "1",
@@ -41,17 +43,11 @@ RunId = Annotated[str, Field(pattern=r"^[SH]\d{8}T\d{6}Z-[0-9a-f]{4}$")]
 PositiveFloat = Annotated[float, Field(gt=0)]
 
 
-class _AnalysisModel(BaseModel):
-    """Strict, immutable base: unknown fields, non-finite numbers and post-construction edits are rejected."""
-
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False, validate_default=True, frozen=True)
-
-
 def _is_number(value: object) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool)
 
 
-class Quantity(_AnalysisModel):
+class Quantity(StrictModel):
     """A value with its unit: a resolved plan parameter, a criterion limit or a reported number.
 
     ``unit`` is ``None`` for values without a physical unit (counts, enum choices, flags); a value with a unit is
@@ -85,7 +81,7 @@ class Quantity(_AnalysisModel):
         return float(value)
 
 
-class QuantityRange(_AnalysisModel):
+class QuantityRange(StrictModel):
     """A closed window ``[low, high]`` in one unit, e.g. the gate-voltage fit window of an extraction."""
 
     low: float
@@ -103,7 +99,7 @@ class QuantityRange(_AnalysisModel):
         return self.low <= value <= self.high
 
 
-class TrustPolicy(_AnalysisModel):
+class TrustPolicy(StrictModel):
     """Which per-point status letters make a point ``limited`` or ``untrusted``.
 
     Field names match the recipe ``quality`` block. ``N`` is always ``ok``; every other Table 1-10 letter must be in
@@ -142,7 +138,7 @@ class TrustPolicy(_AnalysisModel):
         return "untrusted"
 
 
-class DerivativeMethod(_AnalysisModel):
+class DerivativeMethod(StrictModel):
     """Declared numerical derivative (e.g. for gm); no smoothing beyond the declared window."""
 
     name: Literal["central_difference", "savitzky_golay"]
@@ -161,7 +157,7 @@ class DerivativeMethod(_AnalysisModel):
         return self
 
 
-class VthSpec(_AnalysisModel):
+class VthSpec(StrictModel):
     """Declared threshold-voltage method, e.g. for ``memory_window(vth_method)``.
 
     ``vth_constant_current`` needs the critical current ``i_crit_a`` (A) and optionally ``w_over_l`` to scale it
@@ -182,7 +178,7 @@ class VthSpec(_AnalysisModel):
         return self
 
 
-class MethodRecord(_AnalysisModel):
+class MethodRecord(StrictModel):
     """Which method produced a derived value: name, version and the exact options used.
 
     ``script`` is the repo-relative path of an ad-hoc agent script under ``work/`` when the value did not come from
@@ -195,7 +191,7 @@ class MethodRecord(_AnalysisModel):
     script: str | None = None
 
 
-class Provenance(_AnalysisModel):
+class Provenance(StrictModel):
     """Where a recipe's defaults and ranges come from, and which archived runs validated it.
 
     Example: ``{sources: ["deck slide 6", "Programming Guide WV/FMT pages"], validation_runs: []}``.
@@ -205,7 +201,7 @@ class Provenance(_AnalysisModel):
     validation_runs: list[RunId] = Field(default_factory=list)
 
 
-class Criterion(_AnalysisModel):
+class Criterion(StrictModel):
     """One acceptance criterion on an extracted quantity, e.g. ``vth within 0.3 V .. 0.7 V``.
 
     ``quantity`` names the ``ExtractionResult.quantity`` it applies to. Limits are exact numeric scalars with a unit;
@@ -244,3 +240,40 @@ class Criterion(_AnalysisModel):
             return value >= low
         assert self.limit_high is not None
         return low <= value <= self.limit_high.as_float()
+
+
+class QualityReport(StrictModel):
+    """Post-run data-quality classification (blueprint 2.8 ``assess_quality``, rule R-QUAL-*; ``quality.json``).
+
+    ``counts`` maps each status letter seen (unknown codes included verbatim) to its number of points; ``fractions``
+    gives the share of points per trust level; ``noise`` holds named noise estimates (e.g. per data column, in the
+    column's unit); ``verdict`` is the overall trust level. WP1.5 may add fields.
+    """
+
+    counts: dict[str, Annotated[int, Field(ge=0)]]
+    fractions: dict[TrustLevel, Annotated[float, Field(ge=0, le=1)]]
+    noise: dict[str, float] = Field(default_factory=dict)
+    verdict: TrustLevel
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ExtractionResult(StrictModel):
+    """One derived value from an analysis method (blueprint 2.8); always ``derived``, never a measured value.
+
+    ``window`` is the fit window (``None`` when the method has none); ``points_excluded`` counts excluded points by
+    reason (e.g. status letter or ``outside_window``); ``fit`` holds named fit outputs (slope, intercept, r2 ...).
+    ``forced_on_untrusted`` flags a value extracted from untrusted data on explicit request (``options.force``).
+    """
+
+    method: Identifier
+    quantity: Identifier
+    value: float | None
+    unit: Unit
+    derived: Literal[True] = True
+    method_record: MethodRecord
+    window: QuantityRange | None
+    points_used: Annotated[int, Field(ge=0)]
+    points_excluded: dict[str, Annotated[int, Field(ge=0)]]
+    fit: dict[str, float]
+    warnings: list[str]
+    forced_on_untrusted: bool = False

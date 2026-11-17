@@ -13,7 +13,9 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, Field, model_validator
+
+from b1500_test_agent.models.common import StrictModel
 
 CHANNEL_NUMBERS: frozenset[int] = frozenset(
     [*range(1, 11), *(slot * 100 + sub for slot in range(1, 11) for sub in (1, 2))]
@@ -53,13 +55,7 @@ _AIT_N_MAX: dict[tuple[str, str], int] = {
 """Upper bound of ``AIT`` coefficient N per ADC type and mode (PG Table 4-21, PDF 358-359); the lower bound is 1."""
 
 
-class _MeasurementModel(BaseModel):
-    """Strict, immutable base: unknown fields, non-finite numbers and post-construction edits are rejected."""
-
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False, validate_default=True, frozen=True)
-
-
-class Integration(_MeasurementModel):
+class Integration(StrictModel):
     """SMU A/D converter type and integration setting, as sent by ``AAD`` and ``AIT`` (PG PDF 351, 356-359).
 
     ``n`` is the ``AIT`` coefficient: the averaging-sample factor for the high-speed ADC, the integration-time factor
@@ -80,7 +76,7 @@ class Integration(_MeasurementModel):
         return self
 
 
-class Ranging(_MeasurementModel):
+class Ranging(StrictModel):
     """Measurement ranging of one SMU channel, as sent by ``RI``/``RV`` (PG Table 4-3, PDF 337; RI PDF 501, RV PDF 503).
 
     ``range_value`` is the range in A (``quantity="I"``) or V (``"V"``): the fixed range, or the lowest range used by
@@ -101,7 +97,7 @@ class Ranging(_MeasurementModel):
         return self
 
 
-class SweepTiming(_MeasurementModel):
+class SweepTiming(StrictModel):
     """Staircase-sweep timing, as sent by ``WT hold,delay[,Sdelay[,Tdelay[,Mdelay]]]`` (PG PDF 564-565).
 
     All values in seconds; unset parameters are 0 on the instrument. WT is not effective for pulsed measurements.
@@ -120,7 +116,7 @@ class SweepTiming(_MeasurementModel):
         return self
 
 
-class BiasChannel(_MeasurementModel):
+class BiasChannel(StrictModel):
     """One constant DC bias held during a sweep, as sent by ``DV``/``DI`` (PG PDF 396, 391).
 
     ``level`` is in V for a voltage source and in A for a current source; ``compliance`` is the other quantity

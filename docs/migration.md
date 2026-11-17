@@ -73,7 +73,7 @@ until then the v0.2 file stays in place as source material.
 | `mcp/*` (21 files, 379 tools) | remove | `adapters/mcp_server.py` (10 tools); taxonomy extracted first | taxonomy WP0.4, removed WP0.5; server WP1.8 |
 | `schemas/c_flow.py` | salvage, remove | `Integration`, `Ranging`, `SweepTiming`, `BiasChannel` → `models/measurement.py` (trimmed, no fake fields) | done WP0.5 |
 | `schemas/d_atom.py`, `schemas/d_flow.py` | salvage, remove | `Quantity`, `QuantityRange`, `TrustPolicy`, `DerivativeMethod`, `VthSpec`, `MethodRecord`, `Provenance`, `Criterion` → `models/analysis.py` | done WP0.5 |
-| `schemas/cd_flow.py`, `schemas/{measurement,policy,recipe,result,station}.py` | remove, rewrite | `models/*` | removed WP0.5; rewrite WP1.1 |
+| `schemas/cd_flow.py`, `schemas/{measurement,policy,recipe,result,station}.py` | remove, rewrite | `models/*` | removed WP0.5; rewritten WP1.1 |
 | `instruments/b1500/parser_ascii.py` | move, finish | `driver/parser.py` with `parse_fmt1`/`parse_fmt5` | moved WP0.5; finish WP1.3 |
 | `instruments/b1500/{transport,session,safety,state_machine,discovery,calibration,flex_commands}.py` | rewrite | `transport/`, `session/`, `rules/`, `driver/` | removed WP0.5; WP1.2–1.6 |
 | `instruments/b1500/{modules,switching,recipes}/*` | remove | `recipes/reserved/*.yaml` (`not_implemented`) | removed WP0.5; WP1.7 |
@@ -83,9 +83,9 @@ until then the v0.2 file stays in place as source material.
 | `tests/test_{c_flows,cd_flows,d_atoms,d_flows,skeleton}.py`, `tests/mock_b1500.py` | remove | new suites; the simulator replaces the mock | removed WP0.5; simulator WP1.2 |
 | v0.2 testing skill (`.agents/skills/<name>/**`, name listed by the tag) | rewrite | `.agents/skills/b1500-test/`; its `references/mcp-tools/*.md` → `references/driver-map/legacy-catalog/` | catalogs moved WP0.4; removed WP0.5; WP2.4 |
 | `.agents/skills/b1500-debug-workflow/**` | rewrite | `.agents/skills/b1500-debug/` | removed WP0.5; WP2.7 |
-| `config/default.example.yaml`, `references/station/{station-profile,cable-topology}.example.yaml` | merge | `config/settings.example.yaml` (transport, paths) + `config/station.example.yaml` (inventory, topology, corrections) | pending WP1.1 |
-| `config/safety_limits.example.yaml`, `references/policies/*` | merge | `config/policy.example.yaml` | pending WP1.1 |
-| `references/station/pin-maps/*`, `references/station/compensation/*`, `references/devices/*` | move | `config/pinmaps/`, `config/station.example.yaml#corrections`, `config/duts/` | pending WP1.1 |
+| `config/default.example.yaml`, `references/station/{station-profile,cable-topology}.example.yaml` | merge | `config/settings.example.yaml` (transport, paths) + `config/station.example.yaml` (inventory, topology, corrections) | done WP1.1 |
+| `config/safety_limits.example.yaml`, `references/policies/*` | merge | `config/policy.example.yaml` | done WP1.1 |
+| `references/station/pin-maps/*`, `references/station/compensation/*`, `references/devices/*` | move | `config/pinmaps/`, `config/station.example.yaml#corrections`, `config/duts/` | done WP1.1 |
 | `references/recipes/**` | rewrite to the recipe schema | `recipes/` (Id-Vg/Id-Vd values reused; FeFET write-read, flash, CGD C-V → `recipes/reserved/`) | pending WP1.7, WP2.2 |
 | `references/{instruments,physics,hspice,debug}/` READMEs | fold | knowledge files 01/02/05/07 and skill `b1500-debug` | pending WP2.6, WP2.7 |
 | `references/manuals/**`, `scripts/extract_manuals.py` | keep | unchanged | kept |

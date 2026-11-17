@@ -1,0 +1,22 @@
+# Runtime settings (example; committed). Schema: b1500_test_agent.models.station.Settings.
+# On the lab PC a human copies this file to config/local/settings.yaml and edits it there; the agent never edits
+# config/local/. An example file always runs the simulator: `backend: visa` is accepted only from
+# config/local/settings.yaml, together with config/local/station.yaml and config/local/policy.yaml (rule R-CFG-01).
+# Check with: uv run b1500 config check
+
+backend: sim                    # sim | visa
+
+sim:
+  scenario: nmos_basic          # config/sim/scenarios/<scenario>.yaml
+
+visa:                           # used only with backend: visa
+  resource: GPIB0::17::INSTR    # factory GPIB address 17 (ATV-2: confirm at hardware bring-up)
+  library: ""                   # "" = PyVISA default (vendor @ivi stack); set a path when two VISA stacks exist
+  timeout_ms: 10000             # default I/O timeout; reads after a measurement use 2 x estimate + 10 s
+  exclusive_lock: true
+  write_termination: "\n"
+  read_termination: "\n"
+
+paths:                          # relative paths resolve against the repository root (gitignored directories)
+  data_root: data               # run archive data/runs/ and state data/state/
+  work_dir: work                # agent scratch for ad-hoc analysis

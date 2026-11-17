@@ -1,0 +1,44 @@
+# Station profile (example; committed). Schema: b1500_test_agent.models.station.StationProfile.
+# Generic example of a seven-module B1500A; not a real station. A human copies this file to
+# config/local/station.yaml and edits it to match the real mainframe: every module's model must equal the live
+# UNT? answer for its slot (rule R-INV-01). Channel numbers follow Programming Guide Table 4-1: an SMU or MFCMU in
+# slot n is channel n; the two subchannels of a WGFMU or HV-SPGU in slot n are n01 and n02.
+
+name: example-b1500-station
+
+mainframe:
+  model: B1500A
+  gndu: true                    # built-in ground unit; pin maps may use GNDU
+
+modules:
+  - {slot: 1, model: B1511B, type: MPSMU, channels: [1], alias: SMU1}
+  - {slot: 2, model: B1511B, type: MPSMU, channels: [2], alias: SMU2}
+  - {slot: 3, model: B1517A, type: HRSMU, channels: [3], alias: SMU3}
+  - {slot: 4, model: B1517A, type: HRSMU, channels: [4], alias: SMU4}
+  - {slot: 5, model: B1530A, type: WGFMU, channels: [501, 502], alias: WGFMU1}
+  - {slot: 6, model: B1525A, type: HVSPGU, channels: [601, 602], alias: SPGU1}
+  - {slot: 7, model: B1520A, type: MFCMU, channels: [7], alias: CMU1}
+
+interlock:
+  available: null               # true only after the interlock circuit is wired and tested (M4 stage 0); null = unknown
+  note: v1 keeps every output at or below 42 V, so no workflow needs a closed interlock.
+
+topology:                       # null = unknown
+  shield_box: null
+  guard: null
+  kelvin: null
+  cables:                       # per module alias; record type, length, Guard and Kelvin after inspecting the station
+    SMU1: {cable: triax, length_m: null, guard: null, kelvin: false}
+    SMU2: {cable: triax, length_m: null, guard: null, kelvin: false}
+  switching: {asu: null, scuu: null, selector_16440a: null}
+
+corrections:                    # MFCMU correction records (rule R-CORR-01; C-V kinds are not_implemented in v1)
+  cmu:
+    module: CMU1
+    phase_compensation: {status: unknown, timestamp: null, frequency_range_hz: null}
+    open: {status: unknown, timestamp: null, frequency_range_hz: null}
+    short: {status: unknown, timestamp: null, frequency_range_hz: null}
+    load: {status: unknown, timestamp: null, frequency_range_hz: null}
+
+notes:
+  - Example values only. Record the real inventory, cabling and correction state in config/local/station.yaml.

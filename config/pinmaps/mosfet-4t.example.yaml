@@ -1,0 +1,17 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Four-terminal MOSFET on the example station: recipe roles bind to the terminal of the same name (rule R-PIN-01).
+# Target: a channel number, GNDU, or null (not connected).
+#
+# certainty: verified here because this map matches the wiring of the simulator scenario nmos_basic. On a real
+# station set `unverified` until a human has checked the wiring (contact check); every plan using an unverified map
+# needs confirmation (unverified_pin_map, rule R-PIN-02). The visa backend never reads this example file.
+
+description: 4-terminal MOSFET; gate on SMU1 (MPSMU), drain on SMU3 (HRSMU, low current), source and bulk on GNDU.
+certainty: verified
+terminals:
+  gate: 1
+  drain: 3
+  source: GNDU
+  bulk: GNDU
+notes:
+  - Source and bulk share the ground unit; move bulk to an SMU channel for body-bias measurements.

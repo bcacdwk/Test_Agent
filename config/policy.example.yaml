@@ -1,0 +1,23 @@
+# Safety policy (example; committed). Schema: b1500_test_agent.models.policy.Policy.
+# A human copies this file to config/local/policy.yaml and may tighten it there; the agent never edits it.
+# Defaults are conservative (blueprint 4.1). hard_limits may only tighten the code ceiling of 42 V / 0.1 A: a
+# higher value makes the configuration invalid (invalid_config, rule R-CFG-01). Soft limits must not exceed the
+# hard limits. Checked by the built-in rules R-LIM-02/03, R-IL-01, R-RUN-01 and R-QUAL-*.
+#
+# Former v0.2 approval list, now enforced by rules instead of flags:
+#   voltage above the interlock threshold -> R-LIM-02 (blocked above hard_limits) and R-IL-01
+#   first run of a new recipe             -> R-REC-01 (draft_recipe / first_hw_run on visa)
+#   unknown DUT / pin map                 -> R-DUT-01 / R-PIN-01 (blocked); unverified pin map -> R-PIN-02
+#   stale capacitance correction          -> R-CORR-01 (C-V kinds are not_implemented in v1)
+#   long batch run                        -> R-RUN-01 (run_limits)
+#   destructive or breakdown test         -> R-ALWAYS-01 (recipe always_confirm: destructive)
+#   zero outputs on error                 -> always done by the transaction cleanup (not configurable)
+# Module ratings (e.g. MPSMU/HRSMU +-100 V, HV-SPGU +-40 V, WGFMU +-10 V) are code data in driver/modules.py.
+
+hard_limits: {max_abs_voltage_v: 42.0, max_abs_compliance_a: 0.1}   # above → blocked; may only tighten the code ceiling
+soft_limits: {voltage_v: 10.0, compliance_a: 0.01}                  # above → needs_confirmation (soft_limit)
+interlock: {required_above_v: 42.0}
+run_limits: {max_points: 10001, max_sync_run_s: 300}
+confirmation: {claude_require_user_interaction: true}              # §5.1; read at server start
+plans: {ttl_h: 24}
+quality: {ok: [N], limited: [C, T], untrusted: [V, X, F, D, G, S, U]}

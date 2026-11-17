@@ -35,18 +35,18 @@ Hardware access or FLEX text added to a recipe, a tool or an analysis function t
 
 | Module | Content | Status |
 |---|---|---|
-| `models/` | Pydantic models: common envelope, station, policy, plan, recipe, run, analysis, measurement | `measurement.py`, `analysis.py` salvaged (M0); rest M1 |
-| `config.py`, `paths.py`, `errors.py` | Config loading and resolution, repo-relative default paths, error types | M1 |
+| `models/` | Pydantic models: common envelope, station, policy, plan, recipe, run, analysis, measurement | all present (M0 salvage + WP1.1); later M1 WPs extend them |
+| `config.py`, `paths.py`, `errors.py` | Config loading and resolution, repo-relative default paths, error types | done (WP1.1; `b1500 config check`) |
 | `transport/` | `Transport` protocol, `AuditingTransport`, `VisaTransport`, `make_transport` (never selects visa implicitly) | M1 |
 | `transport/sim/` | Deterministic FLEX state machine, output formatter, device models, fault injection, persisted state | M1 (more models in M2) |
 | `driver/` | `commands.py` builders, `b1500.py` driver, `guard.py` `OutputGuard`, `parser.py`, `discovery.py`, `errors.py`, `modules.py` | parser status tables moved (M0); data parsing and the rest M1 |
 | `session/` | `InstrumentLock` (OS file lock), `Session`, `Transaction` (cleanup `AB → DZ → CL → verify`), `FaultLatch` | M1 |
-| `rules/` | Rule registry and engine, built-in rules, tiers, hard-limit code ceiling, `plan_summary` | M1 |
+| `rules/` | Rule registry and engine, built-in rules, tiers, hard-limit code ceiling, `plan_summary` | ceiling in `tiers.py` (WP1.1); rest M1 |
 | `catalog/` | Recipe schema and registry, planner, executor, measurement kinds (`smu_staircase`, `system`, `unimplemented`; `smu_stepped` in M2) | M1 |
 | `archive/` | Run folders, manifest, `audit.jsonl`, `index.jsonl`, sha256 of every file | M1 |
 | `analysis/` | `load_run`, `assess_quality`, extraction methods, plots, `ANALYSIS_METHODS` registry | M1–M2 |
 | `service.py` | `B1500Service`: one method per MCP tool; reloads changed config, audits every call, never raises to adapters | M1 |
-| `adapters/` | `mcp_server.py` (10 tools), `cli.py` (`b1500`, `b1500-mcp`) | CLI skeleton (M0); M1 |
+| `adapters/` | `mcp_server.py` (10 tools), `cli.py` (`b1500`, `b1500-mcp`) | CLI skeleton (M0), `config check` (WP1.1); M1 |
 | `devtools/` | `budget.py` (tool-schema token counter), sync-harness, lint-skills, recipe-check, mcp-smoke, acceptance runner | `budget.py` (M0); rest M1–M3 |
 
 Outside the package: `recipes/` (registry source YAML), `config/` (examples, sim scenarios and faults, harness

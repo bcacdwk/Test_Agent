@@ -1,7 +1,7 @@
 """`b1500` command-line interface (Typer) and the `b1500-mcp` entry point.
 
-WP0.3 skeleton: only the developer command `b1500 dev tool-budget` exists. Later work packages add the operator
-commands of blueprint §5.3 on top of the same service layer as the MCP server.
+Commands so far: `b1500 config check` (WP1.1) and the developer command `b1500 dev tool-budget` (WP0.3). Later
+work packages add the operator commands of blueprint §5.3 on top of the same service layer as the MCP server.
 """
 
 from __future__ import annotations
@@ -12,7 +12,9 @@ from typing import Annotated
 
 import typer
 
+from b1500_test_agent.config import ConfigLoader
 from b1500_test_agent.devtools import budget
+from b1500_test_agent.models.common import ConfigReport
 
 # The 10-tool server arrives in WP1.8; until then pass --app explicitly.
 DEFAULT_MCP_APP_SPEC = "b1500_test_agent.adapters.mcp_server:mcp"
@@ -23,6 +25,8 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
 )
+config_app = typer.Typer(help="Configuration (config/local/ over committed examples).", no_args_is_help=True)
+app.add_typer(config_app, name="config")
 dev_app = typer.Typer(help="Developer tools (never needed for lab operation).", no_args_is_help=True)
 app.add_typer(dev_app, name="dev")
 
@@ -30,6 +34,45 @@ app.add_typer(dev_app, name="dev")
 @app.callback()
 def _root() -> None:
     """B1500A test agent: safety-gated measurement kernel (simulator by default)."""
+
+
+def format_config_report(report: ConfigReport) -> str:
+    """Human-readable `b1500 config check` output: verdict, backend reason, files used, paths, problems."""
+    lines = [f"config: {'valid' if report.ok else 'INVALID (invalid_config)'}"]
+    if report.backend is not None:
+        lines.append(f"backend: {report.backend_reason}")
+    if report.files:
+        lines.append("files used:")
+        width = max(len(f.key) for f in report.files)
+        lines += [f"  {f.key:<{width}}  {f.source:<8}  {f.path}  sha256:{f.sha256[:12]}" for f in report.files]
+    if report.paths:
+        lines.append("paths:")
+        lines += [f"  {name}: {value}" for name, value in report.paths.items()]
+    if report.warnings:
+        lines.append("warnings:")
+        lines += [f"  - {warning}" for warning in report.warnings]
+    if report.problems:
+        lines.append("problems:")
+        for problem in report.problems:
+            where = problem.file or "config"
+            if problem.location:
+                where += f" [{problem.location}]"
+            lines.append(f"  - {where}: {problem.message}")
+    return "\n".join(lines)
+
+
+@config_app.command("check")
+def config_check(
+    as_json: Annotated[bool, typer.Option("--json", help="Print the report as JSON.")] = False,
+) -> None:
+    """Validate the configuration (rule R-CFG-01) and show which file is used for each item and why.
+
+    Exit code 0 when valid, 1 with structured problems (error code invalid_config) otherwise.
+    """
+    report = ConfigLoader().check()
+    typer.echo(report.model_dump_json(indent=2) if as_json else format_config_report(report))
+    if not report.ok:
+        raise typer.Exit(code=1)
 
 
 @dev_app.command("tool-budget")

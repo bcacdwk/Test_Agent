@@ -19,6 +19,8 @@ from b1500_test_agent.schemas import d_atom as ds
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / ".agents/skills/b1500-semiconductor-testing/references"
+# Legacy catalogs moved here in WP0.4 (frozen history).
+CATALOG = ROOT / "references/driver-map/legacy-catalog"
 WAVEFORM = {
     "channels": [
         {
@@ -464,10 +466,10 @@ def test_mcp_discovery_typed_schemas_and_legacy_registration(all_args):
 
 
 def test_reference_docs_list_every_atom():
-    catalog = (DOCS / "mcp-tools/d-atoms.md").read_text()
+    catalog = (CATALOG / "d-atoms.md").read_text()
     for function in d.D_ATOM_FUNCTIONS:
         assert f"`{function.__name__}`" in catalog
-    assert "d-atoms.md" in (DOCS / "mcp-tools/README.md").read_text()
+    assert "d-atoms.md" in (CATALOG / "README.md").read_text()
     overview = (DOCS / "instrument-interaction-tools.md").read_text()
     assert "D_atom_<stage>_<subject>_<action>" in overview
 

@@ -1,19 +1,19 @@
 # Instrument Interaction MCP Tools
 
-This is the short index for the fake-but-loadable B1500A MCP tool surface. The detailed tool tables are split by category so future agents can read only the relevant section.
+This is the short index for the fake-but-loadable B1500A MCP tool surface. The detailed per-family tool tables were moved out of this skill in WP0.4 as frozen history (they are no longer agent references); this legacy skill is removed in WP0.5.
 
 ## Tool Families
 
-- [A atoms](mcp-tools/a-atoms.md): interface/session/context/readback/discovery tools.
-- [B atoms](mcp-tools/b-atoms.md): safety/state-control tools categorized by risk or operation type.
-- [C atoms](mcp-tools/c-atoms.md): source, measurement configuration, execution and data-read primitives.
-- [D atoms](mcp-tools/d-atoms.md): hardware-free post-acquisition analysis placeholders (ingest, qualify, shape, derive, extract, assess, archive, render).
-- [A flows](mcp-tools/a-flows.md): A-only orchestration flows that compose A atoms serially.
-- [B flows](mcp-tools/b-flows.md): B-only safety/state-control compositions.
-- [C flows](mcp-tools/c-flows.md): C-only measurement compositions across seven families.
-- [AB flows](mcp-tools/ab-flows.md): observe/act/verify workflow orchestration.
-- [D flows](mcp-tools/d-flows.md): D-atom-only qualify/screen/analyze/archive compositions over a held C flow envelope.
-- [CD flows](mcp-tools/cd-flows.md): expect -> measure (one C flow) -> interpret (its D flow) -> archive; fake-only.
+- A atoms: interface/session/context/readback/discovery tools.
+- B atoms: safety/state-control tools categorized by risk or operation type.
+- C atoms: source, measurement configuration, execution and data-read primitives.
+- D atoms: hardware-free post-acquisition analysis placeholders (ingest, qualify, shape, derive, extract, assess, archive, render).
+- A flows: A-only orchestration flows that compose A atoms serially.
+- B flows: B-only safety/state-control compositions.
+- C flows: C-only measurement compositions across seven families.
+- AB flows: observe/act/verify workflow orchestration.
+- D flows: D-atom-only qualify/screen/analyze/archive compositions over a held C flow envelope.
+- CD flows: expect -> measure (one C flow) -> interpret (its D flow) -> archive; fake-only.
 
 ## Naming Taxonomy
 

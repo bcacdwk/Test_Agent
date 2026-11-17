@@ -31,6 +31,8 @@ from b1500_test_agent.schemas import d_flow as schema
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / ".agents/skills/b1500-semiconductor-testing/references"
+# Legacy catalogs moved here in WP0.4 (frozen history).
+CATALOG = ROOT / "references/driver-map/legacy-catalog"
 SOURCE = {"kind": "caller", "name": "test-criteria"}
 GATE = [{"channel": 1, "terminal": "gate"}]
 ROLES2 = [{"channel": 1, "terminal": "gate"}, {"channel": 2, "terminal": "drain"}]
@@ -332,10 +334,10 @@ def test_mcp_discovery_counts_and_legacy_registration():
 
 
 def test_reference_docs_list_every_flow_and_reserved_name():
-    catalog = (DOCS / "mcp-tools/d-flows.md").read_text()
+    catalog = (CATALOG / "d-flows.md").read_text()
     for name in D_NAMES + RESERVED:
         assert f"`{name}`" in catalog
-    assert "d-flows.md" in (DOCS / "mcp-tools/README.md").read_text()
+    assert "d-flows.md" in (CATALOG / "README.md").read_text()
     overview = (DOCS / "instrument-interaction-tools.md").read_text()
     assert "D_flow_<operation>_<domain>_<subject>" in overview
     assert "D_flow" in (ROOT / "README.md").read_text()

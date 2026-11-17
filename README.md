@@ -60,7 +60,7 @@ The example MCP configuration is in `.codex/config.example.toml`. Copy relevant 
 
 The fake MCP surface now includes A/B/C/D atoms and A/B/C/AB/D/CD flows. 31 C flows
 cover spot, sweep, pulse, waveform, sampling, search, and remote execution. See
-[the C flow catalog](.agents/skills/b1500-semiconductor-testing/references/mcp-tools/c-flows.md)
+[the C flow catalog](references/driver-map/legacy-catalog/c-flows.md)
 for ordered atom compositions, typed requests, completion semantics, and explicit
 configuration-only gaps. These are synthetic orchestration tools; real transport,
 validated hardware recipes, and complete ABC transactions remain unimplemented.
@@ -69,7 +69,7 @@ validated hardware recipes, and complete ABC transactions remain unimplemented.
 post-acquisition analysis surface: ingest, qualify, shape, derive, extract, assess,
 archive, and render. In this phase they are placeholder stubs that return content-free
 product references, label synthetic data `synthetic_only`, and write no files. See
-[the D atom catalog](.agents/skills/b1500-semiconductor-testing/references/mcp-tools/d-atoms.md).
+[the D atom catalog](references/driver-map/legacy-catalog/d-atoms.md).
 
 7 D flows (`D_flow_<operation>_<domain>_<subject>`) compose D atoms over a C flow
 envelope the caller already holds: qualify IV/CV/time-series datasets, screen IV
@@ -78,8 +78,8 @@ archive bundle. 4 CD flows (`CD_flow_<operation>_<domain>_<subject>`) run expect
 one C flow (closed `acquisition.kind`) -> its D flow -> archive; they are fake-only,
 interpret only a completed designated read record, never call A/B tools or C atoms
 directly, and write no files. See
-[the D flow catalog](.agents/skills/b1500-semiconductor-testing/references/mcp-tools/d-flows.md)
-and [the CD flow catalog](.agents/skills/b1500-semiconductor-testing/references/mcp-tools/cd-flows.md).
+[the D flow catalog](references/driver-map/legacy-catalog/d-flows.md)
+and [the CD flow catalog](references/driver-map/legacy-catalog/cd-flows.md).
 
 The driver and analysis layers remain skeletons. The next hardware-facing milestone is a safe local prototype:
 

@@ -28,6 +28,8 @@ from b1500_test_agent.schemas import d_flow as d_schema
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / ".agents/skills/b1500-semiconductor-testing/references"
+# Legacy catalogs moved here in WP0.4 (frozen history).
+CATALOG = ROOT / "references/driver-map/legacy-catalog"
 SOURCE = {"kind": "caller", "name": "test-criteria"}
 GATE = [{"channel": 1, "terminal": "gate"}]
 CMU_GATE = [{"channel": 7, "terminal": "gate"}]
@@ -293,13 +295,13 @@ def test_mcp_discovery_exposes_kind_discriminator_and_calls():
 
 
 def test_reference_docs_list_every_cd_flow_and_kind():
-    catalog = (DOCS / "mcp-tools/cd-flows.md").read_text()
+    catalog = (CATALOG / "cd-flows.md").read_text()
     for name in CD_NAMES + RESERVED:
         assert f"`{name}`" in catalog
     for name in CD_NAMES:
         for kind in KINDS[name]:
             assert f"`{kind}`" in catalog
-    assert "cd-flows.md" in (DOCS / "mcp-tools/README.md").read_text()
+    assert "cd-flows.md" in (CATALOG / "README.md").read_text()
     overview = (DOCS / "instrument-interaction-tools.md").read_text()
     assert "CD_flow_<operation>_<domain>_<subject>" in overview
     assert "CD_flow" in (ROOT / "README.md").read_text()

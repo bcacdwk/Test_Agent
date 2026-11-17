@@ -281,7 +281,7 @@ def test_mcp_discovery_call_and_existing_capabilities():
 
 def test_reference_catalog_matches_registered_names():
     root = Path(__file__).resolve().parents[1]
-    reference = root / ".agents/skills/b1500-semiconductor-testing/references/mcp-tools/c-flows.md"
+    reference = root / "references/driver-map/legacy-catalog/c-flows.md"  # moved in WP0.4
     content = reference.read_text()
     for function in flows.C_FLOW_FUNCTIONS:
         assert f"`{function.__name__}`" in content

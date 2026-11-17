@@ -61,7 +61,7 @@ def test_committed_statuses() -> None:
     assert status["mosfet.idvg"] == ("sim_validated", "sim_validated")
     assert status["generic.smu_staircase"] == ("sim_validated", "sim_validated")
     assert status["system.self_test"] == status["system.self_cal"] == ("sim_validated", "not_implemented")
-    assert status["mosfet.idvd"] == ("not_implemented", "not_implemented")
+    assert status["mosfet.idvd"] == ("draft", "draft")  # smu_stepped has sim and visa code paths (WP2.1)
     assert registry.get("mosfet.idvd").kind == "smu_stepped" and registry.get("mosfet.idvd").status == "draft"
     assert registry.get("mosfet.idvg").card is None
     assert registry.get("system.self_test").always_confirm == ["system_self_test"]
@@ -71,9 +71,9 @@ def test_committed_statuses() -> None:
 def test_kinds() -> None:
     kinds = default_kinds()
     assert kinds["smu_staircase"].implemented_on == {"sim", "visa"}
+    assert kinds["smu_stepped"].implemented_on == {"sim", "visa"} and "smu_stepped" not in UNIMPLEMENTED_KINDS
     assert kinds["system"].implemented_on == {"sim"}
-    for kind_id in ("smu_spot", "smu_sampling", "smu_pulsed", "smu_stepped", "wgfmu_pulsed_iv", "spgu_program_read",
-                    "cmu_cv"):
+    for kind_id in ("smu_spot", "smu_sampling", "smu_pulsed", "wgfmu_pulsed_iv", "spgu_program_read", "cmu_cv"):
         assert kind_id in UNIMPLEMENTED_KINDS and kinds[kind_id].implemented_on == frozenset()
 
 
@@ -118,7 +118,7 @@ def test_existing_card_and_listing(tmp_path: Path) -> None:
         "basic/thing.yaml": minimal(card="cards/c.md", device_types=["nmos"]),
         "basic/other.yaml": minimal("basic.other", device_types=["diode"]),
         "generic/any.yaml": minimal("generic.any"),
-        "basic/later.yaml": minimal("basic.later", kind="smu_stepped"),
+        "basic/later.yaml": minimal("basic.later", kind="smu_spot"),
     })
     assert registry.problems() == []
     # recipes without device types (basic.later, generic.any) match every device type

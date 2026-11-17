@@ -33,7 +33,8 @@ def test_vertical_path_status_validate_run_get_analyze(world: World, monkeypatch
     assert status.ok and status.simulated and status.backend == "sim" and status.live == "fresh"
     assert status.identity is not None and "B1500A" in status.identity
     assert all(m.match for m in status.modules) and status.fault is None and status.lock_holder is None
-    assert status.pin_maps == {"mosfet-4t": "verified"} and "nmos-generic" in status.dut_profiles
+    assert status.pin_maps == {"mosfet-4t": "verified", "diode-2t": "verified", "resistor-2t": "verified"}
+    assert "nmos-generic" in status.dut_profiles
     assert status.config is not None and status.config.ok and status.limits is not None
 
     plan = service.validate_plan(**IDVG, label="W3 batch")

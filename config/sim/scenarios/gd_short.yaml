@@ -1,0 +1,46 @@
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario; device params are typed by
+# b1500_test_agent.models.sim (DEVICE_PARAMS); consumed by the simulator (transport/sim/). Name = file name. The
+# slots mirror config/station.example.yaml; `wiring` is the physical wiring of the simulated prober (independent of
+# the agent's pin map); `models` holds the truth parameters tests compare extractions against; noise, faults and
+# timing as documented in nmos_basic.yaml.
+
+description: >-
+  Damaged nmos_basic device (mosfet-4t wiring) with a 1 kOhm gate-drain short: the gate current mirrors into the
+  drain, so a transfer sweep hits the gate compliance at its first step. Instant timing.
+idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101
+slots:
+  - {slot: 1, model: B1511B}
+  - {slot: 2, model: B1511B}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1530A}
+  - {slot: 6, model: B1525A}
+  - {slot: 7, model: B1520A}
+interlock_closed: false
+wiring:
+  dut:
+    gate: 1
+    drain: 3
+    source: GNDU
+    bulk: GNDU
+models:
+  dut:
+    model: mosfet_damaged
+    params:
+      damage: gate_drain_short
+      short_r_ohm: 1000.0       # Ohm between gate and drain (truth)
+      polarity: n
+      vth0: 0.42
+      slope_factor: 1.3
+      beta: 2.0e-3
+      theta: 0.2
+      lambda: 0.05
+      rs_ohm: 20.0
+      gate_leak_s: 1.0e-12
+      temperature_k: 300.0
+noise:
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  rel: 1.0e-3
+  seed: 5
+faults: null
+timing: instant

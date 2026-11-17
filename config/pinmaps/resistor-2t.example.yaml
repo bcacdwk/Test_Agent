@@ -1,0 +1,17 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Two-terminal resistor or contact structure on the example station: recipe roles bind to the terminal of the same
+# name (rule R-PIN-01), so a two-terminal recipe uses the roles `a` (forced side) and `b` (return side).
+# Target: a channel number, GNDU, or null.
+#
+# certainty: verified here because this map matches the wiring of the simulator scenario resistor_100k (and the
+# drain probe of the mosfet-4t scenarios, which is also on SMU3). On a real station set `unverified` until a human
+# has checked the wiring; every plan using an unverified map needs confirmation (unverified_pin_map, rule
+# R-PIN-02). The visa backend never reads this example file.
+
+description: 2-terminal resistor or contact check; a on SMU3 (HRSMU, low current), b on GNDU.
+certainty: verified
+terminals:
+  a: 3
+  b: GNDU
+notes:
+  - The HRSMU resolves the open-circuit noise floor, so an unlanded probe reads as open, not as a large resistor.

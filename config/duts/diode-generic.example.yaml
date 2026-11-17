@@ -1,0 +1,15 @@
+# DUT profile (example; committed). Schema: b1500_test_agent.models.policy.DutProfile; name = file name.
+# Generic small-signal pn diode; example values, not a real device. Per terminal: max |V| (V) and max |I| (A; also
+# the largest compliance). A plan outside this envelope needs confirmation (dut_envelope, rule R-DUT-01). Nominal
+# values are typical numbers for choosing parameters, never measurements.
+
+device_type: diode
+description: Generic small-signal pn diode (example envelope; reverse bias kept far from breakdown).
+terminals:
+  anode:   {max_abs_v: 5.0, max_abs_i: 1.0e-2}
+  cathode: {max_abs_v: 5.0, max_abs_i: 1.0e-2}
+nominal:
+  vf: {value: 0.65, unit: V}
+  ideality: {value: 1.1, unit: "1"}
+notes:
+  - Forward current is limited by the compliance; a breakdown measurement is a different, destructive test.

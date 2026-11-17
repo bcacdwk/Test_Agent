@@ -10,7 +10,7 @@ Roles (recipe ``roles``, bound to channels through the pin map):
   ``icomp`` or, when absent, the sum of the compliances of the sourcing roles (the ground terminal returns at most
   their currents);
 - ``measure_only`` roles: an SMU at 0 V like a grounded SMU, measured;
-- ``step_v`` roles need kind ``smu_stepped`` (M2) and are refused.
+- ``step_v`` roles need kind ``smu_stepped`` and are refused.
 
 Each role's ``measure`` (``[I]`` or ``[V]``; both at once is not supported in v1) puts its channel into the ``MM 2``
 list (sweep role first, then recipe order) with ``CMM`` 1 (current) or 2 (voltage). The recipe parameter
@@ -24,7 +24,8 @@ ATV-10 fallback), ``DV`` per bias/ground SMU, ``MM``/``CMM``/``WV``/``WT``/``WM`
 ``XE`` and one read of ``steps × (measured channels + 1)`` elements with a timeout of ``2 × estimate + 10 s``
 (blueprint 7). The FLEX preview lists exactly these writes in this order (queries are not listed).
 
-The same code path serves ``sim`` and ``visa``: the kind only talks to the driver.
+The same code path serves ``sim`` and ``visa``: the kind only talks to the driver. ``configure_staircase`` (setup
+up to ``XE``) and ``staircase_rows`` (table rows of one block) are shared with ``smu_stepped``.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ from pydantic import Field
 
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError, RawAcquisition, setting_value
 from b1500_test_agent.driver import commands
-from b1500_test_agent.driver.b1500 import ADC_MODE_CODES, ADC_TYPE_CODES, StaircaseSetup
+from b1500_test_agent.driver.b1500 import ADC_MODE_CODES, ADC_TYPE_CODES, RawBlock, StaircaseSetup
 from b1500_test_agent.errors import B1500Error
 from b1500_test_agent.models.analysis import Quantity
 from b1500_test_agent.models.common import Backend, ErrorCode, StrictModel
@@ -165,7 +166,7 @@ def read_timeout_s(estimate: Estimate) -> float:
     return 2.0 * estimate.duration_s + READ_TIMEOUT_MARGIN_S
 
 
-def _drain_or_raise(tx: Transaction, stage: str) -> None:
+def drain_or_raise(tx: Transaction, stage: str) -> None:
     """Drain ``ERRX?``; an interlock error (202/203) or any other error aborts before anything is triggered."""
     errors = tx.driver.errors(drain=True)
     if not errors:
@@ -174,6 +175,60 @@ def _drain_or_raise(tx: Transaction, stage: str) -> None:
     if interlock_errors(errors):
         raise AcquisitionError(f"interlock refused the setup after {stage} ({listed}); aborted", errors)
     raise AcquisitionError(f"instrument reported errors after {stage} ({listed}); aborted before XE", errors)
+
+
+def configure_staircase(tx: Transaction, program: StaircaseProgram) -> None:
+    """Everything before ``XE`` through the guarded driver: ``FMT``, ``AAD``/``AIT``, ``CN``, ``ERRX?`` drain,
+    ``DV`` per bias/ground SMU, ``MM``/``CMM``/``WV``/``WT``/``WM``, ``ERRX?`` drain (any error aborts)."""
+    driver = tx.driver
+    driver.set_format(*program.data_format)
+    driver.apply_integration(program.integration, [m.channel for m in program.measure])
+    driver.enable(program.enable)
+    drain_or_raise(tx, "enabling the outputs")
+    tx.mark("outputs enabled")
+    for bias in program.biases:
+        driver.force_v(bias.channel, bias.v, icomp=bias.icomp)
+    driver.staircase_v(program.sweep)
+    drain_or_raise(tx, "the sweep setup")
+    tx.mark("configured")
+
+
+def staircase_rows(program: StaircaseProgram, block: RawBlock, *, first_step: int = 0) -> list[dict[str, object]]:
+    """Table rows of one sweep block: ``step`` (from ``first_step``), ``segment`` (double sweeps: ``fwd`` for the
+    first ``points`` steps, then ``rev``), the sweep source column ``<sweep role>_V`` (unless that role measures V),
+    measured ``<role>_<I|V>`` + ``_status`` per measured channel, constant bias source columns.
+
+    Raises:
+        ValueError: If the block does not hold ``steps x width`` elements in the programmed order.
+    """
+    if len(block.points) != program.steps * program.width:
+        raise ValueError(f"expected {program.steps * program.width} elements ({program.steps} steps x "
+                         f"{program.width}), got {len(block.points)}")
+    measured_v = {m.role for m in program.measure if m.quantity == "V"}
+    sweep_source = None if program.sweep_role in measured_v else f"{program.sweep_role}_V"
+    rows: list[dict[str, object]] = []
+    for index, elements in enumerate(block.steps(program.width)):
+        row: dict[str, object] = {"step": first_step + index}
+        if program.sweep.double:
+            row["segment"] = "fwd" if index < program.sweep.points else "rev"
+        source = elements[-1] if program.data_format[1] == 1 else None
+        if sweep_source is not None:
+            if source is None or not source.is_source:
+                raise ValueError(f"step {index}: the last element is not the sweep source value")
+            row[sweep_source] = source.value
+        for column, element in zip(program.measure, elements, strict=False):
+            if element.is_source or element.channel_number is None \
+                    or _norm(element.channel_number) != _norm(column.channel) \
+                    or element.data_type != column.quantity:
+                raise ValueError(f"step {index}: element {element.raw!r} is not {column.quantity} of channel "
+                                 f"{column.channel}")
+            name = f"{column.role}_{column.quantity}"
+            row[name] = element.value
+            row[f"{name}_status"] = str(element.status.value)
+        for role, level in program.source_columns.items():
+            row[f"{role}_V"] = level
+        rows.append(row)
+    return rows
 
 
 # -- the kind --------------------------------------------------------------------------------------------------------
@@ -195,7 +250,7 @@ class SmuStaircaseKind:
             raise CompileError(f"{self.kind_id} needs exactly one sweep_v role; recipe {recipe.id} has {sweeps}")
         stepped = [name for name, role in recipe.roles.items() if role.function == "step_v"]
         if stepped:
-            raise CompileError(f"step_v roles {stepped} need kind smu_stepped (M2), not {self.kind_id}")
+            raise CompileError(f"step_v roles {stepped} need kind smu_stepped, not {self.kind_id}")
         integration = self._integration(params)
         channels: dict[int, ChannelEnvelope] = {}
         biases: list[BiasOutput] = []
@@ -333,18 +388,8 @@ class SmuStaircaseKind:
         if not plan.program:
             raise CompileError(f"plan {plan.plan_id} has no compiled {self.kind_id} program")
         program = StaircaseProgram.model_validate(plan.program)
-        driver = tx.driver
-        driver.set_format(*program.data_format)
-        driver.apply_integration(program.integration, [m.channel for m in program.measure])
-        driver.enable(program.enable)
-        _drain_or_raise(tx, "enabling the outputs")
-        tx.mark("outputs enabled")
-        for bias in program.biases:
-            driver.force_v(bias.channel, bias.v, icomp=bias.icomp)
-        driver.staircase_v(program.sweep)
-        _drain_or_raise(tx, "the sweep setup")
-        tx.mark("configured")
-        block = driver.execute_and_read(expected_points=program.steps * program.width,
+        configure_staircase(tx, program)
+        block = tx.driver.execute_and_read(expected_points=program.steps * program.width,
                                         timeout_s=read_timeout_s(plan.estimate))
         tx.mark("data read")
         return RawAcquisition(blocks=[block])
@@ -352,41 +397,15 @@ class SmuStaircaseKind:
     # table -------------------------------------------------------------------------------------------------------
 
     def to_table(self, raw: RawAcquisition, plan: PlanRecord) -> pd.DataFrame:
-        """Tidy table: ``step``, ``segment`` (double sweeps), the sweep source column ``<sweep role>_V``, measured
-        ``<role>_<I|V>`` + ``_status`` per measured channel, constant bias source columns.
+        """Tidy table of the single block (``staircase_rows``): ``step``, ``segment`` (double sweeps), the sweep
+        source column ``<sweep role>_V``, measured ``<role>_<I|V>`` + ``_status`` per measured channel, constant bias
+        source columns.
 
         Raises:
-            ValueError: If the block does not hold ``steps x width`` elements in the programmed order.
+            ValueError: If there is not exactly one block or it does not hold ``steps x width`` elements in the
+                programmed order.
         """
         program = StaircaseProgram.model_validate(plan.program)
         if len(raw.blocks) != 1:
             raise ValueError(f"{self.kind_id} expects one data block, got {len(raw.blocks)}")
-        block = raw.blocks[0]
-        if len(block.points) != program.steps * program.width:
-            raise ValueError(f"expected {program.steps * program.width} elements ({program.steps} steps x "
-                             f"{program.width}), got {len(block.points)}")
-        measured_v = {m.role for m in program.measure if m.quantity == "V"}
-        sweep_source = None if program.sweep_role in measured_v else f"{program.sweep_role}_V"
-        rows: list[dict[str, object]] = []
-        for index, elements in enumerate(block.steps(program.width)):
-            row: dict[str, object] = {"step": index}
-            if program.sweep.double:
-                row["segment"] = "fwd" if index < program.sweep.points else "rev"
-            source = elements[-1] if program.data_format[1] == 1 else None
-            if sweep_source is not None:
-                if source is None or not source.is_source:
-                    raise ValueError(f"step {index}: the last element is not the sweep source value")
-                row[sweep_source] = source.value
-            for column, element in zip(program.measure, elements, strict=False):
-                if element.is_source or element.channel_number is None \
-                        or _norm(element.channel_number) != _norm(column.channel) \
-                        or element.data_type != column.quantity:
-                    raise ValueError(f"step {index}: element {element.raw!r} is not {column.quantity} of channel "
-                                     f"{column.channel}")
-                name = f"{column.role}_{column.quantity}"
-                row[name] = element.value
-                row[f"{name}_status"] = str(element.status.value)
-            for role, level in program.source_columns.items():
-                row[f"{role}_V"] = level
-            rows.append(row)
-        return pd.DataFrame(rows)
+        return pd.DataFrame(staircase_rows(program, raw.blocks[0]))

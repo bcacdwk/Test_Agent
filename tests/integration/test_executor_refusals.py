@@ -27,9 +27,16 @@ def assert_refused(world: World, before: tuple[int, int, int, bool], result, *, 
     assert world.io_marker() == before, "a refusal before the transaction must do zero instrument I/O"
 
 
-def test_not_implemented_recipes_never_touch_the_instrument(world: World) -> None:
+def test_not_implemented_recipes_never_touch_the_instrument(world: World, tmp_path: Path) -> None:
+    # A draft recipe outside reserved/ whose kind has no implementation (smu_spot), next to two reserved slots.
+    recipes = tmp_path / "recipes"
+    shutil.copytree(REPO_ROOT / "recipes", recipes)
+    spot = (recipes / "mosfet" / "idvg.yaml").read_text(encoding="utf-8").replace("id: mosfet.idvg", "id: mosfet.spot")
+    spot = spot.replace("kind: smu_staircase", "kind: smu_spot").replace("status: sim_validated", "status: draft")
+    (recipes / "mosfet" / "spot.yaml").write_text(spot, encoding="utf-8")
+    world.recipes = recipes
     executor = world.executor()
-    for recipe_id, dut in (("wgfmu.pulsed_iv", "nmos-generic"), ("mosfet.idvd", "nmos-generic"),
+    for recipe_id, dut in (("wgfmu.pulsed_iv", "nmos-generic"), ("mosfet.spot", "nmos-generic"),
                            ("moscap.cv", None)):
         record = plan(executor, recipe_id=recipe_id, dut_profile=dut)
         assert record.tier == "blocked"

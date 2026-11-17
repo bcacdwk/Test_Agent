@@ -1,8 +1,9 @@
 # Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe).
 # MOSFET output family (Id-Vd): drain staircase sweep for each gate step (host loop over the gate role). Values
 # reused from the v0.2 idvd example (Vds 0..3 V, 101 points, Vgs 0.5..2.0 V in 4 steps, 1 mA compliance).
-# Kind smu_stepped is declared but not implemented until WP2.1, so the effective status is not_implemented on every
-# backend; WP2.2 validates this recipe on the simulator.
+# Kind smu_stepped (WP2.1): one drain sweep per gate step (start/stop/points), all in one transaction; the loop stops
+# after a sweep in compliance. Table: gate_V = the step level of each curve. Status stays draft until WP2.2 validates
+# this recipe on the simulator.
 id: mosfet.idvd
 version: 1
 title: MOSFET output curves (Id-Vd family over gate steps) for Ron, gds and saturation onset

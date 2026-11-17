@@ -147,11 +147,13 @@ class Harness:
         return self.sim.instrument.command_log
 
 
-def make_harness(state_dir: Path, scenario: SimScenario | None = None, *, adapter: str = "cli") -> Harness:
-    """A harness over the noiseless ``nmos_basic`` scenario (gate = SMU1, drain = SMU3) unless ``scenario`` is given."""
+def make_harness(state_dir: Path, scenario: SimScenario | None = None, *, adapter: str = "cli",
+                 hook_type: Callable[[SimTransport], HookTransport] = HookTransport) -> Harness:
+    """A harness over the noiseless ``nmos_basic`` scenario (gate = SMU1, drain = SMU3) unless ``scenario`` is given;
+    ``hook_type`` builds the injection wrapper (``HookTransport`` or a subclass with other moments)."""
     scenario = scenario or noiseless(load_scenario("nmos_basic"))
     sim = SimTransport(scenario, state_file=sim_state_file(state_dir, scenario.name))
-    hook = HookTransport(sim)
+    hook = hook_type(sim)
     daily = MemoryAuditSink()
     settings = Settings.model_validate({"sim": {"scenario": scenario.name}})
     session = Session(settings, lambda: AuditingTransport(hook, daily), daily, state_dir=state_dir,
@@ -218,13 +220,13 @@ def assert_cleanup_order(events: list[AuditEvent]) -> None:
     assert [a for a, _ in sequence] == sorted(a for a, _ in sequence), "attempts interleave"
 
 
-def assert_global_invariant(h: Harness, *, run: bool = True) -> None:
+def assert_global_invariant(h: Harness, *, run: bool = True, envelope: CompiledEnvelope = ENVELOPE) -> None:
     """Blueprint 3: if any source command reached the instrument, DZ and CL executed after the last one and the
     simulator is safe, or the fault latch is set with ``cleanup_unverified`` audited. Plus: nothing outside the
     envelope reached the transport, the lock is free, the inflight marker is gone, the cleanup is audited in order
     and every raw block read was handed to the run."""
     log = h.log
-    assert_within_envelope(log)
+    assert_within_envelope(log, envelope)
     events = h.events(run=run)
     latched = h.session.fault_latch.get() is not None and any(e.ev == "cleanup_unverified" for e in events)
     reached = [r for r in log if r.source and r.outcome != "dropped"]

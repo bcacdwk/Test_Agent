@@ -1,0 +1,14 @@
+# DUT profile (example; committed). Schema: b1500_test_agent.models.policy.DutProfile; name = file name.
+# Generic two-terminal resistor or contact structure; example values, not a real device. Per terminal: max |V| (V)
+# and max |I| (A; also the largest compliance). A plan outside this envelope needs confirmation (dut_envelope, rule
+# R-DUT-01). Nominal values are typical numbers for choosing parameters, never measurements.
+
+device_type: resistor
+description: Generic two-terminal resistor or contact structure (example envelope for a small-signal check).
+terminals:
+  a: {max_abs_v: 1.0, max_abs_i: 1.0e-3}
+  b: {max_abs_v: 1.0, max_abs_i: 1.0e-3}
+nominal:
+  r: {value: 1.0e+5, unit: Ohm}
+notes:
+  - A contact check stays within +-0.1 V, so it never stresses the device.

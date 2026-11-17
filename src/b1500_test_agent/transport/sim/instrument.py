@@ -20,6 +20,11 @@ PDF 377; ``*RST``/device clear initialise like power-on (PDF 175, 502); ``NUB?``
 Simulator conventions (not from the manual): STB bit 3 tracks the interlock state continuously (the blueprint's
 reading, verified on hardware as ATV-10; the PG describes a latched bit, PDF 76); compliance is symmetric
 (|I| ≤ |Icomp|); a fixed current range overflows above 115 % of full scale; voltage measurements are noiseless.
+
+Device state (FeFET polarization): the voltages actually applied are committed to the circuit after every DC output
+change (``DC_COMMIT_COMMANDS``) and after every measured sweep step (all steps are evaluated at ``XE``; an ``AB`` or
+device clear before the end rolls the state back to the last completed step). ``state.devices`` mirrors the circuit
+state, so it is saved and loaded with the rest of the persistent state.
 """
 
 from __future__ import annotations
@@ -29,7 +34,7 @@ import random
 import time
 from collections import deque
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar, Literal
@@ -66,6 +71,9 @@ OVERRANGE = 1.15
 
 NOISE_MULTIPLIERS = ((0.25, 3.0), (4.0, 1.0), (math.inf, 0.3))
 """(integration time in PLC below which, noise multiplier): short 3x, medium 1x, long 0.3x (blueprint 3)."""
+
+DC_COMMIT_COMMANDS = frozenset({"CN", "CL", "DZ", "DV", "*RST", "*TST?", "*CAL?"})
+"""Commands after which the DC output levels are committed to stateful devices."""
 
 _CMU_TYPES = frozenset({"MFCMU"})
 _SPGU_TYPES = frozenset({"HVSPGU"})
@@ -125,6 +133,8 @@ class _Measurement:
     sweep: _Sweep | None
     post_level: float | None
     zero_at: float | None
+    device_states: list[dict[str, dict[str, float | int | bool | str]]] = field(default_factory=list)
+    """Stateful-device state before the first step (index 0) and after each measured step (index k)."""
 
 
 def _utc_now() -> str:
@@ -150,6 +160,7 @@ class SimInstrument:
         self.faults = FaultEngine(faults)
         self.circuit = Circuit(scenario)
         self.state = SimPersistentState(scenario=scenario.name)
+        self.state.devices = self.circuit.export_state()
         self.clock = 0.0
         self._busy_until = 0.0
         self._timer_zero = 0.0
@@ -355,6 +366,8 @@ class SimInstrument:
                     self._queue_error(code)
                 break
             self._log(line, cmd.text, cmd.mnemonic, cmd.args, "ok")
+            if cmd.mnemonic in DC_COMMIT_COMMANDS:
+                self._commit_dc()
             for code in self.faults.errors_after(cmd.mnemonic):
                 self._queue_error(code)
             if self.faults.command_hangs(cmd.mnemonic):
@@ -461,6 +474,8 @@ class SimInstrument:
 
     def _initialize(self) -> None:
         """Power-on state (``*RST``/device clear): outputs off at 0 V, setup, buffers and errors cleared."""
+        if self._measurement is not None:
+            self._rollback_devices(self._measurement)
         self._measurement = None
         self._input_queue.clear()
         self._queries.clear()
@@ -473,6 +488,7 @@ class SimInstrument:
         for channel in list(self.state.channels):
             if not self.faults.stuck(channel):
                 self.state.channels[channel] = ChannelState()
+        self._commit_dc()
 
     # -- identity and status -------------------------------------------------------------------------------------------
 
@@ -654,6 +670,7 @@ class SimInstrument:
                 if end <= self.clock]
         for block in done:
             self._buffer.extend(block)
+        self._rollback_devices(measurement)
         self._apply_end(measurement, aborted=True, at=self.clock)
         self._busy_until = self.clock
 
@@ -841,8 +858,10 @@ class SimInstrument:
                                                                                     set[int]]:
         """Applied voltages, channel currents and the channels in compliance for programmed ``levels``.
 
-        A channel whose |I| would exceed its compliance has its applied voltage bisected (between 0 V and the
-        programmed level) until |I| = Icomp; this repeats for the next channel in compliance.
+        A channel whose |I| would exceed its compliance has its applied voltage bisected (between the programmed
+        level and 0 V, or beyond 0 V when another biased terminal still drives more than Icomp there, e.g. through a
+        gate-drain short) until |I| = Icomp; this repeats for the next channel in compliance. The devices are
+        passive, so a channel's current rises monotonically with its own voltage.
         """
         applied = dict(levels)
         clamped: set[int] = set()
@@ -858,14 +877,23 @@ class SimInstrument:
         return applied, self._current(applied), clamped
 
     def _bisect(self, applied: dict[int, float], channel: int, icomp: float) -> float:
-        def excess(voltage: float) -> float:
+        def current(voltage: float) -> float:
             trial = dict(applied)
             trial[channel] = voltage
-            return abs(self._current(trial).get(channel, 0.0)) - icomp
+            return self._current(trial).get(channel, 0.0)
+
+        sign = 1.0 if current(applied[channel]) >= 0 else -1.0  # direction of the excess current
+
+        def excess(voltage: float) -> float:
+            return sign * current(voltage) - icomp
 
         lo, hi = 0.0, applied[channel]
-        if excess(lo) >= 0:
-            return 0.0
+        step = max(abs(hi), 0.1)
+        while excess(lo) > 0:  # 0 V still drives more than Icomp: move against the current's direction
+            if step > 4 * flex.SMU_MAX_V:
+                return lo  # cannot be limited within the output range (never reached by passive devices)
+            hi, lo = lo, lo - sign * step
+            step *= 2
         for _ in range(80):
             mid = 0.5 * (lo + hi)
             if excess(mid) > 0:
@@ -906,6 +934,7 @@ class SimInstrument:
         self.state.measurement_count += 1
         blocks: list[list[str]] = []
         step_ends: list[float] = []
+        device_states = [self.circuit.export_state()] if self.circuit.has_state else []
         aborted = False
         zero_at: float | None = None
         last = len(values) - 1
@@ -931,18 +960,22 @@ class SimInstrument:
             if aborted:
                 blocks.append(self._dummy_block(channels, sweep, stamp, i == last))
                 continue
-            block, statuses = self._block(channels, sweep, value, levels, icomps, tmeas, stamp, i, last, rng)
+            block, statuses, applied = self._block(channels, sweep, value, levels, icomps, tmeas, stamp, i, last, rng)
             blocks.append(block)
+            if self.circuit.has_state:  # the step's voltages act on the device before the next step
+                self.circuit.commit(applied)
+                device_states.append(self.circuit.export_state())
             if self._wm[0] == 2 and any(s in "CTVX" for s in statuses):
                 aborted = True  # automatic abort: later steps carry dummy data (PDF 553)
         post: float | None = None
         if sweep is not None:
             post = sweep.start if (self._wm[1] == 1 or aborted) else sweep.stop
-        return _Measurement(t0, step_ends[-1], step_ends, blocks, sweep, post, zero_at)
+        self._sync_devices()
+        return _Measurement(t0, step_ends[-1], step_ends, blocks, sweep, post, zero_at, device_states)
 
     def _block(self, channels: list[int], sweep: _Sweep | None, value: float | None, levels: dict[int, float],
                icomps: dict[int, float], tmeas: dict[int, float], stamp: float, step: int, last: int,
-               rng: random.Random) -> tuple[list[str], list[str]]:
+               rng: random.Random) -> tuple[list[str], list[str], dict[int, float]]:
         applied, currents, clamped = self.solve(levels, icomps)
         forced = {canonical_channel(ch) for ch in self.faults.compliance_channels(step)}
         limited = clamped | forced
@@ -976,7 +1009,7 @@ class SimInstrument:
             texts[1 if self._tsc else 0] = GARBAGE_ELEMENT
         if sweep is not None and value is not None and self._fmt_mode == 1:
             texts.append(Element("E" if step == last else "W", sweep.channel, "V", value).text())
-        return texts, statuses
+        return texts, statuses, applied
 
     def _dummy_block(self, channels: list[int], sweep: _Sweep | None, stamp: float, is_last: bool) -> list[str]:
         texts: list[str] = []
@@ -1014,6 +1047,32 @@ class SimInstrument:
                 if state.output_on and not self.faults.stuck(channel):
                     state.voltage = 0.0
         self._measurement = None
+        self._commit_dc()
+
+    # -- stateful devices ----------------------------------------------------------------------------------------------
+
+    def _sync_devices(self) -> None:
+        """Mirror the circuit's device state into the persistent state."""
+        if self.circuit.has_state:
+            self.state.devices = self.circuit.export_state()
+
+    def _commit_dc(self) -> None:
+        """Commit the DC output levels (compliance-limited, as ``solve`` applies them) to stateful devices."""
+        if not self.circuit.has_state:
+            return
+        levels = self._on_levels()
+        if levels:
+            applied, _, _ = self.solve(levels, {ch: self._icomp(ch) for ch in levels})
+            self.circuit.commit(applied)
+        self._sync_devices()
+
+    def _rollback_devices(self, measurement: _Measurement) -> None:
+        """A measurement ended early (``AB``, device clear): device state as after its last completed step."""
+        if not measurement.device_states:
+            return
+        done = sum(1 for end in measurement.step_ends if end <= self.clock)
+        self.circuit.import_state(measurement.device_states[min(done, len(measurement.device_states) - 1)])
+        self._sync_devices()
 
     @property
     def measurement_pending(self) -> bool:
@@ -1064,7 +1123,10 @@ class SimInstrument:
         """Replace the persistent state (outputs, DUT state, command log, counters)."""
         if state.scenario != self.scenario.name:
             raise ValueError(f"State belongs to scenario {state.scenario!r}, not {self.scenario.name!r}.")
-        self.state = state.model_copy(deep=True)
+        state = state.model_copy(deep=True)
+        self.circuit.import_state(state.devices)
+        self.state = state
+        self._sync_devices()
         self._sync_channels()
 
 

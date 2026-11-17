@@ -522,9 +522,12 @@ class Executor:
         if bundle.backend == "sim":
             scenario = bundle.sim_scenario.name if bundle.sim_scenario is not None else "unknown"
             out.append(f"SIMULATED: data come from the simulator scenario {scenario}, not from a device")
-        if plan.kind == "smu_staircase":
+        if plan.kind in ("smu_staircase", "smu_stepped"):
             out.append("sweep with automatic abort on compliance/overflow/oscillation (WM 2,1); duration estimate "
                        "assumes 50 Hz line frequency")
+        if plan.kind == "smu_stepped":
+            out.append("host loop: one sweep per step value in one transaction; the loop stops after a sweep that "
+                       "reported compliance/overflow/oscillation (see kind_result)")
         return out
 
     @staticmethod

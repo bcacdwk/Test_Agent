@@ -64,19 +64,78 @@ class MosfetEkvParams(StrictModel):
     )
 
 
+class DiodeParams(StrictModel):
+    """``diode``: Shockley junction with series resistance, shunt leakage and soft reverse breakdown (truth).
+
+    With ``U_T = k·T/q`` and the junction voltage ``Vj`` (anode minus cathode, less the drop over ``rs_ohm``), the
+    anode current is ``I = is_a·(exp(Vj/(n·U_T)) - 1) + leak_s·Vj - I_bv`` with the soft breakdown current
+    ``I_bv = ibv_a·(exp(-(Vj + bv_v)/bv_width_v) - exp(-bv_v/bv_width_v))`` (zero at 0 V, ``ibv_a`` at
+    ``Vj = -bv_v``; omitted when ``bv_v`` is null). ``rs_ohm`` makes ``I`` implicit; the simulator solves it by
+    Newton's method. ``leak_s`` is the reverse leakage (a shunt conductance across the junction).
+    """
+
+    is_a: PositiveFloat
+    n: float = Field(default=1.0, ge=0.5, le=10.0)
+    rs_ohm: float = Field(default=0.0, ge=0.0, le=1.0e6)
+    leak_s: float = Field(default=0.0, ge=0.0, le=1.0)
+    bv_v: PositiveFloat | None = None
+    ibv_a: PositiveFloat = 1.0e-6
+    bv_width_v: PositiveFloat = 0.5
+    temperature_k: float = Field(default=300.0, gt=0.0, le=600.0)
+
+
+class FefetParams(MosfetEkvParams):
+    """``fefet``: a ``mosfet_ekv`` whose threshold follows a ferroelectric polarization state (truth parameters).
+
+    ``Vth = vth0 - k_v·P`` with the normalised polarization ``P`` in [-1, 1] (positive ``P``, written by a positive
+    gate voltage, lowers the threshold for both polarities). ``P`` follows a hysteretic tanh loop of the
+    gate-source voltage ``V``: it never leaves the band between the ascending branch ``tanh((V - vc_v)/delta_v)`` and
+    the descending branch ``tanh((V + vc_v)/delta_v)`` and otherwise keeps its value (rate-independent play
+    operator). It starts at ``p_init`` and is persisted with the simulator state, so it survives transactions and
+    processes. A full loop gives the memory window ``Vth_fwd - Vth_rev`` of about ``2·k_v``.
+    """
+
+    k_v: float = Field(default=0.5, ge=0.0, le=10.0)
+    vc_v: PositiveFloat = 2.8
+    delta_v: PositiveFloat = 0.45
+    p_init: float = Field(default=-1.0, ge=-1.0, le=1.0)
+
+
+class MosfetDamagedParams(MosfetEkvParams):
+    """``mosfet_damaged``: a ``mosfet_ekv`` with one damage (truth parameters).
+
+    - ``gate_drain_short``: a resistor ``short_r_ohm`` between gate and drain (gate current mirrors into the drain);
+    - ``open_drain``: the drain is not connected to the channel (probe not landed or broken contact): the drain
+      terminal carries no current, so only noise is measured there; the gate-source half of the gate leakage stays;
+    - ``leaky_gate``: an extra gate leakage conductance ``leak_s``, split equally between gate-source and gate-drain.
+    """
+
+    damage: Literal["gate_drain_short", "open_drain", "leaky_gate"]
+    short_r_ohm: PositiveFloat = 1000.0
+    leak_s: float = Field(default=1.0e-7, ge=0.0, le=1.0)
+
+
 DEVICE_PARAMS: dict[str, type[StrictModel]] = {
     "open": OpenParams,
     "resistor": ResistorParams,
     "short": ShortParams,
     "mosfet_ekv": MosfetEkvParams,
+    "diode": DiodeParams,
+    "fefet": FefetParams,
+    "mosfet_damaged": MosfetDamagedParams,
 }
-"""Device models the v1 simulator implements (``diode``, ``fefet`` and damaged variants arrive in M2)."""
+"""Device models the simulator implements (M1: open, resistor, short, mosfet_ekv; M2: diode, fefet, damaged)."""
+
+_MOSFET_TERMINALS = frozenset({"gate", "drain", "source", "bulk"})
 
 DEVICE_TERMINALS: dict[str, frozenset[str] | None] = {
     "open": None,
     "resistor": frozenset({"a", "b"}),
     "short": frozenset({"a", "b"}),
-    "mosfet_ekv": frozenset({"gate", "drain", "source", "bulk"}),
+    "mosfet_ekv": _MOSFET_TERMINALS,
+    "diode": frozenset({"anode", "cathode"}),
+    "fefet": _MOSFET_TERMINALS,
+    "mosfet_damaged": _MOSFET_TERMINALS,
 }
 """Terminal names a scenario may wire per device model (``None``: any name, e.g. an unlanded probe)."""
 

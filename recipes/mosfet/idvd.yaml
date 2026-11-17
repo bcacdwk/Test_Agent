@@ -1,0 +1,42 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe).
+# MOSFET output family (Id-Vd): drain staircase sweep for each gate step (host loop over the gate role). Values
+# reused from the v0.2 idvd example (Vds 0..3 V, 101 points, Vgs 0.5..2.0 V in 4 steps, 1 mA compliance).
+# Kind smu_stepped is declared but not implemented until WP2.1, so the effective status is not_implemented on every
+# backend; WP2.2 validates this recipe on the simulator.
+id: mosfet.idvd
+version: 1
+title: MOSFET output curves (Id-Vd family over gate steps) for Ron, gds and saturation onset
+kind: smu_stepped
+status: draft
+card: null
+device_types: [nmos, pmos, igzo_tft]
+roles:
+  drain:
+    function: sweep_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: $vd_start, stop: $vd_stop, points: $vd_points, icomp: $icomp_drain}
+  gate:
+    function: step_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, icomp: $icomp_gate}
+  source: {function: ground, allow_gndu: true}
+params:
+  vd_start: {unit: V, default: 0.0, range: [-10, 10], doc: Drain sweep start.}
+  vd_stop: {unit: V, default: 3.0, recommended: [1, 3], range: [-10, 10], doc: Drain sweep stop.}
+  vd_points: {type: int, default: 101, range: [11, 1001], doc: Drain sweep points.}
+  vg_start: {unit: V, default: 0.5, range: [-10, 10], doc: First gate step.}
+  vg_stop: {unit: V, default: 2.0, range: [-10, 10], doc: Last gate step.}
+  vg_points: {type: int, default: 4, range: [1, 21], doc: Number of gate steps.}
+  icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-1], doc: Drain current compliance.}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance.}
+  integration: {type: enum, choices: [short, medium, long], default: medium, doc: ADC preset.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: output_metrics}
+provenance:
+  sources:
+    - deck slide 6
+    - v0.2 references/recipes/mosfet/idvd.example.yaml (tag archive/v0.2-fake-mcp)
+  validation_runs: []

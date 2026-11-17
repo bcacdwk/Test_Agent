@@ -1,0 +1,23 @@
+# Reserved recipe slot (blueprint 6.4; schema b1500_test_agent.models.recipe.Recipe). status stays
+# not_implemented and its kind is declared but unimplemented, so list_recipes shows it and every run is refused
+# with zero instrument I/O. `preconditions` lists what must exist before the slot may be un-reserved.
+id: spgu.program_smu_read
+version: 1
+title: SPGU/HV-SPGU program pulse, then SMU read through the 16440A selector
+kind: spgu_program_read
+status: not_implemented
+card: null
+device_types: [flash, nvm, fefet]
+roles: {}
+params: {}
+quality: {}
+provenance:
+  sources:
+    - blueprint 6.4
+    - v0.2 references/recipes/flash/spgu_program_smu_read.example.yaml
+  validation_runs: []
+preconditions:
+  - 16440A selector and SPGU commands extracted from the manuals (legacy status TBD-from-16440A-manual)
+  - selector topology recorded and verified in the station profile (switch to SPGU, then to SMU)
+  - a switching driver path with cleanup that leaves the selector on the SMU side
+  - pulse-envelope rules; sim model; sim and hardware validation

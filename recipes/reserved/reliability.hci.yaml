@@ -1,0 +1,21 @@
+# Reserved recipe slot (blueprint 6.4; schema b1500_test_agent.models.recipe.Recipe). status stays
+# not_implemented and its kind is declared but unimplemented, so list_recipes shows it and every run is refused
+# with zero instrument I/O. `preconditions` lists what must exist before the slot may be un-reserved.
+id: reliability.hci
+version: 1
+title: Hot-carrier injection stress with periodic Id-Vg reads
+kind: smu_stress_measure
+status: not_implemented
+card: null
+device_types: [nmos, pmos]
+roles: {}
+params: {}
+quality: {}
+always_confirm: [destructive]
+provenance:
+  sources:
+    - blueprint 6.4 (HCI)
+  validation_runs: []
+preconditions:
+  - the stress-measure-stress kind (reliability.bti_sms) implemented and validated
+  - drain-stress envelope rules; asynchronous runs; sim and hardware validation

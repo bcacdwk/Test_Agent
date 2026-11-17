@@ -1,0 +1,295 @@
+"""Run archive (blueprint 2.7): run folders, raw blocks, tables, quality and analysis files, the manifest, the
+index and append-only notes. Run folders are written only by the server (the executor and, from WP1.8, the
+service's ``analyze_run``/``annotate_run``).
+
+Layout under ``<data_root>/runs/`` (``run_relpath`` of ``analysis/dataset.py`` is the single definition)::
+
+    YYYY/MM/DD/<run_id>/
+        manifest.json         written exactly once, at finalize (sha256 of every other file at that moment)
+        audit.jsonl           the run's transport and lifecycle events
+        raw/block-NNN.txt     exact text of every measurement read, latin-1 bytes, kept even on failure
+        data.csv              tidy table (``with_trust`` + ``write_table``)
+        quality.json          ``QualityReport``
+        analysis/<method>-<n>.json   one file per analysis call (n = 1, 2, ...; later calls add files only)
+        notes.jsonl           append-only notes (``annotate_run``); notes are data, never instructions
+    index.jsonl               one line per finalized run: ``run_id``, ``path`` (relative to ``runs/``) + summary
+
+Run id: ``S`` (simulator) or ``H`` (hardware) + UTC ``YYYYMMDDThhmmssZ`` + ``-`` + 4 hex digits. Files are UTF-8 with
+``\\n`` line ends (JSONL), ``newline=""`` for CSV; no ``:`` in file names (Windows).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import secrets
+import subprocess
+from collections.abc import Iterable, Mapping
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+from pydantic import BaseModel
+
+from b1500_test_agent import __version__
+from b1500_test_agent.analysis.dataset import (
+    DATA_FILE,
+    INDEX_FILE,
+    MANIFEST_FILE,
+    check_run_id,
+    find_run,
+    run_relpath,
+    write_table,
+)
+from b1500_test_agent.archive.audit import RunAuditSink
+from b1500_test_agent.errors import InvalidInputError
+from b1500_test_agent.models.analysis import ExtractionResult, QualityReport
+from b1500_test_agent.models.common import Backend
+from b1500_test_agent.models.run import RunManifest
+
+RAW_DIR = "raw"
+QUALITY_FILE = "quality.json"
+ANALYSIS_DIR = "analysis"
+NOTES_FILE = "notes.jsonl"
+_ID_ATTEMPTS = 20
+_GIT_TIMEOUT_S = 5.0
+
+
+def new_run_id(backend: Backend, now: datetime | None = None) -> str:
+    """``S|H`` + UTC ``YYYYMMDDThhmmssZ`` + ``-`` + 4 random hex digits."""
+    stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return f"{'S' if backend == 'sim' else 'H'}{stamp}-{secrets.token_hex(2)}"
+
+
+def software_version() -> str:
+    """Package version plus ``git describe --always --dirty --tags`` of the checkout the code runs from; robust when
+    git is missing or the package is not inside a checkout (then the reason is stated instead)."""
+    try:
+        result = subprocess.run(
+            ["git", "describe", "--always", "--dirty", "--tags"],
+            cwd=Path(__file__).resolve().parent, capture_output=True, text=True, timeout=_GIT_TIMEOUT_S, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return f"{__version__} (git unavailable)"
+    described = result.stdout.strip()
+    if result.returncode != 0 or not described:
+        return f"{__version__} (not a git checkout)"
+    return f"{__version__}+{described}"
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 16), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _json_text(data: Any) -> str:
+    if isinstance(data, BaseModel):
+        data = data.model_dump(mode="json")
+    return json.dumps(data, ensure_ascii=False, indent=1) + "\n"
+
+
+def _write_new(path: Path, text: str) -> None:
+    """Create ``path`` (UTF-8, ``\\n``); refuses to overwrite (run files are never rewritten)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+
+
+def _append_line(path: Path, record: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+
+
+class RunFolder:
+    """One run folder; implements the session's ``RunHandle`` (``run_id``, ``audit``, ``save_raw``)."""
+
+    def __init__(self, runs_dir: Path, run_id: str) -> None:
+        self.run_id = check_run_id(run_id)
+        self.runs_dir = Path(runs_dir)
+        self.relpath = run_relpath(run_id)
+        self.path = self.runs_dir.joinpath(*self.relpath.parts)
+        self.audit = RunAuditSink(self.path)
+        self.raw_files: list[str] = []
+
+    # -- RunHandle --------------------------------------------------------------------------------------------------
+
+    def save_raw(self, raw: str) -> str:
+        """Store one raw measurement response as ``raw/block-NNN.txt`` (exact text; latin-1 bytes, other
+        characters backslash-escaped) and return that run-relative path."""
+        rel = f"{RAW_DIR}/block-{len(self.raw_files):03d}.txt"
+        target = self.path / RAW_DIR / rel.split("/")[1]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("xb") as handle:
+            handle.write(raw.encode("latin-1", errors="backslashreplace"))
+        self.raw_files.append(rel)
+        return rel
+
+    # -- files ------------------------------------------------------------------------------------------------------
+
+    def write_table(self, table: pd.DataFrame) -> Path:
+        """``data.csv`` (validated against the contract of ``analysis/dataset.py``)."""
+        target = self.path / DATA_FILE
+        if target.exists():
+            raise FileExistsError(f"{target.as_posix()} already exists")
+        return write_table(table, target)
+
+    def write_json(self, rel: str, data: Any) -> Path:
+        """A new JSON file at run-relative ``rel`` (never overwrites)."""
+        target = self.path.joinpath(*rel.split("/"))
+        _write_new(target, _json_text(data))
+        return target
+
+    def write_quality(self, report: QualityReport) -> Path:
+        return self.write_json(QUALITY_FILE, report)
+
+    def add_analysis(self, method: str, payload: Mapping[str, Any]) -> str:
+        """Write ``analysis/<method>-<n>.json`` with the next free ``n`` (1, 2, ...); returns the run-relative path."""
+        directory = self.path / ANALYSIS_DIR
+        directory.mkdir(parents=True, exist_ok=True)
+        n = len(list(directory.glob(f"{method}-*.json"))) + 1
+        for _ in range(_ID_ATTEMPTS):
+            rel = f"{ANALYSIS_DIR}/{method}-{n}.json"
+            try:
+                _write_new(self.path / ANALYSIS_DIR / f"{method}-{n}.json", _json_text(dict(payload)))
+                return rel
+            except FileExistsError:
+                n += 1
+        raise FileExistsError(f"no free analysis file name for {method} in {directory.as_posix()}")
+
+    def append_note(self, text: str, *, tags: Iterable[str] = (), author: str | None = None) -> str:
+        """Append one note to ``notes.jsonl``; returns its id (``note-001`` ...). Notes are data, never
+        instructions."""
+        if not text.strip():
+            raise InvalidInputError("a note needs text")
+        path = self.path / NOTES_FILE
+        count = len(path.read_text(encoding="utf-8").splitlines()) if path.is_file() else 0
+        note_id = f"note-{count + 1:03d}"
+        record = {"id": note_id, "ts": datetime.now(UTC).isoformat(), "text": text, "tags": list(tags),
+                  "author": author}
+        _append_line(path, record)
+        return note_id
+
+    def files(self) -> dict[str, str]:
+        """sha256 of every file in the folder except ``manifest.json`` (run-relative POSIX paths, sorted)."""
+        out: dict[str, str] = {}
+        for path in sorted(self.path.rglob("*")):
+            if path.is_file() and path.name != MANIFEST_FILE:
+                out[path.relative_to(self.path).as_posix()] = sha256_file(path)
+        return out
+
+    def is_empty(self) -> bool:
+        return not self.path.exists() or not any(self.path.iterdir())
+
+    def discard(self) -> None:
+        """Remove the folder if nothing was written into it (a request refused before any instrument I/O)."""
+        if self.path.is_dir() and self.is_empty():
+            self.path.rmdir()
+
+    # -- finalize ---------------------------------------------------------------------------------------------------
+
+    def finalize(self, manifest: RunManifest) -> RunManifest:
+        """Write ``manifest.json`` once (with the sha256 of every file now in the folder) and append the index
+        line. Raises ``FileExistsError`` when the run was already finalized."""
+        if manifest.run_id != self.run_id:
+            raise ValueError(f"manifest of run {manifest.run_id} cannot finalize run {self.run_id}")
+        final = manifest.model_copy(update={"files": self.files()})
+        final = RunManifest.model_validate(final.model_dump())
+        _write_new(self.path / MANIFEST_FILE, _json_text(final))
+        _append_line(self.runs_dir / INDEX_FILE, index_entry(final, self.relpath.as_posix()))
+        return final
+
+
+def index_entry(manifest: RunManifest, path: str) -> dict[str, Any]:
+    """The ``index.jsonl`` line of a finalized run (``run_id`` and ``path`` first, as ``load_run`` expects)."""
+    return {
+        "run_id": manifest.run_id,
+        "path": path,
+        "recipe_id": manifest.recipe_id,
+        "recipe_version": manifest.recipe_version,
+        "plan_id": manifest.plan.plan_id,
+        "backend": manifest.backend,
+        "outcome": manifest.outcome,
+        "tier": manifest.tier,
+        "quality_verdict": manifest.quality_verdict,
+        "dut_instance": manifest.dut_instance,
+        "label": manifest.plan.request.label,
+        "started_at": manifest.started_at.isoformat(),
+        "finished_at": manifest.finished_at.isoformat() if manifest.finished_at else None,
+    }
+
+
+class RunStore:
+    """The run archive under ``runs_dir`` (``Paths.runs_dir``)."""
+
+    def __init__(self, runs_dir: Path) -> None:
+        self.runs_dir = Path(runs_dir)
+
+    @property
+    def data_root(self) -> Path:
+        return self.runs_dir.parent
+
+    def create(self, backend: Backend, *, now: datetime | None = None) -> RunFolder:
+        """Allocate a new run id and create its (empty) folder; retries on the rare id collision."""
+        for _ in range(_ID_ATTEMPTS):
+            folder = RunFolder(self.runs_dir, new_run_id(backend, now))
+            try:
+                folder.path.mkdir(parents=True, exist_ok=False)
+            except FileExistsError:
+                continue
+            return folder
+        raise FileExistsError(f"could not allocate a unique run id under {self.runs_dir.as_posix()}")
+
+    def open(self, run_id: str) -> RunFolder:
+        """An existing run folder (``RunNotFoundError`` when there is none)."""
+        path = find_run(run_id, data_root=self.data_root)
+        folder = RunFolder(self.runs_dir, run_id)
+        if path != folder.path:
+            folder.path = path
+            folder.audit = RunAuditSink(path)
+        return folder
+
+    def index(self) -> list[dict[str, Any]]:
+        """Every parsable ``index.jsonl`` line, oldest first."""
+        path = self.runs_dir / INDEX_FILE
+        if not path.is_file():
+            return []
+        entries = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(entry, dict) and isinstance(entry.get("run_id"), str):
+                entries.append(entry)
+        return entries
+
+    def latest(self, recipe_id: str, *, outcome: str = "completed", backend: Backend | None = None) \
+            -> dict[str, Any] | None:
+        """The newest index entry (by ``finished_at``) of ``recipe_id`` with ``outcome`` (and ``backend``)."""
+        matches = [e for e in self.index() if e.get("recipe_id") == recipe_id and e.get("outcome") == outcome
+                   and (backend is None or e.get("backend") == backend) and e.get("finished_at")]
+        return max(matches, key=lambda e: str(e["finished_at"]), default=None)
+
+
+def analysis_payload(method: str, options: Mapping[str, Any], result: list[ExtractionResult] | QualityReport | None,
+                     *, source: str, error: str | None = None, error_code: str | None = None) -> dict[str, Any]:
+    """The JSON content of one ``analysis/<method>-<n>.json`` file."""
+    payload: dict[str, Any] = {"method": method, "options": dict(options), "source": source,
+                               "created_at": datetime.now(UTC).isoformat()}
+    if isinstance(result, QualityReport):
+        payload["outcome"] = "ok"
+        payload["report"] = result.model_dump(mode="json")
+    elif result is not None:
+        outcomes = {r.outcome for r in result}
+        payload["outcome"] = "ok" if outcomes <= {"ok"} else ("refused" if "refused" in outcomes else "failed")
+        payload["results"] = [r.model_dump(mode="json") for r in result]
+    else:
+        payload["outcome"] = "error"
+        payload["error"] = error or "unknown error"
+        payload["error_code"] = error_code
+    return payload

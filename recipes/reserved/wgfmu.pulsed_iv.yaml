@@ -1,0 +1,23 @@
+# Reserved recipe slot (blueprint 6.4; schema b1500_test_agent.models.recipe.Recipe). status stays
+# not_implemented and its kind is declared but unimplemented, so list_recipes shows it and every run is refused
+# with zero instrument I/O. `preconditions` lists what must exist before the slot may be un-reserved.
+id: wgfmu.pulsed_iv
+version: 1
+title: WGFMU fast pulsed I-V (Id-Vg/Id-Vd with short pulses)
+kind: wgfmu_pulsed_iv
+status: not_implemented
+card: null
+device_types: [nmos, pmos, igzo_tft, fefet]
+roles: {}
+params: {}
+quality: {}
+provenance:
+  sources:
+    - blueprint 6.4 (WGFMU pulsed IV)
+  validation_runs: []
+preconditions:
+  - WGFMU instrument-library (B1530A) commands extracted from the manual into references/manuals/structured/
+  - RSU wiring and WGFMU channels recorded in the station profile and pin maps
+  - pulse-envelope rules (amplitude, width, duty cycle) added to the rule set with tests
+  - simulator model of the pulsed response and a safety-matrix row for the new kind
+  - sim validation, then an M4 hardware validation record

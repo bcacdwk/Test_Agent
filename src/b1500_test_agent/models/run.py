@@ -15,13 +15,15 @@ from b1500_test_agent.models.analysis import ExtractionResult, RunId, TrustLevel
 from b1500_test_agent.models.common import (
     Backend,
     ConfigFile,
+    ErrorCode,
+    JsonScalar,
     ResultEnvelope,
     Sha256Hex,
     StrictModel,
     Tier,
     ValidationStatus,
 )
-from b1500_test_agent.models.plan import PlanId, PlanRecord, RulesReport
+from b1500_test_agent.models.plan import PlanId, PlanRecord, RuleFinding, RulesReport
 from b1500_test_agent.models.recipe import RecipeId
 from b1500_test_agent.models.station import Identity, InstrumentError, ModuleInventory
 
@@ -111,6 +113,18 @@ class RunManifest(StrictModel):
     cleanup: CleanupReport | None = None
     assumptions: list[str] = Field(default_factory=list)
     files: dict[str, Sha256Hex] = Field(default_factory=dict)
+    message: str = ""
+    """Why the run ended as it did (failure reason, refusal), empty for a clean completion (WP1.7)."""
+    error_code: ErrorCode | None = None
+    status_counts: dict[str, Annotated[int, Field(ge=0)]] = Field(default_factory=dict)
+    """Measured values per status letter over all measured columns (``N``, ``C``, ``T``, ``V`` ...)."""
+    quality_verdict: TrustLevel | None = None
+    quality_findings: list[RuleFinding] = Field(default_factory=list)
+    """R-QUAL-* findings of the post-run classification (blueprint 4.1 point 4)."""
+    kind_result: dict[str, JsonScalar] = Field(default_factory=dict)
+    """Kind-specific result facts, e.g. ``{"operation": "self_test", "result": 0}`` for system recipes."""
+    timings: dict[str, Annotated[float, Field(ge=0)]] = Field(default_factory=dict)
+    """Durations in seconds (``transaction_s``, ``total_s`` ...)."""
 
     @model_validator(mode="after")
     def _consistent(self) -> RunManifest:

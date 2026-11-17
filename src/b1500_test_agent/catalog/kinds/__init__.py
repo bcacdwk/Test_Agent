@@ -1,1 +1,27 @@
-"""Measurement kinds that compile, acquire and tabulate recipes (blueprint 2.6)."""
+"""Measurement kinds (blueprint 2.6): ``smu_staircase`` (sim + visa), ``system`` (sim) and the declared
+``UnimplementedKind`` ids. ``default_kinds()`` is the mapping the recipe registry loads against."""
+
+from b1500_test_agent.catalog.kinds.base import MeasurementKind, implemented_on
+from b1500_test_agent.catalog.kinds.smu_staircase import SmuStaircaseKind, StaircaseProgram
+from b1500_test_agent.catalog.kinds.system import SystemKind
+from b1500_test_agent.catalog.kinds.unimplemented import UNIMPLEMENTED_KINDS, UnimplementedKind, unimplemented_kinds
+
+
+def default_kinds() -> dict[str, MeasurementKind]:
+    """Every registered kind by id: the implemented ones plus one ``UnimplementedKind`` per declared id."""
+    kinds: dict[str, MeasurementKind] = dict(unimplemented_kinds())
+    for kind in (SmuStaircaseKind(), SystemKind()):
+        kinds[kind.kind_id] = kind
+    return kinds
+
+
+__all__ = [
+    "UNIMPLEMENTED_KINDS",
+    "MeasurementKind",
+    "SmuStaircaseKind",
+    "StaircaseProgram",
+    "SystemKind",
+    "UnimplementedKind",
+    "default_kinds",
+    "implemented_on",
+]

@@ -1,0 +1,21 @@
+# Reserved recipe slot (blueprint 6.4; schema b1500_test_agent.models.recipe.Recipe). status stays
+# not_implemented and its kind is declared but unimplemented, so list_recipes shows it and every run is refused
+# with zero instrument I/O. `preconditions` lists what must exist before the slot may be un-reserved.
+id: moscap.cv
+version: 1
+title: MOS capacitor C-V sweep with the MFCMU
+kind: cmu_cv
+status: not_implemented
+card: null
+device_types: [moscap]
+roles: {}
+params: {}
+quality: {}
+provenance:
+  sources:
+    - blueprint 6.4 (CV MOS-C)
+  validation_runs: []
+preconditions:
+  - cmu.correction implemented, with current corrections covering the frequencies (rule R-CORR-01)
+  - SCUU switching and leakage validation flows
+  - C-V extraction reserved in knowledge 06 written and reviewed; sim and hardware validation

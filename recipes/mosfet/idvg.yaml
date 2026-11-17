@@ -1,0 +1,47 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOSFET transfer curve in the linear region: staircase sweep of the gate at a small constant drain bias, source on
+# the GNDU (blueprint 2.6 example; defaults from deck slide 6, values reused from the v0.2 idvg example).
+# `range` is the hard recipe envelope (rule R-PARAM-01); policy and DUT profile limits apply on top of it.
+# status: sim_validated by the WP1.7 integration test (tests/integration/test_executor_vertical.py); hw_validated
+# only through an M4 validation record. card: set by WP2.5 when the mosfet-idvg card exists.
+id: mosfet.idvg
+version: 1
+title: MOSFET transfer curve (Id-Vg, linear region) for Vth/gm/SS/Ion-Ioff
+kind: smu_staircase
+status: sim_validated
+card: null
+device_types: [nmos, pmos, igzo_tft]
+roles:
+  gate:
+    function: sweep_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, icomp: $icomp_gate}
+  drain:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {v: $vd, icomp: $icomp_drain}
+  source: {function: ground, allow_gndu: true}
+params:
+  vg_start: {unit: V, default: -1.0, recommended: [-2, 0], range: [-10, 10], doc: Gate sweep start.}
+  vg_stop: {unit: V, default: 3.0, recommended: [1, 5], range: [-10, 10], doc: Gate sweep stop.}
+  vg_points: {type: int, default: 101, range: [11, 1001], doc: Sweep points (equal steps).}
+  vd: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [-5, 5], doc: Drain bias (linear region).}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance.}
+  icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-2], doc: Drain current compliance.}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset (short = fastest/noisiest, long = 16 power-line cycles).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: vth_linear_extrapolation, options: {window: max_gm, subtract_half_vd: true}}
+provenance:
+  sources:
+    - deck slide 6
+    - Programming Guide Ed. 15 WV (PDF 568-569), WT (PDF 564-565), WM (PDF 552-553), FMT (PDF 436-438)
+    - v0.2 references/recipes/mosfet/idvg.example.yaml (tag archive/v0.2-fake-mcp)
+  validation_runs: []

@@ -76,7 +76,7 @@ until then the v0.2 file stays in place as source material.
 | `schemas/cd_flow.py`, `schemas/{measurement,policy,recipe,result,station}.py` | remove, rewrite | `models/*` | removed WP0.5; rewritten WP1.1 |
 | `instruments/b1500/parser_ascii.py` | move, finish | `driver/parser.py` with `parse_fmt1`/`parse_fmt5` | moved WP0.5; finish WP1.3 |
 | `instruments/b1500/{transport,session,safety,state_machine,discovery,calibration,flex_commands}.py` | rewrite | `transport/`, `session/`, `rules/`, `driver/` | removed WP0.5; WP1.2–1.6 |
-| `instruments/b1500/{modules,switching,recipes}/*` | remove | `recipes/reserved/*.yaml` (`not_implemented`) | removed WP0.5; WP1.7 |
+| `instruments/b1500/{modules,switching,recipes}/*` | remove | `recipes/reserved/*.yaml` (`not_implemented`) | removed WP0.5; reserved slots WP1.7 |
 | `instruments/b1500/AGENTS.md`, `analysis/AGENTS.md` | move, trim (≤30 lines) | `driver/AGENTS.md`, `analysis/AGENTS.md`, each with a one-line `CLAUDE.md` (`@AGENTS.md`) | done WP0.5 + WP0.6 |
 | `analysis/*.py`, `cli.py` | rewrite | `analysis/`, `adapters/cli.py` | removed WP0.5; CLI skeleton WP0.3; WP1.5, WP1.8 |
 | `tests/test_parser_ascii.py` | keep, fix import | `tests/unit/test_parser.py` | done WP0.5 |
@@ -86,7 +86,7 @@ until then the v0.2 file stays in place as source material.
 | `config/default.example.yaml`, `references/station/{station-profile,cable-topology}.example.yaml` | merge | `config/settings.example.yaml` (transport, paths) + `config/station.example.yaml` (inventory, topology, corrections) | done WP1.1 |
 | `config/safety_limits.example.yaml`, `references/policies/*` | merge | `config/policy.example.yaml` | done WP1.1 |
 | `references/station/pin-maps/*`, `references/station/compensation/*`, `references/devices/*` | move | `config/pinmaps/`, `config/station.example.yaml#corrections`, `config/duts/` | done WP1.1 |
-| `references/recipes/**` | rewrite to the recipe schema | `recipes/` (Id-Vg/Id-Vd values reused; FeFET write-read, flash, CGD C-V → `recipes/reserved/`) | pending WP1.7, WP2.2 |
+| `references/recipes/**` | rewrite to the recipe schema | `recipes/` (Id-Vg/Id-Vd values reused; FeFET write-read, flash, CGD C-V → `recipes/reserved/`) | done WP1.7 (`mosfet.idvd` validated in WP2.2) |
 | `references/{instruments,physics,hspice,debug}/` READMEs | fold | knowledge files 01/02/05/07 and skill `b1500-debug` | pending WP2.6, WP2.7 |
 | `references/manuals/**`, `scripts/extract_manuals.py` | keep | unchanged | kept |
 | `tmp/*` (42 tracked design notes) | remove; `tmp/` gitignored | kept by the tag; the plan was promoted to `docs/design/blueprint.md` first | done WP0.1, WP0.5 |

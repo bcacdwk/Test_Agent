@@ -42,12 +42,12 @@ Hardware access or FLEX text added to a recipe, a tool or an analysis function t
 | `driver/` | `commands.py` builders, `b1500.py` driver, `guard.py` `OutputGuard`, `parser.py`, `discovery.py`, `errors.py`, `modules.py` | parser status tables moved (M0); data parsing and the rest M1 |
 | `session/` | `InstrumentLock` (OS file lock), `Session`, `Transaction` (cleanup `AB → DZ → CL → verify`), `FaultLatch` | done (WP1.6; inflight recovery, daily audit sink, `RunHandle` protocol for the archive) |
 | `rules/` | Rule registry and engine, built-in rules, tiers, hard-limit code ceiling, `plan_summary` | done (WP1.4; rule table in [safety-model.md](safety-model.md)) |
-| `catalog/` | Recipe schema and registry, planner, executor, measurement kinds (`smu_staircase`, `system`, `unimplemented`; `smu_stepped` in M2) | M1 |
-| `archive/` | Run folders, manifest, `audit.jsonl`, `index.jsonl`, sha256 of every file | M1 |
+| `catalog/` | Recipe schema and registry, planner, executor, measurement kinds (`smu_staircase`, `system`, `unimplemented`; `smu_stepped` in M2) | done (WP1.7; recipes `mosfet.idvg`, `generic.smu_staircase`, `system.*` sim-validated, `mosfet.idvd` draft, 13 reserved slots; `b1500 dev recipe-check`) |
+| `archive/` | Run folders, manifest, `audit.jsonl`, `index.jsonl`, sha256 of every file | done (WP1.7; raw blocks kept on failure, append-only notes) |
 | `analysis/` | `load_run`, `assess_quality`, extraction methods, plots, `ANALYSIS_METHODS` registry | M1–M2 |
 | `service.py` | `B1500Service`: one method per MCP tool; reloads changed config, audits every call, never raises to adapters | M1 |
 | `adapters/` | `mcp_server.py` (10 tools), `cli.py` (`b1500`, `b1500-mcp`) | CLI skeleton (M0), `config check` (WP1.1); M1 |
-| `devtools/` | `budget.py` (tool-schema token counter), sync-harness, lint-skills, recipe-check, mcp-smoke, acceptance runner | `budget.py` (M0); rest M1–M3 |
+| `devtools/` | `budget.py` (tool-schema token counter), sync-harness, lint-skills, recipe-check, mcp-smoke, acceptance runner | `budget.py` (M0), `recipe_check.py` (WP1.7); rest M1–M3 |
 
 Outside the package: `recipes/` (registry source YAML), `config/` (examples, sim scenarios and faults, harness
 templates), `.agents/skills/` (canonical skills) with a generated copy in `.claude/skills/`, `references/manuals/`

@@ -1,0 +1,39 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe).
+# Generic ad-hoc staircase: one swept SMU terminal, an optional biased SMU terminal and a ground terminal. Roles bind
+# to pin-map terminals of the same name, so a pin map (and DUT profile) naming the terminals `sweep`, `bias` and
+# `ground` is required; a human writes those in config/local/. On hardware every plan needs confirmation
+# (adhoc_recipe, plus first_hw_run until it is hw_validated). Prefer a device-specific recipe whenever one exists.
+# status: sim_validated by the WP1.7 integration test (tests/integration/test_executor_recipes.py).
+id: generic.smu_staircase
+version: 1
+title: Generic SMU staircase sweep (ad-hoc; one swept, one optional biased, one ground terminal)
+kind: smu_staircase
+status: sim_validated
+card: null
+device_types: []
+roles:
+  sweep:
+    function: sweep_v
+    measure: [I]
+    settings: {start: $start, stop: $stop, points: $points, icomp: $icomp, mode: $mode}
+  bias:
+    function: bias_v
+    measure: [I]
+    optional: true
+    settings: {v: $bias_v, icomp: $bias_icomp}
+  ground: {function: ground, allow_gndu: true}
+params:
+  start: {unit: V, default: 0.0, range: [-42, 42], doc: Sweep start.}
+  stop: {unit: V, default: 1.0, range: [-42, 42], doc: Sweep stop.}
+  points: {type: int, default: 51, range: [2, 2001], doc: Sweep points.}
+  icomp: {unit: A, default: 1.0e-4, range: [1.0e-12, 0.1], doc: Current compliance of the swept terminal.}
+  mode: {type: enum, choices: [single, double], default: single, doc: single = start->stop; double = and back.}
+  bias_v: {unit: V, default: 0.0, range: [-42, 42], doc: Bias of the optional bias terminal.}
+  bias_icomp: {unit: A, default: 1.0e-4, range: [1.0e-12, 0.1], doc: Current compliance of the bias terminal.}
+  integration: {type: enum, choices: [short, medium, long], default: medium, doc: ADC preset.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults: []
+provenance:
+  sources:
+    - blueprint 2.6 (generic.* recipes are ad-hoc; rule R-REC-01 adhoc_recipe on visa)
+  validation_runs: []

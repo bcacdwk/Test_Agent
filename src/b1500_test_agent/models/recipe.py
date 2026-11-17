@@ -152,6 +152,9 @@ class Recipe(StrictModel):
     analysis_defaults: list[AnalysisSpec] = Field(default_factory=list)
     always_confirm: list[ConfirmReason] = Field(default_factory=list)
     provenance: Provenance
+    preconditions: list[Annotated[str, Field(min_length=1)]] = Field(default_factory=list)
+    """What must exist before a reserved (``not_implemented``) recipe may be un-reserved: manual extraction,
+    correction/SCUU/leakage flows, validation (blueprint 6.4). Shown to the agent by ``list_recipes``."""
     sha256: Sha256Hex
 
     @model_validator(mode="after")

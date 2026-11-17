@@ -1,7 +1,8 @@
 """`b1500` command-line interface (Typer) and the `b1500-mcp` entry point.
 
-Commands so far: `b1500 config check` (WP1.1) and the developer command `b1500 dev tool-budget` (WP0.3). Later
-work packages add the operator commands of blueprint §5.3 on top of the same service layer as the MCP server.
+Commands so far: `b1500 config check` (WP1.1) and the developer commands `b1500 dev tool-budget` (WP0.3) and
+`b1500 dev recipe-check` (WP1.7). Later work packages add the operator commands of blueprint §5.3 on top of the same
+service layer as the MCP server.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from typing import Annotated
 import typer
 
 from b1500_test_agent.config import ConfigLoader
-from b1500_test_agent.devtools import budget
+from b1500_test_agent.devtools import budget, recipe_check
 from b1500_test_agent.models.common import ConfigReport
 
 # The 10-tool server arrives in WP1.8; until then pass --app explicitly.
@@ -98,6 +99,18 @@ def tool_budget(
     if report.warning:
         typer.echo(f"warning: {report.warning}", err=True)
     typer.echo(report.model_dump_json(indent=2) if as_json else budget.format_report(report, top=top))
+
+
+@dev_app.command("recipe-check")
+def recipe_check_command(
+    as_json: Annotated[bool, typer.Option("--json", help="Print the report as JSON.")] = False,
+) -> None:
+    """Load recipes/ against the measurement kinds and list every problem (schema, kind, card, analysis method,
+    $param references, reserved slots). Exit code 0 iff there are none."""
+    report = recipe_check.check_recipes()
+    typer.echo(report.model_dump_json(indent=2) if as_json else recipe_check.format_report(report))
+    if not report.ok:
+        raise typer.Exit(code=1)
 
 
 def main() -> None:

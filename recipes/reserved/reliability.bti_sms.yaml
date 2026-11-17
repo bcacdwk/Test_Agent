@@ -1,0 +1,22 @@
+# Reserved recipe slot (blueprint 6.4; schema b1500_test_agent.models.recipe.Recipe). status stays
+# not_implemented and its kind is declared but unimplemented, so list_recipes shows it and every run is refused
+# with zero instrument I/O. `preconditions` lists what must exist before the slot may be un-reserved.
+id: reliability.bti_sms
+version: 1
+title: BTI stress-measure-stress with SMUs
+kind: smu_stress_measure
+status: not_implemented
+card: null
+device_types: [nmos, pmos, igzo_tft]
+roles: {}
+params: {}
+quality: {}
+always_confirm: [destructive]
+provenance:
+  sources:
+    - blueprint 6.4 (BTI stress-measure-stress)
+  validation_runs: []
+preconditions:
+  - asynchronous runs for long stresses (run_status/cancel_run tools)
+  - stress-measure-stress kind with recovery-time control and its safety-matrix rows
+  - stress budget in DUT profiles; knowledge 05 reviewed; sim and hardware validation

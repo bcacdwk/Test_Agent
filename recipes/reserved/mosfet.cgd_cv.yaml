@@ -1,0 +1,26 @@
+# Reserved recipe slot (blueprint 6.4; schema b1500_test_agent.models.recipe.Recipe). status stays
+# not_implemented and its kind is declared but unimplemented, so list_recipes shows it and every run is refused
+# with zero instrument I/O. `preconditions` lists what must exist before the slot may be un-reserved.
+id: mosfet.cgd_cv
+version: 1
+title: MOSFET gate-drain capacitance C-V (Cgd) with the MFCMU
+kind: cmu_cv
+status: not_implemented
+card: null
+device_types: [nmos, pmos]
+roles: {}
+params:
+  frequency_hz: {unit: Hz, default: 1.0e+6, range: [1.0e+3, 5.0e+6], doc: Measurement frequency.}
+  ac_level: {unit: V, default: 0.03, range: [0.001, 0.25], doc: AC test signal level.}
+  dc_start: {unit: V, default: -3.0, range: [-10, 10], doc: DC bias sweep start.}
+  dc_stop: {unit: V, default: 3.0, range: [-10, 10], doc: DC bias sweep stop.}
+  points: {type: int, default: 201, range: [11, 1001], doc: Sweep points.}
+quality: {}
+provenance:
+  sources:
+    - v0.2 references/recipes/mosfet/cgd_cv.example.yaml (status deferred_until_correction_flow_exists)
+  validation_runs: []
+preconditions:
+  - leakage check passed on the same landing
+  - open/short correction current for 1 MHz (cmu.correction; rule R-CORR-01)
+  - pin map verified; SCUU/guard topology recorded; sim and hardware validation

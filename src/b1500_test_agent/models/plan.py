@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Annotated, Literal
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, Field, JsonValue, model_validator
 
 from b1500_test_agent.models.analysis import Quantity
 from b1500_test_agent.models.common import (
@@ -201,7 +201,8 @@ class RulesReport(StrictModel):
 
 class PlanRecord(StrictModel):
     """A validated, frozen plan (blueprint 2.1). ``plan_hash`` covers recipe id/version/sha, resolved params,
-    binding, envelope, config hashes and backend, but not the label, rule reports or timestamps. ``hashes`` holds
+    binding, envelope, estimate, FLEX preview, kind program, config hashes and backend, but not the label, rule
+    reports, tier, summary or timestamps (``catalog.planner.plan_hash_of``). ``hashes`` holds
     the sha256 of the ``station``, ``policy``, ``pin_map`` and ``dut_profile`` files; ``summary`` is the canonical
     one-line ``plan_summary`` (ASCII, at most 400 characters)."""
 
@@ -219,6 +220,9 @@ class PlanRecord(StrictModel):
     flex_preview: list[str]
     hashes: dict[str, Sha256Hex]
     backend: Backend
+    program: dict[str, JsonValue] = Field(default_factory=dict)
+    """The measurement kind's compiled program (JSON): exactly what ``kind.acquire`` executes; covered by
+    ``plan_hash`` like everything except the label, rule reports, tier, summary and timestamps (WP1.7)."""
     rules: RulesReport
     tier: Tier
     summary: Annotated[str, Field(min_length=1, max_length=400, pattern=r"^[\x20-\x7e]+$")]

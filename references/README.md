@@ -7,7 +7,7 @@ Keep this directory split between:
 - Instrument knowledge: manuals, FLEX notes, modules, switching accessories.
 - Device knowledge: expected behavior, common measurements.
 - Physics and analysis notes.
-- Debug records from real experiments.
+- Debug records from real experiments: skill `b1500-debug` (`.agents/skills/b1500-debug/`: runbooks, cases).
 
 Recipes (validated measurement flows and their envelopes) live in `recipes/` at the repository root, checked by
 `b1500 dev recipe-check`. Station profile, cable topology, correction records, pin maps, DUT envelopes and the

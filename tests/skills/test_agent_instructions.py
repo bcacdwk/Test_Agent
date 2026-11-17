@@ -79,7 +79,7 @@ def test_driver_map_is_never_auto_loaded() -> None:
 def test_skill_frontmatter() -> None:
     """Every canonical skill has frontmatter with ``name`` = its folder (≤64 chars) and a ≤300-char description."""
     skills = sorted((ROOT / ".agents" / "skills").glob("*/SKILL.md"))
-    assert [p.parent.name for p in skills][:1] == ["b1500-test"]
+    assert "b1500-test" in [p.parent.name for p in skills]
     for path in skills:
         text = _read(path)
         assert text.startswith("---\n"), path

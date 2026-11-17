@@ -1,0 +1,61 @@
+---
+id: noisy-data
+title: Noisy data or a response at the noise floor
+maturity: seed
+sources: [deck slide 17, PPT_slides_content.md p.18 (grounding cause), analysis/quality.py (MIN_SNR)]
+---
+
+# Noisy data
+
+## Symptom
+
+- Large point-to-point scatter on a curve that should be smooth.
+- Quality warning "signal range is only N x its noise estimate ... at the noise floor" on the response column
+  (SNR below 10; pure white noise gives about 5).
+- `analyze_run` refuses: "`<column>` is noise-dominated". The run itself may still say quality `ok`, because all
+  points carry status N: the status codes do not catch an open probe.
+
+A bias or leakage column at its floor is normal; the column being analysed (for example `drain_I` of Id-Vg) is a
+red flag.
+
+## Likely causes
+
+1. Nothing is connected: a probe is lifted or off its pad, so the SMU reads only its noise floor.
+2. Integration time too short (deck slide 17).
+3. Shield box open or environmental interference (deck slide 17).
+4. Poor grounding (deck text).
+5. The real current is below what the module resolves (MPSMU instead of HRSMU, missing ASU for sub-pA).
+
+## First safe checks
+
+1. Report no derived value. Do not retry `analyze_run` with `force`.
+2. `get_run(run_id, include=[summary, quality])`: which column, its SNR, its magnitude against the module floor.
+3. Contact check first (card `contact-resistor-check` in skill `b1500-test`) on the terminal pair of the noisy
+   column, for example drain-source. Use the pin map the card names; if none fits, ask the human for one. A result
+   of `open` means the probe is not landed: stop and ask for re-landing. No re-run helps before that.
+4. Contact in range: re-run the same recipe with `integration: long` (or the next longer preset) as a new
+   `validate_plan` that stays tier `ok`. Compare SNR. At most two such re-runs.
+5. Still noisy: open-circuit floor with the probes lifted (contact-check plan) to see whether the station itself is
+   noisy.
+
+## Physical checks to ask the human
+
+Deck order (slide 17): longer integration time, close the shield box, check grounding. Before that, landing:
+
+- Are all probes landed? Please re-land the probe on the noisy terminal and confirm under the microscope.
+- Is the shield box closed and connected to the B1500A chassis ground; is the GNDU connected?
+- Any new equipment, pumps or lamps running near the prober?
+- Is the low-current terminal on an HRSMU (with ASU for sub-pA work), with Guard connected?
+
+## Do not
+
+- Report a Vth, SS or any fit from noise-dominated data, even "approximately".
+- Average, smooth or drop points to make the noise go away.
+- Raise the drain or gate bias to "lift the signal above the noise": that is a new plan with the human's consent.
+
+## Stop and call safe_shutdown
+
+- The contact check reads `open`: hand over for physical re-landing and wait.
+- Two re-runs with longer integration did not raise the SNR above 10.
+- The scatter comes with status X (oscillation, output not settled) or V (over range) points: the data are
+  untrusted; ask the human about cabling, Guard and the DUT.

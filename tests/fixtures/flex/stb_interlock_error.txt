@@ -1,0 +1,5 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 523 (printed 4-205, *STB? example 40 = bits 3 and 5), PDF 76-77 (printed 1-56 to 1-57, bit 3 interlock open, bit 5 error)
+# kind: stb
+# command: *STB?
+# expect: {"value": 40, "flags": ["interlock_open", "error"]}
+40

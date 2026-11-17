@@ -1,0 +1,5 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 446-447 (printed 4-128 to 4-129, LOP? response and Table 4-26; example: HPSMU in slots 1-2 in voltage compliance)
+# kind: lop
+# command: LOP?
+# expect: {"1": "00", "2": "11", "3": "00", "4": "00", "5": "00", "6": "00", "7": "00", "8": "00", "9": "00", "10": "00"}
+LOP00,11,00,00,00,00,00,00,00,00

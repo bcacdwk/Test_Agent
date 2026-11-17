@@ -1,0 +1,7 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 41 (printed 1-21: FMT 5, DV 4,0,5, measurement on channel 4, ENTER "#,3A,12D,X"), PDF 38 (3 + 12 + 1 characters), PDF 47 (Data<terminator>), PDF 437 (FMT 5 terminator ',')
+# kind: fmt5
+# command: FMT 5; CN 1,2,3,4; DV 4,0,5; TI 4,0
+# terminator: comma
+# note: the measured value is not printed in the manual; 12.3456 uA is illustrative
+# point: N D I +1.23456E-05
+NDI+1.23456E-05,

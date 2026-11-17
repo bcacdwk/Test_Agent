@@ -1,0 +1,40 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 199-201 (printed 3-19 to 3-21): Table 3-5 staircase sweep example and its Measurement Result Example (Vg = 1 V block); element layout PDF 46, 48, 50-55 (Tables 1-6 to 1-12); FMT PDF 437
+# kind: fmt1
+# command: FMT 1,1; TSC 1; MM 2,5; CMM 5,1; WV 5,1,0,0,3,11,0.05,0.3; XE
+# terminator: crlf
+# note: per step Time, Data, Source_data (16 characters per element incl. separator, read with Mid(mret, 4/17/20/36 + 48*i) in the example); status of the result rows is NEI
+# note: values are the printed result table (Id in mA divided by 1000, Vd = source output); the time element's status/channel letters are not printed (N, E assumed); the last step's source status is E (Table 1-7)
+# point: N E T +5.63100E-02
+# point: N E I +1.12300E-07
+# point: W E V +0.00000E+00
+# point: N E T +9.48900E-02
+# point: N E I +2.32700E-05
+# point: W E V +3.00000E-01
+# point: N E T +1.27460E-01
+# point: N E I +2.35000E-05
+# point: W E V +6.00000E-01
+# point: N E T +1.60040E-01
+# point: N E I +2.35000E-05
+# point: W E V +9.00000E-01
+# point: N E T +1.92620E-01
+# point: N E I +2.35000E-05
+# point: W E V +1.20000E+00
+# point: N E T +2.25180E-01
+# point: N E I +2.35000E-05
+# point: W E V +1.50000E+00
+# point: N E T +2.57750E-01
+# point: N E I +2.35100E-05
+# point: W E V +1.80000E+00
+# point: N E T +2.90320E-01
+# point: N E I +2.35000E-05
+# point: W E V +2.10000E+00
+# point: N E T +3.22880E-01
+# point: N E I +2.35300E-05
+# point: W E V +2.40000E+00
+# point: N E T +3.55450E-01
+# point: N E I +2.35100E-05
+# point: W E V +2.70000E+00
+# point: N E T +3.88020E-01
+# point: N E I +2.35300E-05
+# point: E E V +3.00000E+00
+NET+5.63100E-02,NEI+1.12300E-07,WEV+0.00000E+00,NET+9.48900E-02,NEI+2.32700E-05,WEV+3.00000E-01,NET+1.27460E-01,NEI+2.35000E-05,WEV+6.00000E-01,NET+1.60040E-01,NEI+2.35000E-05,WEV+9.00000E-01,NET+1.92620E-01,NEI+2.35000E-05,WEV+1.20000E+00,NET+2.25180E-01,NEI+2.35000E-05,WEV+1.50000E+00,NET+2.57750E-01,NEI+2.35100E-05,WEV+1.80000E+00,NET+2.90320E-01,NEI+2.35000E-05,WEV+2.10000E+00,NET+3.22880E-01,NEI+2.35300E-05,WEV+2.40000E+00,NET+3.55450E-01,NEI+2.35100E-05,WEV+2.70000E+00,NET+3.88020E-01,NEI+2.35300E-05,EEV+3.00000E+00

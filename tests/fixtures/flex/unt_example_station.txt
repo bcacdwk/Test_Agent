@@ -1,0 +1,6 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 545 (printed 4-227, UNT? response format Slot1Model,Slot1Revision;...;Slot10Model,Slot10Revision)
+# kind: unt
+# command: UNT?
+# note: the manual prints no example: slots follow config/station.example.yaml; revision 0 and the empty slot token 0,0 are assumptions to confirm with the M4 L0 raw capture
+# expect: {"1": "B1511B", "2": "B1511B", "3": "B1517A", "4": "B1517A", "5": "B1530A", "6": "B1525A", "7": "B1520A"}
+B1511B,0;B1511B,0;B1517A,0;B1517A,0;B1530A,0;B1525A,0;B1520A,0;0,0;0,0;0,0

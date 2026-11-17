@@ -1,0 +1,5 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 432 (printed 4-114, ERRX? response when no error occurred)
+# kind: errx
+# command: ERRX?
+# expect: null
+0,"No Error."

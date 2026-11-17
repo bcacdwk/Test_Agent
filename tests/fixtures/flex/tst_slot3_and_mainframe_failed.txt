@@ -1,0 +1,5 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 540-541 (printed 4-222 to 4-223, *TST? response = sum of Table 4-32 values: 4 = slot 3, 1024 = mainframe)
+# kind: tst
+# command: *TST?
+# expect: {"value": 1028, "failed": ["slot 3", "mainframe"]}
+1028

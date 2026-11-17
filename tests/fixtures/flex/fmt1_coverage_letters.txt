@@ -1,0 +1,30 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 50-55 (Table 1-6 element layout, PDF 51 digit forms sn.nnnnnEsnn / snn.nnnnEsnn / snnn.nnnEsnn, Table 1-7 W/E, Table 1-10 N T C V X F G S U D, Table 1-11 channels A-J, a-j, V = GNDU, Z = extraneous, Table 1-12 data types), PDF 437 (FMT 1)
+# kind: fmt1
+# command: synthetic
+# terminator: crlf
+# note: synthetic coverage list, not one physical measurement: one element per table entry
+# point: N A I +1.00000E-09
+# point: T B I -2.50000E-06
+# point: C C I +1.00000E-01
+# point: V D I +199.999E+99
+# point: X E V +1.23456E+00
+# point: F F V -4.00000E+01
+# point: G G V +12.3456E+00
+# point: S H V +123.456E-03
+# point: U I Z +5.00000E+03
+# point: D J Y +2.00000E-06
+# point: N a C +1.00000E-12
+# point: N b L +1.00000E-06
+# point: N c R +1.57080E+00
+# point: N d P +90.0000E+00
+# point: N e D +1.00000E-03
+# point: N f Q +1.00000E+03
+# point: N g X +1.00000E+00
+# point: N h T +0.00100E+00
+# point: N i F +1.00000E+06
+# point: N j V -0.00000E+00
+# point: N V I -1.00000E-03
+# point: N Z T +0.00000E+00
+# point: W A V +0.00000E+00
+# point: E A I -1.00000E-06
+NAI+1.00000E-09,TBI-2.50000E-06,CCI+1.00000E-01,VDI+199.999E+99,XEV+1.23456E+00,FFV-4.00000E+01,GGV+12.3456E+00,SHV+123.456E-03,UIZ+5.00000E+03,DJY+2.00000E-06,NaC+1.00000E-12,NbL+1.00000E-06,NcR+1.57080E+00,NdP+90.0000E+00,NeD+1.00000E-03,NfQ+1.00000E+03,NgX+1.00000E+00,NhT+0.00100E+00,NiF+1.00000E+06,NjV-0.00000E+00,NVI-1.00000E-03,NZT+0.00000E+00,WAV+0.00000E+00,EAI-1.00000E-06

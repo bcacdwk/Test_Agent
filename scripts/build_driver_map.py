@@ -5,7 +5,9 @@ The legacy package `src/b1500_test_agent/mcp/` (282 atoms, 97 flows) is read fro
 `ast` only; the legacy modules are never imported. Every A/B/C atom's FLEX basis is the second argument of
 its `_fake_response` call (C atoms pass it through `_c_response`, whose third argument is forwarded as that
 second argument); D atoms take theirs from the `_SPECS` catalog. Each atom is mapped onto the new
-`B1500Driver` methods / `driver/commands.py` builders of blueprint §2.3, or marked `unmapped`.
+`B1500Driver` methods / `driver/commands.py` builders of blueprint §2.3, or marked `unmapped`. Manual pages of
+commands that the summary lists only in its grouped index come from `GROUPED_PAGES` (read from the Programming
+Guide by WP1.3; the same pages are cited in the builder docstrings of `driver/commands.py`).
 
 Usage (from the repo root):
     uv run python scripts/build_driver_map.py            # regenerate the YAML
@@ -55,11 +57,11 @@ PRIORITY_SCALE = {
 DRIVER_METHODS = (
     "identify", "modules", "errors", "status_byte", "output_state", "abort", "zero", "disconnect", "reset",
     "self_test", "self_calibrate", "set_format", "set_integration", "set_range", "enable", "force_v",
-    "staircase_v", "execute_and_read",
+    "staircase_v", "execute_and_read", "wait_complete",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv",
-    "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q",
+    "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q",
 )  # fmt: skip
 DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"commands.{b}" for b in COMMAND_BUILDERS)
 
@@ -84,13 +86,18 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "UNT?": CommandTarget("modules", "UNT_Q"),
     "ERRX?": CommandTarget("errors", "ERRX_Q"),
     "*STB?": CommandTarget("status_byte", "STB_Q", "bit 3 = interlock open"),
-    "LOP?": CommandTarget("output_state", "LOP_Q", "ATV-1: cleanup verification; *LRN? is the fallback"),
+    "LOP?": CommandTarget(
+        "output_state",
+        "LOP_Q",
+        "ATV-1: cleanup verification; per PG Table 4-26 code 00 = output switch OFF, one code per slot (SMU/MFCMU); "
+        "*LRN? 0 is the fallback only for SPGU/WGFMU subchannels",
+    ),
     "AB": CommandTarget("abort", "AB", "sent alone"),
     "DZ": CommandTarget("zero", "dz"),
     "CL": CommandTarget("disconnect", "cl"),
-    "*RST": CommandTarget("reset", None, "section 2.3 lists no builder constant; WP1.3 adds one"),
-    "*TST?": CommandTarget("self_test", None, "section 2.3 lists no builder constant; WP1.3 adds one"),
-    "*CAL?": CommandTarget("self_calibrate", None, "section 2.3 lists no builder constant; WP1.3 adds one"),
+    "*RST": CommandTarget("reset", "RST", "sent alone"),
+    "*TST?": CommandTarget("self_test", "TST_Q"),
+    "*CAL?": CommandTarget("self_calibrate", "CAL_Q"),
     "FMT": CommandTarget("set_format", "fmt", "FMT 1 and 5 only"),
     "AAD": CommandTarget("set_integration", "aad"),
     "AIT": CommandTarget("set_integration", "ait"),
@@ -104,7 +111,7 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "WT": CommandTarget("staircase_v", "wt"),
     "WM": CommandTarget("staircase_v", "wm"),
     "XE": CommandTarget("execute_and_read", "XE"),
-    "*OPC?": CommandTarget(None, "OPC_Q"),
+    "*OPC?": CommandTarget("wait_complete", "OPC_Q"),
 }
 # Mapped commands are all m1; these unmapped ones are m2; everything else is `later`.
 M2_COMMANDS = frozenset({"AV", "BC", "NUB?", "TSC", "DI", "WI"})
@@ -115,6 +122,31 @@ MM_MAPPED_MODE = 2
 EXTRA_COMMANDS: dict[str, dict[str, Any]] = {
     "HSS": {"pdf_pages": [438], "printed_pages": ["4-120"], "name": "High-speed spot standard (HSS mode)"},
 }
+
+# Manual pages of mapped commands that the command summary lists only in its grouped index, read from the
+# Programming Guide (Ed. 15) by WP1.3: mnemonic -> (PDF pages, printed pages). Chapter 4: PDF = printed 4-N + 318.
+GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
+    "AAD": ([351], ["4-33"]),
+    "AIT": ([356, 357, 358, 359], ["4-38 to 4-41"]),
+    "CMM": ([380], ["4-62"]),
+    "LOP?": ([446, 447], ["4-128 to 4-129"]),
+    "RI": ([501], ["4-183"]),
+    "RV": ([503, 504], ["4-185 to 4-186"]),
+    "WM": ([552, 553], ["4-234 to 4-235"]),
+    "WT": ([564, 565], ["4-246 to 4-247"]),
+    "WV": ([568, 569], ["4-250 to 4-251"]),
+}
+CHAPTER_4_PDF_OFFSET = 318
+
+
+def _printed_to_pdf(printed: list[str]) -> list[int]:
+    """Expand printed chapter-4 pages (`4-38` or `4-38 to 4-41`) to PDF page numbers."""
+    pages: list[int] = []
+    for item in printed:
+        ends = [int(part.strip().split("-", 1)[1]) for part in item.split(" to ")]
+        pages.extend(range(ends[0] + CHAPTER_4_PDF_OFFSET, ends[-1] + CHAPTER_4_PDF_OFFSET + 1))
+    return pages
+
 
 # Non-FLEX basis tokens of the legacy atoms (host-side operations and placeholders).
 HOST_TOKENS: dict[str, str | None] = {
@@ -390,6 +422,10 @@ class CommandSummary:
     def vocabulary(self) -> set[str]:
         return set(self.order) | set(EXTRA_COMMANDS)
 
+    @property
+    def groups_flat(self) -> set[str]:
+        return {name for names in self.groups.values() for name in names}
+
 
 def load_command_summary(path: Path | None = None) -> CommandSummary:
     """Load `b1500a-command-summary.yaml` (read-only; references/manuals/** is never modified)."""
@@ -527,6 +563,8 @@ def map_commands(summary: CommandSummary, atoms: list[dict[str, Any]]) -> list[d
             entry["printed_pages"] = list(summary.detailed[mnemonic].get("printed_pages") or [])
         else:
             entry["source"] = "grouped"
+            if mnemonic in GROUPED_PAGES:
+                entry["pdf_pages"], entry["printed_pages"] = (list(x) for x in GROUPED_PAGES[mnemonic])
         entry["target"] = target.primary if target else UNMAPPED
         if target and target.builder:
             entry["builder"] = f"commands.{target.builder}"
@@ -551,6 +589,9 @@ def build_map(
     if stale:
         raise DriverMapError(f"ATOM_OVERRIDES/MM_MODE_HINTS name unknown atoms: {stale}")
     summary = load_command_summary(summary_path)
+    bad_pages = {m: pages for m, pages in GROUPED_PAGES.items() if _printed_to_pdf(pages[1]) != pages[0]}
+    if bad_pages or not set(GROUPED_PAGES) <= set(summary.groups_flat) - set(summary.detailed):
+        raise DriverMapError(f"GROUPED_PAGES: inconsistent pages {bad_pages} or not a grouped-only command")
     atoms = [map_atom(a, summary) for a in raw_atoms]
     commands = map_commands(summary, atoms)
     doc = {
@@ -628,6 +669,9 @@ def check_map(doc: dict[str, Any], summary_path: Path | None = None) -> list[str
         for item in atom["flex"]:
             if _mnemonic(item) not in by_command:
                 problems.append(f"{atom['id']}: FLEX {item!r} missing from commands")
+    for entry in commands:
+        if entry["target"] != UNMAPPED and not entry.get("pdf_pages"):
+            problems.append(f"mapped command {entry['command']!r} has no manual pages")
     if doc.get("counts") != _counts(atoms, flows, commands):
         problems.append("counts block does not match the entries")
     return problems

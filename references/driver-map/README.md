@@ -32,7 +32,7 @@ shallow checkout.
 Where the data comes from: for A/B/C atoms, the FLEX basis is the second argument of `_fake_response` (C atoms
 pass it through `_c_response`). For D atoms it comes from the `_SPECS` catalog. The mapping decisions are tables
 at the top of the script: `COMMAND_TARGETS`, `M2_COMMANDS`, `ATOM_OVERRIDES`, `D_SUCCESSORS`, `MM_MODE_HINTS`,
-`WILDCARD_GROUPS`, `EXTRA_COMMANDS` and `HOST_TOKENS`. To change a decision, edit the table and regenerate.
+`WILDCARD_GROUPS`, `EXTRA_COMMANDS`, `GROUPED_PAGES` and `HOST_TOKENS`. To change a decision, edit the table and regenerate.
 
 ## YAML fields
 
@@ -54,7 +54,7 @@ architecture composes measurements as recipes (§2.6), not as flows.
 
 `commands[]`: one line per manual mnemonic. Fields: `source` (`detailed` record, `grouped` index name, or
 `extra` = named by a legacy atom but missing from the summary), `pdf_pages`/`printed_pages` (detailed and extra
-entries only), `target` (method, else builder, else `unmapped`), `builder`, `priority`, `atoms` (legacy atoms
+entries, and grouped entries listed in `GROUPED_PAGES`; every mapped command has pages), `target` (method, else builder, else `unmapped`), `builder`, `priority`, `atoms` (legacy atoms
 naming it), `note`.
 
 ## Target vocabulary (§2.3)
@@ -63,11 +63,11 @@ naming it), `note`.
 |---|---|---|
 | `*IDN?` / `UNT?` / `ERRX?` / `*STB?` / `LOP?` | `identify` / `modules` / `errors` / `status_byte` / `output_state` | `IDN_Q` / `UNT_Q` / `ERRX_Q` / `STB_Q` / `LOP_Q` |
 | `AB` / `DZ` / `CL` | `abort` / `zero` / `disconnect` | `AB` / `dz` / `cl` |
-| `*RST` / `*TST?` / `*CAL?` | `reset` / `self_test` / `self_calibrate` | none listed in §2.3 |
+| `*RST` / `*TST?` / `*CAL?` | `reset` / `self_test` / `self_calibrate` | `RST` / `TST_Q` / `CAL_Q` (added by WP1.3) |
 | `FMT` / `AAD`, `AIT` / `RI`, `RV` / `CN` / `DV` | `set_format` / `set_integration` / `set_range` / `enable` / `force_v` | `fmt` / `aad`, `ait` / `ri`, `rv` / `cn` / `dv` |
 | `MM` (mode 2 only), `CMM`, `WV`, `WT`, `WM` | `staircase_v` | `mm`, `cmm`, `wv`, `wt`, `wm` |
 | `XE` + output-buffer read | `execute_and_read` | `XE` |
-| `*OPC?` | none | `OPC_Q` |
+| `*OPC?` | `wait_complete` (added by WP1.3) | `OPC_Q` |
 
 Every other mnemonic is `unmapped`: 255 of the 280 command entries, and 239 of the 282 atoms (all 42 D atoms
 among them). Of the 43 mapped atoms, 19 are partial. Some partial atoms share only `XE` with the driver, such
@@ -96,9 +96,10 @@ How a priority is set:
 - `HSS` (high-speed spot standard) is named by `C_atom_smu_configure_high_speed_spot` but is missing from the
   command summary. It is recorded as an `extra` command: Programming Guide PDF page 438, printed 4-120, checked
   with `pdftotext` on 2026-11-17. `references/manuals/**` stays unmodified.
-- WP1.3 reads the exact syntax of `WV`, `AIT`, `RI`, `RV`, `WT`, `CMM` and `LOP?` from the PDF. To record those
-  pages here, it adds them to `EXTRA_COMMANDS`-style page data in the builder and regenerates, because the YAML is
-  generated.
-- §2.3 lists no builder constants for `*RST`, `*TST?` and `*CAL?`. The FLEX-literal lint allows FLEX literals
-  only in `driver/commands.py`, so WP1.3 adds those constants there.
+- WP1.3 read the syntax of `AAD`, `AIT`, `CMM`, `LOP?`, `RI`, `RV`, `WM`, `WT` and `WV` (grouped-only in the
+  summary) from the PDF with `pdftotext` on 2026-11-17 and recorded their pages in `GROUPED_PAGES`; the builder
+  checks them against the chapter-4 formula (PDF = printed 4-N + 318), and `tests/unit/test_driver_commands.py`
+  checks that each builder docstring in `driver/commands.py` cites the same PDF pages.
+- §2.3 lists no builder constants for `*RST`, `*TST?` and `*CAL?`; WP1.3 added `RST`, `TST_Q` and `CAL_Q` to
+  `driver/commands.py` (the only module the FLEX-literal lint allows to hold mnemonics).
 - `AAD` → `set_integration` and `CMM` → `staircase_v` are this map's attribution choices; §2.3 leaves them open.

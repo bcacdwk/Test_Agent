@@ -1,0 +1,10 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 48 (Data[,Source_data] per step), PDF 50-55 (Tables 1-6 to 1-12), PDF 437 (FMT 5: every element ends with ',')
+# kind: fmt5
+# command: FMT 5,1; MM 2,3; WV 1,1,0,0,0.5,2,1E-03; XE
+# terminator: comma
+# note: assembled field by field from the tables
+# point: N C I +1.00000E-06
+# point: W A V +0.00000E+00
+# point: N C I +2.00000E-06
+# point: E A V +5.00000E-01
+NCI+1.00000E-06,WAV+0.00000E+00,NCI+2.00000E-06,EAV+5.00000E-01,

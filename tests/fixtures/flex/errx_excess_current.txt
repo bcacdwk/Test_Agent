@@ -1,0 +1,5 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 432 (printed 4-114, ERRX? response example for error 305 on slot 1)
+# kind: errx
+# command: ERRX?
+# expect: {"code": 305, "message": "Excess current in HPSMU.; SLOT1"}
+305,"Excess current in HPSMU.; SLOT1"

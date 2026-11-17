@@ -1,16 +1,24 @@
-"""ASCII measurement data codes and parsers for B1500A FLEX output.
+"""ASCII measurement data codes and the FMT 1 / FMT 5 parsers for B1500A FLEX output.
 
 Code tables follow the Keysight B1500 Series Programming Guide, Edition 15:
 
-- "Data Output Format", Tables 1-6 to 1-12 (printed 1-30 to 1-35, PDF pages 50-55).
-- ``FMT`` command, Table 4-24 (printed 4-119, PDF page 437).
+- "Data Output Format", Tables 1-6 to 1-12 (printed 1-25 to 1-35, PDF pages 45-55): block layout per measurement
+  mode (staircase sweep: PDF 48), element layout ``ABCDDDDDDDDDDDD`` (Table 1-6, PDF 50), data digits (PDF 51),
+  status letters (Tables 1-7 and 1-10, PDF 52-53), channel letters (Table 1-11, PDF 54), data types (Table 1-12,
+  PDF 55).
+- ``FMT`` command, Tables 4-24 and 4-25 (printed 4-118 to 4-120, PDF pages 436-438).
 
-PDF page numbers are physical 1-based pages of ``B1500A Programming Guide.pdf``.
+PDF page numbers are physical 1-based pages of ``B1500A Programming Guide.pdf``. The manual prints no literal FMT 1/5
+data strings; the golden fixtures in ``tests/fixtures/flex/`` are assembled field by field from these tables.
+This module shares no code with the simulator's output formatter (``transport/sim/format.py``).
 """
 
+import re
 from dataclasses import dataclass
 from enum import IntFlag, StrEnum
 from typing import Literal
+
+from b1500_test_agent.driver.errors import FlexParseError
 
 ModuleKind = Literal["smu", "cmu"]
 StatusField = Literal["letter", "eee", "binary", "none"]
@@ -166,12 +174,10 @@ def data_format(fmt: int) -> DataFormat:
     try:
         return DATA_FORMATS[fmt]
     except KeyError:
-        raise ValueError(f"FMT {fmt} is not defined in Table 4-24") from None
+        raise ValueError(f"data format {fmt} is not defined in Table 4-24") from None
 
 
-def parse_letter_status(
-    code: str, *, source_data: bool = False
-) -> MeasurementStatus | SourceDataStatus:
+def parse_letter_status(code: str, *, source_data: bool = False) -> MeasurementStatus | SourceDataStatus:
     """Classify a one-character status ``A`` from FMT 1, 5, 11, or 15 data.
 
     Args:
@@ -208,21 +214,137 @@ def decode_eee_status(code: str | int, module: ModuleKind) -> SmuStatus | CmuSta
     return flag_type(value)
 
 
+CHANNEL_LETTERS: dict[str, int] = {
+    **{chr(ord("A") + slot - 1): slot for slot in range(1, 11)},
+    **{chr(ord("a") + slot - 1): slot * 100 + 2 for slot in range(1, 11)},
+}
+"""Channel letter ``B`` (Table 1-11, PDF 54) -> channel number: ``A``-``J`` = subchannel 1 of slots 1-10 (reported as
+the one-slot channel numbers 1-10, PG Table 4-1), ``a``-``j`` = subchannel 2 (``102`` ... ``1002``)."""
+
+GNDU_CHANNEL = "V"
+"""Channel letter of the ground unit (Table 1-11)."""
+
+DATA_TYPES: dict[str, str] = {
+    "V": "voltage (V)",
+    "I": "current (A)",
+    "F": "frequency (Hz)",
+    "Z": "impedance, resistance or reactance (ohm)",
+    "Y": "admittance, conductance or susceptance (S)",
+    "C": "capacitance (F)",
+    "L": "inductance (H)",
+    "R": "phase (radian)",
+    "P": "phase (degree)",
+    "D": "dissipation factor",
+    "Q": "quality factor",
+    "X": "sampling index",
+    "T": "time (s)",
+}
+"""Data type letter ``C`` of FMT 1/5/11/15 elements (Table 1-12, PDF 55)."""
+
+_DATA_12 = re.compile(r"[+-](?:\d\.\d{5}|\d{2}\.\d{4}|\d{3}\.\d{3})E[+-]\d{2}")
+"""Twelve-digit data: ``sn.nnnnnEsnn``, ``snn.nnnnEsnn`` or ``snnn.nnnEsnn`` (PDF 51, PDF 437)."""
+
+_VALID_CHANNELS = frozenset(CHANNEL_LETTERS) | {GNDU_CHANNEL, EXTRANEOUS_DATA_CHANNEL}
+_SOURCE_STATUS_LETTERS = frozenset(s.value for s in SourceDataStatus)
+
+
 @dataclass(frozen=True)
 class MeasurementPoint:
-    """One parsed measurement data element."""
+    """One parsed FMT 1/5 data element ``ABCDDDDDDDDDDDD`` (Table 1-6).
 
-    status: MeasurementStatus | SourceDataStatus | SmuStatus | CmuStatus
+    ``status`` is a ``MeasurementStatus`` for measurement data and a ``SourceDataStatus`` (``W``/``E``) for
+    ``Source_data``; the two letter sets are disjoint, so the status alone says which kind the element is.
+    ``channel`` is the Table 1-11 letter, ``data_type`` the Table 1-12 letter, ``raw`` the 15-character element.
+    """
+
+    status: MeasurementStatus | SourceDataStatus
     channel: str
-    quantity: str
+    data_type: str
     value: float
     raw: str
 
+    @property
+    def is_source(self) -> bool:
+        """True for ``Source_data`` (sweep source output value, status ``W``/``E``)."""
+        return isinstance(self.status, SourceDataStatus)
+
+    @property
+    def channel_number(self) -> int | None:
+        """PG Table 4-1 channel number of the channel letter; ``None`` for the GNDU (``V``) and extraneous data
+        (``Z``)."""
+        return CHANNEL_LETTERS.get(self.channel)
+
+    @property
+    def invalid(self) -> bool:
+        """True when the value is the meaningless dummy ``199.999E+99`` (status ``V``, Table 1-10; data after an
+        automatic sweep abort, PG ``WM`` PDF 553)."""
+        return self.value == INVALID_DATA_VALUE
+
+
+def parse_element(element: str) -> MeasurementPoint:
+    """Parse one FMT 1/5 element: status, channel and data type letters followed by twelve data digits.
+
+    Raises:
+        FlexParseError: If the element does not follow Tables 1-6 and 1-10 to 1-12.
+    """
+    if len(element) != 15:
+        raise FlexParseError(f"a format 1/5 element has 15 characters (ABC + 12 digits): {element!r}", raw=element)
+    status_code, channel, data_type, data = element[0], element[1], element[2], element[3:]
+    try:
+        status = parse_letter_status(status_code, source_data=status_code in _SOURCE_STATUS_LETTERS)
+    except ValueError:
+        raise FlexParseError(f"unknown status letter {status_code!r} in {element!r}", raw=element) from None
+    if channel not in _VALID_CHANNELS:
+        raise FlexParseError(f"unknown channel letter {channel!r} in {element!r}", raw=element)
+    if data_type not in DATA_TYPES:
+        raise FlexParseError(f"unknown data type letter {data_type!r} in {element!r}", raw=element)
+    if _DATA_12.fullmatch(data) is None:
+        raise FlexParseError(f"data {data!r} is not a 12-digit FLEX number in {element!r}", raw=element)
+    return MeasurementPoint(status=status, channel=channel, data_type=data_type, value=float(data), raw=element)
+
+
+def _parse_elements(body: str, raw: str) -> list[MeasurementPoint]:
+    if body == "":
+        return []
+    points: list[MeasurementPoint] = []
+    for index, element in enumerate(body.split(",")):
+        try:
+            points.append(parse_element(element))
+        except FlexParseError as exc:
+            raise FlexParseError(f"element {index}: {exc}", raw=raw) from None
+    return points
+
 
 def parse_fmt1(raw: str) -> list[MeasurementPoint]:
-    """Parse ``FMT 1`` output (ASCII, 12-digit data, ``ABC`` header).
+    """Parse one ``FMT 1`` response: comma-separated 15-character elements, terminated by ``<CR/LF^EOI>``.
 
-    TODO: Implement strict parsing after confirming exact field widths from the manual.
+    The trailing CR/LF is optional (the transport strips it). For a staircase sweep the elements come per step as
+    ``Data1[,Data2]...[,Source_data]`` in ``MM`` channel order (PDF 48); ``Time`` elements (type ``T``) precede
+    their data when ``TSC`` is on (PDF 46). An empty response yields no points.
+
+    Raises:
+        FlexParseError: On any malformed element, an empty element or a trailing comma.
     """
-    _ = raw
-    return []
+    return _parse_elements(raw.rstrip("\r\n"), raw)
+
+
+def parse_fmt5(raw: str) -> list[MeasurementPoint]:
+    """Parse one ``FMT 5`` response: like ``FMT 1`` but every element, the last one included, is terminated by a
+    comma (Table 4-24, PDF 437; read as ``3A,12D,X`` in the manual's examples, PDF 38).
+
+    The final comma is optional so that a transport that already dropped it still parses; trailing CR/LF is
+    ignored.
+
+    Raises:
+        FlexParseError: On any malformed or empty element.
+    """
+    return _parse_elements(raw.rstrip("\r\n").removesuffix(","), raw)
+
+
+def parse_data(raw: str, fmt: int) -> list[MeasurementPoint]:
+    """Parse a measurement response in the given ``FMT`` format (1 or 5; other formats are not implemented)."""
+    if fmt == 1:
+        return parse_fmt1(raw)
+    if fmt == 5:
+        return parse_fmt5(raw)
+    raise ValueError(f"data format {fmt} is not implemented (formats 1 and 5 only)")

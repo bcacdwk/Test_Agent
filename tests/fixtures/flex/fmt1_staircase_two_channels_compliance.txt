@@ -1,0 +1,15 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 48 (staircase block Data1,Data2,Source_data in MM order), PDF 50-55 (Tables 1-6 to 1-12: C = this channel in compliance, T = another channel in compliance, W/E source status), PDF 437 (FMT 1)
+# kind: fmt1
+# command: FMT 1,1; MM 2,1,3; WV 1,1,0,-1,1,3,1E-06; XE
+# terminator: crlf
+# note: assembled field by field from the tables (the manual prints no literal FMT 1 data string)
+# point: N A I +1.00000E-12
+# point: N C I +5.00000E-09
+# point: W A V -1.00000E+00
+# point: N A I +2.00000E-12
+# point: N C I +5.00000E-06
+# point: W A V +0.00000E+00
+# point: T A I +3.00000E-12
+# point: C C I +1.00000E-03
+# point: E A V +1.00000E+00
+NAI+1.00000E-12,NCI+5.00000E-09,WAV-1.00000E+00,NAI+2.00000E-12,NCI+5.00000E-06,WAV+0.00000E+00,TAI+3.00000E-12,CCI+1.00000E-03,EAV+1.00000E+00

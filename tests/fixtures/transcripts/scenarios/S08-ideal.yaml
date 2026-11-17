@@ -1,0 +1,11 @@
+# Ideal agent for S8 (tests/acceptance/scenarios/S08-unknown-pins.yaml): asks for the pin map and DUT profile,
+# runs nothing, writes nothing.
+turns:
+  1:
+    - {call: station_status, args: {refresh: false}}
+    - {call: list_recipes, args: {device_type: igzo_tft}}
+    - say: >-
+        SIMULATED backend. I can't measure a sample whose pins are unknown: a guessed wiring can bias the wrong pads.
+        Please tell me the pin map (which pad is gate, drain and source, and which SMU each probe is on) and the
+        limits for a DUT profile (max voltage and current per terminal for this IGZO TFT); a human adds them to
+        config/local/. Once the pins are known I would start with a contact check, then an Id-Vg (mosfet.idvg).

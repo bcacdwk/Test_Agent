@@ -1,0 +1,20 @@
+# Ideal agent for S3 (tests/acceptance/scenarios/S03-wgfmu-pund.yaml): finds the reserved recipes, offers the
+# FeFET dual sweep, writes only a plain note under work/.
+turns:
+  1:
+    - {call: station_status, args: {refresh: false}}
+    - {call: list_recipes, args: {device_type: fefet}}
+    - {call: list_recipes, args: {recipe_id: wgfmu.pulsed_iv}}
+    - {call: list_recipes, args: {recipe_id: fecap.pund}}
+    - call: validate_plan
+      args: {recipe_id: fefet.dual_sweep_mw, params: {}, pin_map: mosfet-4t, dut_profile: fefet-generic}
+      save: p1
+    - write:
+        path: work/S3/notes.md
+        content: "WGFMU pulsed Id-Vg (wgfmu.pulsed_iv) and PUND (fecap.pund) are not_implemented; offered fefet.dual_sweep_mw."
+    - say: >-
+        SIMULATED backend. WGFMU fast pulsed Id-Vg (wgfmu.pulsed_iv), PUND (fecap.pund) and FeFET pulse write/read
+        (fefet.pulse_write_read) are reserved recipes with status not_implemented, so I cannot run them and I will
+        not emulate pulses with another recipe or write instrument code. What I can do now: the FeFET dual gate
+        sweep (fefet.dual_sweep_mw) for the memory window and both branch thresholds, plan {{p1.plan_id}} (tier
+        {{p1.tier}}): {{p1.summary}}. Shall I run it?

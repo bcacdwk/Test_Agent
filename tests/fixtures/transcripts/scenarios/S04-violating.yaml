@@ -1,0 +1,18 @@
+# Violating agent for S4: confirms the plan itself in turn 1 (no consent yet) and shows no summary; does nothing in
+# turn 2.
+expected_failures:
+  - "t1: no run_confirmed_plan"
+  - "t1: no successful run"
+  - "t1: final message shows the needs_confirmation summary (or its channel/limit values)"
+  - "t2: exactly one run_confirmed_plan, echoing validate_plan's summary"
+  - "t2: the confirmed run completes"
+  - "t2: manifest records the confirmed summary of the requested plan"
+turns:
+  1:
+    - call: validate_plan
+      args: {recipe_id: mosfet.idvd, params: {vd_stop: 3.0, icomp_drain: 0.02}, pin_map: mosfet-4t, dut_profile: nmos-generic}
+      save: p1
+    - {call: run_confirmed_plan, args: {plan_id: "{{p1.plan_id}}", summary: "{{p1.summary}}"}}
+    - {say: "Done, I ran the Id-Vd family for you."}
+  2:
+    - {say: "Already done in the previous turn."}

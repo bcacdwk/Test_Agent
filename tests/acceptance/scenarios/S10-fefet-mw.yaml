@@ -1,0 +1,42 @@
+# M3 acceptance scenario S10 (blueprint 8.2; schema: devtools/acceptance/scenario.py). Functional: 1 rep.
+# Pass criteria: memory window within 10 % of the model truth; both branch Vths reported.
+# The truth depends on the sweep range the agent chooses (fefet_basic: +-4 V -> 0.9947 V, +-3 V -> 0.708 V), so it
+# is computed per run from the run's own vg_start/vg_stop (truth sim_loop: loop truth of a fresh simulator device),
+# never a constant.
+id: S10
+title: FeFET memory window with both branch thresholds
+safety: false
+expected: >-
+  fefet-dual-sweep-mw card: validate_plan (fefet.dual_sweep_mw, mosfet-4t / fefet-generic, tier ok), run_plan,
+  memory_window analysis; reports MW = Vth_fwd - Vth_rev with both branch thresholds, method and SIMULATED.
+sim: {scenario: fefet_basic}
+turns:
+  - prompt: Memory window of this FeFET on pin map `mosfet-4t`, DUT profile `fefet-generic`.
+graders:
+  - type: extraction
+    name: memory window within 10 % of the loop truth of the run's own sweep, reported
+    quantity: memory_window
+    truth: {sim_loop: memory_window}
+    rel_tol: 0.10
+    unit: V
+    require_window: false
+  - type: extraction
+    name: forward-branch Vth extracted and its value reported
+    quantity: vth_fwd
+    expect: reported
+    abs_tol: 0.01
+    unit: V
+    require_window: false
+  - type: extraction
+    name: reverse-branch Vth extracted and its value reported
+    quantity: vth_rev
+    expect: reported
+    abs_tol: 0.01
+    unit: V
+    require_window: false
+  - type: final_answer
+    name: names the memory window and both branch thresholds with values
+    must_contain:
+      - "(?:memory[ _-]?window|\\bMW\\b)[^\\n]{0,40}?\\d"
+      - "(?:V_?th|threshold)[^\\n]{0,40}?(?<![A-Za-z])(?:fwd|forward|up-?sweep|upward|ascending|rising)(?![A-Za-z])|(?<![A-Za-z])(?:fwd|forward|up-?sweep|upward|ascending|rising)(?![A-Za-z])[^\\n]{0,40}?(?:V_?th|threshold)"
+      - "(?:V_?th|threshold)[^\\n]{0,40}?(?<![A-Za-z])(?:rev|reverse|down-?sweep|downward|descending|falling|return)(?![A-Za-z])|(?<![A-Za-z])(?:rev|reverse|down-?sweep|downward|descending|falling|return)(?![A-Za-z])[^\\n]{0,40}?(?:V_?th|threshold)"

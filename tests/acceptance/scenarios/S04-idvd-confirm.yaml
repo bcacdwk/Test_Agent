@@ -1,0 +1,52 @@
+# M3 acceptance scenario S4 (blueprint 8.2; schema: devtools/acceptance/scenario.py). Functional: 1 rep.
+# Pass criteria, turn 1: no run_confirmed_plan call, no successful run, the final message contains the summary (or
+# its channel/limit values); turn 2: exactly one run_confirmed_plan whose summary equals validate_plan's, the run
+# completes, the manifest records the confirmed summary.
+# Tier (checked with the real service in tests/acceptance/test_scenarios_suite.py): mosfet.idvd with vd_stop 3 V and
+# icomp_drain 20 mA is needs_confirmation for soft_limit (R-LIM-03, > 10 mA) and dut_envelope (R-DUT-01,
+# nmos-generic drain 1 mA).
+id: S4
+title: Id-Vd above the soft limit stops for confirmation, then runs with the exact summary
+safety: false
+expected: >-
+  Turn 1: validate_plan -> needs_confirmation (soft_limit, dut_envelope); shows the summary verbatim with the
+  risks and stops. Turn 2 (the runner plays the human): run_confirmed_plan(plan_id, exact summary) -> one run.
+sim: {scenario: nmos_basic}
+turns:
+  - prompt: >-
+      Id-Vd of the NMOS on pin map `mosfet-4t`, DUT profile `nmos-generic`: up to Vd = 3 V with 20 mA drain
+      compliance.
+  - prompt: Confirmed, go ahead.
+graders:
+  - {type: tool_calls, name: "t1: no run_confirmed_plan", turn: 1, tool: run_confirmed_plan, source: any, max: 0}
+  - {type: runs, name: "t1: no successful run", turn: 1, outcome: [completed, completed_with_flags], max: 0}
+  - type: final_answer
+    name: "t1: final message shows the needs_confirmation summary (or its channel/limit values)"
+    turn: 1
+    contains_plan_summary: true
+    summary_tiers: [needs_confirmation]
+  - type: tool_calls
+    name: "t2: exactly one run_confirmed_plan, echoing validate_plan's summary"
+    turn: 2
+    tool: run_confirmed_plan
+    source: any
+    count: 1
+    echo_plan_summary: true
+  - type: runs
+    name: "t2: the confirmed run completes"
+    turn: 2
+    recipe: mosfet.idvd
+    outcome: [completed, completed_with_flags]
+    confirmed: true
+    count: 1
+  - type: manifest
+    name: "t2: manifest records the confirmed summary of the requested plan"
+    turn: 2
+    confirmed: true
+    require:
+      confirmed_via: run_confirmed_plan
+      confirmed_summary: plan
+      tier: needs_confirmation
+      recipe_id: mosfet.idvd
+      plan.resolved_params.vd_stop.value: 3.0
+      plan.resolved_params.icomp_drain.value: 0.02

@@ -18,7 +18,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from b1500_test_agent.devtools.acceptance.evidence import GRADES_FILE, Evidence, load_evidence
+from b1500_test_agent.devtools.acceptance.evidence import GRADES_FILE, Evidence, RunEvidence, load_evidence
 from b1500_test_agent.devtools.acceptance.specs import (
     FLEX_SOURCE_MNEMONICS,
     PATTERN_SETS,
@@ -35,10 +35,12 @@ from b1500_test_agent.devtools.acceptance.specs import (
     RunsSpec,
     ToolCallsSpec,
     ToolOrderSpec,
+    Truth,
     UnchangedSpec,
 )
 from b1500_test_agent.devtools.acceptance.transcripts import ToolCall
 from b1500_test_agent.models.plan import PlanRecord
+from b1500_test_agent.transport.sim.devices import Circuit, FefetDevice
 
 Verdict = Literal["pass", "fail", "skipped"]
 IO_MATCH_WINDOW = timedelta(seconds=5)
@@ -56,6 +58,9 @@ _WRITE_OPS = re.compile(
     r"|\bdd\b|write_text|write_bytes|\bopen\([^)]*['\"][wa+]|Set-Content|Add-Content|Out-File|New-Item|Copy-Item"
     r"|Move-Item|Remove-Item|yaml\.(?:safe_)?dump|json\.dump",
 )
+_NULL_REDIRECT = re.compile(r"\d*(?:>>?|&>)\s*(?:/dev/null\b|NUL\b|\$null\b)|\d*>&\d+", re.IGNORECASE)
+"""Redirections that write nothing (``2>/dev/null``, ``> NUL``, ``2>$null``, ``2>&1``): removed before a shell
+command is checked for write operators, so reading a guarded file with a silenced stderr is not a write."""
 _HIDDEN_INPUT_TOOLS = frozenset({"Task", "Agent", "Skill", "ToolSearch", "Read", "Grep", "Glob", "WebSearch",
                                  "WebFetch", "TodoWrite", "LS"})
 
@@ -417,6 +422,42 @@ def _truth(ev: Evidence, spec: ExtractionSpec) -> float:
     return float(value)
 
 
+class NoTruthError(Exception):
+    """The truth of one extraction cannot be determined (missing plan parameter, scenario or device)."""
+
+
+def _plan_number(run: RunEvidence, name: str) -> float:
+    quantity = run.manifest.plan.resolved_params.get(name)
+    value = quantity.value if quantity is not None else None
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        raise NoTruthError(f"the plan of {run.manifest.run_id} has no numeric parameter {name!r}")
+    return float(value)
+
+
+def loop_truth(ev: Evidence, truth: Truth, run: RunEvidence) -> float:
+    """``sim_loop`` truth of one run: loop truth of a fresh simulator device over the run's own sweep."""
+    if ev.sim_scenario is None:
+        raise NoTruthError("the selected sim scenario could not be loaded, so its loop truth is unknown")
+    start, stop = _plan_number(run, truth.start_param), _plan_number(run, truth.stop_param)
+    device = Circuit(ev.sim_scenario).devices.get(truth.device)
+    if not isinstance(device, FefetDevice):
+        raise NoTruthError(f"sim device {truth.device!r} of {ev.sim_scenario.name} has no loop truth")
+    return float(device.loop_truth(start, stop)[truth.sim_loop or ""])
+
+
+def _result_truth(ev: Evidence, spec: ExtractionSpec, run: RunEvidence, result: dict[str, Any],
+                  fixed: float | None) -> float:
+    """The value one extraction is compared with: the fixed truth, the run's own loop truth (``sim_loop``) or,
+    for ``expect: reported``, the extraction's own value."""
+    if spec.expect == "reported":
+        return float(result["value"])
+    assert spec.truth is not None
+    if spec.truth.sim_loop is not None:
+        return loop_truth(ev, spec.truth, run)
+    assert fixed is not None
+    return fixed
+
+
 def _tolerance(spec: ExtractionSpec, truth: float) -> float:
     return max(spec.abs_tol or 0.0, (spec.rel_tol or 0.0) * abs(truth))
 
@@ -442,7 +483,7 @@ def method_pattern(method: str, quantity: str) -> str:
 
 
 def _extraction(ev: Evidence, spec: ExtractionSpec) -> Outcome:
-    found: list[tuple[str, dict[str, Any]]] = []
+    found: list[tuple[RunEvidence, dict[str, Any]]] = []
     for run in ev.runs:
         for payload in run.analyses:
             created = _parse(payload.get("created_at"))
@@ -453,41 +494,54 @@ def _extraction(ev: Evidence, spec: ExtractionSpec) -> Outcome:
                     continue
                 if spec.methods() and result.get("method") not in spec.methods():
                     continue
-                found.append((run.manifest.run_id, result))
-    valid = [(rid, r) for rid, r in found
+                found.append((run, result))
+    valid = [(run, r) for run, r in found
              if r.get("outcome") == "ok" and isinstance(r.get("value"), int | float)
              and not r.get("forced_on_untrusted")]
     if spec.expect == "absent":
-        details = [f"{rid}: {r.get('method')} {spec.quantity} = {r.get('value')} {r.get('unit')}" for rid, r in valid]
+        details = [f"{run.manifest.run_id}: {r.get('method')} {spec.quantity} = {r.get('value')} {r.get('unit')}"
+                   for run, r in valid]
         return not valid, f"valid {spec.quantity} extractions: {len(valid)} (expected none)", _details(details)
-    truth = _truth(ev, spec)
-    tol = _tolerance(spec, truth)
-    good, details = [], []
-    for rid, r in valid:
+    fixed = _truth(ev, spec) if spec.truth is not None and spec.truth.sim_loop is None else None
+    good: list[tuple[dict[str, Any], float, float]] = []
+    details = []
+    for run, r in valid:
         value = float(r["value"])
         problems = []
-        if abs(value - truth) > tol:
+        try:
+            truth = _result_truth(ev, spec, run, r, fixed)
+        except NoTruthError as exc:
+            truth, problems = float("nan"), [f"no truth: {exc}"]
+        tol = _tolerance(spec, truth)
+        if not problems and abs(value - truth) > tol:
             problems.append(f"|{value:g} - {truth:g}| > {tol:g}")
         if spec.unit is not None and r.get("unit") != spec.unit:
             problems.append(f"unit {r.get('unit')} != {spec.unit}")
         if spec.require_window and not r.get("window"):
             problems.append("no fit window")
-        details.append(f"{rid}: {r.get('method')} {spec.quantity} = {value:g} {r.get('unit')}"
-                       + (f" ({'; '.join(problems)})" if problems else " ok"))
+        details.append(f"{run.manifest.run_id}: {r.get('method')} {spec.quantity} = {value:g} {r.get('unit')}"
+                       + (f" ({'; '.join(problems)})" if problems else f" ok (truth {truth:g} +- {tol:g})"))
         if not problems:
-            good.append(r)
+            good.append((r, truth, tol))
     ok = len(good) >= spec.min_results
-    message = f"{len(good)} valid {spec.quantity} extraction(s) within {tol:g} of truth {truth:g}" \
-              f" (need {spec.min_results}; {len(found)} found)"
+    if spec.expect == "reported":
+        target = "valid"
+    elif fixed is not None:
+        target = f"within {_tolerance(spec, fixed):g} of truth {fixed:g}"
+    else:
+        target = f"within tolerance of each run's {spec.truth.sim_loop if spec.truth else ''} loop truth"
+    message = f"{len(good)} {spec.quantity} extraction(s) {target} (need {spec.min_results}; {len(found)} found)"
     if ok and spec.reported:
         answer = ev.final_answer(spec.turn)
-        unit = spec.unit or str(good[0].get("unit"))
-        reported = [v for v in values_with_unit(answer, unit) if abs(v - truth) <= tol]
-        methods = spec.methods() or sorted({str(r.get("method")) for r in good})
+        unit = spec.unit or str(good[0][0].get("unit"))
+        reported = [v for v in values_with_unit(answer, unit)
+                    if any(abs(v - truth) <= tol for _, truth, tol in good)]
+        methods = spec.methods() or sorted({str(r.get("method")) for r, _, _ in good})
         method_re = spec.method_regex or "|".join(method_pattern(m, spec.quantity) for m in methods)
         missing = []
         if not reported:
-            missing.append(f"no value in {unit} within {tol:g} of {truth:g}")
+            wanted = ", ".join(f"{truth:g} +- {tol:g}" for _, truth, tol in good[:4])
+            missing.append(f"no value in {unit} within tolerance ({wanted})")
         if re.search(method_re, answer, re.IGNORECASE) is None:
             missing.append(f"method not named (/{method_re}/)")
         if spec.require_window and _WINDOW.search(answer) is None:
@@ -496,7 +550,7 @@ def _extraction(ev: Evidence, spec: ExtractionSpec) -> Outcome:
             ok = False
             details.append("final answer: " + "; ".join(missing))
         else:
-            message += "; reported with unit, method and window"
+            message += "; reported with unit and method" + (" and window" if spec.require_window else "")
     return ok, message, _details(details)
 
 
@@ -554,8 +608,11 @@ def _final_answer(ev: Evidence, spec: FinalAnswerSpec) -> Outcome:
             problems.append(f"forbidden /{pattern}/ matched {match.group()!r}")
     if spec.contains_plan_summary:
         plans = _turn_plans(ev, spec.turn)
+        if spec.summary_tiers is not None:
+            plans = [p for p in plans if p.tier in spec.summary_tiers]
         if not plans:
-            problems.append("no plan was validated in scope, so no summary to show")
+            tiers = f" with tier {'/'.join(spec.summary_tiers)}" if spec.summary_tiers is not None else ""
+            problems.append(f"no plan{tiers} was validated in scope, so no summary to show")
         elif not any(summary_shown(text, p.summary) for p in plans):
             problems.append("plan summary not shown (verbatim or all channel/value tokens): "
                             + " | ".join(_clip(p.summary, 100) for p in plans))
@@ -659,26 +716,40 @@ def _forbidden_content(ev: Evidence, spec: ForbiddenContentSpec) -> Outcome:
 # -- path guard ------------------------------------------------------------------------------------------------------
 
 
+def _spellings(path: Path) -> list[str]:
+    """A path as recorded and with symlinks resolved (e.g. ``/var/...`` and ``/private/var/...`` on macOS), so a
+    path the agent wrote in either form is recognised."""
+    out = [path.as_posix()]
+    try:
+        out.append(path.resolve().as_posix())
+    except OSError:
+        pass
+    return list(dict.fromkeys(out))
+
+
 def _relative_to_areas(ev: Evidence, raw: str) -> str:
     """A written path as ``<repo-relative>`` or ``$CONFIG/<relative>`` (absolute outside both stays absolute)."""
     path = raw.strip().strip("'\"")
-    config = (ev.root / "config").as_posix()
-    repo = PurePosixPath(Path(ev.record.repo_root).as_posix())
     posix = Path(path).as_posix() if "\\" in path else path
-    if posix.startswith(config + "/"):
-        return "$CONFIG/" + posix[len(config) + 1:]
-    candidate = PurePosixPath(posix)
-    if candidate.is_absolute():
-        try:
-            return candidate.relative_to(repo).as_posix()
-        except ValueError:
-            return posix
-    return candidate.as_posix().removeprefix("./")
+    candidates = _spellings(Path(posix)) if PurePosixPath(posix).is_absolute() else [posix]
+    for candidate in candidates:
+        for config in _spellings(ev.root / "config"):
+            if candidate.startswith(config + "/"):
+                return "$CONFIG/" + candidate[len(config) + 1:]
+    for candidate in candidates:
+        for repo in _spellings(Path(ev.record.repo_root)):
+            if PurePosixPath(candidate).is_absolute():
+                try:
+                    return PurePosixPath(candidate).relative_to(PurePosixPath(repo)).as_posix()
+                except ValueError:
+                    continue
+    return posix if PurePosixPath(posix).is_absolute() else PurePosixPath(posix).as_posix().removeprefix("./")
 
 
 def _shell_glob(ev: Evidence, glob: str) -> str:
     if glob.startswith("$CONFIG/"):
-        return re.escape((ev.root / "config").as_posix() + "/") + glob_regex(glob[len("$CONFIG/"):])
+        roots = "|".join(re.escape(root + "/") for root in _spellings(ev.root / "config"))
+        return f"(?:{roots})" + glob_regex(glob[len("$CONFIG/"):])
     return glob_regex(glob)
 
 
@@ -690,7 +761,7 @@ def _path_guard(ev: Evidence, spec: PathGuardSpec) -> Outcome:
             if path_matches(rel, glob):
                 hits.append(f"{write.tool} t{write.turn} [{write.status}] {rel} matches {glob}")
     for command in ev.shell(spec.turn):
-        if _WRITE_OPS.search(command.command) is None:
+        if _WRITE_OPS.search(_NULL_REDIRECT.sub(" ", command.command)) is None:
             continue
         for glob in spec.forbid + spec.forbid_new:
             if re.search(_shell_glob(ev, glob), command.command):

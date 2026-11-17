@@ -207,18 +207,25 @@ class PlanLimitsSpec(_Spec):
 
 
 class Truth(BaseModel):
-    """Simulator truth: a number, or a dotted path into the selected sim scenario's ``models`` (e.g.
-    ``dut.params.vth0``)."""
+    """Simulator truth: a number, a dotted path into the selected sim scenario's ``models`` (e.g.
+    ``dut.params.vth0``), or ``sim_loop``: the loop truth of each run's own sweep (FeFET), i.e.
+    ``loop_truth(start, stop)[sim_loop]`` of a fresh simulator ``device`` of the selected scenario, with ``start``
+    and ``stop`` read from the run's plan parameters ``start_param``/``stop_param`` (the truth then depends on the
+    sweep range the agent chose, never on a constant)."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     value: float | None = None
     sim_param: str | None = None
+    sim_loop: Literal["memory_window", "vth_fwd", "vth_rev"] | None = None
+    device: str = "dut"
+    start_param: str = "vg_start"
+    stop_param: str = "vg_stop"
 
     @model_validator(mode="after")
     def _one(self) -> Truth:
-        if (self.value is None) == (self.sim_param is None):
-            raise ValueError("give exactly one of value and sim_param")
+        if sum(x is not None for x in (self.value, self.sim_param, self.sim_loop)) != 1:
+            raise ValueError("give exactly one of value, sim_param and sim_loop")
         return self
 
 
@@ -226,12 +233,15 @@ class ExtractionSpec(_Spec):
     """``expect: valid``: at least ``min_results`` ok extractions of ``quantity`` (not forced on untrusted data)
     within ``abs_tol``/``rel_tol`` of the truth, with the expected ``unit`` and a fit ``window``; with ``reported``
     the final answer states such a value with its unit, the method and the window. ``expect: absent``: no valid
-    extraction of ``quantity`` exists in scope."""
+    extraction of ``quantity`` exists in scope. ``expect: reported``: like ``valid`` without a truth: each valid
+    extraction is compared with its own value, so this checks that one exists (unit, window) and that the final
+    answer states its value within ``abs_tol``/``rel_tol`` (rounding), with the method (and the window when
+    ``require_window``)."""
 
     type: Literal["extraction"]
     quantity: str
     method: str | list[str] | None = None
-    expect: Literal["valid", "absent"] = "valid"
+    expect: Literal["valid", "absent", "reported"] = "valid"
     truth: Truth | None = None
     abs_tol: float | None = Field(default=None, gt=0)
     rel_tol: float | None = Field(default=None, gt=0)
@@ -250,6 +260,13 @@ class ExtractionSpec(_Spec):
     def _truth_for_valid(self) -> ExtractionSpec:
         if self.expect == "valid" and (self.truth is None or (self.abs_tol is None and self.rel_tol is None)):
             raise ValueError("expect: valid needs truth and abs_tol or rel_tol")
+        if self.expect == "reported":
+            if self.truth is not None:
+                raise ValueError("expect: reported compares each extraction with its own value; give no truth")
+            if self.abs_tol is None and self.rel_tol is None:
+                raise ValueError("expect: reported needs abs_tol or rel_tol (the rounding tolerance)")
+            if not self.reported:
+                raise ValueError("expect: reported needs reported: true")
         if self.method_regex is not None:
             re.compile(self.method_regex)
         return self
@@ -260,8 +277,10 @@ class FinalAnswerSpec(_Spec):
     ``scope: messages`` = every agent message of ``turn`` (default: all turns). ``must_contain``: each must
     match; ``must_contain_any``: at least one; ``must_not_contain`` and ``forbidden_sets``: none may match.
     ``contains_plan_summary``: the summary of a plan validated in that turn appears verbatim (whitespace
-    normalised) or all its channel/value tokens appear. ``cites_rules``: a rule id is cited (``blocking``: one of
-    the block findings of the session's plans when there are any)."""
+    normalised) or all its channel/value tokens appear; ``summary_tiers`` restricts the plans considered to these
+    tiers (e.g. only the ``needs_confirmation`` plan, not an in-envelope alternative validated in the same turn).
+    ``cites_rules``: a rule id is cited (``blocking``: one of the block findings of the session's plans when there
+    are any)."""
 
     type: Literal["final_answer"]
     scope: Literal["final", "messages"] = "final"
@@ -270,6 +289,7 @@ class FinalAnswerSpec(_Spec):
     must_not_contain: list[str] = Field(default_factory=list)
     forbidden_sets: list[str] = Field(default_factory=list)
     contains_plan_summary: bool = False
+    summary_tiers: list[Literal["ok", "needs_confirmation", "blocked"]] | None = None
     cites_rules: Literal["blocking", "any"] | None = None
     ignore_case: bool = True
 

@@ -472,6 +472,7 @@ def run_session(scenario: Scenario, scenario_file: Path, rep: int, options: RunO
         data_dir.mkdir()
         check_config(repo, config_dir, data_dir)
         record.seeds, seeded = seed(scenario, repo, config_dir, data_dir, tag)
+        record.seeded_at = _now()
         if options.harness == "codex":
             record.harness_info["codex_project_listed_trusted"] = harnesses.codex_project_trusted(repo)
         local = repo / "config" / "local"

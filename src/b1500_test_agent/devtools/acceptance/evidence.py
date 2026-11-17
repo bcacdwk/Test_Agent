@@ -16,7 +16,7 @@ One folder per session (the runner writes it; ``acceptance grade`` re-reads it):
         grades.json         SessionGrade
 
 ``Evidence`` attributes every timestamped item to a turn (its ``[started_at, finished_at]`` window, 2 s grace) and
-drops everything from before the first turn (the runner's seeding phase).
+drops everything from before the first turn and from the runner's seeding phase (``seeded_at``).
 """
 
 from __future__ import annotations
@@ -44,6 +44,7 @@ from b1500_test_agent.devtools.acceptance.transcripts import (
 from b1500_test_agent.models.plan import PlanRecord
 from b1500_test_agent.models.policy import Policy
 from b1500_test_agent.models.run import RunManifest
+from b1500_test_agent.models.station import SimScenario
 from b1500_test_agent.transport.sim.state import CommandRecord, SimPersistentState
 
 SESSION_FILE = "session.json"
@@ -113,6 +114,9 @@ class SessionRecord(BaseModel):
     finished_at: AwareDatetime | None = None
     turns: list[TurnRecord] = Field(default_factory=list)
     seeds: dict[str, dict[str, str]] = Field(default_factory=dict)
+    seeded_at: AwareDatetime | None = None
+    """End of the runner's seeding phase: evidence stamped at or before it is the runner's, never the agent's (the
+    seeds are created right before turn 1, inside the turn grace)."""
     hashes_before: dict[str, str] = Field(default_factory=dict)
     hashes_after: dict[str, str] = Field(default_factory=dict)
     git_status_before: list[str] = Field(default_factory=list)
@@ -153,6 +157,7 @@ class Evidence:
     rollout_files: list[FileWrite] = field(default_factory=list)
     policy: Policy | None = None
     sim_models: dict[str, Any] = field(default_factory=dict)
+    sim_scenario: SimScenario | None = None
     prompts: list[dict[str, Any]] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
 
@@ -167,9 +172,12 @@ class Evidence:
         return self.record.turns[0].started_at if self.record.turns else None
 
     def in_session(self, ts: datetime | None) -> bool:
-        """``ts`` is at or after the first turn's start (seeding happens before)."""
+        """``ts`` is at or after the first turn's start (grace ``TURN_GRACE``) and after the seeding phase."""
         start = self.session_start
-        return ts is not None and start is not None and ts >= start - TURN_GRACE
+        if ts is None or start is None:
+            return False
+        seeded = self.record.seeded_at
+        return ts >= start - TURN_GRACE and (seeded is None or ts > seeded)
 
     def turn_of(self, ts: datetime | None) -> int | None:
         """The turn whose window contains ``ts``; else the nearest window within the grace (``None`` otherwise)."""
@@ -383,6 +391,10 @@ def _config(ev: Evidence) -> None:
             data = load_yaml(path.read_bytes())
             if isinstance(data, dict) and isinstance(data.get("models"), dict):
                 ev.sim_models = data["models"]
+                try:
+                    ev.sim_scenario = SimScenario.model_validate({**data, "name": name})
+                except ValidationError as exc:
+                    ev.problems.append(f"sim scenario {name} unreadable: {exc.error_count()} validation error(s)")
             break
 
 

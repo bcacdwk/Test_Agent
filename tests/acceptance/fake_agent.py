@@ -11,7 +11,9 @@ Actions: ``call`` (MCP tool + ``args``, ``save`` the result as a variable), ``sh
 ``write`` (file relative to the cwd; ``denied: true`` = reported as refused, not written), ``edit_config`` (append to
 a file of ``$B1500_CONFIG_DIR``), ``sim_raw`` (one line straight into the simulator, bypassing the audited
 transport), ``sleep`` (seconds), ``say`` (agent message; the last one is the final answer). ``{{var.key}}``
-placeholders use saved results and ``$FAKE_AGENT_VARS`` (JSON; strings the tests build at run time).
+placeholders use saved results, ``$FAKE_AGENT_VARS`` (JSON; strings the tests build at run time) and ``prompt``
+(the user's turn as the runner rendered it: ``{{prompt.text}}``, and the first plan and run id it names,
+``{{prompt.plan_id}}``/``{{prompt.run_id}}``, as an agent would read them from the request).
 """
 
 from __future__ import annotations
@@ -32,6 +34,8 @@ import yaml
 from b1500_test_agent.service import B1500Service
 
 _PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)(?:\.([A-Za-z0-9_]+))?\s*\}\}")
+_PLAN_ID = re.compile(r"\bP-[A-Z0-9]{6,}\b")
+_RUN_ID = re.compile(r"\b[SH]\d{8}T\d{6}Z-[0-9a-f]{4}\b")
 
 
 def _render(value: Any, variables: dict[str, Any]) -> Any:
@@ -48,15 +52,25 @@ def _render(value: Any, variables: dict[str, Any]) -> Any:
     return value
 
 
+def _window(result: dict[str, Any]) -> str | None:
+    window = result.get("window") or {}
+    return f"{window['low']:.2f}..{window['high']:.2f} {window['unit']}" if window else None
+
+
 def _flatten(result: dict[str, Any]) -> dict[str, Any]:
-    """A saved result plus convenience fields of the first extraction result."""
+    """A saved result plus convenience fields of the first extraction result (``value``, ``window``) and of every
+    extraction by quantity (``<quantity>``, ``<quantity>_window``, e.g. ``vth_fwd``)."""
     out = dict(result)
     first = (result.get("results") or [None])[0]
     if isinstance(first, dict) and first.get("value") is not None:
         out["value"] = f"{first['value']:.4g}"
-        window = first.get("window") or {}
-        if window:
-            out["window"] = f"{window['low']:.2f}..{window['high']:.2f} {window['unit']}"
+        if _window(first):
+            out["window"] = _window(first)
+    for item in [*(result.get("results") or []), *(result.get("analyses") or [])]:
+        if isinstance(item, dict) and item.get("value") is not None and item.get("quantity"):
+            out.setdefault(item["quantity"], f"{item['value']:.4g}")
+            if _window(item):
+                out.setdefault(f"{item['quantity']}_window", _window(item))
     counts = result.get("status_counts")
     if isinstance(counts, dict):
         out["counts"] = ", ".join(f"{k}={v}" for k, v in counts.items())
@@ -193,12 +207,16 @@ def main() -> int:
     parser.add_argument("--turn", type=int, required=True)
     parser.add_argument("--resume", required=True)
     parser.add_argument("--script", required=True)
+    parser.add_argument("--prompt", default="")
     ns = parser.parse_args()
     script = yaml.safe_load(Path(ns.script).read_text(encoding="utf-8"))
     actions = script["turns"].get(ns.turn) or script["turns"].get(str(ns.turn)) or []
     state_file = Path(ns.script).with_suffix(".state.json")
     variables: dict[str, Any] = json.loads(state_file.read_text(encoding="utf-8")) if state_file.is_file() else {}
     variables.update(json.loads(os.environ.get("FAKE_AGENT_VARS", "{}")))
+    plan_id, run_id = _PLAN_ID.search(ns.prompt), _RUN_ID.search(ns.prompt)
+    variables["prompt"] = {"text": ns.prompt, "plan_id": plan_id.group() if plan_id else "",
+                           "run_id": run_id.group() if run_id else ""}
     session_id = ns.resume if ns.resume != "new" else str(uuid.uuid4())
     cwd = Path.cwd()
     rollout = None

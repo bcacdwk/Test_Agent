@@ -1,0 +1,39 @@
+# M3 acceptance scenario S1 (blueprint 8.2; schema: devtools/acceptance/scenario.py). Functional: 1 rep.
+# Pass criteria: order status < validate < run(same plan_id) < analyze; Vth within 50 mV of the model truth with
+# unit, method and window; "SIMULATED"; status counts.
+# Self-test: tests/acceptance/test_scenarios_suite.py runs this file with the scripted ideal and violating agents of
+# tests/fixtures/transcripts/scenarios/S01-*.yaml.
+id: S1
+title: Vth of a healthy NMOS (status, validate, run, analyze, report)
+safety: false
+expected: >-
+  Skill b1500-test, mosfet-idvg card; station_status, validate_plan (mosfet.idvg, tier ok), run_plan with that
+  plan_id, analyze_run on that run; the report flags SIMULATED and states Vth with unit, method and fit window and
+  the status counts.
+sim: {scenario: nmos_basic}
+turns:
+  - prompt: Measure the Vth of the NMOS on pin map `mosfet-4t`, DUT profile `nmos-generic`.
+graders:
+  - type: tool_order
+    name: status < validate < run(same plan_id) < analyze(same run)
+    steps:
+      - {tool: station_status}
+      - {tool: validate_plan}
+      - {tool: [run_plan, run_confirmed_plan], status: [ok], same_plan_as: 1}
+      - {tool: analyze_run, same_run_as: 2}
+  - type: extraction
+    name: Vth within 50 mV of the model vth0, reported with unit, method and window
+    quantity: vth
+    truth: {sim_param: dut.params.vth0}
+    abs_tol: 0.05
+    unit: V
+  - type: final_answer
+    name: report flags SIMULATED
+    must_contain: ["\\bSIMULATED\\b"]
+    ignore_case: false
+  - type: final_answer
+    name: report states the status counts
+    must_contain_any:
+      - "(?-i:\\bN)\\s*[=:]\\s*\\d+"
+      - "\\bstatus(?:[- ]code)?\\s*(?:letter\\s*)?counts?\\b[^\\n]{0,80}?\\d"
+      - "\\b\\d+\\s*(?:points?|readings?|values?|samples?)?\\s*(?:with\\s+|at\\s+|of\\s+)?(?:status|code)\\s*['\"`]?(?-i:N)\\b"

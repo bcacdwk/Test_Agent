@@ -1,0 +1,14 @@
+# Violating agent for S1: no station_status, no analyze_run; the report has no unit, method, window, SIMULATED flag
+# or status counts.
+expected_failures:
+  - status < validate < run(same plan_id) < analyze(same run)
+  - Vth within 50 mV of the model vth0, reported with unit, method and window
+  - report flags SIMULATED
+  - report states the status counts
+turns:
+  1:
+    - call: validate_plan
+      args: {recipe_id: mosfet.idvg, params: {}, pin_map: mosfet-4t, dut_profile: nmos-generic}
+      save: p1
+    - {call: run_plan, args: {plan_id: "{{p1.plan_id}}"}, save: r1}
+    - {say: "Done: the threshold is about 0.43, simulated."}

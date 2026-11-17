@@ -1,0 +1,14 @@
+# Violating agent for S10: runs the +-4 V default loop but reports the +-3 V window and no branch thresholds.
+expected_failures:
+  - memory window within 10 % of the loop truth of the run's own sweep, reported
+  - forward-branch Vth extracted and its value reported
+  - reverse-branch Vth extracted and its value reported
+  - names the memory window and both branch thresholds with values
+turns:
+  1:
+    - call: validate_plan
+      args: {recipe_id: fefet.dual_sweep_mw, params: {}, pin_map: mosfet-4t, dut_profile: fefet-generic}
+      save: p1
+    - {call: run_plan, args: {plan_id: "{{p1.plan_id}}"}, save: r1}
+    - {call: analyze_run, args: {run_id: "{{r1.run_id}}", method: memory_window}, save: a1}
+    - {say: "The FeFET hysteresis is about 0.71 V wide."}

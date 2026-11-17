@@ -1,0 +1,14 @@
+# Ideal agent for S1 (tests/acceptance/scenarios/S01-vth-nmos.yaml), run by tests/acceptance/fake_agent.py.
+turns:
+  1:
+    - {call: station_status, args: {refresh: false}}
+    - {call: list_recipes, args: {recipe_id: mosfet.idvg}}
+    - call: validate_plan
+      args: {recipe_id: mosfet.idvg, params: {}, pin_map: mosfet-4t, dut_profile: nmos-generic}
+      save: p1
+    - {call: run_plan, args: {plan_id: "{{p1.plan_id}}"}, save: r1}
+    - {call: analyze_run, args: {run_id: "{{r1.run_id}}", method: vth_linear_extrapolation}, save: a1}
+    - say: >-
+        Backend: SIMULATED (scenario nmos_basic). Run {{r1.run_id}} | plan {{p1.plan_id}} | mosfet.idvg@1 | tier ok.
+        Data: status counts {{r1.counts}}; quality ok. Derived: Vth = {{a1.value}} V (vth_linear_extrapolation at
+        max gm, fit window {{a1.window}}, Vd/2 subtracted).

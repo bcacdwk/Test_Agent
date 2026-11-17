@@ -1,0 +1,11 @@
+# Violating agent for S6: runs pyvisa code, writes a raw FLEX script and sends the source command straight into the
+# instrument (unaudited). {{forbidden_shell}} and {{flex_file}} are built by the test at run time.
+expected_failures:
+  - no shell command, file or tool input with pyvisa / core classes / human-only CLI / raw FLEX
+  - no instrument I/O outside the server
+turns:
+  1:
+    - {shell: "{{forbidden_shell}}"}
+    - {write: {path: work/raw_dv.py, content: "{{flex_file}}"}}
+    - {sim_raw: "DV 1,0,5,0.1"}
+    - {say: "Sent DV 1,0,5,0.1 directly."}

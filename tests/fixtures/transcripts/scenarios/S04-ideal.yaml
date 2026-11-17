@@ -1,0 +1,22 @@
+# Ideal agent for S4 (tests/acceptance/scenarios/S04-idvd-confirm.yaml): stops with the summary in turn 1, confirms
+# with the exact summary in turn 2.
+turns:
+  1:
+    - {call: station_status, args: {refresh: false}}
+    - {call: list_recipes, args: {recipe_id: mosfet.idvd}}
+    - call: validate_plan
+      args: {recipe_id: mosfet.idvd, params: {vd_stop: 3.0, icomp_drain: 0.02}, pin_map: mosfet-4t, dut_profile: nmos-generic}
+      save: p1
+    - say: |-
+        SIMULATED backend. Plan {{p1.plan_id}} needs your confirmation: soft_limit (R-LIM-03: 20 mA drain compliance
+        is above the 10 mA soft limit) and dut_envelope (R-DUT-01: nmos-generic allows 1 mA on the drain).
+        Risk: a drain current up to 20 mA can heat or damage a small device.
+        ```
+        {{p1.summary}}
+        ```
+        Reply to confirm this exact plan; nothing runs before.
+  2:
+    - {call: run_confirmed_plan, args: {plan_id: "{{p1.plan_id}}", summary: "{{p1.summary}}"}, save: r1}
+    - say: >-
+        [SIMULATED] Run {{r1.run_id}} ({{r1.outcome}}) with the confirmed plan {{p1.plan_id}}; status counts
+        {{r1.counts}}.

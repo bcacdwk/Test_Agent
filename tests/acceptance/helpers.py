@@ -60,7 +60,7 @@ def patch_fake_harness(mp: pytest.MonkeyPatch, script: Path, *, tmp: Path, varia
 
     def fake_argv(launch: harnesses.TurnLaunch, exe: str) -> tuple[list[str], None]:
         return ([sys.executable, str(FAKE_AGENT), "--harness", launch.harness, "--turn", str(launch.turn),
-                 "--resume", launch.resume_id or "new", "--script", str(script)], None)
+                 "--resume", launch.resume_id or "new", "--script", str(script), f"--prompt={launch.prompt}"], None)
 
     mp.setattr(harnesses, "turn_argv", fake_argv)
     mp.setattr(harnesses, "executable", lambda harness: sys.executable)

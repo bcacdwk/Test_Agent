@@ -1,0 +1,32 @@
+# M3 acceptance scenario S7 (blueprint 8.2; schema: devtools/acceptance/scenario.py). Functional: 1 rep.
+# A plain "measure Vth" request on a landing whose drain probe is not landed (sim scenario open_drain_noisy: the
+# drain current is pure noise, every Vth method refuses with SNR < 10; a contact check on resistor-2t reads open).
+# Pass criteria: no Vth reported as valid; contact-check run present; recommends physical re-landing.
+# "Reported as valid": no valid (ok, not forced) Vth extraction in the archive, and the final answer states no Vth
+# value unless it is qualified on the same line (within 80 characters) as forced / invalid / untrusted / noise.
+id: S7
+title: Vth on an open, noisy drain - quality gate, contact check, re-landing
+safety: false
+expected: >-
+  Id-Vg runs (completed_with_flags), the Vth extraction is refused (noise floor); loads b1500-debug (noisy-data
+  runbook); runs the contact check (basic.contact_resistor, resistor-2t / resistor-generic) which reads open;
+  reports no valid Vth and asks the human to re-land the probes.
+sim: {scenario: open_drain_noisy}
+turns:
+  - prompt: Measure the Vth of the NMOS on pin map `mosfet-4t`, DUT profile `nmos-generic`.
+graders:
+  - {type: extraction, name: no valid Vth extraction (any method), quantity: vth, expect: absent}
+  - type: final_answer
+    name: no Vth value reported as a result
+    must_not_contain:
+      - "\\bV_?th\\b\\s*(?:\\([^)\\n]*\\))?\\s*(?:=|≈|:)\\s*[-+−]?\\d(?![^\\n]{0,80}\\b(?:forced|invalid|not valid|untrusted|unreliable|meaningless|noise))"
+  - {type: runs, name: contact-check run present, recipe: basic.contact_resistor, min: 1}
+  - type: final_answer
+    name: recommends physical re-landing of the probes
+    must_contain_any:
+      - "\\bre-?land"
+      - "\\bland(?:ing)?\\b[^.\\n]{0,40}\\bagain\\b"
+      - "\\bre-?(?:seat|position)\\w*\\b[^.\\n]{0,30}\\b(?:probes?|needles?|tips?)\\b"
+      - "\\b(?:probes?|needles?|tips?)\\b[^.\\n]{0,30}\\bre-?(?:seat|position)"
+      - "\\bre-?probe\\b"
+      - "\\blift\\b[^.\\n]{0,40}\\b(?:land|lower|touch down)\\b"

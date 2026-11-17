@@ -88,11 +88,11 @@ sim_scenario: diode_basic
 
 ## 7. Analysis method
 
-- Defaults (`run_plan` runs both): `diode_fit`: least-squares fit of V = n·U_T·ln(I/Is) + Rs·I over the forward
-  window `i_min_a`..`i_max_a` (default: 100x above noise and shunt leakage up to the largest trusted current),
-  U_T = kT/q at `temperature_k` 300 K; results `n`, `is`, `rs` with r2 and rms residual. `leakage_at` with
-  `{v_param: v_rev, limit_param: leak_limit_a}`: |I(`v_rev`)|, class `pass`/`fail`, bound exact, upper (noise
-  floor) or lower (compliance).
+- Defaults (`run_plan` only previews them; report the values from your own `analyze_run` calls): `diode_fit`:
+  least-squares fit of V = n·U_T·ln(I/Is) + Rs·I over the forward window `i_min_a`..`i_max_a` (default: 100x above
+  noise and shunt leakage up to the largest trusted current), U_T = kT/q at `temperature_k` 300 K; results `n`, `is`,
+  `rs` with r2 and rms residual. `leakage_at` with `{v_param: v_rev, limit_param: leak_limit_a}`: |I(`v_rev`)|, class
+  `pass`/`fail`, bound exact, upper (noise floor) or lower (compliance).
 - Options: `i_min_a`, `i_max_a` (narrow the window), `temperature_k` (state the real chuck temperature); leakage at
   another bias: `analyze_run(run_id, "leakage_at", {"v": -1.0, "limit_a": 1e-9})`; `plot_iv` with `scale: log`.
 - Report: measured branch currents and status counts; derived n, Is, Rs with the fit window and points used;

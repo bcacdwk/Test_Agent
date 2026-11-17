@@ -92,9 +92,10 @@ sim_scenario: nmos_basic
 
 ## 7. Analysis method
 
-- Default `leakage_at` (`run_plan` runs it): |Ig(v)| at v = the plan's `v_op`, linearly interpolated between the
-  bracketing trusted points (x `gate_V`, y `gate_I`), compared with the plan's `leak_limit_a`: class `pass`/`fail`,
-  bound `exact`, `upper` (noise floor) or `lower` (compliance stop at or below `v_op`).
+- Default `leakage_at` (`run_plan` only previews it; report the value from your own `analyze_run` call): |Ig(v)| at v
+  = the plan's `v_op`, linearly interpolated between the bracketing trusted points (x `gate_V`, y `gate_I`), compared
+  with the plan's `leak_limit_a`: class `pass`/`fail`, bound `exact`, `upper` (noise floor) or `lower` (compliance
+  stop at or below `v_op`).
 - Alternatives: another bias or limit `analyze_run(run_id, "leakage_at", {"v": 1.0, "limit_a": 1e-10})`; the
   gate-drain path `{"y": "drain_I"}`; `plot_iv` with `scale: log`; `quality_report` for the floor.
 - Report: measured Ig and Id with status counts; derived leakage at `v_op` with bound, limit and class; sweep range,

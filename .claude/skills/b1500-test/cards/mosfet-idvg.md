@@ -93,9 +93,10 @@ sim_scenario: nmos_basic
 
 ## 7. Analysis method
 
-- Default `vth_linear_extrapolation` with `{window: max_gm, subtract_half_vd: true}` (`run_plan` runs it): line
-  through the `fit_points` (5) trusted points around max |gm|; Vth = Vg-axis intercept - Vd/2, Vd from the plan's
-  `vd`. Options: `fit_points`, `smooth` (5; raise for dense or noisy sweeps), `window: [lo, hi]` in volts.
+- Default `vth_linear_extrapolation` with `{window: max_gm, subtract_half_vd: true}` (`run_plan` only previews it;
+  report the value from your own `analyze_run` call): line through the `fit_points` (5) trusted points around max
+  |gm|; Vth = Vg-axis intercept - Vd/2, Vd from the plan's `vd`. Options: `fit_points`, `smooth` (5; raise for dense
+  or noisy sweeps), `window: [lo, hi]` in volts.
 - Alternatives (`analyze_run`): `vth_constant_current` (`i_crit_a` 100 nA, x `w_over_l` when given; the usual
   definition for TFTs); `vth_max_gm` (maximum of dgm/dVg, minus Vd/2); `subthreshold_swing` (minimum mV/dec over
   `fit_points` or `decades`); `gm_max`; `ion_ioff` (`v_on`, `v_off`; default the sweep ends); `plot_iv`.

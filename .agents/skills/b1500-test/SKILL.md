@@ -27,13 +27,16 @@ Operating manual for the `b1500` MCP tools (or the `b1500` CLI). Backend `sim`: 
 1. Clarify the goal: quantity, device type, pin map, DUT profile, die label.
 2. Pick the card (part 4) and read it before planning.
 3. `station_status`: backend, fault, lock holder, errors, pin maps and DUT profiles on offer.
-4. Pin map or DUT profile missing, or device unknown: stop and ask the human to provide them. Never guess pins.
+4. Pin map or DUT profile missing, or device unknown: stop and ask the human for them. Never guess pins.
 5. `list_recipes(recipe_id=...)` for params; take values from the card's parameter table.
-6. `validate_plan`, then handle the tier (part 5).
+6. `validate_plan`, then handle the tier (part 5). A request above a limit: name the rule ids that stop it
+   (hard limit R-LIM-02, module rating R-LIM-01, recipe range R-PARAM-01, interlock R-IL-01); with pin map and
+   DUT profile known, validate it as asked (nothing runs) and cite its ids.
 7. `run_plan(plan_id, dut_instance=...)`, or `run_confirmed_plan` after consent.
 8. Quality gate: `status_counts` and `quality_verdict` (or `get_run` with `include=[summary, quality]`).
    Untrusted or noise-dominated data: no extraction; follow `b1500-debug`.
-9. `analyze_run` with the card's method and options; a `refused` or `failed` result is no value.
+9. `analyze_run` with the card's method and options, even if `run_plan` showed a default; report that result.
+   `refused` or `failed` is no value.
 10. Report (part 6); record observations with `annotate_run`.
 
 ## 3. Tools
@@ -50,9 +53,8 @@ Operating manual for the `b1500` MCP tools (or the `b1500` CLI). Backend `sim`: 
 | `annotate_run` | Append a note to a run |
 | `safe_shutdown` | `reason`; never gated: abort, zero, disconnect, verify |
 
-Sequence: `station_status`, `list_recipes`, `validate_plan`, `run_plan` or `run_confirmed_plan`, `get_run`,
-`analyze_run`. Params come from `list_recipes(recipe_id)`; omitted ones take defaults. One plan serves a die
-batch: vary only `dut_instance`. CLI: `uv run b1500 status|recipes|plan|run|runs|show|analyze|note|shutdown
+Params come from `list_recipes(recipe_id)`; omitted ones take defaults. One plan serves a die batch: vary only
+`dut_instance`. CLI: `uv run b1500 status|recipes|plan|run|runs|show|analyze|note|shutdown
 --json`; without MCP a `needs_confirmation` plan stays with the human.
 
 ## 4. Card index
@@ -67,10 +69,9 @@ batch: vary only `dut_instance`. CLI: `uv run b1500 status|recipes|plan|run|runs
 | FeFET, memory window, hysteresis | [fefet-dual-sweep-mw](cards/fefet-dual-sweep-mw.md) | `fefet.dual_sweep_mw` | sim_validated |
 | WGFMU, pulses, PUND, BTI, HCI, TDDB, C-V | [reserved](cards/reserved/README.md) | `recipes/reserved/` | not_implemented |
 
-`list_recipes` shows the effective status on the current backend and wins. Self-test and self-calibration:
-`system.self_test`, `system.self_cal` (always confirmed). No card fits: ask before using
-`generic.smu_staircase`. Never emulate a reserved measurement with another recipe. New cards start from
-[the template](cards/_TEMPLATE.md) and need human review.
+`list_recipes` status (current backend) wins. Self-test, self-calibration: `system.self_test`, `system.self_cal`
+(always confirmed). No card fits: ask before using `generic.smu_staircase`. Never emulate a reserved measurement
+with another recipe. New cards: [template](cards/_TEMPLATE.md), human review.
 
 ## 5. Tier and error handling
 
@@ -99,7 +100,7 @@ Run: <run_id> | plan <plan_id> | recipe <id>@<version> | tier <tier> | DUT <prof
 Conditions: <swept/biased terminals, ranges, compliance, integration>
 Data: <points>; status counts <N=..., C=...>; quality <verdict>; cleanup <verified>
 Measured: <direct readings with units>
-Derived: <quantity = value unit; method; window; points used/excluded>   (one line each)
+Derived: <quantity = value unit; method; window; points used/excluded>   (one line each, not a table)
 Warnings: <flags, compliance hits, forced extraction>
 Assumptions, next steps: <...>
 ```
@@ -131,7 +132,7 @@ Only when no `analyze_run` method answers the question. Read archived runs, neve
 
 ```python
 from b1500_test_agent.analysis import load_run, assess_quality, work_dir_for
-d = load_run("<run_id>")        # manifest + pandas table with status columns
+d = load_run("<run_id>")        # manifest + table with status columns
 q = assess_quality(d)           # status counts and verdict first
 fit = d.trusted()               # limited and untrusted points dropped
 out = work_dir_for(d.run_id)    # work/<run_id>/: the only place you write

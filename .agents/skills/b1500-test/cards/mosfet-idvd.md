@@ -93,9 +93,10 @@ sim_scenario: nmos_basic
 
 ## 7. Analysis method
 
-- Default `output_metrics` (x `drain_V`, y `drain_I`, curves grouped by `gate_V`; `run_plan` runs it): per curve
-  Ron = 1/gd at the lowest |Vd| (gd from a local quadratic fit over `smooth` points); gds = slope of a line over the
-  top `sat_window` (0.2) of the |Vd| span; Vd_sat = first |Vd| where gd falls to `sat_ratio` (0.1) x gd(Vd_min).
+- Default `output_metrics` (x `drain_V`, y `drain_I`, curves grouped by `gate_V`; `run_plan` only previews it; report
+  the value from your own `analyze_run` call): per curve Ron = 1/gd at the lowest |Vd| (gd from a local quadratic fit
+  over `smooth` points); gds = slope of a line over the top `sat_window` (0.2) of the |Vd| span; Vd_sat = first |Vd|
+  where gd falls to `sat_ratio` (0.1) x gd(Vd_min).
 - The results are those of one curve (`curve`, default the largest |Vg|; its level in `fit.step_v`); every curve's
   value is in `fit` under `gate_V=<level>`. Options: `curve`, `smooth`, `sat_window`, `sat_ratio`.
 - Alternatives: `plot_iv` (`scale: linear`) for the family; Vth and gm belong to the Id-Vg card.

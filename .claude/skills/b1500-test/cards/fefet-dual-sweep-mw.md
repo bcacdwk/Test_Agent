@@ -90,13 +90,15 @@ sim_scenario: fefet_basic
 
 ## 7. Analysis method
 
-- Default `memory_window` with `{vth_method: vth_constant_current, i_crit_a: 1e-7}` (`run_plan` runs it): Vth of
-  `fwd` (first branch, start → stop) and `rev` (stop → start) by the same method; MW = Vth_fwd - Vth_rev; per-branch
-  Ion/Ioff from `ion_ioff` (default the sweep ends; ratio in the Ion result's `fit`).
+- Default `memory_window` with `{vth_method: vth_constant_current, i_crit_a: 1e-7}` (`run_plan` only previews it;
+  report the value from your own `analyze_run` call): Vth of `fwd` (first branch, start → stop) and `rev` (stop →
+  start) by the same method; MW = Vth_fwd - Vth_rev; per-branch Ion/Ioff from `ion_ioff` (default the sweep ends;
+  ratio in the Ion result's `fit`).
 - Options: `vth_method` `vth_linear_extrapolation` or `vth_max_gm` (method offsets cancel in MW; branch Vths do not),
   `i_crit_a`, `w_over_l`, `v_on`, `v_off`, `smooth`. Single-branch extractions: the Id-Vg methods with `segment: rev`.
-- Report: MW with sign and method; **both** branch Vths (`vth_fwd`, `vth_rev`) with method and criterion; Ion/Ioff
-  per branch; amplitude, points, integration, start state and loop index; status counts
+- Report: MW with sign and method; **both** branch Vths (`vth_fwd`, `vth_rev`) with method and criterion, each
+  on its own line as `Vth_fwd = <x> V` and `Vth_rev = <y> V` (a table alone hides which value is which);
+  Ion/Ioff per branch; amplitude, points, integration, start state and loop index; status counts
   ([06](../knowledge/06-analysis-extraction.md#memory-window)).
 
 ## 8. Expected result shape

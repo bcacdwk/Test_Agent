@@ -91,8 +91,9 @@ sim_scenario: resistor_100k
 
 ## 7. Analysis method
 
-- Default `resistance` with `{r_short_ohm: 100, r_open_ohm: 1e9}` (recipe default; `run_plan` runs it): least-squares
-  line I = G·V + I0 over the trusted points; R = 1/G, `linearity_r2`, `offset_current` = I0 (`fit.v_offset`).
+- Default `resistance` with `{r_short_ohm: 100, r_open_ohm: 1e9}` (recipe default; `run_plan` only previews it; report
+  the value from your own `analyze_run` call): least-squares line I = G·V + I0 over the trusted points; R = 1/G,
+  `linearity_r2`, `offset_current` = I0 (`fit.v_offset`).
 - Classes: `short` = compliance at the first compliance point (R upper bound) or R ≤ `r_short_ohm`; `open` = noise
   floor (R lower bound) or R ≥ `r_open_ohm`; else `in_range`.
 - Options: set `r_short_ohm`/`r_open_ohm` around the profile nominal with `analyze_run(run_id, "resistance",

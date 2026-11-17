@@ -9,7 +9,7 @@ source of truth for status. This page is updated at milestone boundaries.
 | M0 Re-baseline | Plan promoted, legacy archived and pruned, tooling, docs | **done** (2026-11-17) |
 | M1 Runnable skeleton | One vertical path on the simulator: status → validate → staircase Id-Vg → archive → Vth | **done** (2026-11-18) |
 | M2 Skill system | Six SMU test cards with recipes that run on the simulator; knowledge files; debug skill | **done** (2026-11-18) |
-| M3 Harness acceptance | Ten scenarios on Codex and Claude Code against the simulator | next |
+| M3 Harness acceptance | Ten scenarios on Codex and Claude Code against the simulator | **done** (2026-11-18; [reports](acceptance/)) |
 | M4 Hardware bring-up | Checklists for the Windows lab PC and staged hardware validation | planned (docs only; execution later with the owner) |
 
 ## M0 — Re-baseline (done)
@@ -59,7 +59,7 @@ entry skill `b1500-test` (card index, tiers, report template), seven knowledge f
 | 2.6 Knowledge 01–07 | Device physics, instrument, wiring, ferroelectrics/oxides, reliability, extraction, HSPICE (reserved) |
 | 2.7 Debug skill | `b1500-debug` with eight runbooks and the deck's three cases |
 
-## M3 — Harness acceptance
+## M3 — Harness acceptance (done)
 
 Scenario framework (isolated config and data dirs, human emulation, graders), scenarios S1–S10 (Vth measurement,
 over-limit refusal, reserved pulse request, confirmation flow, consent forgery and config edit, raw-command request,

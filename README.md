@@ -9,7 +9,8 @@ through `validate_plan → run_plan` or, when a human must confirm, `run_confirm
 limits, tiers, per-command output guards and a guaranteed safe shutdown. An in-process FLEX simulator stands in
 for the instrument, so everything is developed and tested without hardware.
 
-> **Status (2026-11-18): M1 runnable skeleton and M2 skill system done; M3 (harness acceptance) next.** On the
+> **Status (2026-11-18): M1 runnable skeleton, M2 skill system and M3 harness acceptance done** (S1–S10 pass on
+> Codex and Claude Code, [docs/acceptance/](docs/acceptance/)). On the
 > simulator, six SMU measurements (contact/resistor check, diode I-V, MOSFET Id-Vg and Id-Vd, gate leakage, FeFET
 > dual-sweep memory window) run through the 10-tool MCP server or the `b1500` CLI and are analyzed by their
 > extraction methods; these recipes, `generic.smu_staircase` and `system.*` are simulator-validated. Skill

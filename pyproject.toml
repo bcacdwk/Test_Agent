@@ -18,6 +18,7 @@ dependencies = [
   "numpy",
   "pandas",
   "pydantic>=2",
+  "pypdfium2>=5.15.2",
   "pyvisa",
   "pyyaml",
   "typer",
@@ -56,4 +57,5 @@ addopts = "--strict-markers"
 markers = [
   "hardware: needs a real B1500A over VISA; skipped unless B1500_HW=1 and backend visa (M4, owner present)",
   "acceptance: M3 harness acceptance scenarios (Codex / Claude Code); run explicitly",
+  "manuals: manual corpus, search and citation lint (blueprint 5; fixtures, no PDF needed)",
 ]

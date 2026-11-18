@@ -22,8 +22,8 @@ Milestone tags in parentheses say when a part arrives (see [roadmap](roadmap.md)
 ## Dependency direction
 
 ```text
-adapters → service → {catalog, rules, archive, analysis} → session → driver → transport
-models: shared leaf, imported by every layer, imports none of them
+adapters → service → {catalog, rules, archive, analysis, manuals} → session → driver → transport
+models: shared leaf, imported by every layer, imports none of them; manuals imports only models and paths
 ```
 
 Enforced by tests (M1): an import-layering test over the package; `analysis` never imports `session`, `driver` or
@@ -48,13 +48,14 @@ fails a test.
 | `catalog/` | Recipe schema and registry, planner, executor, measurement kinds (`smu_staircase`, `smu_stepped`, `system`, `unimplemented`) | done (WP1.7; recipes `mosfet.idvg`, `generic.smu_staircase`, `system.*` sim-validated, 13 reserved slots; `b1500 dev recipe-check`; WP2.1: `smu_stepped` host loop; WP2.2: `basic.contact_resistor`, `basic.diode_iv`, `mosfet.idvd`, `mosfet.gate_leakage`, `fefet.dual_sweep_mw` sim-validated) |
 | `archive/` | Run folders, manifest, `audit.jsonl`, `index.jsonl`, sha256 of every file | done (WP1.7; raw blocks kept on failure, append-only notes) |
 | `analysis/` | `load_run`, `assess_quality`, extraction methods, plots, `ANALYSIS_METHODS` registry | done (WP1.5: `quality_report`, `vth_linear_extrapolation`; WP2.2: `vth_constant_current`, `vth_max_gm`, `subthreshold_swing`, `gm_max`, `ion_ioff`, `output_metrics`, `resistance`, `diode_fit`, `leakage_at`, `memory_window`, `plot_iv` (PNGs stored under the run's `plots/` by the archive)) |
+| `manuals/` | Manual corpus: `catalog` (catalog/synonyms, manuals folder, PDF location), `build` (pypdfium2 → `references/manuals/corpus/`), `search` (BM25 `search`, `page`, `toc`, `status`; structured-extract fallback) | done (WP5.8; CLI-only `b1500 manual …`, `doctor` checks, citation lint `devtools/skills/citations.py`; [manuals.md](manuals.md)) |
 | `service.py` | `B1500Service`: one method per MCP tool; reloads changed config, audits every call, never raises to adapters | done (WP1.8; result models in `models/results.py`, responses ≤2k tokens, human-only `B1500Admin` for `fault clear`/`lock status`) |
-| `adapters/` | `mcp_server.py` (10 tools), `cli/` (`b1500`, `b1500-mcp`: `core.py` root app and operator commands, `dev.py` the `dev` group) | done (WP1.8: 10 tools at 1,474 tokens, `requiresUserInteraction` on `run_confirmed_plan`; all §5.3 operator commands, `fault clear`, `lock status`, `doctor`, `mcp`; WP1.9: `harness init --codex\|--claude [--check]`, `dev mcp-smoke`) |
-| `devtools/` | `budget.py` (tool-schema token counter), `doctor.py`, `sim_console.py`, `harness.py`, `mcp_smoke.py`, sync-harness, lint-skills (`skills/`: `layout`, `cards`, `params`, `links`, `budgets`, `markdown`, `common`, `lint`), recipe-check, acceptance runner | `budget.py` (M0), `recipe_check.py` (WP1.7), `doctor.py` (non-probe) + `sim_console.py` (WP1.8), `harness.py` (render/check harness configs, doctor harness check) + `mcp_smoke.py` (WP1.9); sync-harness, lint-skills WP2.3; acceptance runner WP3.1 |
+| `adapters/` | `mcp_server.py` (10 tools), `cli/` (`b1500`, `b1500-mcp`: `core.py` root app and operator commands, `dev.py` the `dev` group, `manual.py` the CLI-only `manual` group) | done (WP1.8: 10 tools at 1,474 tokens, `requiresUserInteraction` on `run_confirmed_plan`; all §5.3 operator commands, `fault clear`, `lock status`, `doctor`, `mcp`; WP1.9: `harness init --codex\|--claude [--check]`, `dev mcp-smoke`) |
+| `devtools/` | `budget.py` (tool-schema token counter), `doctor.py`, `sim_console.py`, `harness.py`, `mcp_smoke.py`, sync-harness, lint-skills (`skills/`: `layout`, `cards`, `params`, `links`, `budgets`, `markdown`, `common`, `citations`, `lint`), recipe-check, acceptance runner | `budget.py` (M0), `recipe_check.py` (WP1.7), `doctor.py` (non-probe) + `sim_console.py` (WP1.8), `harness.py` (render/check harness configs, doctor harness check) + `mcp_smoke.py` (WP1.9); sync-harness, lint-skills WP2.3; acceptance runner WP3.1 |
 
 Outside the package: `recipes/` (registry source YAML), `config/` (examples, sim scenarios and faults, harness
 templates), `.agents/skills/` (canonical skills) with a generated copy in `.claude/skills/`, `references/manuals/`
-(structured manual extracts), `references/driver-map/` (legacy taxonomy mapped onto the driver; read only for
+(manual catalog, committed page corpus, structured manual extracts), `references/driver-map/` (legacy taxonomy mapped onto the driver; read only for
 driver work), `scripts/`, `tests/` (`unit`, `sim`, `safety`, `integration`, `adapters`, `skills`, `acceptance`,
 `hardware`).
 

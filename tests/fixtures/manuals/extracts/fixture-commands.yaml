@@ -1,0 +1,9 @@
+metadata:
+  source_pdf: fixture-guide.pdf
+commands:
+  - command: "FIXCMD"
+    function: "Sets the fixture selector output state."
+    pdf_pages: [1]
+  - command: "WGFMU_fixtureEvent"
+    function: "Defines a measure event of the fixture."
+    pdf_pages: [2]

@@ -5,5 +5,5 @@
 ``policy`` (policy, DUT profiles, hard-limit ceiling) · ``recipe`` · ``plan`` (request, record, binding, envelopes
 incl. pulse/AC/waveform, rule reports, run progress) · ``run`` (cleanup, fault, manifest, summary) ·
 ``analysis`` · ``measurement`` · ``audit`` (audit event line) · ``sim`` (simulator device parameters, faults) ·
-``results`` (service/tool result models).
+``results`` (service/tool result models) · ``manuals`` (manual catalog, corpus records, ``b1500 manual`` results).
 """

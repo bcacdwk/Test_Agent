@@ -1,6 +1,6 @@
 """``b1500 doctor``: installation and station-readiness checks without instrument I/O (blueprint 7).
 
-Each check is PASS, WARN or FAIL; the command exits non-zero when any check FAILs. Checks: Python version and
+Each check is PASS, INFO, WARN or FAIL; the command exits non-zero when any check FAILs. Checks: Python version and
 architecture; ``uv.lock`` in sync with ``pyproject.toml`` (``uv lock --check --offline``); imports of the runtime
 dependencies (``pyvisa`` only located, never imported outside ``transport/visa.py``); configuration (rule R-CFG-01:
 schemas, active files example vs local, why the backend was chosen); ``data/`` writable and free space; clone path
@@ -9,7 +9,9 @@ length (WARN above 80 characters on Windows); stale inflight marker or latched f
 files (the committed ``.claude/settings.json``, Codex rules, guard hook and
 examples wired as blueprint 5.4 says; each generated ``.codex/config.toml`` / ``.mcp.json`` free of drift, both on
 the same ``b1500-mcp`` entry point, ``run_confirmed_plan`` = ``prompt`` / ``ask``; WARN when none is generated yet);
-the MCP server starts with exactly the ten tools within the token budget; ``PYTHONUTF8`` and ``LongPathsEnabled``
+the MCP server starts with exactly the ten tools within the token budget; the manual corpus (blueprint 5.2: PASS
+when the committed corpus is current, WARN when stale or missing) and the manual PDFs (optional: PASS when all are
+found, INFO when some or all are absent, WARN on an edition mismatch); ``PYTHONUTF8`` and ``LongPathsEnabled``
 (Windows).
 
 The hardware probe (``--probe``: VISA library, resource, ``*IDN?``, ``UNT?``, ``ERRX?``, STB; read-only, never
@@ -37,6 +39,9 @@ from pydantic import BaseModel
 from b1500_test_agent.config import ConfigBundle, ConfigLoader
 from b1500_test_agent.devtools import budget, harness, sync_harness
 from b1500_test_agent.errors import InvalidConfigError
+from b1500_test_agent.manuals import search as manual_search
+from b1500_test_agent.manuals.catalog import ManualError, ManualPaths
+from b1500_test_agent.models.station import Settings
 from b1500_test_agent.paths import Paths
 from b1500_test_agent.service import TOOL_NAMES
 from b1500_test_agent.session import read_inflight
@@ -44,7 +49,7 @@ from b1500_test_agent.session.fault import FaultLatch
 from b1500_test_agent.session.lock import InstrumentLock
 from b1500_test_agent.transport.audit import NullAuditSink
 
-CheckStatus = Literal["PASS", "WARN", "FAIL"]
+CheckStatus = Literal["PASS", "INFO", "WARN", "FAIL"]
 MCP_SERVER_SPEC = "b1500_test_agent.adapters.mcp_server:create_server"
 RUNTIME_MODULES = ("pydantic", "yaml", "numpy", "pandas", "matplotlib", "typer", "filelock", "fastmcp")
 BUDGET_TOTAL = 4500
@@ -54,7 +59,7 @@ MIN_FREE_BYTES = 1 << 30
 
 
 class DoctorCheck(BaseModel):
-    """One check: name, PASS/WARN/FAIL and what was found."""
+    """One check: name, PASS/INFO/WARN/FAIL and what was found (INFO: optional item absent, nothing to fix)."""
 
     name: str
     status: CheckStatus
@@ -236,6 +241,43 @@ def check_mcp_server(spec: str = MCP_SERVER_SPEC) -> DoctorCheck:
     return _check("mcp server", "PASS", detail)
 
 
+def check_manuals(repo_root: Path, setting: str, environ: Mapping[str, str]) -> list[DoctorCheck]:
+    """``manual corpus`` (committed page corpus current?) and ``manual PDFs`` (optional source PDFs present?)."""
+    paths = ManualPaths.for_repo(repo_root, setting, environ)
+    fix = "uv run b1500 manual build (needs the PDFs)"
+    if not paths.catalog.is_file():
+        return [_check("manual corpus", "WARN", f"no manual catalog at {paths.display(paths.catalog)} (git pull)"),
+                _check("manual PDFs", "INFO", "not checked without a catalog")]
+    try:
+        status = manual_search.status(paths)
+    except ManualError as exc:
+        return [_check("manual corpus", "FAIL", str(exc)), _check("manual PDFs", "INFO", "not checked")]
+    size = f"{status.corpus_bytes / 1000:.0f} kB"
+    corpus = {
+        "current": _check("manual corpus", "PASS", f"{status.docs_in_corpus} docs, {status.pages_in_corpus} pages "
+                                                   f"({size}) in {status.corpus_dir}; b1500 manual search|page|toc"),
+        "stale": _check("manual corpus", "WARN", f"stale: built from another catalog; {fix}"),
+        "missing": _check("manual corpus", "WARN", f"missing in {status.corpus_dir}: manual queries answer from the "
+                                                   f"structured extracts only (git pull, or {fix})"),
+        "invalid": _check("manual corpus", "FAIL", status.message),
+    }[status.corpus]
+    where = f"{status.manuals_dir} ({status.manuals_dir_source})"
+    missing = [d.id for d in status.docs if d.pdf == "missing"]
+    mismatch = [d.id for d in status.docs if d.pdf == "mismatch"]
+    total = len(status.docs)
+    if mismatch:
+        pdfs = _check("manual PDFs", "WARN", f"edition mismatch (sha256 differs from the catalog): "
+                                             f"{', '.join(mismatch)} in {where}; see b1500 manual status")
+    elif not missing:
+        pdfs = _check("manual PDFs", "PASS", f"{total}/{total} PDFs in {where}")
+    else:
+        found = f"{total - len(missing)}/{total} PDFs in {where}" + (
+            f" (missing {', '.join(missing)})" if len(missing) < total else "")
+        pdfs = _check("manual PDFs", "INFO", f"{found}; optional - the committed corpus answers manual queries, "
+                                             "PDFs are needed only for figures and manual build (B1500_MANUALS_DIR)")
+    return [corpus, pdfs]
+
+
 def check_pythonutf8(environ: Mapping[str, str], *, windows: bool) -> DoctorCheck:
     value = environ.get("PYTHONUTF8")
     if value == "1" or sys.flags.utf8_mode:
@@ -285,6 +327,7 @@ def run_doctor(*, environ: Mapping[str, str] | None = None, windows: bool | None
         check_skills_mirror(paths.repo_root),
         check_harness_files(paths.repo_root),
         (mcp_check or check_mcp_server)(),
+        *check_manuals(paths.repo_root, (bundle.settings if bundle is not None else Settings()).manuals_dir, env),
         check_pythonutf8(env, windows=on_windows),
         check_long_paths(windows=on_windows),
     ]
@@ -310,5 +353,7 @@ def format_report(report: DoctorReport) -> str:
     lines = [f"{c.status:<4}  {c.name:<{width}}  {c.detail}" for c in report.checks]
     fails = sum(c.status == "FAIL" for c in report.checks)
     warns = sum(c.status == "WARN" for c in report.checks)
-    lines.append(f"doctor: {'ok' if report.ok else 'FAIL'} ({fails} fail, {warns} warn, {len(report.checks)} checks)")
+    infos = sum(c.status == "INFO" for c in report.checks)
+    lines.append(f"doctor: {'ok' if report.ok else 'FAIL'} ({fails} fail, {warns} warn, {infos} info, "
+                 f"{len(report.checks)} checks)")
     return "\n".join(lines)

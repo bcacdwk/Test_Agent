@@ -1,0 +1,285 @@
+# Keysight manual catalog (blueprint 5.2). Schema: b1500_test_agent.models.manuals.ManualCatalog. No manual text.
+#
+# `file` is relative to the manuals folder: settings.manuals_dir (default "..", the clone's parent) or
+# $B1500_MANUALS_DIR. A renamed or moved copy is found by size + sha256; another edition at `file` is a warning.
+# The page text lives in corpus/ (uv run b1500 manual build; committed, OD-1). Citations read `PG p433 (4-115)`:
+# id, physical 1-based PDF page, optional printed label (checked by b1500 dev lint-skills).
+# `label_rule`: regex with >= 1 group, tried on the first and last three non-empty lines of a page; the first
+# non-empty group is the printed label. `priority` multiplies search scores (PG/WG/SEL/CC boosted; WG5 superseded).
+# `extracts`: curated files under references/manuals/ that answer queries when no corpus is built.
+# After editing a sha256, page count, label rule or the symbol table: uv run b1500 manual build (then --check).
+version: 1
+
+# Private-use glyphs of the manuals' Symbol/Wingdings fonts (PDFium returns U+F000 + font code). Unlisted codes in
+# U+F020..U+F07E become the ASCII character they encode (digits, brackets, the barcode font of AN-TUT).
+symbols:
+  F02D: "-"
+  F040: "≅"
+  F044: "Δ"
+  F053: "Σ"
+  F057: "Ω"
+  F061: "α"
+  F062: "β"
+  F064: "δ"
+  F065: "ε"
+  F066: "φ"
+  F067: "γ"
+  F06C: "λ"
+  F06D: "µ"
+  F070: "π"
+  F071: "θ"
+  F072: "ρ"
+  F073: "σ"
+  F074: "τ"
+  F077: "ω"
+  F09F: "•"
+  F0A3: "≤"
+  F0A5: "∞"
+  F0AC: "←"
+  F0AD: "↑"
+  F0AE: "→"
+  F0AF: "↓"
+  F0B0: "°"
+  F0B1: "±"
+  F0B3: "≥"
+  F0B4: "×"
+  F0B7: "•"
+  F0B9: "≠"
+  F0BB: "≈"
+  F0D6: "√"
+
+docs:
+  - id: PG
+    file: B1500A Programming Guide.pdf
+    title: Keysight B1500A/B1505A/B1506A/B1507A Device Analyzer Series Programming Guide
+    edition: Edition 15, May 2022
+    part_number: B1500-90010
+    sha256: 6e40e6b3899b8dbaa477fd443bed306a678cc57350933d317c09d81635cecc19
+    size: 3473828
+    pages: 617
+    language: en
+    kind: programming_guide
+    priority: 1.5
+    label_rule: '^(?:([0-9A-Z]{1,2}-\d{1,3}) Keysight B1500 Series Programming Guide, Edition \d+|Keysight B1500 Series Programming Guide, Edition \d+ ([0-9A-Z]{1,2}-\d{1,3}))$'
+    extracts:
+      - b1500a-programming-guide-index.md
+      - structured/b1500a-command-summary.yaml
+      - structured/b1500a-command-parameters.md
+      - structured/b1500a-error-codes.yaml
+      - structured/b1500a-initial-settings.md
+    note: FLEX commands (chapter 4 has one outline entry per command), measurement modes, data formats, errors.
+
+  - id: EX
+    file: Keysight EasyEXPERT Software.pdf
+    title: Keysight EasyEXPERT Software User's Guide (Volumes 1 and 2)
+    edition: Edition 5, December 2020
+    part_number: B1540-90000
+    sha256: d9a672b7b1be96a32f4acc8b6e7edf63021f567758d7af5d0c9087ee1e1df126
+    size: 9133643
+    pages: 700
+    language: en
+    kind: software_guide
+    priority: 1.0
+    label_rule: '^(?:([0-9A-Z]{1,2}-\d{1,3}) Keysight EasyEXPERT User.s Guide Vol\. \d, Edition \d+|Keysight EasyEXPERT User.s Guide Vol\. \d, Edition \d+ ([0-9A-Z]{1,2}-\d{1,3}))$'
+    extracts:
+      - keysight-easyexpert-software-index.md
+      - structured/easyexpert-application-test-catalog.yaml
+      - structured/easyexpert-workflow-templates.md
+      - structured/easyexpert-export-formats.yaml
+      - structured/easyexpert-prober-control.md
+      - structured/easyexpert-error-codes.yaml
+      - structured/easyexpert-bench-remote-control.md
+    note: Volume 2 starts at PDF 399 (chapters 6-11, appendix A).
+
+  - id: UG
+    file: B1500A User Guide.pdf
+    title: Keysight B1500A Semiconductor Device Analyzer User's Guide
+    edition: Edition 17, February 2021
+    part_number: B1500-90000
+    sha256: f37d995a6a6120fa7464030252676830c10f6552506ce9606c27ad8db7f542c8
+    size: 5503810
+    pages: 160
+    language: en
+    kind: user_guide
+    priority: 1.0
+    label_rule: '^(?:([0-9A-Z]{1,2}-\d{1,3}) Keysight B1500A User.s Guide, Edition \d+|Keysight B1500A User.s Guide, Edition \d+ ([0-9A-Z]{1,2}-\d{1,3}))$'
+    note: Safety, installation, module specifications (GNDU, MFCMU, SPGU), calibration.
+
+  - id: WG
+    file: lwp/matlab_B1500/9018-01706.pdf
+    title: Keysight B1530A Waveform Generator/Fast Measurement Unit User's Guide
+    edition: Edition 8, February 2021
+    part_number: B1530-90000
+    sha256: c8b90fc3e3a64e693b7bc809a33a3615e220dfe4cafea3d2503bfe9eab4118ba
+    size: 2878000
+    pages: 160
+    language: en
+    kind: user_guide
+    priority: 1.5
+    label_rule: '^(?:([0-9A-Z]{1,2}-\d{1,3}) Keysight B1530A User.s Guide, Edition \d+|Keysight B1530A User.s Guide, Edition \d+ ([0-9A-Z]{1,2}-\d{1,3}))$'
+    note: Current WGFMU guide (one outline entry per instrument-library function); supersedes WG5.
+
+  - id: WG5
+    file: B1530A WGFMU.pdf
+    title: Agilent B1530A Waveform Generator/Fast Measurement Unit User's Guide (Edition 5)
+    edition: Edition 5, August 2012
+    part_number: B1530-90000
+    sha256: 2826764638c3e190882cbe7c05fe03e7d3c48829f342bf97b067bd01654989ef
+    size: 2011942
+    pages: 164
+    language: en
+    kind: user_guide
+    priority: 0.8
+    label_rule: '^(?:([0-9A-Z]{1,2}- ?\d{1,3}) Agilent B1530A User.s Guide, Edition \d+|Agilent B1530A User.s Guide, Edition \d+ ([0-9A-Z]{1,2}- ?\d{1,3}))$'
+    extracts:
+      - b1530a-wgfmu-index.md
+      - structured/b1530a-wgfmu-api-reference.yaml
+      - structured/b1530a-wgfmu-waveform-timing.md
+      - structured/b1530a-wgfmu-error-codes.yaml
+      - structured/b1530a-wgfmu-examples.md
+    note: Older edition kept because the structured WGFMU extracts cite its pages; prefer WG.
+
+  - id: CC
+    file: Keysight B1500A Configuration and Connection Guide.pdf
+    title: Keysight B1500A Configuration and Connection Guide
+    edition: Edition 10, November 2020
+    part_number: B1500-90090
+    sha256: ff34b96820a2d909e98365a6df440eb7e0b721119101decd1b3dc61161c901cc
+    size: 4083946
+    pages: 122
+    language: en
+    kind: configuration_guide
+    priority: 1.3
+    label_rule: '^(?:([0-9A-Z]{1,2}-\d{1,3}|Contents - \d+) Keysight B1500A Configuration and Connection Guide|Keysight B1500A Configuration and Connection Guide ([0-9A-Z]{1,2}-\d{1,3}|Contents - \d+))$'
+    note: Cabling, Kelvin, guard, ASU/SCUU, prober connections, ordering examples.
+
+  - id: AC
+    file: B1500A Accessories.pdf
+    title: Keysight B1500A Semiconductor Device Analyzer Configuration Guide (accessories)
+    edition: 5992-2417EN, January 16, 2024
+    part_number: 5992-2417EN
+    sha256: d5f5957f2f603166a9428d41b123f5e5c7561d63d5e24fe57efcb590933c25c0
+    size: 5623041
+    pages: 24
+    language: en
+    kind: accessories_guide
+    priority: 1.0
+    label_rule: '^(\d{1,3})$'
+
+  - id: SEL
+    file: Keysight 16440A SMUPulse Generator Selector.pdf
+    title: Keysight 16440A SMU/Pulse Generator Selector User's Guide
+    edition: Edition 6, August 2014
+    part_number: 16440-90000
+    sha256: 3e11a41fa3547ec3c37e3cfe4a1c4963ee701924983d402346c518b1de773adb
+    size: 1041222
+    pages: 32
+    language: en
+    kind: user_guide
+    priority: 1.3
+    label_rule: '^(?:(\d{1,3}) Keysight 16440A User.s Guide, Edition \d+|Keysight 16440A User.s Guide, Edition \d+ (\d{1,3}))$'
+
+  - id: DS
+    file: B1500A 半导体器件分析仪 产品技术手册.pdf
+    title: B1500A 半导体器件分析仪 技术概述（产品技术手册）
+    edition: 5991-2443CHCN, August 22, 2019
+    part_number: 5991-2443CHCN
+    sha256: 5f86cf7e948c3b5f1381f281ea7c08b56babd0d1132d22e71cd1dcc3b194f4a2
+    size: 7583858
+    pages: 17
+    language: zh
+    kind: data_sheet
+    priority: 1.0
+    label_rule: 'www\.keysight\.com 页 (\d{1,3})$'
+
+  - id: AN-REL
+    file: Demo/B1500A 全面的CMOS可靠性测试解决方案.pdf
+    title: B1500A：全面的 CMOS 可靠性测试解决方案
+    edition: 5990-5896CHCN, October 14, 2019
+    part_number: 5990-5896CHCN
+    sha256: 9fe49a57fda3aa4c402b55629d0f714ed89364303d282eeeb972b62715581435
+    size: 1407491
+    pages: 10
+    language: zh
+    kind: app_note
+    priority: 1.0
+    label_rule: '^(?:(\d{1,3})|.*第 (\d{1,3}) 页)$'
+
+  - id: AN-CHAR
+    file: Demo/CMOS器件电性表征的全面解决方案 B1500A 半导体器件分析－应用指南.pdf
+    title: CMOS 器件电性表征的全面解决方案（B1500A 半导体器件分析应用指南）
+    edition: 5990-5566CHCN, July 31, 2014
+    part_number: 5990-5566CHCN
+    sha256: a7f31347af3fdb2a5985da35419fdbf82942949993b8b5eea32c6c51a15a0425
+    size: 2154685
+    pages: 7
+    language: zh
+    kind: app_note
+    priority: 1.0
+    label_rule: '^(\d{1,3}) \| Keysight \|'
+
+  - id: AN-TUT
+    file: Demo/Keysight B1500A 半导体器件分析仪 自学培训教程.pdf
+    title: Keysight B1500A 半导体器件分析仪 自学培训教程
+    edition: 第 9 版，2021 年 2 月
+    part_number: B1500-92040
+    sha256: 690b31b9ad351e2492b09909f06167663710e7acf555d49be65b5bb2001dae89
+    size: 19742449
+    pages: 186
+    language: zh
+    kind: tutorial
+    priority: 1.0
+    label_rule: '^(\d{1,2}-\d{1,3})$'
+    note: Mostly slide images; the text layer is short (no OCR).
+
+  - id: AN-NVM
+    file: Demo/Keysight EasyEXPERT Software Advanced NVM Application Tests.pdf
+    title: EasyEXPERT group+ Advanced NVM Application Tests User's Guide
+    edition: Edition 1, June 2019
+    part_number: B1500-90520
+    sha256: 245677b9e8aa7bddb3d55f48cf395a175d7d61161c2ddd62b47e35e4cc261dc7
+    size: 4185901
+    pages: 90
+    language: en
+    kind: software_guide
+    priority: 1.0
+    label_rule: '^(?:(\d{1,3}) EasyEXPERT group\+ Advanced NVM Application Tests User.s Guide|EasyEXPERT group\+ Advanced NVM Application Tests User.s Guide (\d{1,3}))$'
+
+  - id: AN-RTN
+    file: Demo/使用 B1500A WGFMU 模块测量先进 MOSFET 的随机电报噪声（RTN）.pdf
+    title: 使用 B1500A WGFMU 模块测量先进 MOSFET 的随机电报噪声（RTN）
+    edition: 5990-3705CHCN, October 18, 2019
+    part_number: 5990-3705CHCN
+    sha256: 647a2f04333f014c3b5b0b5c3f16d7ad81a18f6511ecf1db5ba085aee654a991
+    size: 2759067
+    pages: 10
+    language: zh
+    kind: app_note
+    priority: 1.0
+    label_rule: 'www\.keysight\.com 页 (\d{1,3})$'
+
+  - id: AN-CV
+    file: Demo/使用 Keysight B1500A MFCMU 和 SCUU 进行 IV 和 CV 测量.pdf
+    title: 使用 Keysight B1500A MFCMU 和 SCUU 进行 IV 和 CV 测量
+    edition: 5989-3608CHCN, October 22, 2019
+    part_number: 5989-3608CHCN
+    sha256: 3efaea63a8d9fcef099db89d170febf2d9c997cddd15343cabd8cbe3eb1d3b63
+    size: 4483109
+    pages: 8
+    language: zh
+    kind: app_note
+    priority: 1.0
+    label_rule: 'www\.keysight\.com 页 (\d{1,3})$'
+
+  - id: AN-FIV
+    file: Demo/用波形发生器_快速测量单元模块 B1530A 表征闪存单元的 1μs IV特性 应用指南.pdf
+    title: 用波形发生器/快速测量单元模块 B1530A 表征闪存单元的 1 μs IV 特性（应用指南）
+    edition: 5990-3636CHCN, August 2014
+    part_number: 5990-3636CHCN
+    sha256: 8c1181988b6a71f5cbd621c3abdd83f2a0763e08a4a86be52cb2b2e35910d6ad
+    size: 1557956
+    pages: 8
+    language: zh
+    kind: app_note
+    priority: 1.0
+    label_rule: '^(\d{1,3}) \| Keysight \|'

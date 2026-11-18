@@ -37,6 +37,10 @@ Checks (problem ``code`` in brackets)
   ``ANALYSIS_METHODS`` [``analysis_method``]; card ``status`` equals each recipe's effective status on the simulator
   [``card_status``].
 
+- Citations [``citation``] (``citations``): every manual citation (``PG p433 (4-115)``, legacy ``PG PDF 433``) in
+  the skills, recipes, source docstrings and docs names a catalog document and a page inside it; with the committed
+  corpus its printed label and quoted keyword must match the page (``references/manuals/catalog.yaml``, blueprint 5.2).
+
 Card section 4 contract ("Recipe and parameters"; for ``cards/_TEMPLATE.md`` and the cards)
 --------------------------------------------------------------------------------------------
 1. **Parameter table** [``param_table`` for structure, ``param_range`` for values]: a Markdown table whose first four
@@ -60,7 +64,7 @@ Card section 4 contract ("Recipe and parameters"; for ``cards/_TEMPLATE.md`` and
 Modules: ``common`` (names, schemas, report models, the ``Lint`` context), ``markdown`` (Markdown model), ``layout``
 (skill folders and ``SKILL.md`` frontmatter), ``links`` (links and anchors), ``budgets`` (line, byte and token
 budgets), ``params`` (card parameter tables), ``cards`` (cards, example plans, the card-recipe graph) and ``lint``
-(``lint_skills``, ``format_report``). Later work packages add ``stages`` and ``citations``.
+(``lint_skills``, ``format_report``) and ``citations`` (manual citations). Later work packages add ``stages``.
 """
 
 from b1500_test_agent.devtools.skills.lint import format_report, lint_skills

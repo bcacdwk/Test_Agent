@@ -16,10 +16,12 @@ usage errors.
   config says and check it), ``dev sim-console`` (raw FLEX, simulator only), ``dev sync-harness [--check]``
   (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``dev lint-skills`` (skill schema, budgets, links),
   ``dev acceptance`` (M3 harness acceptance runner, ``devtools/acceptance/cli.py``)
+- manuals (CLI only, no MCP tool): ``manual search|page|toc|status`` (read-only queries of the committed page
+  corpus) and ``manual build [--src DIR] [--check]``
 
-Modules: ``core`` (the root ``app``, operator, human-only and installation commands, shared plumbing) and ``dev``
-(the ``dev`` group); later work packages add ``config``, ``manual`` and ``bringup`` groups. The console script
-``b1500`` is ``main`` of this package.
+Modules: ``core`` (the root ``app``, operator, human-only and installation commands, shared plumbing), ``dev`` (the
+``dev`` group) and ``manual`` (the ``manual`` group); later work packages add ``config`` and ``bringup`` groups. The
+console script ``b1500`` is ``main`` of this package.
 
 ``run --confirm`` re-validates the plan, prints its summary and asks y/N on an interactive terminal only; without
 a TTY it exits non-zero and runs nothing (UX only: the harness tool confirmation is the approval, blueprint 4.3).
@@ -30,8 +32,10 @@ from __future__ import annotations
 
 from b1500_test_agent.adapters.cli.core import DEFAULT_MCP_APP_SPEC, TOOL_COMMANDS, app
 from b1500_test_agent.adapters.cli.dev import dev_app
+from b1500_test_agent.adapters.cli.manual import manual_app
 
 app.add_typer(dev_app, name="dev")
+app.add_typer(manual_app, name="manual")
 
 __all__ = ["DEFAULT_MCP_APP_SPEC", "TOOL_COMMANDS", "app", "main"]
 

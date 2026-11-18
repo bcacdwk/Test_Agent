@@ -23,3 +23,6 @@ wgfmu:                          # B1530A WGFMU instrument library; used only wit
 paths:                          # relative paths resolve against the repository root (gitignored directories)
   data_root: data               # run archive data/runs/ and state data/state/
   work_dir: work                # agent scratch for ad-hoc analysis
+
+manuals_dir: ".."               # Keysight manual PDFs (optional; relative to the repository root, default its parent;
+                                # B1500_MANUALS_DIR wins). The committed corpus answers `b1500 manual ...` without them.

@@ -95,7 +95,7 @@ The real station is a Windows PC wired to the B1500A over GPIB that runs the sam
 | [docs/architecture.md](docs/architecture.md) | Layers, dependency rules, module map |
 | [docs/safety-model.md](docs/safety-model.md) | Rules, tiers, confirmation, cleanup, residual risks |
 | [docs/roadmap.md](docs/roadmap.md) | Milestones M0–M4 and their status |
-| [docs/manual-extraction.md](docs/manual-extraction.md) | How manual content becomes structured references |
+| [docs/manuals.md](docs/manuals.md) | Manual corpus: `b1500 manual search\|page\|toc`, catalog, citations |
 | [AGENTS.md](AGENTS.md) | Instructions for coding agents (also loaded by Claude Code via `CLAUDE.md`) |
 
 ## Scope

@@ -4,7 +4,7 @@ Source material for developers and for the agent's knowledge files. Nothing here
 
 | Folder | Content | Used by |
 |---|---|---|
-| `manuals/` | Index files of the Keysight manuals (PDFs live outside the repository) and `manuals/structured/`: command, parameter, error-code, initial-setting, WGFMU and EasyEXPERT extracts with PDF page references | driver and simulator code, knowledge files (cited by path); never modified, see `docs/manual-extraction.md` |
+| `manuals/` | `catalog.yaml` (the 16 indexed Keysight PDFs; the PDFs live outside the repository), `synonyms.yaml`, the committed page corpus `corpus/` (built by `b1500 manual build`), index files and `manuals/structured/`: command, parameter, error-code, initial-setting, WGFMU and EasyEXPERT extracts with PDF page references | `b1500 manual search\|page\|toc`, the citation lint, driver and simulator code, knowledge files (cited by path); indexes and `structured/` are never modified, see `docs/manuals.md` |
 | `driver-map/` | `flex-driver-map.yaml` (every v0.2 atom and manual command mapped to a driver method) and the frozen v0.2 tool catalogs | developers working on FLEX code only |
 
 Where the rest lives:

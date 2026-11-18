@@ -208,7 +208,8 @@ def test_doctor(cli_world: World) -> None:
     report = as_json(result)
     checks = {c["name"]: c for c in report["checks"]}
     assert set(checks) == {"python", "uv.lock", "imports", "config", "data dir", "path length", "state",
-                           "skills mirror", "harness files", "mcp server", "PYTHONUTF8", "LongPathsEnabled"}
+                           "skills mirror", "harness files", "mcp server", "manual corpus", "manual PDFs",
+                           "PYTHONUTF8", "LongPathsEnabled"}
     assert checks["config"]["status"] == "PASS" and "sim" in checks["config"]["detail"]
     assert checks["mcp server"]["status"] == "PASS" and checks["mcp server"]["detail"].startswith("10 tools")
     assert checks["skills mirror"]["status"] == "PASS" and "in sync" in checks["skills mirror"]["detail"]
@@ -262,7 +263,7 @@ def test_sim_console_refuses_any_other_backend(world: World) -> None:
 def test_help_lists_every_command(cli_world: World) -> None:
     result = invoke("--help")
     for command in ("status", "recipes", "plan", "run", "runs", "show", "analyze", "note", "shutdown", "fault",
-                    "lock", "doctor", "config", "harness", "mcp", "dev"):
+                    "lock", "doctor", "config", "harness", "mcp", "dev", "manual"):
         assert command in result.stdout
     dev = invoke("dev", "--help")
     for command in ("tool-budget", "recipe-check", "mcp-smoke", "sim-console", "sync-harness", "lint-skills",

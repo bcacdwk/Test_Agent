@@ -44,7 +44,7 @@ CARD_SECTIONS: tuple[str, ...] = (
 ProblemCode = Literal[
     "skill_layout", "generated_marker", "frontmatter", "budget", "link", "anchor", "card_sections", "card_recipe",
     "recipe_card", "card_knowledge", "card_debug", "analysis_method", "card_status", "param_table", "param_range",
-    "example_plan", "card_confirmation",
+    "example_plan", "card_confirmation", "citation",
 ]
 
 _KEBAB = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"

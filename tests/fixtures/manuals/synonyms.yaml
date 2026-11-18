@@ -1,0 +1,4 @@
+# Fixture synonyms (schema b1500_test_agent.models.manuals.Synonyms): used only when no page has any query term.
+synonyms:
+  switchbox: [selector, FIXCMD]
+  开关: [selector]

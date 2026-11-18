@@ -25,6 +25,7 @@ from b1500_test_agent.devtools.skills.cards import (
     find_card_paths,
     validate_examples,
 )
+from b1500_test_agent.devtools.skills.citations import check_citations
 from b1500_test_agent.devtools.skills.common import (
     CARDS_DIR,
     DEBUG_SKILL,
@@ -120,6 +121,7 @@ def lint_skills(root: Path | None = None, *, recipes_dir: Path | None = None, co
                                                                                for k, v in budget.parts.items()))
         else:
             lint.notes.append(message + " - estimate only, re-check with the tiktoken encoding")
+    check_citations(lint)
     problems = sorted(lint.problems, key=lambda p: (p.file, p.line or 0, p.code, p.message))
     return LintReport(ok=not problems, root=root.as_posix(), skills=skills,
                       cards=[lint.rel(p) for p in card_paths], knowledge=knowledge,

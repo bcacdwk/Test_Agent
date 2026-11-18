@@ -167,6 +167,10 @@ class Settings(StrictModel):
     visa: VisaSettings = Field(default_factory=VisaSettings)
     wgfmu: WgfmuSettings = Field(default_factory=WgfmuSettings)
     paths: PathSettings = Field(default_factory=PathSettings)
+    manuals_dir: str = Field(default="..", min_length=1)
+    """Folder with the Keysight manual PDFs (``references/manuals/catalog.yaml`` paths are relative to it); relative
+    to the repository root, default its parent. ``B1500_MANUALS_DIR`` overrides it. Optional: the committed corpus
+    answers ``b1500 manual`` queries without the PDFs (blueprint 5.2)."""
 
 
 # -- Station profile (config/station*.yaml) --------------------------------------------------------------------------

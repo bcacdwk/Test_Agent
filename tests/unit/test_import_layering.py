@@ -1,6 +1,7 @@
 """Import layering of ``src/b1500_test_agent`` (blueprint 2):
 
-    adapters -> service -> {catalog, rules, archive, analysis} -> session -> driver -> transport;  models is a leaf.
+    adapters -> service -> {catalog, rules, archive, analysis, manuals} -> session -> driver -> transport;
+    models is a leaf.
 
 Ranks (a module may import its own component, the package root and components of lower or equal rank):
 
@@ -12,15 +13,16 @@ rank components
 2    ``transport``
 3    ``driver``
 4    ``session``
-5    ``catalog``, ``rules``, ``archive``, ``analysis`` (peers)
+5    ``catalog``, ``rules``, ``archive``, ``analysis``, ``manuals`` (peers)
 6    ``service``
 7    ``adapters``, ``devtools`` (peers; ``adapters/cli/`` runs the dev tools)
 ==== ==========================================================================================================
 
 Extra rules: ``analysis`` never imports ``session``, ``driver``, ``transport`` or ``catalog`` (blueprint 2 and
-``analysis/AGENTS.md``); only ``adapters/mcp_server.py`` imports ``fastmcp`` (``devtools/`` is exempt: its token
-counter loads FastMCP apps, WP0.3). Every import statement counts, including function-level and ``TYPE_CHECKING``
-imports. A new top-level module must be added to ``RANKS`` before it can be imported.
+``analysis/AGENTS.md``); ``manuals`` imports only ``models`` and ``paths`` (blueprint 2.1); only
+``adapters/mcp_server.py`` imports ``fastmcp`` (``devtools/`` is exempt: its token counter loads FastMCP apps, WP0.3).
+Every import statement counts, including function-level and ``TYPE_CHECKING`` imports. A new top-level module must be
+added to ``RANKS`` before it can be imported.
 
 Per-family packages (blueprint 2.2, 9; WP5.2), checked inside their component:
 
@@ -55,11 +57,14 @@ RANKS: dict[str, int] = {
     "rules": 5,
     "archive": 5,
     "analysis": 5,
+    "manuals": 5,
     "service": 6,
     "adapters": 7,
     "devtools": 7,
 }
 FORBIDDEN: dict[str, frozenset[str]] = {"analysis": frozenset({"session", "driver", "transport", "catalog"})}
+ONLY: dict[str, frozenset[str]] = {"manuals": frozenset({"models", "paths"})}
+"""Component -> the only other components it may import (blueprint 2.1: ``manuals`` imports only models/paths)."""
 FASTMCP_ALLOWED_FILES = frozenset({"adapters/mcp_server.py"})
 FASTMCP_ALLOWED_COMPONENTS = frozenset({"devtools"})
 _FASTMCP = re.compile(r"^fastmcp(\.|$)")
@@ -145,6 +150,8 @@ def layering_problems(source: str, rel: str) -> list[str]:
             problems.append(f"{where}: models is a leaf and must not import {target}")
         elif target in FORBIDDEN.get(own, frozenset()):
             problems.append(f"{where}: {own} must never import {target}")
+        elif own in ONLY and target not in ONLY[own]:
+            problems.append(f"{where}: {own} imports only {', '.join(sorted(ONLY[own]))}, not {target}")
         elif RANKS[target] > RANKS[own]:
             problems.append(f"{where}: {own} (rank {RANKS[own]}) must not import {target} (rank {RANKS[target]})")
     return problems
@@ -201,6 +208,10 @@ def test_every_top_level_component_has_a_rank() -> None:
         ("session/transaction.py", "from b1500_test_agent.driver.ops import core"),
         ("transport/factory.py", "from b1500_test_agent.transport.sim.units.smu import SmuUnit"),
         ("transport/sim/state.py", "from b1500_test_agent.transport.sim.units import base"),
+        ("manuals/search.py", "from b1500_test_agent.config import ConfigLoader"),
+        ("manuals/build.py", "from b1500_test_agent.errors import InvalidConfigError"),
+        ("manuals/catalog.py", "from b1500_test_agent.service import B1500Service"),
+        ("catalog/planner.py", "from b1500_test_agent.adapters.cli import manual"),
     ],
 )
 def test_checker_flags_violations(rel: str, source: str) -> None:
@@ -239,6 +250,10 @@ if TYPE_CHECKING:
         ("catalog/kinds/smu_staircase.py", "from b1500_test_agent.driver.b1500 import StaircaseSetup"),
         ("transport/sim/instrument.py", "from b1500_test_agent.transport.sim.units.core import CoreUnit"),
         ("transport/sim/units/smu.py", "from b1500_test_agent.transport.sim.units.base import handles"),
+        ("manuals/search.py", "from b1500_test_agent.models.manuals import ManualHit\nfrom . import catalog"),
+        ("manuals/catalog.py", "from b1500_test_agent.paths import find_repo_root\nimport pypdfium2"),
+        ("devtools/doctor.py", "from b1500_test_agent.manuals import search"),
+        ("service.py", "from b1500_test_agent.manuals.catalog import ManualPaths"),
     ],
 )
 def test_checker_accepts_allowed_imports(rel: str, source: str) -> None:

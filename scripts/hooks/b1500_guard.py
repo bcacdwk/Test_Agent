@@ -6,9 +6,11 @@ the agent; exit code 0 lets it through. It backs the deny rules of ``.claude/set
 are not a boundary):
 
 - shell commands (``Bash``, ``PowerShell``): blocked when the command matches
-  ``b1500\\s+(fault|run\\b.*--confirm)|import\\s+pyvisa|from\\s+pyvisa|ResourceManager\\(`` (case-insensitive, also
-  after removing quotes and backslashes, and also for ``b1500.exe``); ``b1500 fault clear`` and
-  ``b1500 run --confirm`` are the human's commands, and the instrument is reached only through the MCP tools;
+  ``b1500\\s+(fault|run\\b.*--confirm|config\\s+(init|adopt)\\b)|import\\s+pyvisa|from\\s+pyvisa|ResourceManager\\(``
+  (case-insensitive, also after removing quotes and backslashes, and also for ``b1500.exe``, with or without
+  ``uv run``); ``b1500 fault clear``, ``b1500 run --confirm`` and the configuration bootstrap ``b1500 config
+  init|adopt`` (blueprint v2 7.1, WP6.1) are the human's commands, and the instrument is reached only through the
+  MCP tools;
 - file edits (``Write``, ``Edit``, ``MultiEdit``, ``NotebookEdit``): blocked when the new text or the resulting file
   has a statement ``import pyvisa...`` / ``from pyvisa... import`` (at a line start or after ``;``) anywhere but
   ``src/b1500_test_agent/transport/visa.py``. Dynamic imports are left to the AST lint test
@@ -34,7 +36,8 @@ EDIT_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
 VISA_MODULE = "src/b1500_test_agent/transport/visa.py"
 
 SHELL_PATTERN = re.compile(
-    r"b1500(?:\.exe)?\s+(?:fault|run\b.*--confirm)|import\s+pyvisa|from\s+pyvisa|ResourceManager\(",
+    r"b1500(?:\.exe)?\s+(?:fault|run\b.*--confirm|config\s+(?:init|adopt)\b)|import\s+pyvisa|from\s+pyvisa"
+    r"|ResourceManager\(",
     re.IGNORECASE | re.DOTALL,
 )
 PYVISA_IMPORT = re.compile(
@@ -44,8 +47,9 @@ PYVISA_IMPORT = re.compile(
 
 SHELL_ADVICE = (
     "Reach the instrument only through the b1500 MCP tools (validate_plan, run_plan, run_confirmed_plan, "
-    "safe_shutdown). 'b1500 fault clear' and 'b1500 run --confirm' are for the human in their own terminal; "
-    "show the human the command instead of running it."
+    "safe_shutdown). 'b1500 fault clear', 'b1500 run --confirm', 'b1500 config init' and 'b1500 config adopt' are "
+    "for the human in their own terminal; show the human the command instead of running it (proposals go to "
+    "work/bringup/, e.g. 'b1500 bringup propose-station')."
 )
 EDIT_ADVICE = (
     "Only src/b1500_test_agent/transport/visa.py may import pyvisa. Use the b1500 MCP tools for measurements "

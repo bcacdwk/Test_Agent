@@ -1,0 +1,6 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 513-514 (printed 4-195 to 4-196, SPST? response: 0 pulse/ALWG output inactive, 1 active), PDF 142 (printed 2-54)
+# kind: spst
+# command: SPST?
+# expect: {"active": true}
+# note: synthetic answer 1 (an SPGU pulse output running). TODO(verify) the raw answer at bring-up L7 (ATV-19).
+1

@@ -7,8 +7,9 @@ the full safe shutdown as in v1 (``AB`` → ``DZ`` → ``CL`` → ``ERRX?`` → 
 also with a latched fault). It withdraws its abort request when no run took it, unless a run is still running (then
 the request stays for it). The result names the cancelled run and its outcome.
 
-``B1500Admin`` holds the human-only CLI operations (``b1500 fault clear``, ``b1500 lock status``); they are never
-MCP tools.
+``B1500Admin`` holds the CLI operations that are never MCP tools: the human-only ``b1500 fault clear``, and the
+read-only ``b1500 lock status``, ``b1500 doctor --probe`` and the inventory reading of ``b1500 bringup
+propose-station`` (``service/probe.py``, blueprint v2 7.1).
 """
 
 from __future__ import annotations
@@ -21,8 +22,10 @@ from b1500_test_agent.catalog.running import CANCEL_MARGIN_S, ActiveRun
 from b1500_test_agent.config import ConfigBundle
 from b1500_test_agent.errors import B1500Error, InvalidConfigError
 from b1500_test_agent.models.audit import AuditEvent
+from b1500_test_agent.models.bringup import InventoryReading, ProbeReport
 from b1500_test_agent.models.common import Backend
 from b1500_test_agent.models.results import FaultClearResult, LockStatus, ShutdownResult
+from b1500_test_agent.service import probe as probing
 from b1500_test_agent.service.common import REASON_MAX, clip
 from b1500_test_agent.session import FaultClearRefused, Session
 
@@ -115,10 +118,12 @@ def shutdown_with(svc: B1500Service, session: Session, backend: Backend, reason:
 
 
 class B1500Admin:
-    """Human-only operations of the CLI (``b1500 fault clear``, ``b1500 lock status``); never MCP tools.
+    """CLI operations that are never MCP tools: human-only ``b1500 fault clear``; read-only ``b1500 lock status``,
+    ``b1500 doctor --probe`` (``probe``) and the ``*IDN?``/``UNT?`` reading of ``b1500 bringup propose-station``
+    (``read_inventory``).
 
     They share the service's configuration, session, error mapping and ``tool_call`` audit (tool names
-    ``fault_clear`` and ``lock_status``).
+    ``fault_clear``, ``lock_status``, ``probe`` and ``read_inventory``).
     """
 
     def __init__(self, service: B1500Service) -> None:
@@ -175,3 +180,13 @@ class B1500Admin:
         return LockStatus(ok=True, status="ok", **self.service._envelope(bundle.backend), resource=lock.resource,
                           held=held, holder=holder, inflight_marker=inflight, fault=fault,
                           message=clip("; ".join(parts)))
+
+    def probe(self) -> ProbeReport:
+        """The read-only bring-up probe (``service/probe.py``): PASS/INFO/WARN/FAIL lines, raw exchanges, record
+        ``work/bringup/probe-<UTC>.json``; queries only, never a setting command."""
+        return self.service._call("probe", {}, ProbeReport, lambda bundle: probing.probe(self.service, bundle))
+
+    def read_inventory(self) -> InventoryReading:
+        """``*IDN?`` and ``UNT?`` through a read-only session (input of ``b1500 bringup propose-station``)."""
+        return self.service._call("read_inventory", {}, InventoryReading,
+                                  lambda bundle: probing.read_inventory(self.service, bundle))

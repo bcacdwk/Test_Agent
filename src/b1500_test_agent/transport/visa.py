@@ -10,7 +10,8 @@ Lifecycle (blueprint v2 2.4, decision 7): the session calls ``open`` (VISA sessi
 (``lock_excl`` when ``exclusive_lock``, waiting up to ``lock_timeout_ms`` for another client) -> I/O -> ``unlock``
 -> ``close`` for every transaction and status snapshot, so the MCP server holds nothing between calls and the CLI
 can probe the instrument; ``visa.session: process`` (ATV-13 fallback) keeps the session open and only locks per
-transaction. A lock held by another client, or I/O refused because another session holds the lock, raises
+transaction. ``list_resources`` loads the library and lists the resources without opening one (the first lines of
+``b1500 doctor --probe``). A lock held by another client, or I/O refused because another session holds the lock, raises
 ``BusLocked`` (result ``instrument_busy``, nothing sent); a timeout raises ``TransportTimeout``, after which the
 transaction's cleanup sends a device clear (as in v1). The resource manager is injectable (``rm_factory``: called
 with the library string, returns an object with ``open_resource``/``close``); the visa-loop tests
@@ -24,6 +25,7 @@ from __future__ import annotations
 
 import contextlib
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from b1500_test_agent.models.station import VisaSettings
@@ -37,6 +39,19 @@ RESOURCE_METHODS = ("write", "read", "read_stb", "clear", "lock_excl", "unlock",
 
 RmFactory = Callable[[str], Any]
 """Builds the resource manager for a VISA library string (default: PyVISA's resource manager class)."""
+
+INSTRUMENT_QUERY = "?*::INSTR"
+"""``list_resources`` pattern: every instrument resource the VISA library knows (VPP-4.3 resource expression)."""
+
+
+@dataclass(frozen=True)
+class VisaListing:
+    """What ``VisaTransport.list_resources`` found: the library string used, the library file the resource manager
+    reports (``None`` when it does not say) and the instrument resources it lists."""
+
+    library: str
+    library_path: str | None
+    resources: tuple[str, ...]
 
 
 def _pyvisa() -> tuple[Any, Any]:
@@ -141,6 +156,35 @@ class VisaTransport:
             raise self._translate(exc, "open") from exc
         self._rm, self._inst = rm, inst
         self.locked = False
+
+    def list_resources(self, query: str = INSTRUMENT_QUERY) -> VisaListing:
+        """Load the VISA library and list its instrument resources without opening any (``b1500 doctor --probe``,
+        blueprint v2 7.1). The resource manager is closed again before returning.
+
+        Raises:
+            TransportError: If the library cannot be loaded or listing fails.
+        """
+        pyvisa, _ = _pyvisa()
+        self._codes = self._codes or visa_status_codes()
+        factory: RmFactory = self._rm_factory or pyvisa.ResourceManager
+        try:
+            rm = factory(self.library)
+        except Exception as exc:
+            raise TransportError(f"Cannot load VISA library {self.library!r}: {type(exc).__name__}: {exc}") from exc
+        try:
+            found = tuple(str(name) for name in rm.list_resources(query))
+        except Exception as exc:
+            code = getattr(exc, "error_code", None)
+            if code is not None and code == self._codes.get("resource_not_found"):
+                found = ()  # VISA reports "no resource found" as an error; pyvisa itself returns ()
+            else:
+                raise TransportError(f"Listing VISA resources with {self.library!r} failed: "
+                                     f"{type(exc).__name__}: {exc}") from exc
+        finally:
+            with contextlib.suppress(Exception):  # closing must never raise
+                rm.close()
+        path = getattr(getattr(rm, "visalib", None), "library_path", None)
+        return VisaListing(library=self.library, library_path=None if path is None else str(path), resources=found)
 
     def close(self) -> None:
         """Unlock (if locked) and close the session and its resource manager; never raises."""

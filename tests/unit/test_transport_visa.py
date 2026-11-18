@@ -128,3 +128,64 @@ def test_auditing_wrapper_records_visa_io() -> None:
     assert [(e.ev, e.backend, e.error is None) for e in sink.events] == [
         ("bus_open", "visa", True), ("query", "visa", True), ("read", "visa", False), ("bus_close", "visa", True)]
     assert sink.events[1].resp == IDN
+
+
+# -- list_resources (b1500 doctor --probe, blueprint v2 7.1) --------------------------------------------------------
+
+
+def test_list_resources_loads_the_library_and_opens_nothing() -> None:
+    transport = VisaTransport(settings())
+    listing = transport.list_resources()
+    assert "GPIB0::17::INSTR" in listing.resources
+    assert listing.library == f"{SIM_YAML}@sim"
+    assert not transport.is_open
+
+
+def test_list_resources_reports_a_library_that_does_not_load() -> None:
+    def broken(library: str) -> object:
+        raise OSError(f"cannot load {library}")
+
+    with pytest.raises(TransportError, match="Cannot load VISA library '@ivi'"):
+        VisaTransport(VisaSettings(), rm_factory=broken).list_resources()
+
+
+class _Manager:
+    """A resource manager whose listing fails with a VISA completion code (pyvisa's ``VisaIOError`` stand-in)."""
+
+    def __init__(self, error: Exception | None) -> None:
+        self.error = error
+        self.closed = False
+
+    def list_resources(self, query: str) -> tuple[str, ...]:
+        if self.error is not None:
+            raise self.error
+        return ("GPIB0::17::INSTR", "USB0::1::INSTR")
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _visa_error(name: str) -> Exception:
+    from b1500_test_agent.transport.visa import visa_status_codes
+
+    error = Exception(name)
+    error.error_code = visa_status_codes()[name]  # type: ignore[attr-defined]
+    return error
+
+
+def test_list_resources_treats_resource_not_found_as_an_empty_list_and_closes_the_manager() -> None:
+    managers: list[_Manager] = []
+
+    def factory(error: Exception | None) -> object:
+        def make(library: str) -> _Manager:
+            managers.append(_Manager(error))
+            return managers[-1]
+        return make
+
+    assert VisaTransport(VisaSettings(), rm_factory=factory(None)).list_resources().resources == (
+        "GPIB0::17::INSTR", "USB0::1::INSTR")
+    assert VisaTransport(VisaSettings(), rm_factory=factory(_visa_error("resource_not_found"))).list_resources(
+    ).resources == ()
+    with pytest.raises(TransportError, match="Listing VISA resources"):
+        VisaTransport(VisaSettings(), rm_factory=factory(_visa_error("timeout"))).list_resources()
+    assert all(m.closed for m in managers) and len(managers) == 3

@@ -10,8 +10,11 @@ The templates in ``config/harness/`` are the single source of the two machine-sp
 The committed examples are the same templates rendered with the placeholder ``<ABS_REPO>``.
 
 The committed, path-free harness files are checked for their wiring, not rendered: ``.claude/settings.json`` (allow
-the nine other ``mcp__b1500__*`` tools, ``ask`` exactly ``run_confirmed_plan``, the deny rules, the ``PreToolUse``
-guard hook), ``.codex/rules/b1500.rules`` (the four ``forbidden`` prefix rules) and ``scripts/hooks/b1500_guard.py``.
+exactly the nine other ``mcp__b1500__*`` tools plus the five read-only ``uv run b1500 manual|bringup ...`` commands
+of OD-5, ``ask`` exactly ``run_confirmed_plan``, the deny rules incl. ``config init|adopt``, the ``PreToolUse`` guard
+hook), ``.codex/rules/b1500.rules`` (the eight ``forbidden`` prefix rules: ``fault``, ``run --confirm``, ``config
+init``, ``config adopt``, each with and without ``uv run``) and ``scripts/hooks/b1500_guard.py``. The OD-5 lines are
+the owner-authorized change set of ``docs/deployment-windows.md`` "Harness permissions" (WP6.1).
 ``check`` reports drift between templates and rendered files and every wiring problem; ``doctor`` reuses it.
 """
 
@@ -46,17 +49,27 @@ CONFIRM_TOOL = "run_confirmed_plan"
 
 CODEX_DEFAULT_MODE = "auto"
 CODEX_TOOL_MODES: dict[str, str] = {"run_plan": "approve", CONFIRM_TOOL: "prompt", "safe_shutdown": "approve"}
-CLAUDE_ALLOW = frozenset(f"mcp__{SERVER_NAME}__{tool}" for tool in TOOL_NAMES if tool != CONFIRM_TOOL)
+CLAUDE_ALLOW_COMMANDS = frozenset({
+    "Bash(uv run b1500 manual *)", "Bash(uv run b1500 bringup status*)", "Bash(uv run b1500 bringup propose-station*)",
+    "Bash(uv run b1500 bringup capture*)", "Bash(uv run b1500 bringup record*)",
+})  # fmt: skip
+"""Read-only CLI commands Claude Code may run without asking (owner decision OD-5, applied once at WP6.1 as written
+in ``docs/deployment-windows.md`` "Harness permissions")."""
+CLAUDE_ALLOW = (frozenset(f"mcp__{SERVER_NAME}__{tool}" for tool in TOOL_NAMES if tool != CONFIRM_TOOL)
+                | CLAUDE_ALLOW_COMMANDS)
 CLAUDE_ASK = frozenset({f"mcp__{SERVER_NAME}__{CONFIRM_TOOL}"})
 CLAUDE_DENY = frozenset({
     "Bash(b1500 fault *)", "Bash(uv run b1500 fault *)", "Bash(b1500 run --confirm *)",
-    "Bash(uv run b1500 run --confirm *)", "Edit(config/local/**)", "Edit(data/**)", "Edit(.claude/settings*.json)",
-    "Edit(.codex/**)",
+    "Bash(uv run b1500 run --confirm *)", "Bash(b1500 config init*)", "Bash(uv run b1500 config init*)",
+    "Bash(b1500 config adopt*)", "Bash(uv run b1500 config adopt*)", "Edit(config/local/**)", "Edit(data/**)",
+    "Edit(.claude/settings*.json)", "Edit(.codex/**)",
 })  # fmt: skip
 HOOK_TOOLS = ("Bash", "PowerShell", "Write", "Edit", "MultiEdit", "NotebookEdit")
 FORBIDDEN_PREFIXES: tuple[tuple[str, ...], ...] = (
     ("b1500", "fault"), ("b1500", "run", "--confirm"),
     ("uv", "run", "b1500", "fault"), ("uv", "run", "b1500", "run", "--confirm"),
+    ("b1500", "config", "init"), ("uv", "run", "b1500", "config", "init"),
+    ("b1500", "config", "adopt"), ("uv", "run", "b1500", "config", "adopt"),
 )  # fmt: skip
 
 

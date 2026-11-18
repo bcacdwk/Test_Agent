@@ -1,7 +1,8 @@
 # Codex execution-policy rules of the B1500A test agent (blueprint 5.4; Codex rules are experimental).
 # Loaded from <repo>/.codex/rules/ when the project is trusted. `forbidden` holds even under --yolo/full access.
-# Matching is by argv prefix only, hence `--confirm` directly after `run`. `b1500 fault clear` and
-# `b1500 run --confirm` belong to the human in their own terminal, never to the agent.
+# Matching is by argv prefix only, hence `--confirm` directly after `run`. `b1500 fault clear`,
+# `b1500 run --confirm` and the configuration bootstrap `b1500 config init|adopt` (blueprint v2 7.1, owner decision
+# OD-5) belong to the human in their own terminal, never to the agent.
 # Self-check: codex execpolicy check --rules .codex/rules/b1500.rules b1500 fault clear
 
 prefix_rule(
@@ -34,4 +35,36 @@ prefix_rule(
     justification = "Confirming a plan is the human's act; the agent uses the run_confirmed_plan MCP tool.",
     match = [["uv", "run", "b1500", "run", "--confirm", "P-EXAMPLE"]],
     not_match = [["uv", "run", "b1500", "run", "P-EXAMPLE"]],
+)
+
+prefix_rule(
+    pattern = ["b1500", "config", "init"],
+    decision = "forbidden",
+    justification = "Creating config/local/ is the human's act; the agent proposes with b1500 bringup propose-station.",
+    match = [["b1500", "config", "init", "--visa"]],
+    not_match = [["b1500", "config", "check"]],
+)
+
+prefix_rule(
+    pattern = ["uv", "run", "b1500", "config", "init"],
+    decision = "forbidden",
+    justification = "Creating config/local/ is the human's act; the agent proposes with b1500 bringup propose-station.",
+    match = [["uv", "run", "b1500", "config", "init", "--visa"]],
+    not_match = [["uv", "run", "b1500", "config", "check"]],
+)
+
+prefix_rule(
+    pattern = ["b1500", "config", "adopt"],
+    decision = "forbidden",
+    justification = "Adopting a file into config/local/ is the human's act after reviewing the proposal and its diff.",
+    match = [["b1500", "config", "adopt", "work/bringup/station.proposed.yaml", "--as", "station"]],
+    not_match = [["b1500", "bringup", "propose-station"]],
+)
+
+prefix_rule(
+    pattern = ["uv", "run", "b1500", "config", "adopt"],
+    decision = "forbidden",
+    justification = "Adopting a file into config/local/ is the human's act after reviewing the proposal and its diff.",
+    match = [["uv", "run", "b1500", "config", "adopt", "work/bringup/station.proposed.yaml", "--as", "station"]],
+    not_match = [["uv", "run", "b1500", "bringup", "propose-station"]],
 )

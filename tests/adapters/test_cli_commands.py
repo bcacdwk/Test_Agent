@@ -231,9 +231,13 @@ def test_doctor_reports_a_latched_fault(cli_world: World) -> None:
     assert checks["state"]["status"] == "FAIL" and "fault clear" in checks["state"]["detail"]
 
 
-def test_doctor_probe_is_refused_on_the_simulator(cli_world: World) -> None:
+def test_doctor_probe_runs_read_only_on_the_simulator(cli_world: World) -> None:
+    """v2 (WP6.1): the probe also reads the simulator (bring-up rehearsal); it sends queries only."""
     result = invoke("doctor", "--probe")
-    assert result.exit_code == 2 and "backend is sim" in result.stderr
+    assert result.exit_code == 0, result.output
+    assert "SIMULATED probe of SIM::nmos_basic" in result.stdout and "PASS  outputs" in result.stdout
+    log = cli_world.sim_log()
+    assert log and all(record.command.split()[0].endswith("?") for record in log)
 
 
 def test_sim_console_talks_to_the_simulator_and_cleans_up(cli_world: World) -> None:

@@ -1,16 +1,22 @@
-"""Query-response parsers: *IDN?, UNT?, LOP?, ERRX?, *STB?, *TST?/*CAL?, *LRN? 31 against the golden fixtures and the
-manual."""
+"""Query-response parsers: *IDN?, UNT?, LOP?, ERRX?, *STB?, *TST?/*CAL?, *LRN? 31 and the probe's state queries
+ERMOD?, ERSSP?, SPST?, CORRST?, ADJ? against the golden fixtures and the manual."""
 
 from __future__ import annotations
 
 import pytest
 
+from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.discovery import (
     all_outputs_off,
+    parse_adj,
     parse_auto_calibration,
+    parse_corrst,
+    parse_ermod,
+    parse_erssp,
     parse_idn,
     parse_lop,
     parse_lrn_settings,
+    parse_spst,
     parse_unt,
 )
 from b1500_test_agent.driver.errors import (
@@ -24,7 +30,8 @@ from b1500_test_agent.driver.errors import (
 from b1500_test_agent.models.station import StatusByte
 from tests.unit.flex_fixtures import FIXTURE_DIR, FlexFixture, all_fixtures, load_fixture
 
-QUERY_FIXTURES = all_fixtures("idn", "unt", "errx", "lop", "stb", "tst", "lrn")
+QUERY_KINDS = ("idn", "unt", "errx", "lop", "stb", "tst", "lrn", "ermod", "erssp", "spst", "corrst", "adj")
+QUERY_FIXTURES = all_fixtures(*QUERY_KINDS)
 
 
 def test_fixture_convention_holds_for_every_file() -> None:
@@ -32,7 +39,7 @@ def test_fixture_convention_holds_for_every_file() -> None:
     assert names and [f.name for f in all_fixtures()] == names
     for fixture in all_fixtures():
         assert "PDF " in fixture.source and fixture.command
-    assert {f.kind for f in QUERY_FIXTURES} == {"idn", "unt", "errx", "lop", "stb", "tst", "lrn"}
+    assert {f.kind for f in QUERY_FIXTURES} == set(QUERY_KINDS)
 
 
 def test_fixture_loader_rejects_a_file_without_a_page_citation(tmp_path) -> None:
@@ -71,6 +78,17 @@ def test_query_fixture(fixture: FlexFixture) -> None:
     elif fixture.kind == "lrn":
         assert parse_lrn_settings(text) == expect["settings"]
         assert parse_auto_calibration(text) is expect["auto_calibration"]
+    elif fixture.kind == "ermod":
+        value = parse_ermod(text)
+        assert value == expect["value"] and bool(value & flex.ERMOD_SELECTOR) is expect["selector"]
+    elif fixture.kind == "erssp":
+        assert parse_erssp(text) == expect["state"]
+    elif fixture.kind == "spst":
+        assert parse_spst(text) is expect["active"]
+    elif fixture.kind == "corrst":
+        assert parse_corrst(text) is expect["on"]
+    elif fixture.kind == "adj":
+        assert parse_adj(text) == expect["result"]
     else:  # pragma: no cover - the loader rejects unknown kinds
         raise AssertionError(fixture.kind)
 
@@ -166,3 +184,21 @@ def test_lrn_31_auto_calibration_forms(text: str, on: bool) -> None:
 def test_lrn_31_without_a_valid_cm_item_is_refused(text: str) -> None:
     with pytest.raises(FlexParseError):
         parse_auto_calibration(text)
+
+
+@pytest.mark.parametrize(
+    ("parse", "good", "bad"),
+    [
+        (parse_ermod, {"0": 0, "+1": 1, "63": 63, " 28\r\n": 28}, ("64", "-1", "1.0", "", "ERMOD 1", "1,0")),
+        (parse_erssp, {"0": "open", "1": "smu", "2": "pgu", "+3": "pgu_open"}, ("4", "-1", "open", "", "0,1")),
+        (parse_spst, {"0": False, "1": True, "+1": True}, ("2", "", "on", "1,0")),
+        (parse_corrst, {"0": False, "1": True}, ("2", "-0", "", "ON")),
+        (parse_adj, {"0": 0, "1": 1, "2": 2, "3": 3, "+3": 3}, ("4", "", "3,0", "0.0")),
+    ],
+)
+def test_probe_state_parsers_accept_the_manual_values_only(parse, good, bad) -> None:
+    for text, value in good.items():
+        assert parse(text) == value, text
+    for text in bad:
+        with pytest.raises(FlexParseError):
+            parse(text)

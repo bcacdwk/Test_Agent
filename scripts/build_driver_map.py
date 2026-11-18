@@ -46,7 +46,8 @@ UNMAPPED = "unmapped"
 PRIORITIES = ("m1", "m2", "later")
 PRIORITY_SCALE = {
     "m1": "M1 vertical path (status -> validate -> staircase Id-Vg -> archive -> Vth), safe_shutdown cleanup "
-    "and system.* self-test/self-cal; the B1500Driver methods of blueprint section 2.3",
+    "and system.* self-test/self-cal; the B1500Driver methods of blueprint section 2.3; v2 additions mapped since "
+    "(CM and *LRN? by WP5.6, the read-only probe queries ERMOD?, ERSSP?, SPST?, CORRST?, ADJ? by WP6.1)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
     "simulator's FLEX subset v1 (AV, BC, NUB?, TSC); DI/WI only if a card needs them",
     "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
@@ -58,10 +59,13 @@ DRIVER_METHODS = (
     "identify", "modules", "errors", "status_byte", "output_state", "abort", "zero", "disconnect", "reset",
     "self_test", "self_calibrate", "set_format", "set_integration", "set_range", "enable", "force_v",
     "staircase_v", "execute_and_read", "wait_complete", "auto_calibration", "set_auto_calibration",
+    "selector_control_mode", "selector_state", "pulse_output_active", "correction_enabled",
+    "phase_compensation_result",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
-    "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q",
+    "erssp_q", "corrst_q", "adj_q",
+    "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q", "ERMOD_Q", "SPST_Q",
 )  # fmt: skip
 DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
 
@@ -117,6 +121,15 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
                         "cleanup restores the state read by *LRN? 31"),
     "*LRN?": CommandTarget("auto_calibration", "lrn_q", "type 31 (CM state) before every run's pre-execute rules "
                            "(R-CAL-01/02); type 0 stays the ATV-1 fallback for SPGU/WGFMU outputs"),
+    "ERMOD?": CommandTarget("selector_control_mode", "ERMOD_Q", "read-only probe (WP6.1); ERMOD itself: WP9.2"),
+    "ERSSP?": CommandTarget("selector_state", "erssp_q", "read-only probe per declared selector port, only with "
+                            "the 16440A control mode on (WP6.1); ERSSP itself: WP9.2"),
+    "SPST?": CommandTarget("pulse_output_active", "SPST_Q", "read-only probe (WP6.1); SPGU cleanup verification: "
+                           "WP9.1"),
+    "CORRST?": CommandTarget("correction_enabled", "corrst_q", "read-only probe per installed MFCMU (WP6.1); "
+                             "R-CORR-01 pre-execute: M8"),
+    "ADJ?": CommandTarget("phase_compensation_result", "adj_q", "mode 0 only (last result, no measurement; WP6.1); "
+                          "mode 1 phase compensation: M8"),
 }
 # Mapped commands are all m1; these unmapped ones are m2; everything else is `later`.
 M2_COMMANDS = frozenset({"AV", "BC", "NUB?", "TSC", "DI", "WI"})
@@ -132,6 +145,10 @@ EXTRA_COMMANDS: dict[str, dict[str, Any]] = {
 # Programming Guide (Ed. 15) by WP1.3: mnemonic -> (PDF pages, printed pages). Chapter 4: PDF = printed 4-N + 318.
 GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "AAD": ([351], ["4-33"]),
+    "CORRST?": ([388], ["4-70"]),
+    "ERMOD?": ([420, 421], ["4-102 to 4-103"]),
+    "ERSSP?": ([434], ["4-116"]),
+    "SPST?": ([513, 514], ["4-195 to 4-196"]),
     "CM": ([379], ["4-61"]),
     "AIT": ([356, 357, 358, 359], ["4-38 to 4-41"]),
     "CMM": ([380], ["4-62"]),

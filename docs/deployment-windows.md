@@ -89,41 +89,64 @@ refuses, use the pip route of step 1 with `--no-index --find-links wheelhouse` a
 
 ### Step 4 — Create the local configuration
 
+Blueprint v2 §7.5 step 6. These two commands are yours alone: the harness rules and the guard hook stop a coding
+agent from running `config init` and `config adopt` (§"Harness permissions" below).
+
 ```powershell
-New-Item -ItemType Directory -Force config\local\pinmaps, config\local\duts
-Copy-Item config\settings.example.yaml config\local\settings.yaml
-Copy-Item config\station.example.yaml config\local\station.yaml
-Copy-Item config\policy.example.yaml config\local\policy.yaml
+uv run b1500 config init --visa
 uv run b1500 config check
 ```
 
-Edit the copies (you, not the agent; the agent is never allowed to edit `config\local\`):
+`config init --visa` copies the missing `config\{settings,station,policy}.example.yaml` to `config\local\` (it never
+overwrites an existing file), writes `backend: visa` into the settings file it creates and creates the empty
+`config\local\pinmaps\` and `config\local\duts\` folders. Then edit the copies (you, not the agent; the agent is never
+allowed to edit `config\local\`):
 
-- `settings.yaml`: `backend: visa`; `visa.resource` from the facts table; `visa.library` only when two VISA stacks
-  are installed; keep the `\n` terminations (checked at bring-up L0, ATV-2).
-- `station.yaml`: `name`; `modules` = the EasyEXPERT module list (slot, model, type, channels, alias);
-  `interlock.available` stays `null` until the bring-up Stage 0 test; record cables in `topology`.
+- `settings.yaml`: `visa.resource` from the facts table; `visa.library` only when two VISA stacks are installed;
+  keep the `\n` terminations (checked at bring-up L0, ATV-2).
+- `station.yaml`: leave the modules as they are for now: step 5 proposes them from the live inventory. Record
+  `interlock.available` (stays `null` until the bring-up Stage 0 test) and the cables in `topology`.
 - `policy.yaml`: keep the defaults. You may only tighten them; anything above 42 V or 100 mA makes the configuration
   invalid.
-- `pinmaps\` and `duts\`: written stage by stage during the bring-up, starting with `certainty: unverified`. Example
-  pin maps and DUT profiles are never used with `backend: visa`. Never name a local file `*.example.yaml`.
+- `pinmaps\` and `duts\`: adopted stage by stage during the bring-up from the examples, for example
+  `uv run b1500 config adopt config\pinmaps\mosfet-3t-lab.example.yaml --as pinmap` (it validates the file, shows
+  the diff, keeps a previous local file as `.bak` and copies it in); keep `certainty: unverified` until you checked
+  the wiring. Example pin maps and DUT profiles are never used with `backend: visa`. Never name a local file
+  `*.example.yaml`.
 
 `uv run b1500 config check` must say `config: valid` with backend `visa` because of `config\local\settings.yaml`.
 
 ### Step 5 — Check the installation and probe the instrument
 
-Prerequisite: bring-up Stage 0 is signed off and EasyEXPERT is ended on the B1500A.
+Blueprint v2 §7.5 steps 6–7. Prerequisite: bring-up Stage 0 is signed off and EasyEXPERT is ended on the B1500A
+(File > Exit, the Start EasyEXPERT button left on screen).
 
 ```powershell
 uv run b1500 doctor
+uv run b1500 doctor --probe
+uv run b1500 bringup propose-station
+uv run b1500 config adopt work\bringup\station.proposed.yaml --as station
+uv run b1500 config check
 uv run b1500 doctor --probe
 ```
 
 - `doctor`: no FAIL line. Until step 6, "harness files" is a WARN; `LongPathsEnabled` may WARN (keep the clone path
   short instead of changing the registry).
-- `doctor --probe` is not implemented on visa in v1 (it says so and exits with code 2); until it is, use
-  `uv run b1500 status` as described in [hardware-bringup.md](hardware-bringup.md), L0. The L0 stage of the
-  bring-up is the full version of this step.
+- `doctor --probe` is read-only (queries only, never `CN` or any setting command): the VISA library loads and
+  `list_resources()` lists `visa.resource`; the bus opens with the exclusive lock; `*IDN?` names the B1500A
+  (firmware recorded); `UNT?` against `config\local\station.yaml`; the error queue is drained; status byte; every
+  output off (`LOP?`); the 16440A selector mode and outputs; `SPST?` with an SPGU installed; `CORRST?`/`ADJ?` per
+  MFCMU; then unlock and close. One PASS/INFO/WARN/FAIL line each (`--json` for the full report), exit code 1 on any
+  FAIL, and every raw answer in `work\bringup\probe-<UTC>.json`. The first run usually FAILs `inventory` (the
+  station file is still the example) and may WARN about old errors in the queue.
+- `bringup propose-station` reads `*IDN?` and `UNT?` (read-only) and writes `work\bringup\station.proposed.yaml`: the
+  live module list with the example's aliases and its switch wiring left `null`/`certainty: unverified`. It prints
+  the diff against `config\local\station.yaml`. Fill in the selector and RSU inputs only once you know the cabling
+  (bring-up L7), then adopt the file with `config adopt … --as station` (validates, shows the diff, keeps the old file
+  as `station.yaml.bak`).
+- The second `doctor --probe` must show no FAIL. The WGFMU library session check (`--wgfmu-session`) arrives with
+  the WGFMU work package; until then the L8 stage checks the library. [hardware-bringup.md](hardware-bringup.md), L0,
+  is the full version of this step.
 
 ### Step 6 — Wire the harness
 
@@ -224,6 +247,62 @@ Start it from the clone root, with no extra flags.
   robocopy data\runs D:\b1500-backup\runs /E
   robocopy config\local D:\b1500-backup\config-local /E
   ```
+
+## Harness permissions
+
+Owner decision OD-5 (blueprint v2 §12, decided 2026-11-18): the configuration bootstrap is the human's, read-only
+manual and bring-up commands need no approval. Coding agents may never edit `.claude/settings*.json` or `.codex/**`
+(both are edit-denied), so this one change set was applied once by the orchestrator at WP6.1, exactly as written
+here, with the shell; the applied diff is logged in `docs/design/progress.md` (WP6.1 row).
+`b1500 harness init --codex --claude --check` and `b1500 doctor` check that the files carry these lines
+(`devtools/harness.py`), and
+`tests/adapters/test_harness_permissions.py` asserts the applied state. Nobody adds other lines without a new owner
+decision.
+
+**Claude Code, `.claude/settings.json`.** `permissions.deny` gains (the human-only bootstrap, with and without
+`uv run`):
+
+```json
+"Bash(b1500 config init*)",
+"Bash(uv run b1500 config init*)",
+"Bash(b1500 config adopt*)",
+"Bash(uv run b1500 config adopt*)"
+```
+
+`permissions.allow` gains (read-only commands of the manual corpus and the bring-up helpers; nothing else is
+allowed without asking):
+
+```json
+"Bash(uv run b1500 manual *)",
+"Bash(uv run b1500 bringup status*)",
+"Bash(uv run b1500 bringup propose-station*)",
+"Bash(uv run b1500 bringup capture*)",
+"Bash(uv run b1500 bringup record*)"
+```
+
+**Codex, `.codex/rules/b1500.rules`.** Four `forbidden` prefix rules, each with `match`/`not_match` examples that
+Codex verifies when it loads the file, like the existing rules:
+
+| `pattern` | `match` | `not_match` |
+|---|---|---|
+| `["b1500", "config", "init"]` | `b1500 config init --visa` | `b1500 config check` |
+| `["uv", "run", "b1500", "config", "init"]` | `uv run b1500 config init --visa` | `uv run b1500 config check` |
+| `["b1500", "config", "adopt"]` | `b1500 config adopt work/bringup/station.proposed.yaml --as station` | `b1500 bringup propose-station` |
+| `["uv", "run", "b1500", "config", "adopt"]` | the same with `uv run` | `uv run b1500 bringup propose-station` |
+
+Justifications: creating `config/local/` is the human's act (the agent proposes with
+`b1500 bringup propose-station`); adopting a file into `config/local/` is the human's act after reviewing the
+proposal and its diff.
+Codex runs `uv run b1500 manual …` and `uv run b1500 bringup …` in its default `workspace-write` sandbox without a
+rule (ATV-25).
+
+**Templates.** `config/harness/` holds only the MCP server launch templates (`codex.config.toml`, `mcp.json`); they
+carry no permission rules, so nothing changes there. **Guard hook.** `scripts/hooks/b1500_guard.py` (tightened by
+WP6.1, no settings change needed) also blocks shell commands that run `b1500 config init` or `b1500 config adopt`,
+with or without `uv run`, for Claude Code in every permission mode the hook runs in.
+
+Check after a `git pull` on the lab PC: `uv run b1500 harness init --codex --check` (and `--claude`) and
+`codex execpolicy check --rules .codex/rules/b1500.rules uv run b1500 manual search x` (no decision = not matched).
 
 ## Residual risks in plain words
 

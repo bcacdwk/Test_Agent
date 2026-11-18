@@ -14,12 +14,18 @@ import pytest
 import yaml
 
 from b1500_test_agent.driver import flex
+from b1500_test_agent.driver.flex import cmu as flex_cmu
 from b1500_test_agent.driver.flex import core as flex_core
 from b1500_test_agent.driver.flex import smu as flex_smu
+from b1500_test_agent.driver.flex import spgu as flex_spgu
+from b1500_test_agent.driver.flex import switch as flex_switch
 
 ROOT = Path(__file__).resolve().parents[2]
 MAP = ROOT / "references" / "driver-map" / "flex-driver-map.yaml"
-FAMILY_MODULES: tuple[ModuleType, ...] = (flex_core, flex_smu)
+FAMILY_MODULES: tuple[ModuleType, ...] = (flex_core, flex_smu, flex_cmu, flex_spgu, flex_switch)
+COMMAND_CONSTANTS = ("XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q",
+                     "ERMOD_Q", "SPST_Q")
+"""Constants that are whole commands (each cites its manual page and has a driver-map entry)."""
 _PDF = re.compile(r"PDF (\d+)(?:-(\d+))?")
 
 
@@ -93,6 +99,14 @@ def _cited_pages(text: str) -> set[int]:
         (flex.cm(1), "CM 1"),  # PDF 379 example
         (flex.lrn_q(1), "*LRN? 1"),  # PDF 447 example
         (flex.lrn_q(flex.LRN_SETTINGS), "*LRN? 31"),
+        (flex.erssp_q(1), "ERSSP? 1"),  # PDF 434 example
+        (flex.erssp_q(0), "ERSSP? 0"),
+        (flex.erssp_q(3), "ERSSP? 3"),
+        (flex.corrst_q(9, "load"), "CORRST? 9,3"),  # PDF 388 example
+        (flex.corrst_q(7, "open"), "CORRST? 7,1"),
+        (flex.corrst_q(7, "short"), "CORRST? 7,2"),
+        (flex.adj_q(7, flex.ADJ_READ_LAST), "ADJ? 7,0"),
+        (flex.adj_q(9, 1), "ADJ? 9,1"),  # PDF 355-356 syntax with the mode written out
     ],
 )
 def test_builder_output(built: str, expected: str) -> None:
@@ -103,6 +117,22 @@ def test_constants_are_single_commands() -> None:
     assert (flex.XE, flex.AB, flex.RST) == ("XE", "AB", "*RST")
     assert (flex.IDN_Q, flex.UNT_Q, flex.ERRX_Q, flex.STB_Q) == ("*IDN?", "UNT?", "ERRX?", "*STB?")
     assert (flex.OPC_Q, flex.LOP_Q, flex.TST_Q, flex.CAL_Q) == ("*OPC?", "LOP?", "*TST?", "*CAL?")
+    assert (flex.ERMOD_Q, flex.SPST_Q) == ("ERMOD?", "SPST?")
+
+
+def test_probe_query_tables_follow_the_manual() -> None:
+    """ERSSP status 0-3 (PDF 433-434), CORRST modes 1-3 (PDF 388), ADJ? results 0-3 (PDF 356), ERMOD bit 1."""
+    assert flex.ERSSP_STATES == {0: "open", 1: "smu", 2: "pgu", 3: "pgu_open"}
+    assert flex.CORRECTION_CODES == {"open": 1, "short": 2, "load": 3}
+    assert sorted(flex.ADJ_RESULTS) == [0, 1, 2, 3] and "not been performed" in flex.ADJ_RESULTS[3]
+    assert (flex.ERMOD_SELECTOR, flex.ERMOD_MAX, flex.ADJ_READ_LAST) == (1, 63, 0)
+    assert flex.SPST_STATES == {0, 1}
+
+
+def test_every_probe_builder_is_a_query() -> None:
+    """The read-only probe sends only these: each is one query (header ends with ``?``)."""
+    for text in (flex.ERMOD_Q, flex.SPST_Q, flex.erssp_q(2), flex.corrst_q(7, "short"), flex.adj_q(7, 0)):
+        assert text.split()[0].endswith("?") and ";" not in text, text
 
 
 def test_no_builder_combines_commands() -> None:
@@ -191,6 +221,12 @@ def test_numbers_are_round_trip_exact() -> None:
         lambda: flex.cm(-1),
         lambda: flex.lrn_q(111),
         lambda: flex.lrn_q(-1),
+        lambda: flex.erssp_q(4),  # ports 0-3 only
+        lambda: flex.erssp_q(-1),
+        lambda: flex.corrst_q(7, "phase"),  # phase compensation is ADJ, not CORRST
+        lambda: flex.corrst_q(11, "open"),
+        lambda: flex.adj_q(7, 2),  # modes 0 and 1 only
+        lambda: flex.adj_q(0, 0),
     ],
 )
 def test_builders_reject_values_outside_the_manual_domain(call) -> None:
@@ -207,6 +243,8 @@ def test_builders_reject_values_outside_the_manual_domain(call) -> None:
         lambda: flex.dv(1, 0, True, 1e-3),
         lambda: flex.cm(True),
         lambda: flex.lrn_q(31.0),
+        lambda: flex.erssp_q(True),
+        lambda: flex.adj_q(7, 0.0),
     ],
 )
 def test_builders_reject_wrong_types(call) -> None:
@@ -234,7 +272,7 @@ def test_every_builder_and_constant_cites_a_pdf_page() -> None:
     docs = _constant_docstrings()
     for name in _builders():
         assert _cited_pages(getattr(flex, name).__doc__ or ""), name
-    for name in ("XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q"):
+    for name in COMMAND_CONSTANTS:
         assert _cited_pages(docs.get(name, "")), name
 
 
@@ -243,9 +281,8 @@ def test_docstring_pages_match_the_driver_map() -> None:
     doc = yaml.safe_load(MAP.read_text(encoding="utf-8"))
     docs = _constant_docstrings()
     with_builder = [entry for entry in doc["commands"] if "builder" in entry]
-    assert {entry["builder"].removeprefix("flex.") for entry in with_builder} == set(_builders()) | {
-        "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q",
-    }  # fmt: skip
+    assert {entry["builder"].removeprefix("flex.") for entry in with_builder} == set(_builders()) | set(
+        COMMAND_CONSTANTS)
     for entry in with_builder:
         name = entry["builder"].removeprefix("flex.")
         obj = getattr(flex, name)
@@ -286,7 +323,8 @@ def _own_constants(module: ModuleType) -> list[str]:
 def test_the_package_re_exports_every_family_builder_and_constant() -> None:
     public = {name for module in FAMILY_MODULES for name in _own_functions(module) + _own_constants(module)}
     assert public == set(flex.__all__)
-    assert set(flex.__all__) == {name for name in vars(flex) if not name.startswith("_")} - {"core", "smu"}
+    families = {module.__name__.rsplit(".", 1)[-1] for module in FAMILY_MODULES}
+    assert set(flex.__all__) == {name for name in vars(flex) if not name.startswith("_")} - families
     for name in flex.__all__:
         owners = [m for m in FAMILY_MODULES if name in _own_functions(m) + _own_constants(m)]
         assert len(owners) == 1 and getattr(flex, name) is getattr(owners[0], name), name
@@ -296,3 +334,6 @@ def test_family_modules_hold_disjoint_builders() -> None:
     assert not set(_own_functions(flex_core)) & set(_own_functions(flex_smu))
     assert {"cn", "cl", "dz", "fmt", "mm", "cm", "lrn_q"} == set(_own_functions(flex_core))
     assert {"cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv"} == set(_own_functions(flex_smu))
+    assert {"corrst_q", "adj_q"} == set(_own_functions(flex_cmu))
+    assert set() == set(_own_functions(flex_spgu)) and "SPST_Q" in _own_constants(flex_spgu)
+    assert {"erssp_q"} == set(_own_functions(flex_switch)) and "ERMOD_Q" in _own_constants(flex_switch)

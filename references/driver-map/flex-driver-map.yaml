@@ -10,7 +10,8 @@ source:
   command_summary: references/manuals/structured/b1500a-command-summary.yaml
 priority_scale:
   m1: M1 vertical path (status -> validate -> staircase Id-Vg -> archive -> Vth), safe_shutdown cleanup and system.*
-    self-test/self-cal; the B1500Driver methods of blueprint section 2.3
+    self-test/self-cal; the B1500Driver methods of blueprint section 2.3; v2 additions mapped since (CM and *LRN?
+    by WP5.6, the read-only probe queries ERMOD?, ERSSP?, SPST?, CORRST?, ADJ? by WP6.1)
   m2: M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the simulator's
     FLEX subset v1 (AV, BC, NUB?, TSC); DI/WI only if a card needs them
   later: 'reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC units
@@ -26,7 +27,7 @@ counts:
     m1: 47
     m2: 14
     later: 221
-  atoms_unmapped: 236
+  atoms_unmapped: 231
   flows:
     A: 20
     B: 16
@@ -36,8 +37,8 @@ counts:
     CD: 4
     total: 97
   commands: 280
-  commands_mapped: 27
-driver_targets: [B1500Driver.identify, B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte, B1500Driver.output_state, B1500Driver.abort, B1500Driver.zero, B1500Driver.disconnect, B1500Driver.reset, B1500Driver.self_test, B1500Driver.self_calibrate, B1500Driver.set_format, B1500Driver.set_integration, B1500Driver.set_range, B1500Driver.enable, B1500Driver.force_v, B1500Driver.staircase_v, B1500Driver.execute_and_read, B1500Driver.wait_complete, B1500Driver.auto_calibration, B1500Driver.set_auto_calibration, flex.cn, flex.cl, flex.dz, flex.fmt, flex.mm, flex.cmm, flex.aad, flex.ait, flex.ri, flex.rv, flex.wt, flex.wm, flex.dv, flex.wv, flex.cm, flex.lrn_q, flex.XE, flex.AB, flex.IDN_Q, flex.UNT_Q, flex.ERRX_Q, flex.STB_Q, flex.OPC_Q, flex.LOP_Q, flex.RST, flex.TST_Q, flex.CAL_Q]
+  commands_mapped: 32
+driver_targets: [B1500Driver.identify, B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte, B1500Driver.output_state, B1500Driver.abort, B1500Driver.zero, B1500Driver.disconnect, B1500Driver.reset, B1500Driver.self_test, B1500Driver.self_calibrate, B1500Driver.set_format, B1500Driver.set_integration, B1500Driver.set_range, B1500Driver.enable, B1500Driver.force_v, B1500Driver.staircase_v, B1500Driver.execute_and_read, B1500Driver.wait_complete, B1500Driver.auto_calibration, B1500Driver.set_auto_calibration, B1500Driver.selector_control_mode, B1500Driver.selector_state, B1500Driver.pulse_output_active, B1500Driver.correction_enabled, B1500Driver.phase_compensation_result, flex.cn, flex.cl, flex.dz, flex.fmt, flex.mm, flex.cmm, flex.aad, flex.ait, flex.ri, flex.rv, flex.wt, flex.wm, flex.dv, flex.wv, flex.cm, flex.lrn_q, flex.erssp_q, flex.corrst_q, flex.adj_q, flex.XE, flex.AB, flex.IDN_Q, flex.UNT_Q, flex.ERRX_Q, flex.STB_Q, flex.OPC_Q, flex.LOP_Q, flex.RST, flex.TST_Q, flex.CAL_Q, flex.ERMOD_Q, flex.SPST_Q]
 atoms:
 - {id: A_atom_flex_connect, class: A, basis: ['*IDN?', 'UNT?'], flex: ['*IDN?', 'UNT?'], target: [B1500Driver.identify, B1500Driver.modules], priority: m1}
 - {id: A_atom_flex_disconnect, class: A, basis: [session.close], flex: [], target: unmapped, priority: m1, note: 'successor: Transport.close via Session (sections 2.2, 2.4); B1500Driver.disconnect is CL'}
@@ -59,7 +60,7 @@ atoms:
 - {id: A_atom_flex_query_buffer_count, class: A, basis: ['NUB?'], flex: ['NUB?'], target: unmapped, priority: m2}
 - {id: A_atom_flex_read_output_buffer, class: A, basis: [output data buffer read], flex: [], target: [B1500Driver.execute_and_read], priority: m1}
 - {id: A_atom_flex_configure_srq, class: A, basis: ['*SRE'], flex: ['*SRE'], target: unmapped, priority: later}
-- {id: A_atom_flex_query_spgu_status, class: A, basis: ['SPST?'], flex: ['SPST?'], target: unmapped, priority: later}
+- {id: A_atom_flex_query_spgu_status, class: A, basis: ['SPST?'], flex: ['SPST?'], target: [B1500Driver.pulse_output_active], priority: later}
 - {id: A_atom_flex_query_spgu_setup, class: A, basis: ['SIM?', 'SPRM?', 'SPM?', 'SPPER?', 'SPT?', 'SPV?', 'SER?'], flex: ['SIM?', 'SPRM?', 'SPM?', 'SPPER?', 'SPT?', 'SPV?', 'SER?'], target: unmapped, priority: later}
 - {id: A_atom_flex_query_spgu_pulse_switch, class: A, basis: ['ODSW?'], flex: ['ODSW?'], target: unmapped, priority: later}
 - {id: A_atom_flex_query_spgu_load_impedance, class: A, basis: ['SER?'], flex: ['SER?'], target: unmapped, priority: later}
@@ -69,8 +70,8 @@ atoms:
 - {id: A_atom_flex_query_spgu_alwg_pattern, class: A, basis: ['ALW?'], flex: ['ALW?'], target: unmapped, priority: later}
 - {id: A_atom_flex_query_spgu_alwg_sequence, class: A, basis: ['ALS?'], flex: ['ALS?'], target: unmapped, priority: later}
 - {id: A_atom_flex_query_selector_status, class: A, basis: ['ERS?'], flex: ['ERS?'], target: unmapped, priority: later}
-- {id: A_atom_flex_query_selector_mode, class: A, basis: ['ERMOD?', 'ERSSP?'], flex: ['ERMOD?', 'ERSSP?'], target: unmapped, priority: later}
-- {id: A_atom_flex_query_cmu_correction_status, class: A, basis: ['CORRST?'], flex: ['CORRST?'], target: unmapped, priority: later}
+- {id: A_atom_flex_query_selector_mode, class: A, basis: ['ERMOD?', 'ERSSP?'], flex: ['ERMOD?', 'ERSSP?'], target: [B1500Driver.selector_control_mode, B1500Driver.selector_state], priority: later}
+- {id: A_atom_flex_query_cmu_correction_status, class: A, basis: ['CORRST?'], flex: ['CORRST?'], target: [B1500Driver.correction_enabled], priority: later}
 - {id: A_atom_flex_query_cmu_correction_freq_list, class: A, basis: ['CORRL?'], flex: ['CORRL?'], target: unmapped, priority: later}
 - {id: A_atom_flex_query_cmu_correction_data, class: A, basis: ['CORRDT?'], flex: ['CORRDT?'], target: unmapped, priority: later}
 - {id: A_atom_flex_query_cmu_load_standard, class: A, basis: ['DCORR?'], flex: ['DCORR?'], target: unmapped, priority: later}
@@ -153,10 +154,10 @@ atoms:
 - {id: B_atom_routing_selector_set_smu_pg_path, class: B, basis: [ERSSP], flex: [ERSSP], target: unmapped, priority: later}
 - {id: B_atom_routing_dio_set_mode, class: B, basis: [ERM], flex: [ERM], target: unmapped, priority: later}
 - {id: B_atom_output_dio_set_relay_bits, class: B, basis: [ERC], flex: [ERC], target: unmapped, priority: later}
-- {id: B_atom_correction_cmu_set_correction, class: B, basis: [CORRST, 'CORRST?'], flex: [CORRST, 'CORRST?'], target: unmapped, priority: later}
+- {id: B_atom_correction_cmu_set_correction, class: B, basis: [CORRST, 'CORRST?'], flex: [CORRST, 'CORRST?'], target: [B1500Driver.correction_enabled], unmapped_flex: [CORRST], priority: later}
 - {id: B_atom_correction_cmu_measure_data, class: B, basis: ['CORR?'], flex: ['CORR?'], target: unmapped, priority: later}
 - {id: B_atom_correction_cmu_set_phase_mode, class: B, basis: [ADJ], flex: [ADJ], target: unmapped, priority: later}
-- {id: B_atom_correction_cmu_perform_phase_comp, class: B, basis: ['ADJ?'], flex: ['ADJ?'], target: unmapped, priority: later}
+- {id: B_atom_correction_cmu_perform_phase_comp, class: B, basis: ['ADJ?'], flex: ['ADJ?'], target: [B1500Driver.phase_compensation_result], priority: later}
 - {id: B_atom_correction_cmu_clear, class: B, basis: [CLCORR], flex: [CLCORR], target: unmapped, priority: later}
 - {id: B_atom_correction_cmu_add_frequency, class: B, basis: [CORRL], flex: [CORRL], target: unmapped, priority: later}
 - {id: B_atom_correction_cmu_set_load_standard, class: B, basis: [DCORR], flex: [DCORR], target: unmapped, priority: later}
@@ -459,7 +460,7 @@ commands:
 - {command: 'CORR?', source: detailed, pdf_pages: [382], printed_pages: [4-64], target: unmapped, priority: later, atoms: [B_atom_correction_cmu_measure_data]}
 - {command: CORRST, source: detailed, pdf_pages: [387], printed_pages: [4-69], target: unmapped, priority: later, atoms: [B_atom_correction_cmu_set_correction]}
 - {command: ADJ, source: detailed, pdf_pages: [355], printed_pages: [4-37], target: unmapped, priority: later, atoms: [B_atom_correction_cmu_set_phase_mode]}
-- {command: 'ADJ?', source: detailed, pdf_pages: [355, 356], printed_pages: [4-37 to 4-38], target: unmapped, priority: later, atoms: [B_atom_correction_cmu_perform_phase_comp]}
+- {command: 'ADJ?', source: detailed, pdf_pages: [355, 356], printed_pages: [4-37 to 4-38], target: B1500Driver.phase_compensation_result, builder: flex.adj_q, priority: m1, atoms: [B_atom_correction_cmu_perform_phase_comp], note: 'mode 0 only (last result, no measurement; WP6.1); mode 1 phase compensation: M8'}
 - {command: 'DIAG?', source: detailed, pdf_pages: [392], printed_pages: [4-74], target: unmapped, priority: later, atoms: [B_atom_diagnostic_b1500_diagnostics]}
 - {command: PA, source: detailed, pdf_pages: [481], printed_pages: [4-163], target: unmapped, priority: later, atoms: []}
 - {command: RCV, source: grouped, target: unmapped, priority: later, atoms: []}
@@ -469,7 +470,7 @@ commands:
 - {command: 'CORRL?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_cmu_correction_freq_list]}
 - {command: DCORR, source: grouped, target: unmapped, priority: later, atoms: [B_atom_correction_cmu_set_load_standard]}
 - {command: 'DCORR?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_cmu_load_standard]}
-- {command: 'CORRST?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_cmu_correction_status, B_atom_correction_cmu_set_correction]}
+- {command: 'CORRST?', source: grouped, pdf_pages: [388], printed_pages: [4-70], target: B1500Driver.correction_enabled, builder: flex.corrst_q, priority: m1, atoms: [A_atom_flex_query_cmu_correction_status, B_atom_correction_cmu_set_correction], note: 'read-only probe per installed MFCMU (WP6.1); R-CORR-01 pre-execute: M8'}
 - {command: CORRDT, source: grouped, target: unmapped, priority: later, atoms: [B_atom_correction_cmu_set_correction_data]}
 - {command: 'CORRDT?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_cmu_correction_data]}
 - {command: PAX, source: grouped, target: unmapped, priority: later, atoms: []}
@@ -595,7 +596,7 @@ commands:
 - {command: SRP, source: grouped, target: unmapped, priority: later, atoms: [C_atom_spgu_start_output]}
 - {command: SPP, source: grouped, target: unmapped, priority: later, atoms: [C_atom_spgu_stop_output]}
 - {command: SPUPD, source: grouped, target: unmapped, priority: later, atoms: [C_atom_spgu_update_output]}
-- {command: 'SPST?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_spgu_status]}
+- {command: 'SPST?', source: grouped, pdf_pages: [513, 514], printed_pages: [4-195 to 4-196], target: B1500Driver.pulse_output_active, builder: flex.SPST_Q, priority: m1, atoms: [A_atom_flex_query_spgu_status], note: 'read-only probe (WP6.1); SPGU cleanup verification: WP9.1'}
 - {command: ODSW, source: grouped, target: unmapped, priority: later, atoms: [B_atom_routing_spgu_set_pulse_switch]}
 - {command: 'ODSW?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_spgu_pulse_switch]}
 - {command: SER, source: grouped, target: unmapped, priority: later, atoms: [C_atom_spgu_set_load_impedance]}
@@ -632,9 +633,9 @@ commands:
 - {command: 'ERS?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_selector_status]}
 - {command: ERC, source: grouped, target: unmapped, priority: later, atoms: [B_atom_output_dio_set_relay_bits]}
 - {command: ERMOD, source: grouped, target: unmapped, priority: later, atoms: [B_atom_routing_selector_set_mode]}
-- {command: 'ERMOD?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_selector_mode]}
+- {command: 'ERMOD?', source: grouped, pdf_pages: [420, 421], printed_pages: [4-102 to 4-103], target: B1500Driver.selector_control_mode, builder: flex.ERMOD_Q, priority: m1, atoms: [A_atom_flex_query_selector_mode], note: 'read-only probe (WP6.1); ERMOD itself: WP9.2'}
 - {command: ERSSP, source: grouped, target: unmapped, priority: later, atoms: [B_atom_routing_selector_set_smu_pg_path]}
-- {command: 'ERSSP?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_selector_mode]}
+- {command: 'ERSSP?', source: grouped, pdf_pages: [434], printed_pages: [4-116], target: B1500Driver.selector_state, builder: flex.erssp_q, priority: m1, atoms: [A_atom_flex_query_selector_mode], note: 'read-only probe per declared selector port, only with the 16440A control mode on (WP6.1); ERSSP itself: WP9.2'}
 - {command: ERHPA, source: grouped, target: unmapped, priority: later, atoms: []}
 - {command: 'ERHPA?', source: grouped, target: unmapped, priority: later, atoms: []}
 - {command: ERHPL, source: grouped, target: unmapped, priority: later, atoms: []}

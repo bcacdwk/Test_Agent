@@ -1,0 +1,6 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 421 (printed 4-103, ERMOD? response: the sum of the enabled control modes; example "after the ERMOD 4, ERMOD 8, and ERMOD 16 commands are executed, the ERMOD? command returns 28")
+# kind: ermod
+# command: ERMOD?
+# expect: {"value": 28, "selector": false}
+# note: the manual example; bit value 1 (16440A selector control mode) is clear, so the read-only probe does not read ERSSP?. TODO(verify) the raw answer at bring-up L0.
+28

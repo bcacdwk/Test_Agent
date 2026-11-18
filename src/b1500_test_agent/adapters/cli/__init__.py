@@ -9,9 +9,16 @@ usage errors.
   ``show RUN_ID`` · ``analyze RUN_ID METHOD -o k=v`` · ``note RUN_ID TEXT`` · ``shutdown [--reason]``
 - human-only: ``fault clear`` (safe shutdown, then clears the latch only when the shutdown verified the safe state)
   and ``lock status``
-- ``doctor`` (non-probe checks), ``config check``, ``harness init --codex|--claude [--check]`` (renders
+- ``doctor`` (installation checks), ``doctor --probe`` (read-only instrument probe: queries only, PASS/WARN/FAIL
+  lines, raw answers to ``work/bringup/probe-<UTC>.json``), ``harness init --codex|--claude [--check]`` (renders
   ``config/harness/`` templates into the gitignored ``.codex/config.toml`` / ``.mcp.json``), ``mcp`` (stdio server,
   same as ``b1500-mcp``)
+- configuration (CLI only, no MCP tool): ``config check``; human-only ``config init [--visa]`` (copies the missing
+  core examples into ``config/local/``, never overwrites) and ``config adopt FILE --as
+  station|settings|policy|pinmap|dut`` (validates, shows the diff, copies; blocked for agents by the harness rules
+  and the guard hook)
+- bring-up (CLI only, no MCP tool): ``bringup propose-station`` (read-only ``*IDN?``/``UNT?`` ->
+  ``work/bringup/station.proposed.yaml`` + diff vs ``config/local/station.yaml``; agents may run it)
 - developer: ``dev tool-budget``, ``dev recipe-check``, ``dev mcp-smoke --config F`` (start the server as a harness
   config says and check it), ``dev sim-console`` (raw FLEX, simulator only), ``dev sync-harness [--check]``
   (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``dev lint-skills`` (skill schema, budgets, links),
@@ -21,8 +28,8 @@ usage errors.
   corpus) and ``manual build [--src DIR] [--check]``
 
 Modules: ``core`` (the root ``app``, operator, human-only and installation commands, shared plumbing), ``dev`` (the
-``dev`` group) and ``manual`` (the ``manual`` group); later work packages add ``config`` and ``bringup`` groups. The
-console script ``b1500`` is ``main`` of this package.
+``dev`` group), ``manual`` (the ``manual`` group), ``config`` (the ``config`` group) and ``bringup`` (the ``bringup``
+group). The console script ``b1500`` is ``main`` of this package.
 
 ``run --confirm`` re-validates the plan, prints its summary and asks y/N on an interactive terminal only; without
 a TTY it exits non-zero and runs nothing (UX only: the harness tool confirmation is the approval, blueprint 4.3).
@@ -31,10 +38,14 @@ The run manifest records ``confirmed_via: cli --confirm``.
 
 from __future__ import annotations
 
+from b1500_test_agent.adapters.cli.bringup import bringup_app
+from b1500_test_agent.adapters.cli.config import config_app
 from b1500_test_agent.adapters.cli.core import DEFAULT_MCP_APP_SPEC, TOOL_COMMANDS, app
 from b1500_test_agent.adapters.cli.dev import dev_app
 from b1500_test_agent.adapters.cli.manual import manual_app
 
+app.add_typer(config_app, name="config")
+app.add_typer(bringup_app, name="bringup")
 app.add_typer(dev_app, name="dev")
 app.add_typer(manual_app, name="manual")
 

@@ -66,12 +66,23 @@ class ChannelState(_Mutable):
 
 class SimPersistentState(_Mutable):
     """Contents of the state file. ``auto_calibration`` is the ``CM`` switch: instrument state that survives host
-    sessions until ``*RST``/device clear (PG p379 (4-61))."""
+    sessions until ``*RST``/device clear (PG p379 (4-61)).
+
+    Family state read by the bring-up probe (blueprint v2 7.1; the family work packages add the commands that set
+    it): ``selector_mode`` = the ``ERMOD`` control-mode sum, ``selector_ports`` = ``ERSSP`` port -> status 0-3 (a
+    missing port is 0, open), ``spgu_output_active`` = ``SPST?``, ``cmu_corrections`` = MFCMU channel -> ``CORRST``
+    mode (1 open, 2 short, 3 load) -> ON, ``cmu_phase_results`` = MFCMU channel -> last ``ADJ?`` result (missing =
+    3, not performed). ``*RST``/device clear reset all but the phase results (power-on state)."""
 
     version: int = STATE_VERSION
     scenario: str
     saved_at: str | None = None
     auto_calibration: bool = False
+    selector_mode: int = Field(default=0, ge=0, le=63)
+    selector_ports: dict[int, int] = Field(default_factory=dict)
+    spgu_output_active: bool = False
+    cmu_corrections: dict[int, dict[int, bool]] = Field(default_factory=dict)
+    cmu_phase_results: dict[int, int] = Field(default_factory=dict)
     channels: dict[int, ChannelState] = Field(default_factory=dict)
     devices: dict[str, dict[str, float | int | bool | str]] = Field(default_factory=dict)
     measurement_count: int = 0

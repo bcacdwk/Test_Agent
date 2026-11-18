@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import contextlib
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, cast
@@ -54,6 +54,7 @@ from b1500_test_agent.session.transaction import (
 )
 from b1500_test_agent.transport.audit import AuditingTransport, AuditSink, JsonlAuditSink
 from b1500_test_agent.transport.base import Bus, BusLocked, Transport, TransportError, state_hooks
+from b1500_test_agent.transport.readonly import ReadOnlyTransport
 
 BusMode = Literal["transaction", "process"]
 BusFactory = Callable[[], Bus | Transport]
@@ -230,8 +231,36 @@ class Session:
 
     # -- public API -------------------------------------------------------------------------------------------------
 
+    @contextlib.contextmanager
+    def read_only(self, intent: str, *, lock_timeout_s: float = 5.0) -> Iterator[B1500Driver]:
+        """A driver whose link lets only single queries through (``ReadOnlyTransport``), for the duration of the
+        block: instrument lock (``InstrumentBusy`` when held elsewhere), audit binding (one transaction id,
+        ``intent``), bus open + exclusive lock, simulator state loaded; on exit the state is saved and the bus
+        unlocked and closed. Any other command, a device clear or a serial poll raises ``ReadOnlyViolation`` and
+        nothing is sent. ``driver.transport.transcript`` lists every query and answer. No guard: source operations
+        refuse. A stale inflight marker is left for the next transaction to recover. Used by ``snapshot`` and the
+        bring-up probe (blueprint v2 7.1)."""
+        transport = self.transport
+        with (
+            self.lock.acquire(self._holder(), timeout_s=lock_timeout_s),
+            transport.bind(tx=new_tx_id(), intent=intent),
+        ):
+            self._bus_begin()
+            try:
+                hooks = state_hooks(transport)
+                if hooks is not None:
+                    hooks.load_state()
+                try:
+                    yield B1500Driver(ReadOnlyTransport(transport))
+                finally:
+                    if hooks is not None:
+                        hooks.save_state()
+            finally:
+                self._bus_end()
+
     def snapshot(self, *, refresh: bool = True, lock_timeout_s: float = 5.0) -> LiveState:
-        """IDN, UNT, ERRX drain, STB, outputs; read-only (queries only, no source or channel commands).
+        """IDN, UNT, ERRX drain, STB, outputs; read-only (``read_only``: queries only, no source or channel
+        commands).
 
         Runs under the instrument lock (``InstrumentBusy`` when held elsewhere); with ``refresh=False`` the last
         snapshot is returned without I/O when there is one. A stale inflight marker is left for the next
@@ -240,24 +269,8 @@ class Session:
         if not refresh and self.last_live is not None:
             return self.last_live
         transport = self.transport
-        tx_id = new_tx_id()
-        with (
-            self.lock.acquire(self._holder(), timeout_s=lock_timeout_s),
-            transport.bind(tx=tx_id, intent="snapshot"),
-        ):
-            self._bus_begin()
-            try:
-                hooks = state_hooks(transport)
-                if hooks is not None:
-                    hooks.load_state()
-                try:
-                    live = read_live_state(B1500Driver(transport), backend=transport.backend,
-                                           resource=transport.resource)
-                finally:
-                    if hooks is not None:
-                        hooks.save_state()
-            finally:
-                self._bus_end()
+        with self.read_only("snapshot", lock_timeout_s=lock_timeout_s) as driver:
+            live = read_live_state(driver, backend=transport.backend, resource=transport.resource)
         self.last_live = live
         return live
 

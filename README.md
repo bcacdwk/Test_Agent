@@ -16,8 +16,11 @@ for the instrument, so everything is developed and tested without hardware.
 > extraction methods; these recipes, `generic.smu_staircase` and `system.*` are simulator-validated. Skill
 > `b1500-test` routes requests by family to seven test cards (generated index) and seven knowledge files, skill
 > `b1500-debug` handles abnormal data, skill `b1500-bringup` (stage skeleton) will guide the hardware bring-up;
-> Codex and Claude Code wiring comes from `b1500 harness init`. The hardware probe and lab bring-up are M4
-> (see [docs/roadmap.md](docs/roadmap.md)); no code path has run against a real instrument yet.
+> Codex and Claude Code wiring comes from `b1500 harness init`. The read-only hardware probe
+> (`b1500 doctor --probe`), the station proposal (`b1500 bringup propose-station`) and the human's configuration
+> bootstrap (`b1500 config init|adopt`) run against the simulator and the visa-loop; the lab bring-up itself is the
+> owner's hardware session M12 (see [docs/roadmap.md](docs/roadmap.md)); no code path has run against a real
+> instrument yet.
 
 ## Layers
 

@@ -1,0 +1,6 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 388 (printed 4-70, CORRST? chnum,corr response: 0 OFF, 1 ON; example CORRST 9,3,1 then CORRST? 9,3 "returns Status=1")
+# kind: corrst
+# command: CORRST? 9,3
+# expect: {"on": true}
+# note: the manual example (load correction of the MFCMU in slot 9 switched on). TODO(verify) the raw answer at bring-up L6.
+1

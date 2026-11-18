@@ -12,8 +12,8 @@ the source of truth for status. This page is updated at milestone boundaries.
 | M2 Skill system | Six SMU test cards with recipes that run on the simulator; knowledge files; debug skill | **done** (2026-11-18) |
 | M3 Harness acceptance | Ten scenarios on Codex and Claude Code against the simulator | **done** (2026-11-18; [reports](acceptance/)) |
 | M4 Hardware bring-up | Checklists for the Windows lab PC and staged hardware validation | planned (docs only; execution later with the owner) |
-| M5 Foundations | v2 plan, package split, models/config v2, guard + rules v2, per-transaction VISA + visa-loop, async runs, archive v2, manual corpus, device models v2, skills v2 structure | in progress |
-| M6 Lab-ready core | Read-only probe, station proposal and config adoption, visa completeness, bring-up skill, hardware suite, Windows readiness, acceptance v2 | planned |
+| M5 Foundations | v2 plan, package split, models/config v2, guard + rules v2, per-transaction VISA + visa-loop, async runs, archive v2, manual corpus, device models v2, skills v2 structure | **done** (2026-11-18) |
+| M6 Lab-ready core | Read-only probe, station proposal and config adoption, visa completeness, bring-up skill, hardware suite, Windows readiness, acceptance v2 | in progress (6.1 done) |
 | M7 SMU complete | Spot/Kelvin/ASU, sweeps v2, pulsed, sampling + TDDB, search + BDV, stress-measure, compact models | planned |
 | M8 MFCMU, SCUU, GNDU | CMU driver + simulator, corrections, C-V core and variants, QSCV, Dit, GNDU budget | planned |
 | M9 HV-SPGU + 16440A | SPGU driver + simulator, selector routes, pulse kind, program/read, kinetics, endurance, retention | planned |
@@ -91,3 +91,32 @@ analysis, behind the same 10 MCP tools) and fills it to the whole station: SMU, 
 16440A selectors, WGFMU (+RSU) and GNDU, each implemented, simulated, tested, carded and given a bring-up stage
 (68 recipes, 14 kinds, 33 cards). Order: M5 → M6 → (M7 ∥ M8 ∥ M9 ∥ WGFMU 10.1–10.5) → (10.6 ∥ 10.7) → 10.8 → M11;
 M12 is the owner's hardware session. Only the hardware-bound items of blueprint §7.6 wait for M12.
+
+## M5 — Foundations (done)
+
+Order: 5.1 → 5.2 → 5.3 → (5.4 ∥ 5.5 ∥ 5.7) → 5.6; 5.8 ∥ 5.9 from 5.2; 5.10 after 5.8. Result: no behaviour change
+for the v1 recipes (golden FLEX previews and `data.csv` byte-identical) on a lab-shaped configuration; the kernel
+now carries the v2 concepts (switches and routes, pulse/AC/waveform envelopes, async runs, correction store), opens
+the bus per transaction (CLI and MCP server coexist), runs every v1 measurement recipe through the real
+`VisaTransport` against the simulator (visa-loop), searches the 2,315 manual pages offline and routes three skills.
+Gate at the end of M5: 3,157 tests (`-n auto`), 10 MCP tools / 1,584 schema tokens, always-loaded text
+1,705 / 2,500 tokens.
+
+| WP | Result |
+|---|---|
+| 5.1 Promote plan | `docs/design/blueprint.md` = v2 plan of record; tag `plan-v1`; progress v2 section; roadmap M5–M12 |
+| 5.2 Package split | `driver/flex/` + `driver/ops/`, simulator units, `sim/devices/`, `rules/builtin/`, `adapters/cli/`, skill lint split; FLEX/`*RST`/file-size lints; golden previews of the 9 v1 recipes; `pytest-xdist` |
+| 5.3 Models + config v2 | Switches and routes, pin-map switch targets, DUT impedance/pulse/AC/geometry, policy v2, `file` params, lab-shaped station example (`certainty: unverified`), migrated pin maps and scenarios |
+| 5.4 Guard + rules v2 | `OutputGuard` pulse/AC/route/waveform checks, the rules of blueprint §2.8 on synthetic plans, new confirm reasons, plan summary v2, SER arithmetic |
+| 5.5 Bus lifecycle + visa-loop | Per-transaction VISA (open → lock → … → unlock → close), `make_bus`, injectable resource manager, `tests/visa_loop/` with every v1 measurement recipe, `+0,` ERRX parsing, `bus_locked` fault |
+| 5.6 Async runs | `run_plan` returns `running` for long plans; progress via `get_run`, cancel via `safe_shutdown` from any process, MCP shutdown hook, auto-calibration off during async runs and restored |
+| 5.7 Archive + data contract | npz above 200k rows + `preview.csv`, manifest coverage of new files, CMU correction store, family tags in the analysis registry |
+| 5.8 Manual corpus | `b1500 manual search`, `page`, `toc`, `status`, `build`: 16 documents, 2,315 pages, BM25 with CJK bigrams, committed corpus |
+| 5.9 Device models v2 | MOS-C, fixture/capacitor, dielectric/TDDB, FeFET kinetics and FeCap, noise/RTN, MOSFET self-heating/BTI/HCI/C-V, IGZO transient, each against its §4.2 fidelity target |
+| 5.10 Skills v2 structure | Cards in family folders with a generated index, `b1500-bringup` skeleton, lint v2, three skills mirrored for Claude Code; acceptance S1, S4, S5 on both harnesses |
+
+## M6 — Lab-ready core (in progress)
+
+| WP | Result |
+|---|---|
+| 6.1 Probe + bootstrap | `b1500 doctor --probe` (read-only FLEX probe: VISA library and resources, identity, inventory vs station, errors, status byte, outputs, selectors, SPGU, MFCMU corrections; raw answers to `work/bringup/`), `b1500 bringup propose-station`, the human-only `b1500 config init` and `b1500 config adopt`; guard hook and the owner-authorized OD-5 harness permission change set |

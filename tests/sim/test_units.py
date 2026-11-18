@@ -1,7 +1,8 @@
 """Simulator units (blueprint 4.1): FLEX handlers registered by mnemonic, one handler per supported mnemonic.
 
 ``SimInstrument`` dispatches through ``units.base.handler_table``; ``units/core.py`` holds the family-independent
-handlers and ``units/smu.py`` the SMU handlers and measurement engine.
+handlers, ``units/smu.py`` the SMU handlers and measurement engine, ``units/{cmu,spgu,switch}.py`` the family state
+queries of the read-only probe (WP6.1).
 """
 
 from __future__ import annotations
@@ -10,12 +11,18 @@ import pytest
 
 from b1500_test_agent.transport.sim import SimInstrument, flex
 from b1500_test_agent.transport.sim.units.base import HANDLES_ATTR, handler_table, handles
+from b1500_test_agent.transport.sim.units.cmu import CmuUnit
 from b1500_test_agent.transport.sim.units.core import CoreUnit
 from b1500_test_agent.transport.sim.units.smu import SmuUnit
+from b1500_test_agent.transport.sim.units.spgu import SpguUnit
+from b1500_test_agent.transport.sim.units.switch import SwitchUnit
 
 CORE = {"*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "*RST", "LOP?", "*TST?", "*CAL?", "NUB?", "FMT", "BC", "TSC",
         "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "CM", "*LRN?"}
 SMU = {"RI", "RV", "MM", "CMM", "DV", "WV", "WT", "WM", "XE"}
+CMU = {"CORRST?", "ADJ?"}
+SPGU = {"SPST?"}
+SWITCH = {"ERMOD?", "ERSSP?"}
 
 
 def test_every_supported_mnemonic_has_exactly_one_handler() -> None:
@@ -24,10 +31,12 @@ def test_every_supported_mnemonic_has_exactly_one_handler() -> None:
     assert all(callable(getattr(SimInstrument, name)) for name in table.values())
 
 
-def test_units_split_the_v1_subset_by_family() -> None:
-    assert set(handler_table(CoreUnit)) == CORE
-    assert set(handler_table(SmuUnit)) == SMU
-    assert CORE | SMU == flex.SUPPORTED and not CORE & SMU
+def test_units_split_the_supported_subset_by_family() -> None:
+    families = {CoreUnit: CORE, SmuUnit: SMU, CmuUnit: CMU, SpguUnit: SPGU, SwitchUnit: SWITCH}
+    for unit, mnemonics in families.items():
+        assert set(handler_table(unit)) == mnemonics, unit.__name__
+    assert set().union(*families.values()) == flex.SUPPORTED
+    assert sum(len(m) for m in families.values()) == len(flex.SUPPORTED)  # disjoint
 
 
 def test_instance_dispatch_uses_the_registered_methods(make_sim) -> None:

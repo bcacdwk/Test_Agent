@@ -1,12 +1,14 @@
 """FLEX command builders and constants, the only home of FLEX mnemonics in string literals (blueprint 2.1, 2.5).
 
-One module per instrument family: ``core`` (system queries, output switches, ``FMT``, ``MM``, ``XE``/``AB``/``*RST``)
-and ``smu`` (``CMM``, ``AAD``/``AIT``, ``RI``/``RV``, ``WV``/``WT``/``WM``, ``DV``); later work packages add ``cmu``,
-``spgu`` and ``switch``. This package re-exports every public builder and constant, so callers import the package
-(``from b1500_test_agent.driver import flex``) and write ``flex.dv(...)``. Builders are pure (syntax and domain
-checks only, never policy) and return one command per string.
+One module per instrument family: ``core`` (system queries, output switches, ``FMT``, ``MM``,
+``XE``/``AB``/``*RST``), ``smu`` (``CMM``, ``AAD``/``AIT``, ``RI``/``RV``, ``WV``/``WT``/``WM``, ``DV``), ``cmu``
+(``CORRST?``, ``ADJ?``), ``spgu`` (``SPST?``) and ``switch`` (``ERMOD?``, ``ERSSP?``); the CMU, SPGU and switch
+work packages (M8, M9) add their setting commands to the same modules. This package re-exports every public
+builder and constant, so callers import the package (``from b1500_test_agent.driver import flex``) and write
+``flex.dv(...)``. Builders are pure (syntax and domain checks only, never policy) and return one command per string.
 """
 
+from b1500_test_agent.driver.flex.cmu import ADJ_READ_LAST, ADJ_RESULTS, CORRECTION_CODES, adj_q, corrst_q
 from b1500_test_agent.driver.flex.core import (
     AB,
     CAL_Q,
@@ -37,11 +39,20 @@ from b1500_test_agent.driver.flex.core import (
     mm,
 )
 from b1500_test_agent.driver.flex.smu import I_RANGE_CODES, V_RANGE_CODES, aad, ait, cmm, dv, ri, rv, wm, wt, wv
+from b1500_test_agent.driver.flex.spgu import SPST_Q, SPST_STATES
+from b1500_test_agent.driver.flex.switch import ERMOD_MAX, ERMOD_Q, ERMOD_SELECTOR, ERSSP_STATES, erssp_q
 
 __all__ = [
     "AB",
+    "ADJ_READ_LAST",
+    "ADJ_RESULTS",
     "CAL_Q",
+    "CORRECTION_CODES",
+    "ERMOD_MAX",
+    "ERMOD_Q",
+    "ERMOD_SELECTOR",
     "ERRX_Q",
+    "ERSSP_STATES",
     "FORMATS",
     "IDN_Q",
     "I_RANGE_CODES",
@@ -56,19 +67,24 @@ __all__ = [
     "OPC_Q",
     "RST",
     "SER_SETTING",
+    "SPST_Q",
+    "SPST_STATES",
     "STB_Q",
     "TST_Q",
     "UNT_Q",
     "V_RANGE_CODES",
     "XE",
     "aad",
+    "adj_q",
     "ait",
     "cl",
     "cm",
     "cmm",
     "cn",
+    "corrst_q",
     "dv",
     "dz",
+    "erssp_q",
     "fmt",
     "lrn_q",
     "mm",

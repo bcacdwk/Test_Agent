@@ -5,7 +5,8 @@ Behaviour follows the Keysight B1500 Series Programming Guide, Edition 15 ("PG",
 FLEX subset (``flex.SUPPORTED``); anything else queues error 100 and is logged ``unsupported``. ``SimInstrument``
 keeps the clock, the persistent state, the error queue, the command log, the measurement lifecycle and the dispatch;
 the FLEX handlers live in units registered by mnemonic (``units/core.py``: identity, status, buffer, format,
-output switches, A/D converters; ``units/smu.py``: ranging, modes, sources and the measurement engine). Each
+output switches, A/D converters; ``units/smu.py``: ranging, modes, sources and the measurement engine;
+``units/cmu.py``, ``units/spgu.py``, ``units/switch.py``: the family state queries of the bring-up probe). Each
 supported mnemonic has exactly one handler (``units.base.handler_table``; test ``tests/sim/test_units.py``).
 
 Time is virtual: ``clock`` (s) advances only when the host waits (a read, a serial poll). A measurement started by
@@ -61,8 +62,11 @@ from b1500_test_agent.transport.sim.state import (
     save_state_file,
 )
 from b1500_test_agent.transport.sim.units.base import DEFAULT_ICOMP, FOREVER, Measurement, Unsupported, handler_table
+from b1500_test_agent.transport.sim.units.cmu import CmuUnit
 from b1500_test_agent.transport.sim.units.core import CoreUnit
 from b1500_test_agent.transport.sim.units.smu import SmuUnit
+from b1500_test_agent.transport.sim.units.spgu import SpguUnit
+from b1500_test_agent.transport.sim.units.switch import SwitchUnit
 
 SCALED_TIME_FACTOR = SIM_SCALED_DEFAULT
 """Real seconds slept per virtual second with ``timing: scaled`` (no factor); ``scaled(f)`` sleeps ``f``."""
@@ -100,7 +104,7 @@ def _quick_mnemonic(part: str) -> str:
         return ""
 
 
-class SimInstrument(CoreUnit, SmuUnit):
+class SimInstrument(CoreUnit, SmuUnit, CmuUnit, SpguUnit, SwitchUnit):
     """In-process B1500A: ``handle(line)`` executes one command line and returns the query response, if any.
 
     Query responses and measurement data are buffered as on the instrument and read with ``read_message``.
@@ -420,6 +424,9 @@ class SimInstrument(CoreUnit, SmuUnit):
         self._timer_zero = self.clock
         self._reset_settings()
         self.state.auto_calibration = False  # CM initial setting OFF (PG p379 (4-61), PDF 180)
+        self._reset_switch_state()
+        self._reset_spgu_state()
+        self._reset_cmu_state()
         self.interrupt_pending = False
         for channel in list(self.state.channels):
             if not self.faults.stuck(channel):

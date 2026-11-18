@@ -57,7 +57,7 @@ Each test card names its stage (`bringup_stage`, shown in the card index of skil
 1. Read the stage file; check its preconditions (previous stage signed off, `station_status` clean,
    `uv run b1500 doctor` without FAIL).
 2. Physical steps: give the human the block of steps; wait for their confirmation in chat.
-3. Agent steps in the file's order: read-only checks first (`uv run b1500 doctor --probe` on backend visa), then
+3. Agent steps in the file's order: read-only checks first (`uv run b1500 doctor --probe`), then
    validated plans through skill `b1500-test` (summary, consent, run, quality gate, analysis).
 4. Compare with the expected values; any abort criterion: rule 3.
 5. Record: copy `records/_TEMPLATE.yaml` to `work/bringup/records/<stage>-<recipe_id>-<UTC date>.yaml`, fill the
@@ -84,5 +84,6 @@ runs the recipes of the cards that name it.
 - `validation/hw/<recipe_id>.yaml`: reviewed records, committed by the human.
 - Recipe promotion to `hw_validated`: a reviewed developer change after the session, never during bring-up.
 
-Commands named here: `uv run b1500 doctor`, `uv run b1500 doctor --probe` (read-only, backend visa only),
+Commands named here: `uv run b1500 doctor`, `uv run b1500 doctor --probe` (read-only; on the simulator it reads
+the simulator), `uv run b1500 bringup propose-station` (writes `work/bringup/station.proposed.yaml` + diff),
 `uv run b1500 config check`, `uv run b1500 status`, `uv run b1500 shutdown`. Each stage file names the rest.

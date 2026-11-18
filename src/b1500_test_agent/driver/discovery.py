@@ -18,6 +18,13 @@ Formats from the Keysight B1500 Series Programming Guide, Edition 15 ("PG"; PDF 
   The manual prints the syntax with a blank after each mnemonic but no example; the parser accepts the item with
   or without the blank. TODO(verify) the exact response text with a raw capture at bring-up L1.
 
+- Small-integer state queries of the bring-up probe (blueprint v2 7.1, WP6.1): ``ERMOD?`` (PDF 420-421, printed
+  4-102 to 4-103: the sum of the enabled digital I/O control modes, 0-63), ``ERSSP? port`` (PDF 434, printed 4-116:
+  0 open, 1 SMU, 2 PGU, 3 PGU open), ``SPST?`` (PDF 513-514, printed 4-195 to 4-196: 0 inactive, 1 active),
+  ``CORRST? chnum,corr`` (PDF 388, printed 4-70: 0 OFF, 1 ON) and ``ADJ? chnum,mode`` (PDF 356, printed 4-38:
+  0 completed, 1 failed, 2 aborted, 3 not performed). Each answers one integer; a leading ``+`` is accepted (the
+  lab firmware signs ``ERRX?`` codes, so it may sign these too). TODO(verify) raw captures at bring-up L0.
+
 ATV-1 (``LOP?`` usable for cleanup verification) holds per the manual for SMU and MFCMU slots: after ``CL`` every
 slot must read ``00``. Table 4-26 has no SPGU/WGFMU codes and reports per slot, not per subchannel, so those modules
 (never sourced in v1) would need the ``*LRN? 0`` fallback (output-switch list). Hardware confirmation: M4 L1.
@@ -28,7 +35,19 @@ from __future__ import annotations
 import re
 
 from b1500_test_agent.driver.errors import FlexParseError
-from b1500_test_agent.driver.flex import LOP_RESPONSE_PREFIX, LRN_AUTO_CALIBRATION, LRN_SETTINGS, lrn_q
+from b1500_test_agent.driver.flex import (
+    ADJ_RESULTS,
+    ERMOD_MAX,
+    ERMOD_Q,
+    ERSSP_STATES,
+    LOP_RESPONSE_PREFIX,
+    LRN_AUTO_CALIBRATION,
+    LRN_SETTINGS,
+    SPST_Q,
+    SPST_STATES,
+    lrn_q,
+)
+from b1500_test_agent.models.routing import SwitchState
 from b1500_test_agent.models.station import ChannelOutput, Identity, InstalledModule, ModuleInventory
 
 SLOTS = 10
@@ -58,6 +77,7 @@ OUTPUT_OFF_CODE = "00"
 
 _LOP_RE = re.compile(rf"^{LOP_RESPONSE_PREFIX}\s?(?P<codes>\d{{2}}(?:,\d{{2}}){{{SLOTS - 1}}})$")
 _LRN_ITEM_RE = re.compile(r"^(?P<mnemonic>\*?[A-Z]+)\s?(?P<params>[-+0-9.,Ee\s]*)$")
+_SMALL_INT_RE = re.compile(r"^\+?(?P<value>\d{1,3})$")
 
 
 def parse_idn(text: str) -> Identity:
@@ -158,3 +178,60 @@ def parse_auto_calibration(text: str) -> bool:
         raise FlexParseError(f"{lrn_q(LRN_SETTINGS)} answer has no '{LRN_AUTO_CALIBRATION} 0|1' item: {text!r}",
                              raw=text)
     return params[0].lstrip("+") == "1"
+
+
+def _small_int(text: str, allowed: range | frozenset[int] | set[int], what: str) -> int:
+    """One unsigned integer answer (optional ``+``) from ``allowed``; ``FlexParseError`` otherwise."""
+    stripped = text.strip()
+    match = _SMALL_INT_RE.match(stripped)
+    value = int(match.group("value")) if match is not None else None
+    if value is None or value not in allowed:
+        raise FlexParseError(f"{what} answer is not one of {sorted(allowed)}: {text!r}", raw=text)
+    return value
+
+
+def parse_ermod(text: str) -> int:
+    """``ERMOD?`` -> the sum of the enabled digital I/O control modes, 0 to 63 (PG PDF 421); bit value 1 is the
+    16440A selector control mode (``flex.ERMOD_SELECTOR``).
+
+    Raises:
+        FlexParseError: If the answer is not an integer from 0 to 63.
+    """
+    return _small_int(text, range(ERMOD_MAX + 1), ERMOD_Q)
+
+
+def parse_erssp(text: str) -> SwitchState:
+    """``ERSSP? port`` -> the selector output state: ``open``, ``smu``, ``pgu`` or ``pgu_open`` (PG PDF 434).
+
+    Raises:
+        FlexParseError: If the answer is not 0, 1, 2 or 3.
+    """
+    return ERSSP_STATES[_small_int(text, set(ERSSP_STATES), "selector state (ERSSP?)")]
+
+
+def parse_spst(text: str) -> bool:
+    """``SPST?`` -> ``True`` while an SPGU pulse or ALWG sequence output is active (answer 1; PG PDF 513-514).
+
+    Raises:
+        FlexParseError: If the answer is not 0 or 1.
+    """
+    return _small_int(text, SPST_STATES, SPST_Q) == 1
+
+
+def parse_corrst(text: str) -> bool:
+    """``CORRST? chnum,corr`` -> ``True`` when the correction function is ON (answer 1; PG PDF 388).
+
+    Raises:
+        FlexParseError: If the answer is not 0 or 1.
+    """
+    return _small_int(text, {0, 1}, "correction state (CORRST?)") == 1
+
+
+def parse_adj(text: str) -> int:
+    """``ADJ? chnum,mode`` -> the phase compensation result code (PG PDF 356, ``flex.ADJ_RESULTS``): 0 completed,
+    1 failed, 2 aborted, 3 not performed.
+
+    Raises:
+        FlexParseError: If the answer is not 0, 1, 2 or 3.
+    """
+    return _small_int(text, set(ADJ_RESULTS), "phase compensation result (ADJ?)")

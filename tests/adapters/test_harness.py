@@ -64,7 +64,8 @@ def test_claude_settings_have_confirm_tool_in_ask_only_and_the_deny_rules() -> N
     settings = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
     perms = settings["permissions"]
     assert perms["ask"] == ["mcp__b1500__run_confirmed_plan"]
-    assert sorted(perms["allow"]) == sorted(f"mcp__b1500__{t}" for t in TOOL_NAMES if t != "run_confirmed_plan")
+    tools = sorted(f"mcp__b1500__{t}" for t in TOOL_NAMES if t != "run_confirmed_plan")
+    assert sorted(perms["allow"]) == sorted([*tools, *harness.CLAUDE_ALLOW_COMMANDS])
     assert set(perms["deny"]) == harness.CLAUDE_DENY
     assert all("run_confirmed_plan" not in rule for rule in perms["allow"] + perms["deny"])
 
@@ -106,6 +107,12 @@ def test_rules_check_detects_a_missing_or_weakened_rule() -> None:
         (["uv", "run", "b1500", "run", "--confirm", "P-X"], "forbidden"),
         (["uv", "run", "b1500", "run", "P-X"], None),
         (["b1500", "status"], None),
+        (["b1500", "config", "init"], "forbidden"),
+        (["uv", "run", "b1500", "config", "init", "--visa"], "forbidden"),
+        (["b1500", "config", "adopt", "x"], "forbidden"),
+        (["uv", "run", "b1500", "config", "adopt", "x", "--as", "station"], "forbidden"),
+        (["uv", "run", "b1500", "config", "check"], None),
+        (["uv", "run", "b1500", "manual", "search", "x"], None),
     ],
 )
 def test_codex_parses_and_applies_the_rules(argv: list[str], decision: str | None) -> None:

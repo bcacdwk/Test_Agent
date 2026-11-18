@@ -257,3 +257,20 @@ def test_parser_query_fixtures_match_the_simulator() -> None:
     transport.write("MM 2,3,4")
     assert transport.query("*LRN? 31") == lrn.body  # the simulator answers in the fixture's form
     assert re.fullmatch(r"\d+", transport.query("*TST?"))
+
+
+def test_probe_state_fixtures_match_the_simulator() -> None:
+    """The simulator answers ``ERMOD?``, ``ERSSP?``, ``SPST?``, ``CORRST?`` and ``ADJ? ch,0`` in the fixtures' form
+    (state seeded as the fixtures describe; the setting commands arrive with the family work packages)."""
+    fixtures = {f.kind: f for f in all_fixtures("ermod", "erssp", "spst", "corrst", "adj")}
+    transport = SimTransport(noiseless(load_scenario("lab_station")), state_file=None)
+    transport.open()
+    state = transport.instrument.state
+    assert [transport.query(c) for c in ("ERMOD?", "ERSSP? 0", "SPST?", "CORRST? 7,3", "ADJ? 7,0")] == [
+        "0", "0", "0", "0", fixtures["adj"].body]  # power-on state; ADJ? 3 = not performed
+    state.selector_mode, state.selector_ports[0], state.spgu_output_active = 28, 3, True
+    state.cmu_corrections[7] = {3: True}
+    assert transport.query("ERMOD?") == fixtures["ermod"].body
+    assert transport.query("ERSSP? 0") == fixtures["erssp"].body
+    assert transport.query("SPST?") == fixtures["spst"].body
+    assert transport.query("CORRST? 7,3") == fixtures["corrst"].body

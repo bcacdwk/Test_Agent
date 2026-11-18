@@ -10,9 +10,10 @@ usage errors.
   ``show RUN_ID`` · ``analyze RUN_ID METHOD -o k=v`` · ``note RUN_ID TEXT`` · ``shutdown [--reason]``
 - human-only: ``fault clear`` (safe shutdown, then clears the latch only when the shutdown verified the safe state)
   and ``lock status``
-- ``doctor`` (non-probe checks), ``config check``, ``harness init --codex|--claude [--check]`` (renders
-  ``config/harness/`` templates into the gitignored ``.codex/config.toml`` / ``.mcp.json``), ``mcp`` (stdio server,
-  same as ``b1500-mcp``)
+- ``doctor`` (installation checks) and ``doctor --probe`` (the read-only instrument probe, blueprint v2 7.1;
+  ``service/probe.py``), ``harness init --codex|--claude [--check]`` (renders ``config/harness/`` templates into
+  the gitignored ``.codex/config.toml`` / ``.mcp.json``), ``mcp`` (stdio server, same as ``b1500-mcp``); the
+  ``config`` group lives in ``config.py`` and the ``bringup`` group in ``bringup.py``
 
 ``run --confirm`` re-validates the plan, prints its summary and asks y/N on an interactive terminal only; without
 a TTY it exits non-zero and runs nothing (UX only: the harness tool confirmation is the approval, blueprint 4.3).
@@ -36,12 +37,12 @@ from typing import Annotated, Any
 import typer
 import yaml
 
-from b1500_test_agent.config import ConfigLoader
 from b1500_test_agent.devtools import (
     doctor,
     harness,
 )
-from b1500_test_agent.models.common import ConfigReport, ResultEnvelope
+from b1500_test_agent.models.bringup import ProbeReport
+from b1500_test_agent.models.common import ResultEnvelope
 from b1500_test_agent.models.plan import RunProgress
 from b1500_test_agent.models.results import (
     AnalysisResult,
@@ -84,8 +85,6 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
 )
-config_app = typer.Typer(help="Configuration (config/local/ over committed examples).", no_args_is_help=True)
-app.add_typer(config_app, name="config")
 fault_app = typer.Typer(help="Fault latch (human only).", no_args_is_help=True)
 app.add_typer(fault_app, name="fault")
 lock_app = typer.Typer(help="Instrument lock.", no_args_is_help=True)
@@ -606,54 +605,32 @@ def lock_status_command(as_json: JsonOption = False) -> None:
 # -- installation, configuration, server -----------------------------------------------------------------------------
 
 
+def probe_lines(report: ProbeReport) -> list[str]:
+    """One ``STATUS  name  detail`` line per probe check, then the record path."""
+    if not report.checks:
+        return []
+    width = max(len(c.name) for c in report.checks)
+    lines = [f"{c.status:<4}  {c.name:<{width}}  {c.detail}" for c in report.checks]
+    if report.record:
+        lines.append(f"raw answers: {report.record}")
+    return lines
+
+
 @app.command("doctor")
 def doctor_command(
-    probe: Annotated[bool, typer.Option("--probe", help="Read-only hardware probe (M4; refused on sim).")] = False,
+    probe: Annotated[bool, typer.Option("--probe", help="Read-only instrument probe instead of the installation "
+                                                        "checks (queries only, never a setting command).")] = False,
     as_json: JsonOption = False,
 ) -> None:
-    """Check the installation and station readiness (PASS/WARN/FAIL); exit 1 on any FAIL."""
+    """Check the installation and station readiness (PASS/WARN/FAIL); exit 1 on any FAIL. With --probe: the
+    read-only instrument probe (VISA library, resources, identity, inventory vs station.yaml, error queue, status
+    byte, outputs, selectors, SPGU, MFCMU corrections; raw answers to work/bringup/probe-<UTC>.json)."""
     if probe:
-        typer.echo(doctor.probe_refusal(), err=True)
-        raise typer.Exit(code=2)
+        report = B1500Admin(make_service()).probe()
+        emit(report, as_json, probe_lines(report))
+        return
     report = doctor.run_doctor()
     typer.echo(report.model_dump_json(indent=2) if as_json else doctor.format_report(report))
-    if not report.ok:
-        raise typer.Exit(code=1)
-
-
-def format_config_report(report: ConfigReport) -> str:
-    """Human-readable `b1500 config check` output: verdict, backend reason, files used, paths, problems."""
-    lines = [f"config: {'valid' if report.ok else 'INVALID (invalid_config)'}"]
-    if report.backend is not None:
-        lines.append(f"backend: {report.backend_reason}")
-    if report.files:
-        lines.append("files used:")
-        width = max(len(f.key) for f in report.files)
-        lines += [f"  {f.key:<{width}}  {f.source:<8}  {f.path}  sha256:{f.sha256[:12]}" for f in report.files]
-    if report.paths:
-        lines.append("paths:")
-        lines += [f"  {name}: {value}" for name, value in report.paths.items()]
-    if report.warnings:
-        lines.append("warnings:")
-        lines += [f"  - {warning}" for warning in report.warnings]
-    if report.problems:
-        lines.append("problems:")
-        for problem in report.problems:
-            where = problem.file or "config"
-            if problem.location:
-                where += f" [{problem.location}]"
-            lines.append(f"  - {where}: {problem.message}")
-    return "\n".join(lines)
-
-
-@config_app.command("check")
-def config_check(as_json: JsonOption = False) -> None:
-    """Validate the configuration (rule R-CFG-01) and show which file is used for each item and why.
-
-    Exit code 0 when valid, 1 with structured problems (error code invalid_config) otherwise.
-    """
-    report = ConfigLoader().check()
-    typer.echo(report.model_dump_json(indent=2) if as_json else format_config_report(report))
     if not report.ok:
         raise typer.Exit(code=1)
 

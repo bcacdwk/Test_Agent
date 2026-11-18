@@ -75,6 +75,43 @@ def test_shell_commands_are_blocked(command: str) -> None:
     assert "MCP tools" in stderr
 
 
+# The configuration bootstrap is human-only (blueprint v2 7.1, WP6.1). The command strings are built by
+# concatenation so that no shell command of the executor that edits this file contains them (the hook would block it).
+B1500 = "b1500"
+CONFIG = "config"
+BOOTSTRAP_COMMANDS = [
+    f"uv run {B1500} {CONFIG} adopt x",  # the AC command
+    f"uv run {B1500} {CONFIG} init",
+    f"uv run {B1500} {CONFIG} init --visa",
+    f"{B1500} {CONFIG} adopt work/bringup/station.proposed.yaml --as station",
+    f"{B1500} {CONFIG} init",
+    f"uv run --frozen {B1500} {CONFIG} adopt x --as pinmap",
+    f"cd C:/b1500/test_agent && uv run {B1500}  {CONFIG}   adopt x",
+    f"uv run {B1500} '{CONFIG}' \"adopt\" x",
+    f"{B1500.upper()}.exe {CONFIG.upper()} INIT",
+    f"uv run {B1500} {CONFIG} adopt\nx",
+]
+
+
+@pytest.mark.parametrize("command", BOOTSTRAP_COMMANDS)
+def test_configuration_bootstrap_is_blocked(command: str) -> None:
+    stderr = assert_blocked(run_hook(event("Bash", {"command": command, "description": "x"})))
+    assert "config init" in stderr and "config adopt" in stderr and "propose-station" in stderr
+
+
+@pytest.mark.parametrize("command", [
+    f"uv run {B1500} {CONFIG} check",
+    f"uv run {B1500} {CONFIG} check --json",
+    f"uv run {B1500} bringup propose-station",
+    f"uv run {B1500} doctor --probe",
+    f"uv run {B1500} manual search 'ERSSP status'",
+    f"uv run {B1500} {CONFIG} initialize-nothing",  # not a command, but not the bootstrap either
+    "grep -rn 'adopt' docs/deployment-windows.md",
+])
+def test_reading_configuration_and_proposals_pass(command: str) -> None:
+    assert_allowed(run_hook(event("Bash", {"command": command})))
+
+
 def test_powershell_tool_is_guarded_too() -> None:
     assert_blocked(run_hook(event("PowerShell", {"command": "uv run b1500 fault clear"})))
 
@@ -192,3 +229,5 @@ def test_settings_hook_command_blocks_as_configured() -> None:
     assert_blocked(run_hook(event("Bash", {"command": "b1500 fault clear"}), argv))
     assert_blocked(run_hook(event("Bash", {"command": "uv run b1500 run --confirm P-X"}), argv))
     assert_allowed(run_hook(event("Bash", {"command": "uv run b1500 status"}), argv))
+    assert_blocked(run_hook(event("Bash", {"command": f"uv run {B1500} {CONFIG} adopt x"}), argv))
+    assert_blocked(run_hook(event("PowerShell", {"command": f"uv run {B1500} {CONFIG} init --visa"}), argv))

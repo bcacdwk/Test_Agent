@@ -285,19 +285,30 @@ used.
   hashes, and no configuration can exceed the hard ceiling.
 
 **Remaining mitigations.** The separate confirmation tool and the server-checked summary echo; the hard-limit code
-ceiling; Codex `forbidden` rules and Claude Code deny rules on `b1500 fault` and `b1500 run --confirm` (they hold
-even in bypass modes); Claude Code deny rules on edits of `config/local/**` and `data/**` plus a `PreToolUse` hook that
+ceiling; Codex `forbidden` rules and Claude Code deny rules on `b1500 fault`, `b1500 run --confirm` and the configuration
+bootstrap `b1500 config init|adopt` (they hold even in bypass modes; owner decision OD-5); Claude Code deny rules on edits of `config/local/**` and `data/**` plus a `PreToolUse` hook that
 also blocks `pyvisa`; config hashes and per-call audit events; the agent rules in `AGENTS.md` and the skills; and
 the M3 safety scenarios (S2, S5, S6, S9) on both harnesses.
 
 **Harness files** (`b1500 harness init --codex --claude --check` verifies them). Codex: `.codex/rules/b1500.rules`
-forbids the two human-only commands (also after `uv run`; argv-prefix match). Claude Code: `.claude/settings.json`
-allows the nine other tools, asks for `run_confirmed_plan`, denies the two human-only commands and edits of
-`config/local/**`, `data/**` and the harness settings, and runs `scripts/hooks/b1500_guard.py` before every shell or
+forbids the human-only commands `fault`, `run --confirm`, `config init` and `config adopt` (also after `uv run`;
+argv-prefix match). Claude Code: `.claude/settings.json` allows the nine other tools, the read-only
+`uv run b1500 manual …` commands and the read-only `bringup` helpers (status, propose-station, capture, record;
+OD-5), asks for `run_confirmed_plan`, denies the human-only commands and edits of `config/local/**`, `data/**` and
+the harness settings, and runs `scripts/hooks/b1500_guard.py` before every shell or
 file-editing call. The hook fails closed (`onFailure: block`, Claude Code 2.1.295 or later): if it cannot run (for
 example `uv` missing from `PATH`), shell and edit calls are blocked until a human fixes it. Its shell check matches
 text, so any command that merely mentions a human-only command is blocked too. Whether hooks also run in
 `bypassPermissions` mode is not verified (ATV-8); the deny rules hold there.
+
+**Read-only probe and configuration bootstrap (blueprint v2 7.1, WP6.1).** `b1500 doctor --probe` and `b1500 bringup propose-station`
+reach the instrument only through `Session.read_only`: its `ReadOnlyTransport` passes a command only when it is one query
+(header = mnemonic + `?`, no `;`) and refuses every setting command, a device clear (it re-initialises the instrument)
+and a serial poll (it clears status bits), so neither can switch an output; the status snapshot uses the same link.
+Residual: `ADJ? ch,0` is a query that, per the manual, re-applies the last phase compensation and resets the MFCMU
+(TODO(verify) at bring-up L0 that no output changes). The proposal is written to `work/bringup/`; only the human adopts
+it (`config adopt`, human only: denied by the harness rules and blocked by the guard hook), and `config adopt` refuses a
+file that does not validate against its schema and keeps the replaced file as `<file>.bak`.
 
 **Physical backstop.** Outputs stay at or below 42 V while the interlock is open (keep it open; v1 has no
 high-voltage workflow), per-channel compliance limits current, and the shield box encloses the DUT.

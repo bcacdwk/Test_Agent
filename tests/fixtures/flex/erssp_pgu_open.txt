@@ -1,0 +1,6 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 434 (printed 4-116, ERSSP? port response: 0 all open, 1 SMU on, 2 PGU on, 3 PGU open)
+# kind: erssp
+# command: ERSSP? 0
+# expect: {"state": "pgu_open"}
+# note: synthetic answer 3 (PGU open, semiconductor relay open; CH 1 of a selector only, PG PDF 154). TODO(verify) the raw answer at bring-up L7.
+3

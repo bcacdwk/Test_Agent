@@ -9,7 +9,12 @@
       "mcp__b1500__get_run",
       "mcp__b1500__analyze_run",
       "mcp__b1500__annotate_run",
-      "mcp__b1500__safe_shutdown"
+      "mcp__b1500__safe_shutdown",
+      "Bash(uv run b1500 manual *)",
+      "Bash(uv run b1500 bringup status*)",
+      "Bash(uv run b1500 bringup propose-station*)",
+      "Bash(uv run b1500 bringup capture*)",
+      "Bash(uv run b1500 bringup record*)"
     ],
     "ask": [
       "mcp__b1500__run_confirmed_plan"
@@ -19,6 +24,10 @@
       "Bash(uv run b1500 fault *)",
       "Bash(b1500 run --confirm *)",
       "Bash(uv run b1500 run --confirm *)",
+      "Bash(b1500 config init*)",
+      "Bash(uv run b1500 config init*)",
+      "Bash(b1500 config adopt*)",
+      "Bash(uv run b1500 config adopt*)",
       "Edit(config/local/**)",
       "Edit(data/**)",
       "Edit(.claude/settings*.json)",

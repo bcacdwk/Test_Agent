@@ -22,11 +22,20 @@ plan-phase rule R-PIN-01 blocks the plans that use them.
 
 ``ConfigLoader.get()`` re-reads the raw bytes on every call (cheap: a few small files) and re-parses only when a
 digest or the set of files changed (the "digest cache" of blueprint 2.9).
+
+Bootstrap (blueprint v2 7.1; human-only CLI, blocked for agents by the harness rules and the guard hook):
+``init_local`` copies the missing core examples into ``config/local/`` (``config init [--visa]``, never overwrites)
+and ``adopt`` validates one file against its schema, shows the diff and copies it there (``config adopt FILE --as
+station|settings|policy|pinmap|dut``, previous file kept as ``<file>.bak``). With ``$B1500_CONFIG_DIR`` set (tests,
+M3 runner) both write into that directory instead, so tests never touch the clone's ``config/local/``.
 """
 
 from __future__ import annotations
 
+import difflib
 import hashlib
+import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,6 +45,7 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from b1500_test_agent.errors import InvalidConfigError
+from b1500_test_agent.models.bringup import ConfigAdoptReport, ConfigInitReport, ConfigKind
 from b1500_test_agent.models.common import (
     Backend,
     ConfigFile,
@@ -482,3 +492,172 @@ def load_config(paths: Paths | None = None) -> ConfigBundle:
 def check_config(paths: Paths | None = None) -> ConfigReport:
     """Check the configuration once; never raises."""
     return ConfigLoader(paths).check()
+
+
+# -- Local configuration bootstrap (human-only CLI ``config init`` / ``config adopt``; blueprint v2 7.1) --------------
+
+ADOPT_TARGETS: dict[ConfigKind, tuple[str, type[BaseModel]]] = {
+    "settings": ("settings.yaml", Settings),
+    "station": ("station.yaml", StationProfile),
+    "policy": ("policy.yaml", Policy),
+    "pinmap": ("pinmaps", PinMap),
+    "dut": ("duts", DutProfile),
+}
+"""``--as`` kind -> local file (core items) or directory (named items) and its schema."""
+
+_BACKEND_LINE = re.compile(r"^backend:[ \t]*sim\b", re.MULTILINE)
+
+
+def bootstrap_dir(paths: Paths) -> Path:
+    """Where ``config init``/``config adopt`` write: ``$B1500_CONFIG_DIR`` when it is set (tests and the M3 runner,
+    which must never touch the clone's ``config/local/``), else ``config/local/``."""
+    return paths.override_config_dir if paths.override_config_dir is not None else paths.local_config_dir
+
+
+def _write_text(path: Path, text: str, *, exclusive: bool = False) -> None:
+    """Write UTF-8 text with LF line ends: atomically (temporary file + ``os.replace``), or, with ``exclusive``,
+    only when the file does not exist yet (``FileExistsError`` otherwise)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if exclusive:
+        with path.open("x", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+        return
+    tmp = path.with_name(f"{path.name}.tmp-{os.getpid()}")
+    try:
+        with tmp.open("w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
+
+
+def init_local(paths: Paths | None = None, *, visa: bool = False) -> ConfigInitReport:
+    """``b1500 config init [--visa]`` (human only): copy every missing ``config/<item>.example.yaml`` (settings,
+    station, policy) to ``<item>.yaml`` in ``bootstrap_dir`` and create its empty ``pinmaps/`` and ``duts/``
+    directories. An existing file is never overwritten. ``visa`` writes ``backend: visa`` into a settings file it
+    creates (a kept settings file is only reported). Pin maps and DUT profiles are adopted one by one with
+    ``config adopt`` (examples are never used with backend visa). The configuration check runs at the end."""
+    paths = paths if paths is not None else Paths.from_env()
+    target = bootstrap_dir(paths)
+    report = ConfigInitReport(ok=True, target_dir=paths.display(target))  # lists filled below, flags at the end
+    for item in CORE_ITEMS:
+        source = paths.config_dir / f"{item}{_EXAMPLE_SUFFIX}"
+        destination = target / f"{item}{_LOCAL_SUFFIX}"
+        shown = paths.display(destination)
+        if destination.exists():
+            report.kept.append(shown)
+            if visa and item == "settings":
+                try:
+                    current = load_yaml(destination.read_bytes())
+                except (OSError, yaml.YAMLError, UnicodeDecodeError) as exc:
+                    report.problems.append(f"{shown}: cannot read it ({exc})")
+                    continue
+                if not isinstance(current, dict) or current.get("backend") != "visa":
+                    report.notes.append(f"{shown} exists and does not select backend visa; it was kept: edit "
+                                        "`backend: visa` there yourself")
+            continue
+        try:
+            text = source.read_text(encoding="utf-8")
+        except OSError as exc:
+            report.problems.append(f"{paths.display(source)}: cannot read the example ({exc}; git pull)")
+            continue
+        if visa and item == "settings":
+            text, count = _BACKEND_LINE.subn("backend: visa", text, count=1)
+            if count != 1:
+                report.problems.append(f"{paths.display(source)} has no `backend: sim` line to switch; copy it "
+                                       "and set backend: visa by hand")
+                continue
+        try:
+            _write_text(destination, text, exclusive=True)
+        except FileExistsError:
+            report.kept.append(shown)
+            continue
+        except OSError as exc:
+            report.problems.append(f"{shown}: cannot write it ({exc})")
+            continue
+        report.copied.append(shown)
+    for folder in ("pinmaps", "duts"):
+        try:
+            (target / folder).mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            report.problems.append(f"{paths.display(target / folder)}: cannot create it ({exc})")
+    if visa and paths.override_config_dir is not None:
+        report.notes.append(f"${ENV_CONFIG_DIR} is set: backend visa refuses it (R-CFG-01); this is a test copy")
+    return report.model_copy(update={"ok": not report.problems, "check": ConfigLoader(paths).check()})
+
+
+def _adopted_name(source: Path, data: dict[str, Any]) -> str:
+    """The name a pin map or DUT profile is adopted under: its ``name`` key, else the file name without
+    ``.yaml``/``.example.yaml``."""
+    name = data.get("name")
+    if isinstance(name, str) and name:
+        return name
+    stem = source.name
+    for suffix in (_EXAMPLE_SUFFIX, _LOCAL_SUFFIX, ".yml"):
+        if stem.endswith(suffix):
+            return stem[: -len(suffix)]
+    return source.stem
+
+
+def adopt(source: Path, kind: ConfigKind, paths: Paths | None = None) -> ConfigAdoptReport:
+    """``b1500 config adopt FILE --as KIND`` (human only): validate ``source`` against the schema of ``kind``,
+    diff it against the local file it replaces, back that file up as ``<file>.bak`` and copy ``source`` (its exact
+    text, comments included) into ``bootstrap_dir``; then run the configuration check. A file that does not
+    validate is refused and nothing is written; an identical file is left alone."""
+    paths = paths if paths is not None else Paths.from_env()
+    source = Path(source)
+    shown = paths.display(source)
+
+    def refused(*problems: str, target: str | None = None) -> ConfigAdoptReport:
+        return ConfigAdoptReport(ok=False, kind=kind, source=shown, target=target, problems=list(problems))
+
+    where, model = ADOPT_TARGETS[kind]
+    try:
+        raw = source.read_bytes()
+        data = load_yaml(raw)
+        text = raw.decode("utf-8-sig")
+    except OSError as exc:
+        return refused(f"cannot read {shown}: {exc}")
+    except (yaml.YAMLError, UnicodeDecodeError) as exc:
+        return refused(f"{shown} is not valid UTF-8 YAML: {exc}")
+    if not isinstance(data, dict):
+        return refused(f"{shown}: the top level must be a mapping")
+    target_dir = bootstrap_dir(paths)
+    if kind in ("pinmap", "dut"):
+        name = _adopted_name(source, data)
+        candidate = {**data, "name": name}
+        destination = target_dir / where / f"{name}{_LOCAL_SUFFIX}"
+    else:
+        candidate = data
+        destination = target_dir / where
+    try:
+        model.model_validate(candidate)
+    except ValidationError as exc:
+        return refused(*(f"{'.'.join(str(part) for part in err['loc']) or 'file'}: {err['msg']}"
+                         for err in exc.errors(include_url=False, include_input=False)))
+    target = paths.display(destination)
+    if destination.exists() and destination.resolve() == source.resolve():
+        return refused(f"{shown} already is the local file", target=target)
+    try:
+        current = destination.read_text(encoding="utf-8-sig") if destination.exists() else None
+    except OSError as exc:
+        return refused(f"cannot read {target}: {exc}", target=target)
+    if current is not None and current == text:
+        check = ConfigLoader(paths).check()
+        return ConfigAdoptReport(ok=check.ok, kind=kind, source=shown, target=target, unchanged=True, check=check)
+    diff = list(difflib.unified_diff((current or "").splitlines(), text.splitlines(),
+                                     fromfile=target if current is not None else "/dev/null", tofile=shown,
+                                     lineterm=""))
+    backup: str | None = None
+    try:
+        if current is not None:
+            backup_path = destination.with_name(destination.name + ".bak")
+            _write_text(backup_path, current)
+            backup = paths.display(backup_path)
+        _write_text(destination, text)
+    except OSError as exc:
+        return refused(f"cannot write {target}: {exc}", target=target)
+    check = ConfigLoader(paths).check()
+    return ConfigAdoptReport(ok=check.ok, kind=kind, source=shown, target=target, adopted=True, backup=backup,
+                             diff=diff, check=check)

@@ -1,0 +1,6 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 355-356 (printed 4-37 to 4-38, ADJ? chnum,mode response: 0 completed, 1 failed, 2 aborted, 3 not performed; mode 0 returns the last result without measuring)
+# kind: adj
+# command: ADJ? 7,0
+# expect: {"result": 3}
+# note: synthetic answer 3: no phase compensation measurement since power-on (the manual: "If the phase compensation measurement has never been performed, result=3 is returned"). TODO(verify) at bring-up L0/L6.
+3

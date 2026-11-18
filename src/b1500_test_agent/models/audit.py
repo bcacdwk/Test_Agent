@@ -25,12 +25,13 @@ AuditEventName = Literal[
     "write", "read", "query", "poll", "device_clear",
     "data_block", "instrument_error", "envelope_violation", "fault", "fault_cleared",
     "cleanup_step", "cleanup_verified", "cleanup_unverified", "lock_released", "run_status", "tool_call",
-    "bus_open", "bus_lock", "bus_unlock", "bus_close", "abort_requested", "run_cancelled",
+    "bus_open", "bus_lock", "bus_unlock", "bus_close", "abort_requested", "run_cancelled", "probe",
 ]  # fmt: skip
 """Event names of blueprint 2.7 plus ``device_clear`` (the transport-level SDC, which 2.7 does not name), the bus
 lifecycle events of blueprint v2 2.4 (``bus_*``: open, exclusive lock, unlock, close of the instrument link per
 transaction; ``dur_ms`` measures the per-transaction overhead, ATV-13) and the async-run events of v2 2.6
-(``abort_requested``: an abort file was written; ``run_cancelled``: a run honoured it at a checkpoint)."""
+(``abort_requested``: an abort file was written; ``run_cancelled``: a run honoured it at a checkpoint) and the
+read-only bring-up probe of v2 7.1 (``probe``: the verdict of every probe line and where its raw record went)."""
 
 TRANSPORT_EVENTS: frozenset[str] = frozenset({"write", "read", "query", "poll", "device_clear"})
 """Events emitted by ``AuditingTransport`` for instrument I/O (one per I/O call)."""

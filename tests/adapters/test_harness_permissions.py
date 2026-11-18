@@ -1,0 +1,101 @@
+"""The owner-authorized OD-5 harness permission change set (blueprint v2 §12 OD-5, §0 row 32, §10.0 guardrail 5;
+WP6.1), as applied once by the orchestrator to ``.claude/settings.json`` and ``.codex/rules/b1500.rules``.
+
+The change set is written in ``docs/deployment-windows.md`` §"Harness permissions"; these tests assert the applied
+files carry exactly those lines, that the document and ``devtools/harness.py`` agree, and (with the Codex CLI
+installed) that ``codex execpolicy check`` forbids the configuration bootstrap with and without ``uv run`` while
+read-only manual queries stay unmatched. Command strings are lists of argv words, never shell text.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from b1500_test_agent.devtools import harness
+
+ROOT = Path(__file__).resolve().parents[2]
+SETTINGS = ROOT / ".claude" / "settings.json"
+RULES = ROOT / ".codex" / "rules" / "b1500.rules"
+DEPLOYMENT = ROOT / "docs" / "deployment-windows.md"
+
+B1500 = "b1500"
+OD5_ALLOW = [
+    f"Bash(uv run {B1500} manual *)",
+    f"Bash(uv run {B1500} bringup status*)",
+    f"Bash(uv run {B1500} bringup propose-station*)",
+    f"Bash(uv run {B1500} bringup capture*)",
+    f"Bash(uv run {B1500} bringup record*)",
+]
+OD5_DENY = [
+    f"Bash({B1500} config init*)",
+    f"Bash(uv run {B1500} config init*)",
+    f"Bash({B1500} config adopt*)",
+    f"Bash(uv run {B1500} config adopt*)",
+]
+OD5_FORBIDDEN = [
+    [B1500, "config", "init"],
+    ["uv", "run", B1500, "config", "init"],
+    [B1500, "config", "adopt"],
+    ["uv", "run", B1500, "config", "adopt"],
+]
+
+
+def harness_section() -> str:
+    text = DEPLOYMENT.read_text(encoding="utf-8")
+    match = re.search(r"^## Harness permissions\b.*?(?=^## |\Z)", text, re.MULTILINE | re.DOTALL)
+    assert match is not None, "docs/deployment-windows.md has no '## Harness permissions' section"
+    return match.group(0)
+
+
+def test_claude_settings_carry_the_od5_lines() -> None:
+    perms = json.loads(SETTINGS.read_text(encoding="utf-8"))["permissions"]
+    assert set(OD5_ALLOW) <= set(perms["allow"]) and set(OD5_DENY) <= set(perms["deny"])
+    assert not set(OD5_ALLOW) & set(perms["deny"]) and not set(OD5_DENY) & set(perms["allow"])
+    assert perms["ask"] == ["mcp__b1500__run_confirmed_plan"]
+    assert harness.claude_settings_problems(SETTINGS.read_text(encoding="utf-8")) == []
+
+
+def test_codex_rules_forbid_the_configuration_bootstrap() -> None:
+    text = RULES.read_text(encoding="utf-8")
+    assert harness.codex_rules_problems(text) == []
+    for prefix in OD5_FORBIDDEN:
+        assert json.dumps(prefix) in text, prefix
+    # every rule carries match / not_match examples (Codex verifies them when it loads the file)
+    rules = re.findall(r"prefix_rule\((.*?)\n\)", text, re.DOTALL)
+    assert len(rules) == 8 and all("match = [" in r and "not_match = [" in r for r in rules)
+
+
+def test_the_code_expects_exactly_the_documented_change_set() -> None:
+    assert harness.CLAUDE_ALLOW_COMMANDS == frozenset(OD5_ALLOW)
+    assert set(OD5_DENY) <= harness.CLAUDE_DENY
+    assert {tuple(p) for p in OD5_FORBIDDEN} <= set(harness.FORBIDDEN_PREFIXES)
+    section = harness_section()
+    for line in [*OD5_ALLOW, *OD5_DENY]:
+        assert f'"{line}"' in section, line
+    for prefix in OD5_FORBIDDEN:
+        assert json.dumps(prefix) in section, prefix
+
+
+@pytest.mark.skipif(shutil.which("codex") is None, reason="codex CLI not installed")
+@pytest.mark.parametrize(
+    ("argv", "decision"),
+    [
+        *[(prefix, "forbidden") for prefix in OD5_FORBIDDEN],
+        (["uv", "run", B1500, "config", "adopt", "work/bringup/station.proposed.yaml", "--as", "station"],
+         "forbidden"),
+        (["uv", "run", B1500, "manual", "search", "x"], None),
+        (["uv", "run", B1500, "bringup", "propose-station"], None),
+        (["uv", "run", B1500, "config", "check"], None),
+    ],
+)
+def test_codex_execpolicy_applies_the_od5_rules(argv: list[str], decision: str | None) -> None:
+    result = subprocess.run(["codex", "execpolicy", "check", "--rules", str(RULES), *argv], capture_output=True,
+                            text=True, encoding="utf-8", timeout=60, check=False)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout).get("decision") == decision

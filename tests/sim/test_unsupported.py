@@ -34,7 +34,8 @@ def test_unsupported_command_stops_the_rest_of_its_line(make_sim) -> None:
 
 def test_supported_commands_are_exactly_the_v1_subset() -> None:
     """Blueprint 3 table: identity/status, buffer/format, channel, ADC/range, mode/source rows; v2 2.6 adds the
-    auto-calibration switch ``CM`` and its read-back ``*LRN?`` (types 0 and 31)."""
+    auto-calibration switch ``CM`` and its read-back ``*LRN?`` (types 0 and 31); v2 7.1 (WP6.1) the family state
+    queries of the read-only probe."""
     assert flex.SUPPORTED == {
         "*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "*RST", "LOP?", "*TST?", "*CAL?",
         "FMT", "BC", "NUB?", "TSC",
@@ -42,6 +43,7 @@ def test_supported_commands_are_exactly_the_v1_subset() -> None:
         "AAD", "AIT", "AV", "RI", "RV",
         "MM", "CMM", "DV", "WV", "WT", "WM", "XE",
         "CM", "*LRN?",
+        "ERMOD?", "ERSSP?", "SPST?", "CORRST?", "ADJ?",
     }  # fmt: skip
 
 

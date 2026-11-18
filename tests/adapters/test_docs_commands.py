@@ -87,7 +87,7 @@ STAGES = ("Stage 0", "L0", "L1", "L2", "L3", "L4")
 STAGE_FIELDS = ("Preconditions", "Commands", "Expected values", "Abort criteria", "Sign-off")
 STAGE_ATVS = {"Stage 0": ("ATV-3",), "L0": ("ATV-2", "ATV-10", "ATV-4"), "L1": ("ATV-1",), "L4": ("ATV-11", "ATV-7")}
 STAGE_COMMANDS = {
-    "L0": ("doctor --probe", "status"),
+    "L0": ("doctor --probe", "bringup propose-station", "config adopt", "config check", "status"),
     "L1": ("plan basic.contact_resistor", "run --confirm", "shutdown", "analyze"),
     "L2": ("plan basic.contact_resistor", "run --confirm"),
     "L3": ("plan basic.diode_iv", "run --confirm"),
@@ -135,9 +135,12 @@ def test_bringup_attaches_each_atv_with_its_fallback() -> None:
 # -- deployment-windows.md (WP4.2) ----------------------------------------------------------------------------------
 
 REQUIRED_FACTS = ("GPIB adapter", "VISA vendor", "Internet", "wheelhouse", "EasyEXPERT", "versions", "Backup")
-PROCEDURE_ORDER = (  # blueprint 7: Python + uv + VISA -> clone -> sync -> config/local -> probe -> harness -> Codex
-    "uv python install", "VISA stack", "git clone", "uv sync --frozen", "Copy-Item config\\settings.example.yaml",
-    "b1500 doctor --probe", "b1500 harness init --codex", "```powershell\ncodex\n```",
+PROCEDURE_ORDER = (  # blueprint v2 7.5: Python + uv + VISA -> clone -> sync -> config init -> probe -> proposal ->
+    # adoption -> harness -> Codex (the bootstrap commands are the human's; WP6.1)
+    "uv python install", "VISA stack", "git clone", "uv sync --frozen", "uv run b1500 config init --visa",
+    "uv run b1500 doctor --probe", "uv run b1500 bringup propose-station",
+    "uv run b1500 config adopt work\\bringup\\station.proposed.yaml --as station", "b1500 harness init --codex",
+    "```powershell\ncodex\n```",
 )
 DEPLOYMENT_ATVS = ("ATV-4", "ATV-7", "ATV-8", "ATV-11")
 

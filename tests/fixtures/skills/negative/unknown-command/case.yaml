@@ -7,4 +7,4 @@ expect:
   - {code: command, file: .agents/skills/b1500-test/SKILL.md, contains: "no command `b1500 stauts`"}
   - {code: command, file: .agents/skills/b1500-test/SKILL.md, contains: "`b1500 doctor` has no option --yolo"}
   - {code: command, file: .agents/skills/b1500-test/SKILL.md, contains: "no command `b1500 recepies`"}
-  - {code: command, file: docs/guide.md, contains: "no command `b1500 bringup`"}
+  - {code: command, file: docs/guide.md, contains: "no command `b1500 bringpu`"}

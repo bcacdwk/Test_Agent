@@ -115,13 +115,17 @@ station.yaml updated [ ] EasyEXPERT exited [ ] — name ________ date ________`
 
 ## L0 — Read-only probe
 
-Nothing in this stage turns an output switch on: only queries (`*IDN?`, `UNT?`, `ERRX?`, `*STB?`, `LOP?`).
+Nothing in this stage turns an output switch on: only queries (`*IDN?`, `UNT?`, `ERRX?`, `*STB?`, `LOP?`,
+`*LRN? 31`, `ERMOD?`/`ERSSP?`, `SPST?`, `CORRST?`/`ADJ? ch,0`). The probe, the station proposal and the configuration
+adoption are the commands of blueprint v2 §7.1 (WP6.1); [deployment-windows.md](deployment-windows.md) steps 4–5 run
+them for the first time.
 
 ### Preconditions
 
 - Stage 0 signed off; DUT disconnected; EasyEXPERT exited (Start EasyEXPERT button visible or minimized).
-- `config\local\settings.yaml` has `backend: visa` and the resource (default `GPIB0::17::INSTR`);
-  `config\local\station.yaml` and `config\local\policy.yaml` exist. No harness running.
+- `config\local\` created by you with `uv run b1500 config init --visa` (human only): `settings.yaml` has
+  `backend: visa` and the resource (default `GPIB0::17::INSTR`); `station.yaml` and `policy.yaml` exist. No harness
+  running.
 
 ### Commands
 
@@ -129,21 +133,31 @@ Nothing in this stage turns an output switch on: only queries (`*IDN?`, `UNT?`, 
 uv run b1500 config check
 uv run b1500 doctor
 uv run b1500 doctor --probe
-uv run b1500 status
+uv run b1500 bringup propose-station
+uv run b1500 config adopt work\bringup\station.proposed.yaml --as station
+uv run b1500 config check
+uv run b1500 doctor --probe --json
 uv run b1500 status
 uv run b1500 status --json
 uv run b1500 lock status
 ```
 
-- `doctor --probe` is **not implemented on visa in v1**: it prints "doctor --probe is not implemented yet" and exits
-  with code 2. TODO (M4 code, before this stage is executed): implement the read-only probe of blueprint §7 (VISA
-  library loads, `list_resources()` lists the resource, `*IDN?` contains `B1500A`, `UNT?` equals the station profile,
-  `ERRX?` clear, STB decoded; never `CN`). Until then `uv run b1500 status` sends the same queries read-only, and the
-  vendor tool (Keysight Connection Expert or NI MAX) shows the VISA library and the resource list.
-- Run `status` twice: the first call after power-on may drain old error-queue entries.
+- `doctor --probe` is the read-only probe: VISA library and `list_resources()`, open + exclusive lock, `*IDN?`
+  (`B1500A`, firmware recorded), `UNT?` against `config\local\station.yaml`, `ERRX?` drained (`0,` and `+0,` both
+  mean empty), `*STB?`, `LOP?`, `*LRN? 31`, `ERMOD?` and, with the selector control mode on, `ERSSP?` per declared
+  selector output, `SPST?` (SPGU installed), `CORRST?` and `ADJ? ch,0` per MFCMU, then unlock and close. One
+  PASS/INFO/WARN/FAIL line per check, exit code 1 on FAIL; every raw answer goes to `work\bringup\probe-<UTC>.json`.
+  It never sends `CN` or any setting command (its link refuses anything but queries). `ADJ? ch,0` only reads the last
+  phase compensation result; TODO(verify) that it changes no output (the manual says `ADJ?` resets the MFCMU).
+- `bringup propose-station` (the agent may run it) writes `work\bringup\station.proposed.yaml` from `*IDN?` and
+  `UNT?` and prints the diff against `config\local\station.yaml`; switch wiring stays `null`/`unverified` (L7 records
+  it). You review it and adopt it with `config adopt … --as station` (human only; it validates, shows the diff and
+  keeps the old file as `station.yaml.bak`).
+- The first probe after power-on may WARN about old error-queue entries (drained); the second must show none.
 
-**Raw capture → `tests/fixtures/hw/`.** Every query and its raw answer is in the daily audit
-`data\state\audit\YYYY-MM-DD.jsonl` (UTC date; lines with `"ev":"query"`, fields `cmd` and `resp`):
+**Raw capture → `tests/fixtures/hw/`.** Every raw answer is in the probe file `work\bringup\probe-<UTC>.json`
+(`transcript`: `cmd`, `resp`) and in the daily audit `data\state\audit\YYYY-MM-DD.jsonl` (UTC date; lines with
+`"ev":"query"`, fields `cmd` and `resp`):
 
 ```powershell
 Select-String -Path data\state\audit\*.jsonl -Pattern '"ev":"query"'
@@ -163,13 +177,15 @@ simulator's answers.
 |---|---|---|
 | `config check` | `config: valid`; backend `visa` because of `config\local\settings.yaml` | fix `config\local\` |
 | `doctor` | no FAIL line | follow the line's hint |
+| `doctor --probe` (after the adoption) | no FAIL line; `visa resources`, `bus`, `identity`, `inventory`, `outputs`, `release` PASS | follow the line's hint; `bus` FAIL busy → end EasyEXPERT |
+| `bringup propose-station` | modules = the Stage 0 EasyEXPERT module list; `B1511A`/`B1511B` of slots 5/6 as installed | wrong resource or a module change: stop, ask the owner |
 | `*IDN?` | contains `B1500A`; firmware equals Stage 0 record | wrong resource or address |
 | `UNT?` | every slot of `station.yaml` shows `match True`; empty slots read `0,0` (parser assumption in `driver/discovery.py`) | fix `station.yaml` (rule R-INV-01 blocks every plan meanwhile); another empty-slot token → TODO parser fix + fixture |
 | `ERRX?` | second `status`: `errors none` (raw `0,"No Error."`) | abort |
 | `*STB?` | bit 3 (8) and bit 5 (32) clear; bit 4 (16, "set ready") may be set: `0` or `16`; record the value | see ATV-10 below |
 | `LOP?` | `outputs on none` (raw `LOP00,00,00,00,00,00,00,00,00,00`) | abort |
 | `lock status` | lock free, no inflight marker, no fault | see "If cleanup fails" |
-| Audit | only queries (`*IDN?`, `UNT?`, `ERRX?`, `*STB?`, `LOP?`); no `CN` | abort, report |
+| Audit | only queries (`*IDN?`, `UNT?`, `ERRX?`, `*STB?`, `LOP?`, `*LRN? 31`, `ERMOD?`, `SPST?`, `CORRST?`, `ADJ?`); no `CN` | abort, report |
 
 **ATV-2 check (GPIB address 17; write `\n`, read `\n`/EOI).** Every query is answered without a timeout; the `resp`
 fields carry no stray `\r` or trailing spaces; the B1500A shows the FlexGUI window with the GPIB address and `RMT`

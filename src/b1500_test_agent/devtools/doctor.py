@@ -14,8 +14,9 @@ when the committed corpus is current, WARN when stale or missing) and the manual
 found, INFO when some or all are absent, WARN on an edition mismatch); ``PYTHONUTF8`` and ``LongPathsEnabled``
 (Windows).
 
-The hardware probe (``--probe``: VISA library, resource, ``*IDN?``, ``UNT?``, ``ERRX?``, STB; read-only, never
-``CN``) belongs to hardware bring-up (M4) and is not implemented; ``probe_refusal`` explains why it does not run.
+The read-only instrument probe (``b1500 doctor --probe``: VISA library and resources, identity, inventory, error
+queue, status byte, outputs, selectors, SPGU, MFCMU corrections; never ``CN`` or a setting command) is a service
+operation (``service/probe.py``, ``B1500Admin.probe``), not one of these installation checks.
 """
 
 from __future__ import annotations
@@ -332,20 +333,6 @@ def run_doctor(*, environ: Mapping[str, str] | None = None, windows: bool | None
         check_long_paths(windows=on_windows),
     ]
     return DoctorReport(ok=all(c.status != "FAIL" for c in checks), checks=checks)
-
-
-def probe_refusal(*, environ: Mapping[str, str] | None = None) -> str:
-    """Why ``b1500 doctor --probe`` does not run: the simulator has no hardware to probe, and the read-only
-    hardware probe is part of hardware bring-up (M4), not implemented yet."""
-    try:
-        backend = ConfigLoader(environ=os.environ if environ is None else environ).get().backend
-    except InvalidConfigError:
-        return "doctor --probe refused: the configuration is invalid (b1500 config check)"
-    if backend == "sim":
-        return ("doctor --probe refused: the configured backend is sim (simulator), so there is no hardware to "
-                "probe; the probe reads a real B1500A over VISA")
-    return ("doctor --probe is not implemented yet: the read-only hardware probe (VISA library, resource, identity, "
-            "module inventory, error queue, status byte) arrives with hardware bring-up (M4)")
 
 
 def format_report(report: DoctorReport) -> str:

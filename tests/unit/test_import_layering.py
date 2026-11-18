@@ -15,11 +15,13 @@ rank components
 4    ``session``
 5    ``catalog``, ``rules``, ``archive``, ``analysis``, ``manuals`` (peers)
 6    ``service``
-7    ``adapters``, ``devtools`` (peers; ``adapters/cli/`` runs the dev tools)
+7    ``adapters``, ``devtools`` (peers; ``adapters/cli/`` runs the dev tools), ``bringup`` (lab helpers; imports only
+     ``service`` and ``models``, blueprint v2 2.1)
 ==== ==========================================================================================================
 
 Extra rules: ``analysis`` never imports ``session``, ``driver``, ``transport`` or ``catalog`` (blueprint 2 and
-``analysis/AGENTS.md``); ``manuals`` imports only ``models`` and ``paths`` (blueprint 2.1); only
+``analysis/AGENTS.md``); ``manuals`` imports only ``models`` and ``paths`` and ``bringup`` only ``service`` and
+``models`` (blueprint v2 2.1); only
 ``adapters/mcp_server.py`` imports ``fastmcp`` (``devtools/`` is exempt: its token counter loads FastMCP apps, WP0.3).
 Every import statement counts, including function-level and ``TYPE_CHECKING`` imports. A new top-level module must be
 added to ``RANKS`` before it can be imported.
@@ -61,10 +63,13 @@ RANKS: dict[str, int] = {
     "service": 6,
     "adapters": 7,
     "devtools": 7,
+    "bringup": 7,
 }
 FORBIDDEN: dict[str, frozenset[str]] = {"analysis": frozenset({"session", "driver", "transport", "catalog"})}
-ONLY: dict[str, frozenset[str]] = {"manuals": frozenset({"models", "paths"})}
-"""Component -> the only other components it may import (blueprint 2.1: ``manuals`` imports only models/paths)."""
+ONLY: dict[str, frozenset[str]] = {"manuals": frozenset({"models", "paths"}),
+                                   "bringup": frozenset({"service", "models"})}
+"""Component -> the only other components it may import (blueprint v2 2.1: ``manuals`` imports only models/paths,
+``bringup`` only service/models)."""
 FASTMCP_ALLOWED_FILES = frozenset({"adapters/mcp_server.py"})
 FASTMCP_ALLOWED_COMPONENTS = frozenset({"devtools"})
 _FASTMCP = re.compile(r"^fastmcp(\.|$)")

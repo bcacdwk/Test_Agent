@@ -18,6 +18,16 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from b1500_test_agent.models.analysis import PositiveFloat
 from b1500_test_agent.models.common import ConfigName, StrictModel
 from b1500_test_agent.models.measurement import Channel
+from b1500_test_agent.models.sim_devices import (
+    CapacitorParams,
+    DielectricParams,
+    FecapParams,
+    FerroKineticsParams,
+    FixtureParams,
+    MoscapParams,
+    MosfetDynamicsParams,
+    NoiseParams,
+)
 from b1500_test_agent.models.station import SimSlot
 
 # -- Device models ---------------------------------------------------------------------------------------------------
@@ -84,7 +94,7 @@ class DiodeParams(StrictModel):
     temperature_k: float = Field(default=300.0, gt=0.0, le=600.0)
 
 
-class FefetParams(MosfetEkvParams):
+class FefetParams(FerroKineticsParams, MosfetEkvParams):
     """``fefet``: a ``mosfet_ekv`` whose threshold follows a ferroelectric polarization state (truth parameters).
 
     ``Vth = vth0 - k_v·P`` with the normalised polarization ``P`` in [-1, 1] (positive ``P``, written by a positive
@@ -93,6 +103,9 @@ class FefetParams(MosfetEkvParams):
     the descending branch ``tanh((V + vc_v)/delta_v)`` and otherwise keeps its value (rate-independent play
     operator). It starts at ``p_init`` and is persisted with the simulator state, so it survives transactions and
     processes. A full loop gives the memory window ``Vth_fwd - Vth_rev`` of about ``2·k_v``.
+
+    Timed gate pulses (``advance``) switch with NLS kinetics, and retention and endurance follow
+    ``FerroKineticsParams`` (``models/sim_devices.py``, v2); their defaults leave the v1 DC behaviour unchanged.
     """
 
     k_v: float = Field(default=0.5, ge=0.0, le=10.0)
@@ -115,6 +128,11 @@ class MosfetDamagedParams(MosfetEkvParams):
     leak_s: float = Field(default=1.0e-7, ge=0.0, le=1.0)
 
 
+class MosfetParams(MosfetDynamicsParams, MosfetEkvParams):
+    """``mosfet`` (v2): ``mosfet_ekv`` plus self-heating, BTI, HCI, IGZO bias-stress drift and gate capacitances
+    (``MosfetDynamicsParams`` in ``models/sim_devices.py``); with every effect off it equals ``mosfet_ekv``."""
+
+
 DEVICE_PARAMS: dict[str, type[StrictModel]] = {
     "open": OpenParams,
     "resistor": ResistorParams,
@@ -123,8 +141,16 @@ DEVICE_PARAMS: dict[str, type[StrictModel]] = {
     "diode": DiodeParams,
     "fefet": FefetParams,
     "mosfet_damaged": MosfetDamagedParams,
+    "mosfet": MosfetParams,
+    "moscap": MoscapParams,
+    "capacitor": CapacitorParams,
+    "fixture": FixtureParams,
+    "dielectric": DielectricParams,
+    "fecap": FecapParams,
+    "noise": NoiseParams,
 }
-"""Device models the simulator implements (M1: open, resistor, short, mosfet_ekv; M2: diode, fefet, damaged)."""
+"""Device models the simulator implements (M1: open, resistor, short, mosfet_ekv; M2: diode, fefet, damaged; v2
+WP5.9: mosfet, moscap, capacitor, fixture, dielectric, fecap, noise)."""
 
 _MOSFET_TERMINALS = frozenset({"gate", "drain", "source", "bulk"})
 
@@ -136,8 +162,16 @@ DEVICE_TERMINALS: dict[str, frozenset[str] | None] = {
     "diode": frozenset({"anode", "cathode"}),
     "fefet": _MOSFET_TERMINALS,
     "mosfet_damaged": _MOSFET_TERMINALS,
+    "mosfet": _MOSFET_TERMINALS,
+    "moscap": frozenset({"gate", "bulk"}),
+    "capacitor": frozenset({"a", "b"}),
+    "fixture": frozenset({"high", "low"}),
+    "dielectric": frozenset({"top", "bottom"}),
+    "fecap": frozenset({"top", "bottom"}),
+    "noise": frozenset(),
 }
-"""Terminal names a scenario may wire per device model (``None``: any name, e.g. an unlanded probe)."""
+"""Terminal names a scenario may wire per device model (``None``: any name, e.g. an unlanded probe; ``noise`` has
+none and is wired as ``{}``)."""
 
 
 def device_params(model: str, params: dict[str, object]) -> StrictModel:

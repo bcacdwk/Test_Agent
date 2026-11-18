@@ -3,45 +3,70 @@ terminals to channels or the GNDU (``Circuit``), blueprint 4.2."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from typing import TypeVar
 
+from b1500_test_agent.models.common import StrictModel
 from b1500_test_agent.models.sim import (
+    CapacitorParams,
+    DielectricParams,
     DiodeParams,
+    FecapParams,
     FefetParams,
+    FixtureParams,
+    MoscapParams,
     MosfetDamagedParams,
     MosfetEkvParams,
+    MosfetParams,
+    NoiseParams,
     ResistorParams,
     ShortParams,
     device_params,
 )
 from b1500_test_agent.models.station import PinTarget, SimDeviceModel, SimScenario
-from b1500_test_agent.transport.sim.devices.base import Device, DeviceState, StatefulDevice
-from b1500_test_agent.transport.sim.devices.basic import DiodeDevice, OpenDevice, ResistorDevice
-from b1500_test_agent.transport.sim.devices.ferro import FefetDevice
-from b1500_test_agent.transport.sim.devices.mosfet import DamagedMosfet, MosfetEkv
+from b1500_test_agent.transport.sim.devices.base import Device, DeviceState, DynamicDevice, StatefulDevice
+from b1500_test_agent.transport.sim.devices.basic import CapacitorDevice, DiodeDevice, OpenDevice, ResistorDevice
+from b1500_test_agent.transport.sim.devices.dielectric import DielectricDevice
+from b1500_test_agent.transport.sim.devices.ferro import FecapDevice, FefetDevice
+from b1500_test_agent.transport.sim.devices.fixture import FixtureDevice
+from b1500_test_agent.transport.sim.devices.moscap import MoscapDevice
+from b1500_test_agent.transport.sim.devices.mosfet import DamagedMosfet, Mosfet, MosfetEkv
+from b1500_test_agent.transport.sim.devices.noise import NoiseSource
+
+P = TypeVar("P", bound=StrictModel)
+
+
+def _typed(params: StrictModel, schema: type[P]) -> P:
+    assert isinstance(params, schema)
+    return params
+
+
+DEVICE_BUILDERS: dict[str, Callable[[str, StrictModel], Device]] = {
+    "open": lambda name, _: OpenDevice(name),
+    "resistor": lambda name, p: ResistorDevice(name, "resistor", _typed(p, ResistorParams)),
+    "short": lambda name, p: ResistorDevice(name, "short", _typed(p, ShortParams)),
+    "mosfet_ekv": lambda name, p: MosfetEkv(name, _typed(p, MosfetEkvParams)),
+    "diode": lambda name, p: DiodeDevice(name, _typed(p, DiodeParams)),
+    "fefet": lambda name, p: FefetDevice(name, _typed(p, FefetParams)),
+    "mosfet_damaged": lambda name, p: DamagedMosfet(name, _typed(p, MosfetDamagedParams)),
+    "mosfet": lambda name, p: Mosfet(name, _typed(p, MosfetParams)),
+    "moscap": lambda name, p: MoscapDevice(name, _typed(p, MoscapParams)),
+    "capacitor": lambda name, p: CapacitorDevice(name, _typed(p, CapacitorParams)),
+    "fixture": lambda name, p: FixtureDevice(name, _typed(p, FixtureParams)),
+    "dielectric": lambda name, p: DielectricDevice(name, _typed(p, DielectricParams)),
+    "fecap": lambda name, p: FecapDevice(name, _typed(p, FecapParams)),
+    "noise": lambda name, p: NoiseSource(name, _typed(p, NoiseParams)),
+}
+"""Device model name (``models.sim.DEVICE_PARAMS``) → constructor of its simulator object."""
 
 
 def build_device(name: str, spec: SimDeviceModel) -> Device:
     """The device object of scenario entry ``spec`` (params validated against ``models.sim.DEVICE_PARAMS``)."""
     params = device_params(spec.model, dict(spec.params))
-    if spec.model == "open":
-        return OpenDevice(name)
-    if spec.model in ("resistor", "short"):
-        assert isinstance(params, ResistorParams | ShortParams)
-        return ResistorDevice(name, spec.model, params)
-    if spec.model == "fefet":
-        assert isinstance(params, FefetParams)
-        return FefetDevice(name, params)
-    if spec.model == "mosfet_damaged":
-        assert isinstance(params, MosfetDamagedParams)
-        return DamagedMosfet(name, params)
-    if spec.model == "mosfet_ekv":
-        assert isinstance(params, MosfetEkvParams)
-        return MosfetEkv(name, params)
-    if spec.model == "diode":
-        assert isinstance(params, DiodeParams)
-        return DiodeDevice(name, params)
-    raise ValueError(f"No simulator implementation for device model {spec.model!r}.")  # pragma: no cover
+    builder = DEVICE_BUILDERS.get(spec.model)
+    if builder is None:  # pragma: no cover - DEVICE_PARAMS and DEVICE_BUILDERS list the same models (test)
+        raise ValueError(f"No simulator implementation for device model {spec.model!r}.")
+    return builder(name, params)
 
 
 def canonical_channel(channel: int) -> int:
@@ -51,7 +76,13 @@ def canonical_channel(channel: int) -> int:
 
 
 class Circuit:
-    """All devices of a scenario and their physical wiring (independent of the agent's pin map)."""
+    """All devices of a scenario and their physical wiring (independent of the agent's pin map).
+
+    Units evaluate it three ways: ``channel_currents`` (a quasi-static trial, state unchanged), ``commit`` (apply DC
+    levels quasi-statically) and ``advance`` (hold levels for a time step: kinetics, self-heating, ageing,
+    breakdown, displacement currents). Small-signal models are reached through ``devices`` (``AcDevice``,
+    ``Mosfet.gate_admittance``, ``FixtureDevice``); attached noise through ``noise_on``.
+    """
 
     def __init__(self, scenario: SimScenario) -> None:
         self.devices: dict[str, Device] = {name: build_device(name, spec) for name, spec in scenario.models.items()}
@@ -62,6 +93,19 @@ class Circuit:
         self.stateful: dict[str, StatefulDevice] = {
             name: device for name, device in self.devices.items() if isinstance(device, StatefulDevice)
         }
+        self.dynamic: dict[str, DynamicDevice] = {
+            name: device for name, device in self.devices.items() if isinstance(device, DynamicDevice)
+        }
+        self.noise: dict[str, NoiseSource] = {
+            name: device for name, device in self.devices.items() if isinstance(device, NoiseSource)
+        }
+        for name, source in self.noise.items():
+            target = self.devices.get(source.params.attach)
+            if target is None or isinstance(target, NoiseSource):
+                raise ValueError(f"noise {name}: attach {source.params.attach!r} is not a device of the scenario")
+            if source.params.terminal not in self.wiring.get(source.params.attach, {}):
+                raise ValueError(f"noise {name}: {source.params.attach} has no wired terminal "
+                                 f"{source.params.terminal!r}")
 
     @property
     def has_state(self) -> bool:
@@ -79,23 +123,46 @@ class Circuit:
                 voltages[terminal] = None
         return voltages
 
-    def channel_currents(self, levels: Mapping[int, float]) -> dict[int, float]:
-        """Current (A) delivered by each channel in ``levels`` (canonical channel → forced voltage, for the channels
-        whose output switch is on). Terminals on other channels float; GNDU terminals are at 0 V. Device state is
-        not changed (see ``commit``)."""
+    def _collect(self, levels: Mapping[int, float], evaluate: Callable[[str, Device, dict[str, float | None]],
+                                                                       dict[str, float]]) -> dict[int, float]:
         currents = {channel: 0.0 for channel in levels}
         for name, device in self.devices.items():
             wiring = self.wiring.get(name, {})
-            for terminal, current in device.terminal_currents(self._voltages(name, levels)).items():
+            for terminal, current in evaluate(name, device, self._voltages(name, levels)).items():
                 target = wiring.get(terminal)
                 if isinstance(target, int) and target in currents:
                     currents[target] += current
         return currents
 
+    def channel_currents(self, levels: Mapping[int, float]) -> dict[int, float]:
+        """Current (A) delivered by each channel in ``levels`` (canonical channel → forced voltage, for the channels
+        whose output switch is on). Terminals on other channels float; GNDU terminals are at 0 V. Device state is
+        not changed (see ``commit``)."""
+        return self._collect(levels, lambda _name, device, v: device.terminal_currents(v))
+
     def commit(self, levels: Mapping[int, float]) -> None:
         """Apply ``levels`` (the voltages actually forced) to every stateful device."""
         for name, device in self.stateful.items():
             device.commit(self._voltages(name, levels))
+
+    def advance(self, dt: float, levels: Mapping[int, float]) -> dict[int, float]:
+        """Hold ``levels`` for ``dt`` seconds (≥ 0): every dynamic device evolves; returns the current (A) of each
+        channel in ``levels`` at the end of the interval plus the mean displacement current over it."""
+        if dt < 0.0:
+            raise ValueError(f"advance needs dt >= 0, got {dt}")
+
+        def evaluate(name: str, device: Device, v: dict[str, float | None]) -> dict[str, float]:
+            dynamic = self.dynamic.get(name)
+            return dynamic.advance(dt, v) if dynamic is not None else device.terminal_currents(v)
+
+        return self._collect(levels, evaluate)
+
+    def noise_on(self, target: PinTarget) -> list[NoiseSource]:
+        """Noise sources attached to a device terminal wired to ``target`` (a canonical channel number or
+        ``"GNDU"``), in scenario order."""
+        target = canonical_channel(target) if isinstance(target, int) else target
+        return [source for source in self.noise.values()
+                if self.wiring.get(source.params.attach, {}).get(source.params.terminal) == target]
 
     def export_state(self) -> dict[str, DeviceState]:
         """Internal state of every stateful device (for ``SimPersistentState.devices``)."""

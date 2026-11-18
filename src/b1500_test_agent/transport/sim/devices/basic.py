@@ -1,11 +1,23 @@
-"""Basic device models (blueprint 4.2): ``open`` (probe not landed), ``resistor``/``short`` and ``diode``."""
+"""Basic device models (blueprint 4.2): ``open`` (probe not landed), ``resistor``/``short``, ``diode`` and the
+``capacitor`` reference standard (v2)."""
 
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 
-from b1500_test_agent.models.sim import DiodeParams, ResistorParams, ShortParams
-from b1500_test_agent.transport.sim.devices.base import BOLTZMANN_OVER_Q, Voltages, exp_lin
+from b1500_test_agent.models.sim import CapacitorParams, DiodeParams, ResistorParams, ShortParams
+from b1500_test_agent.transport.sim.devices.base import (
+    BOLTZMANN_OVER_Q,
+    DeviceState,
+    Voltages,
+    check_frequency,
+    check_state_keys,
+    exp_lin,
+    parallel_capacitance,
+    state_number,
+    two_terminal,
+)
 
 
 class OpenDevice:
@@ -115,3 +127,61 @@ class DiodeDevice:
         return {"anode": current, "cathode": -current}
 
 
+
+
+class CapacitorDevice:
+    """``capacitor``: ``c_f`` in parallel with ``g_s``, in series with ``esr_ohm`` (``CapacitorParams``).
+
+    DC current ``(V_a - V_b)/(esr + 1/g_s)`` (zero without ``g_s``); ``advance`` adds the displacement current
+    ``c_f·ΔV/dt`` of the voltage change since the last applied voltage (the persisted state ``v``; the ESR time
+    constant is neglected). Small signal: ``Y = 1/(esr + 1/(g_s + jω·c_f))``, the truth a corrected CMU
+    measurement must reproduce (blueprint 4.2 ``fixture`` + ``capacitor``). A floating terminal keeps the charge.
+    """
+
+    terminals = ("a", "b")
+
+    def __init__(self, name: str, params: CapacitorParams) -> None:
+        self.name = name
+        self.model = "capacitor"
+        self.params = params
+        self.v = 0.0
+
+    def _dc(self, dv: float) -> float:
+        g = self.params.g_s
+        return 0.0 if g == 0.0 else dv / (self.params.esr_ohm + 1.0 / g)
+
+    def terminal_currents(self, v: Voltages) -> dict[str, float]:
+        dv = two_terminal(v, "a", "b")
+        current = 0.0 if dv is None else self._dc(dv)
+        return {"a": current, "b": -current}
+
+    def commit(self, v: Voltages) -> None:
+        dv = two_terminal(v, "a", "b")
+        if dv is not None:
+            self.v = dv
+
+    def advance(self, dt: float, v: Voltages) -> dict[str, float]:
+        dv = two_terminal(v, "a", "b")
+        if dv is None:
+            return {"a": 0.0, "b": 0.0}
+        current = self._dc(dv) + (self.params.c_f * (dv - self.v) / dt if dt > 0.0 else 0.0)
+        self.v = dv
+        return {"a": current, "b": -current}
+
+    def admittance(self, v: float, f: float) -> complex:
+        omega = 2.0 * math.pi * check_frequency(f)
+        y = complex(self.params.g_s, omega * self.params.c_f)
+        return 1.0 / (self.params.esr_ohm + 1.0 / y)
+
+    def capacitance(self, v: float, f: float) -> float:
+        return parallel_capacitance(self.admittance(v, f), f)
+
+    def export_state(self) -> DeviceState:
+        return {"v": self.v}
+
+    def import_state(self, data: Mapping[str, object] | None) -> None:
+        if data is None:
+            self.v = 0.0
+            return
+        check_state_keys(data, {"v"}, f"capacitor {self.name}")
+        self.v = state_number(data, "v", f"capacitor {self.name}")

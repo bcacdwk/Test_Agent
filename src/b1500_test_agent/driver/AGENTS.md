@@ -9,10 +9,10 @@ instrument errors and the module spec table. Spec: blueprint v2 §2.5 (v1 §2.3,
   Recipes, kinds, service and adapters never assemble FLEX text. Only `b1500.py` imports `ops/`; everyone else uses
   `B1500Driver`. A new family adds `flex/<family>.py` + `ops/<family>.py` (see `docs/architecture.md`).
 - `*RST` (`flex.RST`) is sent only by `B1500Driver.reset`, which only kind `system` calls (lint test).
-- Every source operation (`DV`, `WV`, later `DI`/`WI`) passes `OutputGuard.check` before anything is written:
-  channel in the plan allowlist, |level| and compliance within the compiled envelope, compliance non-zero; `CN`
-  needs allowlisted channels too. Source methods refuse without a guard; a violation raises `EnvelopeViolation`
-  and sends nothing. No bypass flag. Module limits and range codes live in `modules.py` (rule R-LIM-01).
+- Every source operation passes the guard before anything is written: `check` (SMU), `check_pulse` (SPGU, SMU
+  pulse; open-load level with `SER`), `check_ac` (MFCMU), `check_route` (switches; pass the station's switches),
+  `check_waveform` (WGFMU, before `add_vectors`); `CN` needs allowlisted channels. No guard → refused; a violation
+  raises `EnvelopeViolation` and sends nothing; no bypass. Module specs and range codes: `modules.py` (R-LIM-01 ...).
 - Imports: `transport` and `models` only. Never `pyvisa` (only `transport/visa.py`), never `fastmcp`.
 - Send `AB` and `*RST` alone, never combined with other commands. Between `XE` and its read send only `AB`
   (`DZ`/`CL` abort first). Keep query reads separate from measurement-buffer reads.

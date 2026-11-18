@@ -98,12 +98,17 @@ def test_levels_without_function_and_narrower_than_the_envelope() -> None:
 
 
 def test_a_channel_without_compliance_says_so() -> None:
-    """A ``pgu``/``wgfmu`` channel has no current limit: the summary never invents an Icomp for it."""
+    """A ``pgu``/``wgfmu`` channel has no current limit: the summary never invents an Icomp for it (a pulse channel
+    without a pulse envelope or trains shows its largest level; R-PULSE-01 blocks such a plan)."""
     _, ctx = context()
     pgu = {5: ChannelEnvelope(role="gate", max_abs_v=4.0, max_abs_i=None, function="pgu")}
     plan = PlanRecord.model_validate({**ctx.plan.model_dump(), "envelope": CompiledEnvelope(channels=pgu)})
-    assert plan_summary(plan, []).split(" | ")[1] == "gate=SMU5(MPSMU) max 4 V no Icomp"
-    assert _channels(plan, compact=True) == "gate=SMU5 <=4V noIcomp"
+    assert plan_summary(plan, []).split(" | ")[1] == "gate=SMU5 pulse max 4 V"
+    assert _channels(plan, compact=True) == "gate=SMU5 pulse<=4V"
+    wg = {5: ChannelEnvelope(role="gate", max_abs_v=2.0, max_abs_i=None, function="wgfmu")}
+    plan = PlanRecord.model_validate({**ctx.plan.model_dump(), "envelope": CompiledEnvelope(channels=wg)})
+    assert plan_summary(plan, []).split(" | ")[1] == "gate=SMU5 waveform max 2 V"
+    assert "Icomp" not in plan_summary(plan, [])
 
 
 @pytest.mark.parametrize(

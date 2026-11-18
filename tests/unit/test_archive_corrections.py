@@ -196,7 +196,10 @@ def test_freshness_agrees_with_r_corr_01(name: str, records: list[CorrectionReco
     if policy is not None:
         kw["cfg_policy"] = policy
     cfg, ctx = cmu(**kw)
-    findings = [f for f in engine(cfg).evaluate(ctx, "plan").findings if f.rule_id == "R-CORR-01"]
+    all_findings = [f for f in engine(cfg).evaluate(ctx, "plan").findings if f.rule_id == "R-CORR-01"]
+    # The rule adds one info finding ("corrections ... in use") when the set is usable; compare the failures only.
+    findings = [f for f in all_findings if f.severity != "info"]
+    infos = [f for f in all_findings if f.severity == "info"]
     plan = ctx.plan
     freqs = [float(q.value) for q in plan.resolved_params.values() if q.unit == "Hz"]  # type: ignore[arg-type]
     result = freshness("CMU1", records, require=ctx.policy.corrections.require,
@@ -204,4 +207,5 @@ def test_freshness_agrees_with_r_corr_01(name: str, records: list[CorrectionReco
                        pin_map_sha=plan.hashes["pin_map"], station_sha=plan.hashes["station"])
     assert result.fresh == (not any(f.severity == "block" for f in findings)), (name, findings, result)
     assert {c.kind for c in result.failing()} == {f.subject.split(".", 1)[1] for f in findings}, name
+    assert len(infos) == (1 if result.fresh else 0), (name, infos)
     assert ctx.plan.created_at - timedelta(hours=1) == corr("phase").ts

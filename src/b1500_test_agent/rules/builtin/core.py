@@ -218,15 +218,16 @@ def pin_map_complete(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     seen: dict[tuple[int, str], str] = {}
     for role_name, spec in sorted(recipe.roles.items()):
         yield from _check_role(ctx, env, role_name, spec, binding.get(role_name), seen)
-    bound_channels = {
-        norm_channel(b.channel): role for role, b in binding.items() if b.channel is not None and role in recipe.roles
-    }
+    bound_channels: dict[int, list[str]] = {}
+    for role, b in sorted(binding.items()):
+        if b.channel is not None and role in recipe.roles:
+            bound_channels.setdefault(norm_channel(b.channel), []).append(role)
     for channel, entry in envelope_items(ctx):
-        owner = bound_channels.get(norm_channel(channel))
-        if owner is None or owner != entry.role:
+        owners = bound_channels.get(norm_channel(channel), [])
+        if entry.role not in owners:  # both MFCMU sides share one channel; its envelope belongs to either role
             yield block(f"envelope channel {channel} (role {entry.role}) is not the channel bound to that role",
                         subject=entry.role, source=env.plan(f"envelope.channels.{channel}"), observed=channel,
-                        limit=None if owner is None else f"role {owner}")
+                        limit=None if not owners else "role " + ", ".join(owners))
 
 
 def _check_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, bound: BoundChannel | None,

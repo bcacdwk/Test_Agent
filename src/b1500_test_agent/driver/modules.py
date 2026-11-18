@@ -16,19 +16,31 @@ Edition 17; PDF page numbers are physical 1-based pages of ``B1500A Programming 
 - Power compliance maxima as a cross-check of the envelopes: 2 W MP/HRSMU, 20 W HPSMU, 40 W HCSMU, 3 W MCSMU
   (PG ``WV`` ``Pcomp``, PDF 569).
 
-Only DC limits are modelled (v1 has no pulsed kinds). HCSMU (B1512A) and HVSMU (B1513x) are B1505A-family modules;
-their limits come from the Programming Guide tables because the B1500A User's Guide does not describe them.
+HCSMU (B1512A) and HVSMU (B1513x) are B1505A-family modules; their limits come from the Programming Guide tables
+because the B1500A User's Guide does not describe them.
+
+v2 spec rows (blueprint v2 2.5, last bullet; rules R-LIM-01, R-PULSE-01, R-SPGU-01, R-CMU-01, R-WG-02, R-GNDU-01,
+R-ASU-01 and the ``OutputGuard`` pulse/AC/waveform checks): ``SPGU_SPEC`` (HV-SPGU output and PG timing),
+``SMU_PULSE_SPECS`` (``PT`` pulse width/period per SMU type), ``WGFMU_SPEC`` (ranges, modes, ALWG and event limits),
+``CMU_SPEC`` (MFCMU frequency, AC level, DC bias), ``SCUU_SPEC`` and ``ASU_SPEC`` (switch accessories); the GNDU row
+stays in ``MODULE_SPECS``. ``module_spec`` keeps answering only for DC sources (SMUs and the GNDU).
 """
 
 from __future__ import annotations
 
 import math
-from typing import Literal
+from typing import Final, Literal, NamedTuple
 
 from pydantic import Field
 
 from b1500_test_agent.models.common import StrictModel
 from b1500_test_agent.models.measurement import Ranging
+from b1500_test_agent.models.sources import (
+    WGFMU_GRID_S,
+    PulseTrain,
+    on_grid,
+    open_load_voltage,
+)
 from b1500_test_agent.models.station import MODULE_TYPE_BY_MODEL
 
 SpecType = Literal["HPSMU", "MPSMU", "HRSMU", "MCSMU", "HCSMU", "HVSMU", "GNDU"]
@@ -217,8 +229,8 @@ MODULE_SPECS: dict[str, ModuleSpec] = {
         sources=("UG GNDU, PDF 58 (0 V reference, sinks up to 4.2 A)",),
     ),
 }
-"""Spec per module type (and the mainframe GNDU). MFCMU, HVSPGU and WGFMU have no entry: they are not DC sources in
-v1, so a rule that needs their limits must refuse."""
+"""DC spec per SMU type and the mainframe GNDU. MFCMU, HVSPGU and WGFMU are not DC sources: their rows are
+``CMU_SPEC``, ``SPGU_SPEC`` and ``WGFMU_SPEC`` below (``module_spec`` refuses them)."""
 
 
 def module_spec(model_or_type: str) -> ModuleSpec:
@@ -304,3 +316,301 @@ def ranging_code(spec: ModuleSpec, ranging: Ranging, *, asu: bool = False) -> in
     raise ValueError(
         f"{spec.module_type} has no {ranging.range_value:g} {unit} range (available: {available or 'none'})"
     )
+
+
+# -- v2 spec rows: pulse sources, WGFMU, MFCMU and switch accessories ------------------------------------------------
+
+
+class SpecProblem(NamedTuple):
+    """One way a setting leaves a module spec: what is wrong, the observed value and the limit."""
+
+    message: str
+    observed: float | int | str | None
+    limit: float | int | str | None
+
+
+def _within(value: float, bounds: tuple[float, float]) -> bool:
+    return bounds[0] <= value <= bounds[1]
+
+
+def _span(bounds: tuple[float, float]) -> str:
+    return f"{bounds[0]:g}..{bounds[1]:g}"
+
+
+class SpguSpec(StrictModel):
+    """HV-SPGU (B1525A) output and PG-mode timing (UG p76 (2-36) "HVSPGU"; PG p507 (4-189) "SER", PG p512 (4-194)
+    "SPPER", PG p513 (4-195) "SPRM", PG p514 (4-196) "SPT", PG p516 (4-198) "SPV"; operation errors 2111/2112 on
+    PG p591-592).
+
+    50 Ohm output without compliance; 0 to +-40 V open load, +-20 V into 50 Ohm; the level is adjusted to the declared
+    load ``SER`` (0.1 Ohm to 1 MOhm, initial 50 Ohm), so an open load sees ``|V| (SER + 50) / SER``. Period 20 ns to
+    10 s (10 ns resolution); width 10 ns to period - 10 ns; delay 0 to period - 20 ns (width and delay resolution
+    2.5 ns, 10 ns when a transition exceeds 8 us); transitions 8 ns to 0.4 s (2 ns, 8 ns above 8 us; initial 20 ns);
+    width >= leading / 0.8 and period >= delay + width + trailing / 0.8; count 1 to 1,000,000 pulses or duration
+    1 us to 31,556,926 s (10 ns resolution); free run (``SPRM 0``) is never used (R-PULSE-01).
+    """
+
+    module_type: Literal["HVSPGU"] = "HVSPGU"
+    models: tuple[str, ...] = ("B1525A",)
+    output_ohm: float = 50.0
+    max_open_v: float = 40.0
+    max_matched_v: float = 20.0
+    level_resolution_v: float = 1e-3
+    period_s: tuple[float, float] = (2e-8, 10.0)
+    period_resolution_s: float = 1e-8
+    min_width_s: float = 1e-8
+    width_margin_s: float = 1e-8
+    delay_margin_s: float = 2e-8
+    transition_s: tuple[float, float] = (8e-9, 0.4)
+    initial_transition_s: float = 2e-8
+    slow_transition_s: float = 8e-6
+    time_resolution_s: tuple[float, float] = (2.5e-9, 1e-8)
+    transition_resolution_s: tuple[float, float] = (2e-9, 8e-9)
+    edge_fraction: float = 0.8
+    count: tuple[int, int] = (1, 1_000_000)
+    duration_s: tuple[float, float] = (1e-6, 31_556_926.0)
+    duration_resolution_s: float = 1e-8
+    load_ohm: tuple[float, float] = (0.1, 1e6)
+    initial_load_ohm: float = 50.0
+    high_z_min_load_ohm: float = 1e3
+    """Smallest ``SER`` for a terminal declared ``high_z`` (blueprint v2 2.8 R-SPGU-01): a smaller declared load
+    lets the auto-levelling raise the open-load voltage towards 2x the set level."""
+    sources: tuple[str, ...] = ("UG p76 (2-36)", "PG p507 (4-189)", "PG p512-516 (4-194)", "PG p591-592")
+
+    def open_load_v(self, max_abs_set_v: float, load_ohm: float | None) -> float:
+        """|V| an open load sees for a set level and ``SER`` (``None`` = the initial 50 Ohm)."""
+        return open_load_voltage(max_abs_set_v, load_ohm=load_ohm, source_ohm=self.output_ohm)
+
+    def train_problems(self, train: PulseTrain) -> list[SpecProblem]:
+        """Where a PG-mode pulse train leaves the module spec (empty when it is inside)."""
+        found: list[SpecProblem] = []
+        for name, level in (("base", train.base_v), ("peak", train.peak_v)):
+            if abs(level) > self.max_open_v:
+                found.append(SpecProblem(f"{name} {level:g} V is outside the SPV range +-{self.max_open_v:g} V",
+                                         level, self.max_open_v))
+            elif not on_grid(level, self.level_resolution_v):
+                found.append(SpecProblem(f"{name} {level:g} V is not on the 1 mV setting resolution", level,
+                                         self.level_resolution_v))
+        period, width, delay = train.period_s, train.width_s, train.delay_s
+        lead = train.lead_s if train.lead_s is not None else self.initial_transition_s
+        trail = train.trail_s if train.trail_s is not None else self.initial_transition_s
+        slow = max(lead, trail) > self.slow_transition_s
+        if not _within(period, self.period_s):
+            found.append(SpecProblem(f"period {period:g} s is outside {_span(self.period_s)} s", period,
+                                     _span(self.period_s)))
+        elif not on_grid(period, self.period_resolution_s):
+            found.append(SpecProblem(f"period {period:g} s is not on the 10 ns resolution", period,
+                                     self.period_resolution_s))
+        max_width = period - self.width_margin_s
+        if not self.min_width_s <= width <= max_width:
+            found.append(SpecProblem(f"width {width:g} s is outside {self.min_width_s:g}..{max_width:g} s "
+                                     "(period - 10 ns)", width, f"{self.min_width_s:g}..{max_width:g}"))
+        step = self.time_resolution_s[1] if slow else self.time_resolution_s[0]
+        for name, value in (("width", width), ("delay", delay)):
+            if not on_grid(value, step):
+                found.append(SpecProblem(f"{name} {value:g} s is not on the {step:g} s resolution", value, step))
+        if delay > period - self.delay_margin_s:
+            found.append(SpecProblem(f"delay {delay:g} s exceeds period - 20 ns", delay,
+                                     period - self.delay_margin_s))
+        t_step = self.transition_resolution_s[1] if slow else self.transition_resolution_s[0]
+        for name, value in (("leading", lead), ("trailing", trail)):
+            if not _within(value, self.transition_s):
+                found.append(SpecProblem(f"{name} time {value:g} s is outside {_span(self.transition_s)} s", value,
+                                         _span(self.transition_s)))
+            elif not on_grid(value, t_step):
+                found.append(SpecProblem(f"{name} time {value:g} s is not on the {t_step:g} s resolution", value,
+                                         t_step))
+        if width < lead / self.edge_fraction:
+            found.append(SpecProblem(f"width {width:g} s is shorter than leading / 0.8 = {lead / 0.8:g} s "
+                                     "(error 2111)", width, lead / self.edge_fraction))
+        need = delay + width + trail / self.edge_fraction
+        if period < need:
+            found.append(SpecProblem(f"period {period:g} s is shorter than delay + width + trailing / 0.8 = "
+                                     f"{need:g} s (error 2112)", period, need))
+        if train.count is not None and not _within(train.count, self.count):
+            found.append(SpecProblem(f"count {train.count} is outside {self.count[0]}..{self.count[1]}", train.count,
+                                     f"{self.count[0]}..{self.count[1]}"))
+        if train.duration_s is not None:
+            if not _within(train.duration_s, self.duration_s):
+                found.append(SpecProblem(f"duration {train.duration_s:g} s is outside {_span(self.duration_s)} s",
+                                         train.duration_s, _span(self.duration_s)))
+            elif not on_grid(train.duration_s, self.duration_resolution_s):
+                found.append(SpecProblem(f"duration {train.duration_s:g} s is not on the 10 ns resolution",
+                                         train.duration_s, self.duration_resolution_s))
+        if train.load_ohm is not None and not _within(train.load_ohm, self.load_ohm):
+            found.append(SpecProblem(f"SER load {train.load_ohm:g} Ohm is outside {_span(self.load_ohm)} Ohm",
+                                     train.load_ohm, _span(self.load_ohm)))
+        return found
+
+
+class SmuPulseSpec(StrictModel):
+    """SMU pulse timing (``PT``; PG p486-487 (4-168) "PT"): pulse width, period and their margins per SMU type.
+
+    Period 5 ms to 5 s (0.1 ms resolution); period >= width + 2 ms for widths up to 100 ms, >= width + 10 ms above.
+    SMU pulses have no programmable transition time; the trigger delay lies within the width.
+    """
+
+    module_type: Literal["HPSMU", "MPSMU", "HRSMU", "MCSMU", "HCSMU", "HVSMU"]
+    width_s: tuple[float, float]
+    width_resolution_s: float
+    period_s: tuple[float, float] = (5e-3, 5.0)
+    period_resolution_s: float = 1e-4
+    short_margin_s: float = 2e-3
+    long_margin_s: float = 1e-2
+    long_width_s: float = 0.1
+    source: str = "PG p486-487 (4-168)"
+
+    def train_problems(self, train: PulseTrain) -> list[SpecProblem]:
+        """Where an SMU pulse train leaves the ``PT`` table (empty when it is inside)."""
+        found: list[SpecProblem] = []
+        width, period = train.width_s, train.period_s
+        if not _within(width, self.width_s):
+            found.append(SpecProblem(f"{self.module_type} pulse width {width:g} s is outside "
+                                     f"{_span(self.width_s)} s", width, _span(self.width_s)))
+        elif not on_grid(width, self.width_resolution_s):
+            found.append(SpecProblem(f"pulse width {width:g} s is not on the {self.width_resolution_s:g} s "
+                                     "resolution", width, self.width_resolution_s))
+        if not _within(period, self.period_s):
+            found.append(SpecProblem(f"pulse period {period:g} s is outside {_span(self.period_s)} s", period,
+                                     _span(self.period_s)))
+        elif not on_grid(period, self.period_resolution_s):
+            found.append(SpecProblem(f"pulse period {period:g} s is not on the 0.1 ms resolution", period,
+                                     self.period_resolution_s))
+        margin = self.short_margin_s if width <= self.long_width_s else self.long_margin_s
+        if period < width + margin:
+            found.append(SpecProblem(f"pulse period {period:g} s is shorter than width + {margin * 1e3:g} ms",
+                                     period, width + margin))
+        if train.lead_s is not None or train.trail_s is not None:
+            found.append(SpecProblem("SMU pulses have no programmable transition time", None, None))
+        if train.delay_s > width:
+            found.append(SpecProblem(f"trigger delay {train.delay_s:g} s exceeds the width", train.delay_s, width))
+        if train.load_ohm is not None:
+            found.append(SpecProblem("SMU pulses have no SER load setting", train.load_ohm, None))
+        return found
+
+
+SMU_PULSE_SPECS: Final[dict[str, SmuPulseSpec]] = {
+    "HPSMU": SmuPulseSpec(module_type="HPSMU", width_s=(5e-4, 2.0), width_resolution_s=1e-4),
+    "MPSMU": SmuPulseSpec(module_type="MPSMU", width_s=(5e-4, 2.0), width_resolution_s=1e-4),
+    "HRSMU": SmuPulseSpec(module_type="HRSMU", width_s=(5e-4, 2.0), width_resolution_s=1e-4),
+    "HVSMU": SmuPulseSpec(module_type="HVSMU", width_s=(5e-4, 2.0), width_resolution_s=2e-6),
+    "HCSMU": SmuPulseSpec(module_type="HCSMU", width_s=(5e-5, 2.0), width_resolution_s=2e-6),
+    "MCSMU": SmuPulseSpec(module_type="MCSMU", width_s=(1e-5, 2.0), width_resolution_s=2e-6),
+}
+"""``PT`` width range and resolution per SMU type (PG p486 (4-168) "500"): HR/HP/MPSMU 500 us to 2 s at 100 us,
+HVSMU 500 us to 2 s at 2 us, HCSMU 50 us to 2 s at 2 us, MCSMU 10 us to 2 s at 2 us (outside its 1 A range)."""
+
+
+class WgfmuSpec(StrictModel):
+    """B1530A WGFMU + RSU (WG p16 (1-4) "WGFMU"; ALWG limits WG5 p24 (1-14) "2048"; function limits WG p125 (4-55)
+    "setMeasureEvent", WG p128 (4-58) "setRangeEvent", WG p80 (4-10) "addSequence"; errors 3302-3316 WG p153 (4-83)).
+
+    No compliance (it covers the full scale of the current range). Force ranges 3 V (-3..3), 5 V (-5..5), -10 V
+    (-10..0), 10 V (0..10); PG mode: 50 Ohm output, -5..5 V open load (3 V or 5 V range), voltage measurement only;
+    current measurement in Fast IV or DC mode only (1 uA to 10 mA ranges); SMU pass-through mode up to +-25 V, 100 mA.
+    ALWG: 10 ns grid, at most 2,048 vectors per pattern and 512 sequences per channel, vector time 10 ns to
+    10995.11627775 s, sequence count 1 to 1,099,511,627,776; about 4,000,000 stored values per channel; measure
+    interval 10 ns to 1.34217728 s, average 0 or 10 ns to 0.020971512 s and at most the interval; range events need
+    Fast IV current measurement, lie outside the averaging windows and, three or more in a row, more than 2 us apart.
+    """
+
+    module_type: Literal["WGFMU"] = "WGFMU"
+    models: tuple[str, ...] = ("B1530A",)
+    force_ranges: dict[str, tuple[float, float]] = Field(default_factory=lambda: {
+        "3v": (-3.0, 3.0), "5v": (-5.0, 5.0), "-10v": (-10.0, 0.0), "10v": (0.0, 10.0), "auto": (-10.0, 10.0)})
+    pg_force_ranges: frozenset[str] = frozenset({"auto", "3v", "5v"})
+    pg_max_open_v: float = 5.0
+    pg_output_ohm: float = 50.0
+    max_abs_v: float = 10.0
+    current_ranges: dict[str, float] = Field(default_factory=lambda: {
+        "1ua": 1e-6, "10ua": 1e-5, "100ua": 1e-4, "1ma": 1e-3, "10ma": 1e-2})
+    current_modes: frozenset[str] = frozenset({"fastiv", "dc"})
+    smu_mode_max_v: float = 25.0
+    smu_mode_max_a: float = 0.1
+    max_output_a: float = 0.1
+    """Current assumed to return from one WGFMU channel without a pulse envelope (R-GNDU-01): the RSU path's 100 mA
+    (SMU mode). TODO(verify) the Fast IV short-circuit current at bring-up stage L8."""
+    grid_s: float = WGFMU_GRID_S
+    max_vectors: int = 2048
+    max_sequences: int = 512
+    max_points: int = 4_000_000
+    vector_dt_s: tuple[float, float] = (1e-8, 10995.11627775)
+    sequence_count: tuple[float, float] = (1.0, 1_099_511_627_776.0)
+    interval_s: tuple[float, float] = (1e-8, 1.34217728)
+    average_s: tuple[float, float] = (1e-8, 0.020971512)
+    range_event_spacing_s: float = 2e-6
+    sources: tuple[str, ...] = ("WG p16 (1-4)", "WG5 p24 (1-14)", "WG p125 (4-55)", "WG p128 (4-58)",
+                                "WG p153 (4-83)")
+
+    def range_bounds(self, mode: str, force_range: str) -> tuple[float, float]:
+        """Output level bounds of a force range in a mode (PG: open-load -5..5 V at most)."""
+        low, high = self.force_ranges[force_range]
+        if mode == "pg":
+            low, high = max(low, -self.pg_max_open_v), min(high, self.pg_max_open_v)
+        return low, high
+
+    def train_problems(self, train: PulseTrain) -> list[SpecProblem]:
+        """Where a WGFMU pulse train leaves the ALWG limits (levels against the largest range; the channel's own
+        range and mode are checked against the waveform program by R-WG-02)."""
+        found: list[SpecProblem] = []
+        if train.max_abs_set_v > self.max_abs_v:
+            found.append(SpecProblem(f"level {train.max_abs_set_v:g} V exceeds the WGFMU's {self.max_abs_v:g} V",
+                                     train.max_abs_set_v, self.max_abs_v))
+        for name, value in (("width", train.width_s), ("period", train.period_s), ("delay", train.delay_s),
+                            ("leading", train.lead_s), ("trailing", train.trail_s)):
+            if value is None or (name == "delay" and value == 0):
+                continue
+            if value < self.grid_s or not on_grid(value, self.grid_s):
+                found.append(SpecProblem(f"{name} {value:g} s is not a multiple of the 10 ns grid", value,
+                                         self.grid_s))
+        if train.count is not None and train.count > self.sequence_count[1]:
+            found.append(SpecProblem(f"count {train.count} exceeds the sequence count limit", train.count,
+                                     self.sequence_count[1]))
+        if train.load_ohm is not None:
+            found.append(SpecProblem("WGFMU pulses have no SER load setting", train.load_ohm, None))
+        return found
+
+
+class CmuSpec(StrictModel):
+    """B1520A MFCMU (UG p73 (2-33) "MFCMU"): AC 1 kHz to 5 MHz, 10 to 250 mVrms; internal DC bias 0 to +-25 V (up to
+    +-100 V only through an SMU and the SCUU, which is an SMU role)."""
+
+    module_type: Literal["MFCMU"] = "MFCMU"
+    models: tuple[str, ...] = ("B1520A",)
+    f_hz: tuple[float, float] = (1e3, 5e6)
+    ac_vrms: tuple[float, float] = (0.01, 0.25)
+    max_dc_v: float = 25.0
+    source: str = "UG p73 (2-33)"
+
+
+class ScuuSpec(StrictModel):
+    """SMU CMU unify unit (``SSP``; PG p520 (4-202) "SSP"). Switching an output from SMU to MFCMU sets the SMU to 0 V,
+    100 V range, 20 mA compliance; back to SMU: 0 V, 20 V range, 100 uA compliance (ATV-27 confirmed by the manual
+    text). Every ``SSP`` is therefore an output change and goes through ``OutputGuard.check_route``."""
+
+    kind: Literal["scuu"] = "scuu"
+    smu_types: frozenset[str] = frozenset({"HRSMU", "MPSMU"})
+    max_dc_v_with_smu: float = 100.0
+    ssp_resets_smu: bool = True
+    source: str = "PG p520 (4-202)"
+
+
+class AsuSpec(StrictModel):
+    """Atto sense and switch unit (``SAP``; PG p505 (4-187) "SAP"): the current ranges flagged ``requires_asu`` in
+    ``MODULE_SPECS`` (1 pA on the HRSMU, 1 to 100 pA on the MPSMU B1511B) exist only on an SMU with an ASU
+    (R-ASU-01)."""
+
+    kind: Literal["asu"] = "asu"
+    smu_types: frozenset[str] = frozenset({"HRSMU", "MPSMU"})
+    lowest_range_a: float = 1e-12
+    source: str = "PG p505 (4-187)"
+
+
+SPGU_SPEC: Final = SpguSpec()
+WGFMU_SPEC: Final = WgfmuSpec()
+CMU_SPEC: Final = CmuSpec()
+SCUU_SPEC: Final = ScuuSpec()
+ASU_SPEC: Final = AsuSpec()
+
+SPEC_SYMBOL: Final = "b1500_test_agent.driver.modules"
+"""Module path used in rule finding sources (``code:b1500_test_agent.driver.modules.SPGU_SPEC ...``)."""

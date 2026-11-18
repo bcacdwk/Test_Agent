@@ -29,6 +29,7 @@ from b1500_test_agent.models.plan import (
     PlanRecord,
     PlanRequest,
     RulesReport,
+    WaveformLimits,
 )
 from b1500_test_agent.models.policy import DutProfile, DutTerminal, Policy
 from b1500_test_agent.models.recipe import Recipe
@@ -310,6 +311,11 @@ def compile_plan(
     files: Mapping[str, ParamFile] | None = None,
     label: str | None = "W3-D12 batch",
     created_at: datetime = T0,
+    program: Mapping[str, Any] | None = None,
+    mode: str = "sync",
+    routes_by_phase: Mapping[str, list[Route]] | None = None,
+    max_segment_s: float | None = None,
+    waveform: Mapping[int, WaveformLimits] | None = None,
 ) -> PlanRecord:
     """A plan record as the planner would build it, with a provisional (empty, ``ok``) plan-phase report."""
     params = dict(params or {})
@@ -329,6 +335,8 @@ def compile_plan(
             continue
         spec = rec.roles[role_name]
         icomp = abs(float(_setting(spec.settings, "icomp", resolved)))
+        if spec.function not in ("sweep_v", "step_v", "bias_v", "ground", "measure_only") and icomp == 0:
+            continue  # v2 roles (pulse, WGFMU, MFCMU, current forcing): tests pass their envelope explicitly
         if spec.function in ("sweep_v", "step_v"):
             start = float(_setting(spec.settings, "start", resolved))
             stop = float(_setting(spec.settings, "stop", resolved))
@@ -357,12 +365,16 @@ def compile_plan(
         kind=rec.kind,
         resolved_params=resolved,
         binding=ChannelBinding(pin_map=name, roles=roles),
-        envelope=CompiledEnvelope(channels=channels, routes=frozenset(routes)),
-        estimate=Estimate(points=points if points is not None else sweep_points, duration_s=duration_s),
+        envelope=CompiledEnvelope(channels=channels, routes=frozenset(routes), waveform=dict(waveform or {})),
+        estimate=Estimate(points=points if points is not None else sweep_points, duration_s=duration_s,
+                          max_segment_s=max_segment_s),
         flex_preview=[],
         hashes={"station": ZERO_SHA, "policy": ZERO_SHA, "pin_map": ZERO_SHA, "dut_profile": ZERO_SHA},
         backend=backend,
         files=dict(files or {}),
+        program=dict(program or {}),
+        mode=mode,
+        routes_by_phase={k: list(v) for k, v in (routes_by_phase or {}).items()},
         rules=report,
         tier=report.tier,
         summary="pending",

@@ -23,7 +23,7 @@ from pydantic import AwareDatetime, Field, field_validator, model_validator
 from b1500_test_agent.models.analysis import PositiveFloat, RunId
 from b1500_test_agent.models.common import Alias, Backend, ConfigName, Sha256Hex, StrictModel
 from b1500_test_agent.models.measurement import Channel
-from b1500_test_agent.models.routing import SwitchSpec, SwitchTarget, split_switch_target
+from b1500_test_agent.models.routing import SwitchSpec, SwitchState, SwitchTarget, split_switch_target
 
 ModuleType = Literal["HPSMU", "MPSMU", "HRSMU", "MCSMU", "HCSMU", "HVSMU", "MFCMU", "HVSPGU", "WGFMU"]
 """Plug-in module types a station profile and a recipe role may name (``RoleSpec.module_types``)."""
@@ -648,9 +648,43 @@ class ChannelOutput(StrictModel):
     output_on: bool
 
 
+class DllProbe(StrictModel):
+    """Where the WGFMU instrument library is and whether this Python can load it (blueprint v2 2.4; produced by
+    ``WgfmuDll.locate`` without loading anything risky, read by R-WG-01 and ``doctor``).
+
+    ``machine``: the PE header machine of the DLL (``x64`` = 0x8664, ``x86`` = 0x14c); ``loadable``: a 64-bit
+    library for this 64-bit Python with every export the binding needs (``missing_exports`` lists the others).
+    ``message`` says what to do when it is not loadable (e.g. "install library >= A.03.00" for a 32-bit DLL).
+    """
+
+    path: str | None = None
+    exists: bool = False
+    machine: Literal["x64", "x86", "unknown"] | None = None
+    file_version: str | None = None
+    python_bits: int = 64
+    loadable: bool = False
+    missing_exports: list[str] = Field(default_factory=list)
+    message: str = ""
+
+
+class CmuCorrectionLive(StrictModel):
+    """MFCMU correction state read back before a capacitance run (R-CORR-01 pre-execute): ``CORRST?`` per data
+    correction (``True`` = on) and whether phase-compensation data are in effect (``None`` = not readable). A
+    ``*RST`` or a power cycle turns the corrections off and clears their data (PG p388 (4-70) "CORRST?")."""
+
+    corr_state: dict[CorrectionFunction, bool] = Field(default_factory=dict)
+    phase: bool | None = None
+
+
 class LiveState(StrictModel):
     """Read-only snapshot of the instrument (blueprint 2.4 ``Session.snapshot``): IDN, inventory, drained errors,
-    status byte and per-channel output state. Fields stay ``None``/empty when not read. WP1.3/WP1.6 may extend it."""
+    status byte and per-channel output state. Fields stay ``None``/empty when not read.
+
+    v2 (filled by the module WPs' snapshots; ``None`` = not read): ``switch_states`` = the state of every declared
+    switch output read back (``ERSSP?`` after ``ERMOD 1`` for selectors, ``SSP?``/``SAP?`` paths, RSU connection),
+    keyed ``"<switch>.<output>"`` (R-ROUTE-01); ``cmu_corrections`` = correction state per MFCMU alias (R-CORR-01);
+    ``wgfmu_library`` = the WGFMU library probe and ``wgfmu_channels`` = ``WGFMU_getChannelIds`` (R-WG-01).
+    """
 
     backend: Backend
     resource: str
@@ -660,6 +694,10 @@ class LiveState(StrictModel):
     errors: list[InstrumentError] = Field(default_factory=list)
     status_byte: StatusByte | None = None
     outputs: dict[Channel, ChannelOutput] = Field(default_factory=dict)
+    switch_states: dict[SwitchTarget, SwitchState] | None = None
+    cmu_corrections: dict[Alias, CmuCorrectionLive] | None = None
+    wgfmu_library: DllProbe | None = None
+    wgfmu_channels: list[Channel] | None = None
 
     @property
     def interlock_open(self) -> bool | None:

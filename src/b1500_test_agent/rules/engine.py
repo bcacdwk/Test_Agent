@@ -26,7 +26,7 @@ import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Final, Literal
+from typing import Final, Literal, Protocol
 
 from pydantic import AwareDatetime, Field, model_validator
 
@@ -77,6 +77,24 @@ class CalibrationState(StrictModel):
     last_self_calibration_run: RunId | None = None
 
 
+class CorrectionRecordSource(Protocol):
+    """Where R-CORR-01's correction records come from: the server-written correction store
+    (``archive/corrections.py: records_for(cmu_alias) -> list[CorrectionRecord]`` satisfies it). Rules never import
+    the archive; whoever builds a ``RuleContext`` passes ``correction_records(station, source)`` as ``corrections``."""
+
+    def __call__(self, cmu_alias: str, /) -> Sequence[CorrectionRecord]: ...
+
+
+def correction_records(station: StationProfile,
+                       source: CorrectionRecordSource | None) -> dict[str, list[CorrectionRecord]]:
+    """``RuleContext.corrections``: the records of every MFCMU of the station (by alias, ``CH<n>`` without one) read
+    from ``source``; empty without a source."""
+    if source is None:
+        return {}
+    aliases = [m.alias or f"CH{m.channels[0]}" for m in station.modules if m.type == "MFCMU"]
+    return {alias: list(source(alias)) for alias in aliases}
+
+
 class RuleContext(StrictModel):
     """Everything a rule may look at (blueprint 2.5), assembled by the executor.
 
@@ -84,7 +102,8 @@ class RuleContext(StrictModel):
     backend, so a kind missing on the backend makes it ``not_implemented``; R-REC-01), ``fault`` and
     ``inflight_unrecovered`` (fault latch and in-flight marker; R-FAULT-01), ``calibration`` (R-CAL-01),
     ``recipe_source`` (the recipe file path, used in finding sources) and ``corrections`` (MFCMU correction records
-    by MFCMU alias, from the server-written correction store; R-CORR-01). ``pin_map`` and ``dut`` are ``None`` when
+    by MFCMU alias, from the server-written correction store through ``correction_records``; R-CORR-01). ``pin_map``
+    and ``dut`` are ``None`` when
     the request names a pin map or DUT profile that does not exist, so that R-PIN-01 and R-DUT-01 can block it.
     ``live`` is ``None`` when no snapshot was taken (always at the zero-I/O re-check of a run).
     """

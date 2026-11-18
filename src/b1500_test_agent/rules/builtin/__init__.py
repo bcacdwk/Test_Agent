@@ -14,8 +14,10 @@ R-QUAL-* is the post-run classification of per-point status letters (``quality_f
 owns the detailed quality report and the extraction gate.
 
 Modules, imported below in table order (import order = registration order = finding order): ``core`` (R-CFG-01 ...
-R-INV-01), ``limits`` (R-LIM-01 ... R-IL-01), ``run`` (R-RUN-01 ... R-CAL-01, R-QUAL-*), ``cmu`` (R-CORR-01); shared
-helpers in ``common``. A new rule family module is imported at its place in the table.
+R-INV-01), ``limits`` (R-LIM-01 ... R-IL-01, R-GNDU-01), ``run`` (R-RUN-01, R-RUN-02, R-ALWAYS-01, R-ERRX-01,
+R-CAL-01, R-CAL-02, R-QUAL-*), ``pulse`` (R-PULSE-01 ... R-PULSE-03, R-SPGU-01, R-WG-01, R-WG-02), ``route``
+(R-ROUTE-01, R-ROUTE-02, R-ASU-01), ``cmu`` (R-CMU-01, R-CORR-01); shared helpers in ``common``. A new rule family
+module is imported at its place in the table.
 """
 
 # Import order = registration order = finding order (the rule table); "isort: split" keeps it.
@@ -28,21 +30,41 @@ from b1500_test_agent.rules.builtin import limits as limits
 from b1500_test_agent.rules.builtin import run as run
 
 # isort: split
+from b1500_test_agent.rules.builtin import pulse as pulse
+
+# isort: split
+from b1500_test_agent.rules.builtin import route as route
+
+# isort: split
 from b1500_test_agent.rules.builtin import cmu as cmu
 
 # isort: split
-from b1500_test_agent.rules.builtin.common import COMPLIANCE_SETTING, INTERLOCK_ERRORS, SOURCING_FUNCTIONS
+from b1500_test_agent.rules.builtin.common import (
+    COMPLIANCE_SETTING,
+    CURRENT_SOURCING_FUNCTIONS,
+    INTERLOCK_ERRORS,
+    MEASURE_RANGE_SETTING,
+    SOURCING_FUNCTIONS,
+    VOLTAGE_COMPLIANCE_SETTING,
+)
 from b1500_test_agent.rules.builtin.limits import interlock_errors
-from b1500_test_agent.rules.builtin.run import quality_findings
+from b1500_test_agent.rules.builtin.run import cmu_status_letter, quality_findings, wgfmu_status_letter
 
 __all__ = [
     "COMPLIANCE_SETTING",
+    "CURRENT_SOURCING_FUNCTIONS",
     "INTERLOCK_ERRORS",
+    "MEASURE_RANGE_SETTING",
     "SOURCING_FUNCTIONS",
+    "VOLTAGE_COMPLIANCE_SETTING",
     "cmu",
+    "cmu_status_letter",
     "core",
     "interlock_errors",
     "limits",
+    "pulse",
     "quality_findings",
+    "route",
     "run",
+    "wgfmu_status_letter",
 ]

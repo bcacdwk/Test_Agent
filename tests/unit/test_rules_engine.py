@@ -44,13 +44,27 @@ TABLE: dict[str, set[str]] = {
     "R-DUT-01": {"plan"},
     "R-COMP-01": {"plan"},
     "R-IL-01": {"plan", "pre_execute"},
+    "R-GNDU-01": {"plan"},
     "R-RUN-01": {"plan"},
+    "R-RUN-02": {"plan"},
     "R-ALWAYS-01": {"plan"},
     "R-ERRX-01": {"plan", "pre_execute"},
     "R-CAL-01": {"pre_execute"},
-    "R-CORR-01": {"plan"},
+    "R-CAL-02": {"pre_execute"},
+    "R-PULSE-01": {"plan"},
+    "R-PULSE-02": {"plan"},
+    "R-PULSE-03": {"plan"},
+    "R-SPGU-01": {"plan"},
+    "R-WG-01": {"plan", "pre_execute"},
+    "R-WG-02": {"plan"},
+    "R-ROUTE-01": {"plan", "pre_execute"},
+    "R-ROUTE-02": {"plan"},
+    "R-ASU-01": {"plan"},
+    "R-CMU-01": {"plan"},
+    "R-CORR-01": {"plan", "pre_execute"},
 }
-"""Blueprint 4.2 in table order. ``pre`` rules that read live state also run at ``plan`` when a snapshot exists."""
+"""Blueprint v1 4.2 + v2 2.8 in registration order (family modules core, limits, run, pulse, route, cmu). ``pre``
+rules that read live state also run at ``plan`` when a snapshot exists."""
 
 
 # -- Registry --------------------------------------------------------------------------------------------------------
@@ -61,7 +75,8 @@ def test_builtin_rules_follow_the_blueprint_table() -> None:
     assert [s.rule_id for s in specs] == list(TABLE)
     assert {s.rule_id: set(s.phases) for s in specs} == TABLE
     assert all(s.fn.__doc__ for s in specs)
-    families = [builtin.core.__name__, builtin.limits.__name__, builtin.run.__name__, builtin.cmu.__name__]
+    families = [builtin.core.__name__, builtin.limits.__name__, builtin.run.__name__, builtin.pulse.__name__,
+                builtin.route.__name__, builtin.cmu.__name__]
     modules = [s.fn.__module__ for s in specs]
     assert set(modules) == set(families)
     assert modules == sorted(modules, key=families.index)  # one block per family module, in table order

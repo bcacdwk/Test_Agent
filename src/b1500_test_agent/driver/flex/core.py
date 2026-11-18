@@ -64,6 +64,10 @@ RST = "*RST"
 """Reset to the initial settings (PG PDF 502-503, printed 4-184 to 4-185). During a sweep send ``AB`` first; never
 combined with other commands."""
 
+SER_SETTING = "SER"
+"""Name of the HV-SPGU load-impedance setting (``SER chnum,loadZ``, PG PDF 507, printed 4-189) that the output level
+is adjusted to; the plan summary shows an SPGU pulse's load under this name (blueprint v2 2.9). Not sent on its own."""
+
 TST_Q = "*TST?"
 """Self-test and self-calibration of all modules and the mainframe (PG PDF 540-541, printed 4-222 to 4-223);
 answers the sum of failure bits (Table 4-32), 0 = passed. Modules end in the ``CL`` state; open the terminals

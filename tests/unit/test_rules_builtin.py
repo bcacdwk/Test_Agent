@@ -3,8 +3,6 @@ severity, reason, observed value, limit and source asserted for every finding of
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import timedelta
 from functools import partial
 from typing import Any
@@ -31,6 +29,7 @@ from b1500_test_agent.rules.builtin import interlock_errors, quality_findings
 from b1500_test_agent.rules.engine import RuleContext, registered_rules
 from b1500_test_agent.rules.tiers import HARD_CEILING_A, HARD_CEILING_V
 from tests.unit.helpers import REPO_ROOT
+from tests.unit.rule_cases import Case, F
 from tests.unit.rules_factory import (
     CALIBRATED,
     CMU,
@@ -60,26 +59,6 @@ DUT = "config/local/duts/nmos-generic.yaml#"
 REC = "recipe:mosfet.idvg@1#"
 NO_TARGET = "a channel, GNDU or switch output"
 MPSMU_SPEC = "code:b1500_test_agent.driver.modules.MODULE_SPECS[MPSMU] (PG Tables 4-6/4-7, PDF 341-342)"
-
-
-@dataclass(frozen=True)
-class F:
-    """Expected finding: severity, observed, limit, source and (for confirm) reason."""
-
-    severity: str
-    observed: Any
-    limit: Any
-    source: str
-    reason: str | None = None
-
-
-@dataclass(frozen=True)
-class Case:
-    id: str
-    rule_id: str
-    build: Callable[[], tuple[ConfigBundle, RuleContext]]
-    expect: tuple[F, ...] = ()
-    phase: str = "plan"
 
 
 def above_ceiling_policy() -> Policy:
@@ -116,7 +95,7 @@ AVAILABLE = station(interlock={"available": True})
 IL_POLICY = Policy(interlock=InterlockPolicy(required_above_v=5.0))
 CORR_FILE = "data/state/corrections/CMU1.json"
 PGU_ENVELOPE = ChannelEnvelope(role="pulse", max_abs_v=4.0, max_abs_i=None, function="pgu")
-"""An SPGU output (no compliance): the DC current checks skip it, the pulse rules of WP5.4 bound it."""
+"""An SPGU output (no compliance): the DC current checks skip it, the pulse rules (R-PULSE-*, R-SPGU-01) bound it."""
 
 
 def corr(kind: str, freqs: tuple[float, ...] = (1e3, 1e5, 1e6), *, age_h: float = 1.0,
@@ -315,9 +294,12 @@ CASES: list[Case] = [
     Case("lim1-outside-envelope-corner", "R-LIM-01", partial(force, 30.0, 0.08),
          (F("block", "30 V @ 0.08 A", "20 V @ 0.1 A, 40 V @ 0.05 A, 100 V @ 0.02 A", MPSMU_SPEC),)),
     Case("lim1-not-a-dc-source", "R-LIM-01", partial(force, 1.0, 1e-3, channel=7),
-         (F("block", "MFCMU", "an SMU", "code:b1500_test_agent.driver.modules.MODULE_SPECS"),)),
-    Case("lim1-spgu-has-no-dc-spec-yet", "R-LIM-01", partial(context, extra_envelope={101: PGU_ENVELOPE}),
-         (F("block", "HVSPGU", "an SMU", "code:b1500_test_agent.driver.modules.MODULE_SPECS"),)),
+         (F("block", "bias_v", "cmu_high, cmu_low",
+            "code:b1500_test_agent.driver.modules.CMU_SPEC.max_dc_v (UG p73 (2-33))"),)),
+    Case("lim1-ok-spgu-in-spec", "R-LIM-01", partial(context, extra_envelope={101: PGU_ENVELOPE})),
+    Case("lim1-spgu-above-open-load-max", "R-LIM-01",
+         partial(context, extra_envelope={101: PGU_ENVELOPE.model_copy(update={"max_abs_v": 45.0})}),
+         (F("block", 45.0, 40.0, "code:b1500_test_agent.driver.modules.SPGU_SPEC.max_open_v (UG p76 (2-36))"),)),
     Case("lim1-gndu-overload", "R-LIM-01", gndu_overload,
          (F("block", 5.0, 4.2, "code:b1500_test_agent.driver.modules.MODULE_SPECS[GNDU] (UG GNDU, PDF 58)"),)),
     # R-LIM-02
@@ -403,8 +385,7 @@ CASES: list[Case] = [
     Case("run-int-max-points-applies-to-all", "R-RUN-01",
          partial(context, points=600, cfg_policy=Policy(run_limits={"max_points": 500})),
          (F("block", 600, 500, POL + "run_limits.max_points.smu"),)),
-    Case("run-too-long", "R-RUN-01", partial(context, duration_s=400.0),
-         (F("block", 400.0, 300.0, POL + "run_limits.max_sync_run_s"),)),
+    Case("run-duration-is-r-run-02s", "R-RUN-01", partial(context, duration_s=400.0)),
     # R-ALWAYS-01
     Case("always-ok", "R-ALWAYS-01", context),
     Case("always-destructive", "R-ALWAYS-01", partial(context, rec=recipe(always_confirm=["destructive"])),
@@ -431,7 +412,8 @@ CASES: list[Case] = [
          "pre_execute"),
     # R-CORR-01
     Case("corr-ok-not-cmu", "R-CORR-01", context),
-    Case("corr-ok-records", "R-CORR-01", partial(cmu, corrections=CORRECTED)),
+    Case("corr-ok-records", "R-CORR-01", partial(cmu, corrections=CORRECTED),
+         (F("info", 1.0, 8.0, CORR_FILE),)),
     Case("corr-ok-correction-recipe-exempt", "R-CORR-01", partial(cmu, rec=recipe(CMU, kind="cmu_correction"))),
     Case("corr-no-records", "R-CORR-01", cmu,
          (F("block", None, "phase", POL + "corrections.require"),
@@ -464,8 +446,12 @@ def test_rule_table(case: Case) -> None:
 
 
 def test_every_rule_has_ok_and_non_ok_cases() -> None:
-    ok = {c.rule_id for c in CASES if not c.expect}
-    flagged = {c.rule_id for c in CASES if c.expect}
+    """Over the v1 rows here and the v2 rows of ``test_rules_v2.py``."""
+    from tests.unit.test_rules_v2 import CASES as V2_CASES
+
+    cases = [*CASES, *V2_CASES]
+    ok = {c.rule_id for c in cases if not c.expect}
+    flagged = {c.rule_id for c in cases if c.expect}
     ids = {spec.rule_id for spec in registered_rules()}
     assert ids <= ok
     assert ids <= flagged

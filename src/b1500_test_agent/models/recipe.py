@@ -167,12 +167,17 @@ class RoleSpec(StrictModel):
     allow_gndu: bool = False
     optional: bool = False
     low_current: bool = False
+    kelvin: bool = False
+    """The role forces and senses on separate lines (4-wire). A 16440A selector's SMU path carries Force only (Sense
+    open, PG p154 (2-66)), so a Kelvin role never reaches its terminal through a selector (R-ROUTE-01)."""
     settings: dict[str, str | float] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _consistent(self) -> RoleSpec:
         if len(set(self.measure)) != len(self.measure):
             raise ValueError("measure lists a quantity twice.")
+        if self.kelvin and self.function not in SMU_FUNCTIONS:
+            raise ValueError(f"only SMU roles can be Kelvin roles, not {self.function}.")
         if self.prefer is not None and self.module_types and self.prefer not in self.module_types:
             raise ValueError("prefer must be one of module_types.")
         fitting = FUNCTION_MODULE_TYPES[self.function]

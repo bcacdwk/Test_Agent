@@ -65,7 +65,14 @@ from b1500_test_agent.models.station import (
     cmu_side,
     switch_target,
 )
-from b1500_test_agent.rules import CalibrationState, RuleContext, RulesEngine, with_rules
+from b1500_test_agent.rules import (
+    CalibrationState,
+    CorrectionRecordSource,
+    RuleContext,
+    RulesEngine,
+    correction_records,
+    with_rules,
+)
 from b1500_test_agent.session.lock import atomic_write_json
 
 PLAN_ID_PREFIX = "P-"
@@ -270,11 +277,15 @@ def lookup(bundle: ConfigBundle, req: PlanRequest) -> tuple[PinMap | None, DutPr
 
 
 class Planner:
-    """Builds and rule-checks plans for one registry (see the module docstring)."""
+    """Builds and rule-checks plans for one registry (see the module docstring). ``corrections`` reads the MFCMU
+    correction records of the server-written store for R-CORR-01 (``archive.corrections.records_for``; ``None`` =
+    no records)."""
 
-    def __init__(self, registry: RecipeRegistry, *, clock: Callable[[], datetime] | None = None) -> None:
+    def __init__(self, registry: RecipeRegistry, *, clock: Callable[[], datetime] | None = None,
+                 corrections: CorrectionRecordSource | None = None) -> None:
         self.registry = registry
         self._clock = clock or (lambda: datetime.now(UTC))
+        self._corrections = corrections
 
     def context(self, plan: PlanRecord, bundle: ConfigBundle, *, live: LiveState | None = None,
                 fault: FaultRecord | None = None, inflight_unrecovered: bool = False,
@@ -287,6 +298,7 @@ class Planner:
             station=bundle.station, policy=bundle.policy, pin_map=pin_map, dut=dut, live=live,
             backend=bundle.backend, fault=fault, inflight_unrecovered=inflight_unrecovered,
             calibration=calibration, recipe_source=self.registry.source(recipe.id),
+            corrections=correction_records(bundle.station, self._corrections),
         )
 
     def draft(self, req: PlanRequest, bundle: ConfigBundle, *, now: datetime | None = None) \

@@ -5,7 +5,10 @@ Source: blueprint §4 (rules, tiers, confirmation, residual risks), §2.4 (trans
 API) and §3 (the simulator invariant). **Status:** the rules engine, the built-in rules, tiers and the plan summary
 are implemented (WP1.4, `src/b1500_test_agent/rules/`), and so are the session and fault latch (WP1.6), the
 executor (WP1.7), the service, MCP tools and CLI that call them (WP1.8) and the harness wiring (WP1.9: Codex
-`forbidden` rules, Claude Code permission rules and the `PreToolUse` guard hook).
+`forbidden` rules, Claude Code permission rules and the `PreToolUse` guard hook). v2 (blueprint v2 §2.5, §2.8, §2.9;
+WP5.4): the guard's pulse, AC, route and waveform checks, the v2 rules, the confirm reasons `soft_pulse`, `soft_cmu`,
+`long_run`, `physical_setup`, `unverified_topology` and the v2 plan summary are implemented and tested on synthetic
+plans; the module work packages (M7–M10) make them live by compiling such plans and filling the live fields.
 
 ## Principles
 
@@ -26,7 +29,12 @@ executor (WP1.7), the service, MCP tools and CLI that call them (WP1.8) and the 
 2. **Pre-execute rules** under the instrument lock with fresh live state: no latched fault, instrument identity and
    module inventory match the station profile, interlock state, pre-existing instrument errors, calibration state.
 3. **`OutputGuard`** on every single source command: the channel must be in the plan's allowlist, the level and
-   compliance inside the compiled envelope, the compliance non-zero. A violation raises before anything is sent.
+   compliance inside the compiled envelope, the compliance non-zero. v2 adds a check per source family, each
+   refusing before anything reaches a transport (FLEX bus or WGFMU library): `check_pulse` (SPGU and SMU pulse
+   trains: the level at the DUT including the `SER` divider, width, duty, pulses and on-time per start; a count
+   below 1, i.e. free run, is refused), `check_ac` (MFCMU AC level, DC bias, frequency), `check_route` (a switch
+   route is one of the plan's routes or returns a declared output to its `rest` state; `pgu_open` only on selector
+   CH 1) and `check_waveform` (every WGFMU level, the 10 ns grid, the vector count and time, before `add_vectors`).
 4. **Quality classification** after the run: each data point's status code makes it ok, limited or untrusted.
 
 Configuration is re-read (by digest) on every service call, so a rule change applies to the next call.
@@ -40,9 +48,9 @@ Configuration is re-read (by digest) on every service call, so a rule change app
 | `hard_limits` | 42 V, 100 mA compliance | Above → `blocked`. Code ceiling `HARD_CEILING_V = 42.0`, `HARD_CEILING_A = 0.1`; a policy above it is invalid config |
 | `soft_limits` | 10 V, 10 mA compliance | Above → `needs_confirmation` (reason `soft_limit`) |
 | `interlock.required_above_v` | 42 V | Above → the interlock must be recorded as working and be closed |
-| `run_limits` | points per run: SMU 10,001, CMU 10,001, WGFMU 4,000,000 per channel (a v1 integer applies to all); 300 s per synchronous run; async above 300 s, confirmation above 600 s (`long_run`), block above 24 h; segments ≤ 30 s | Points or a synchronous estimate above → `blocked` (the async thresholds act from WP5.6, R-RUN-02) |
-| `pulse` | 5 V at the DUT, 10,000 pulses, 60 s on-time, duty 0.5 | Above → `needs_confirmation` (`soft_pulse`, R-PULSE-03, WP5.4) |
-| `cmu` | 10 V DC bias, 50 mVrms AC | Above → `needs_confirmation` (`soft_cmu`, R-CMU-01, WP5.4) |
+| `run_limits` | points per run: SMU 10,001, CMU 10,001, WGFMU 4,000,000 per channel (a v1 integer applies to all); 300 s per synchronous run; async above 300 s, confirmation above 600 s (`long_run`), block above 24 h; segments ≤ 30 s | Points above → `blocked` (R-RUN-01, R-WG-02); a synchronous plan above 300 s, an async plan above 24 h or with segments above 30 s → `blocked`; above 600 s → `needs_confirmation` (`long_run`, R-RUN-02; the planner sets `mode: async` from WP5.6) |
+| `pulse` | 5 V at the DUT, 10,000 pulses, 60 s on-time, duty 0.5 | Above → `needs_confirmation` (`soft_pulse`, R-PULSE-03) |
+| `cmu` | 10 V DC bias, 50 mVrms AC | Above → `needs_confirmation` (`soft_cmu`, R-CMU-01) |
 | `corrections` | phase + open + short, at most 8 h old (a policy may add `load`, never drop one) | C-V without them → `blocked` (R-CORR-01) |
 | `plans.ttl_h` | 24 h | Older plans must be validated again |
 | `quality` | ok `N`; limited `C T`; untrusted `V X F D G S U` | Limited points are excluded from fits; extraction from untrusted data is refused unless forced, and then flagged |
@@ -50,12 +58,16 @@ Configuration is re-read (by digest) on every service call, so a rule change app
 Limits compare magnitudes and are exclusive: a value equal to a limit passes (10 V is `ok`, 42 V needs
 confirmation, 42.5 V is `blocked`). Every voltage and current check runs over the plan's compiled envelope, the
 same per-channel numbers the `OutputGuard` enforces, so the rules and the guard cannot disagree. Module
-specifications from the manuals (voltage, current and V-I envelope per SMU type, `driver/modules.py`) block a plan
-regardless of policy.
+specifications from the manuals (voltage, current and V-I envelope per SMU type; v2 rows for the HV-SPGU, SMU
+pulses, WGFMU, MFCMU, SCUU and ASU, each citing its manual page, `driver/modules.py`) block a plan regardless of
+policy. Pulse and waveform rules read the channel's pulse/waveform envelope (what the guard enforces) and the kind's
+**source plan** (`plan.program["sources"]`, `models/sources.py`: the nominal pulse trains and the WGFMU waveform
+program, hashed with the plan).
 
 ## Implemented rules (blueprint §4.2)
 
-Each rule is one function in `rules/builtin/` (`core.py`, `limits.py`, `run.py`, `cmu.py`, imported in table order),
+Each rule is one function in `rules/builtin/` (`core.py`, `limits.py`, `run.py`, `pulse.py`, `route.py`, `cmu.py`,
+imported in this order, which is the finding and summary-flag order),
 registered with a stable id. Thresholds come only from the config
 files, recipe parameter ranges and the code tables named below. Every finding carries the rule id, severity,
 message, observed value, limit and **source**: the resolved file and key (`config/local/policy.yaml#soft_limits.
@@ -72,18 +84,31 @@ plan (`plan:...`) or a state file (`data/state/fault.json`). "pre" = `pre_execut
 | R-PIN-01 | plan | Pin map exists; every non-optional role is mapped to a channel, the GNDU, an MFCMU side (`7H`/`7L`, only for `cmu_high`/`cmu_low` roles, which need one) or a switch output (`SEL1.OUT1`); the plan binding agrees with the pin map and the station profile; channels exist and are used once; module type allowed by the role (default: the types of its function); `low_current` needs an HRSMU; the GNDU only for `ground` roles with `allow_gndu`; through a switch: the switch is declared and not absent, can connect the role's resource to that output, the channel on that input is recorded (not `null`) and the plan sets that route (`envelope.routes`; kinds without routing cannot use such a terminal); every envelope channel belongs to its bound role | block | `pinmaps/<name>.yaml#terminals.<role>`, `station.yaml#modules`, `station.yaml#switches[i].*`, recipe `#roles.<role>.*`, `plan:envelope.{channels.<ch>,routes}` |
 | R-PIN-02 | plan | Pin map `certainty: unverified` | confirm `unverified_pin_map` | `pinmaps/<name>.yaml#certainty` |
 | R-INV-01 | pre (plan with a snapshot) | A live snapshot exists and comes from the plan's backend; identity model = station mainframe; the module model in every bound slot = station profile | block | `station.yaml#mainframe.model`, `station.yaml#modules[i].model`, `live:snapshot`, `live:identity`, `live:inventory` |
-| R-LIM-01 | plan | Per envelope channel: \|V\|, \|Icomp\| and the V-I envelope of its module (`module_spec()` + `violations()`); modules without a DC spec (MFCMU, SPGU, WGFMU) refuse; summed compliance within the GNDU's 4.2 A when a role uses the GNDU | block | `code:b1500_test_agent.driver.modules.MODULE_SPECS[<type>] (<manual tables>)` |
+| R-LIM-01 | plan | Per envelope channel: an SMU's \|V\|, \|I\| and V-I corners (voltage forcing: \|V\| with \|Icomp\|; current forcing `sweep_i`/`bias_i`/`step_i`: \|I\| with \|Vcomp\|, the I-source corners); an HV-SPGU's 40 V open load, a WGFMU's 10 V, an MFCMU's 25 V DC bias; a role function the module cannot serve refuses; summed compliance within the GNDU's 4.2 A when a role uses the GNDU | block | `code:b1500_test_agent.driver.modules.MODULE_SPECS[<type>] (<manual tables>)`, `…SPGU_SPEC.max_open_v`, `…WGFMU_SPEC.max_abs_v`, `…CMU_SPEC.max_dc_v` |
 | R-LIM-02 | plan | Per envelope channel: \|V\| ≤ `hard_limits.max_abs_voltage_v`, \|Icomp\| ≤ `hard_limits.max_abs_compliance_a`, never above the code ceiling; non-finite values block | block | `policy.yaml#hard_limits.*` (`code:...HARD_CEILING_*` if a policy object exceeds the ceiling) |
 | R-LIM-03 | plan | Per envelope channel above `soft_limits.voltage_v` / `soft_limits.compliance_a` | confirm `soft_limit` | `policy.yaml#soft_limits.*` |
 | R-DUT-01 | plan | A recipe with DUT roles needs a named, existing DUT profile that describes every driven terminal (else block); \|V\| or \|Icomp\| above a terminal's envelope → confirm; DUT device type not among the recipe's → warn | block / confirm / warn | `plan:request.dut_profile`, `duts/<name>.yaml#terminals.<t>.max_abs_{v,i}` |
-| R-COMP-01 | plan | Every connected channel has an envelope with non-zero compliance; sourcing roles (`sweep_v`, `bias_v`, `step_v`) set `icomp` explicitly and non-zero | block | recipe `#roles.<role>.settings.icomp`, `plan:envelope.channels.<ch>.max_abs_i` |
+| R-COMP-01 | plan | Every connected channel has an envelope with non-zero compliance; voltage-forcing roles (`sweep_v`, `bias_v`, `step_v`, `sync_v`, `pulse_v`) set `icomp`, current-forcing roles (`sweep_i`, `bias_i`, `step_i`) set `vcomp` explicitly and non-zero; `pgu`/`wgfmu` roles are exempt (R-PULSE-*, R-SPGU-01, R-WG-* bound them) | block | recipe `#roles.<role>.settings.{icomp,vcomp}`, `plan:envelope.channels.<ch>.max_abs_i` |
 | R-IL-01 | plan, pre | When the envelope's max \|V\| exceeds `interlock.required_above_v`: the station records `interlock.available: true`; with live state, status-byte bit 3 is clear **and** no `ERRX?` 202/203 is pending (ATV-10 fallback); at pre a missing status byte blocks | block | `station.yaml#interlock.available`, `live:status_byte.bit3`, `live:errors` |
-| R-RUN-01 | plan | Points ≤ `run_limits.max_points.<family>` (the smallest over the measuring families of the bound channels: `smu`, `cmu`, `wgfmu`; a v1 integer applies to every family); estimated duration ≤ `run_limits.max_sync_run_s` | block | `policy.yaml#run_limits.*` |
-| R-ALWAYS-01 | plan | Recipe `always_confirm` reasons (`destructive`, `system_self_test`, `system_self_cal`, `physical_setup` ...); a `file` parameter from `work/waveforms/` (ad-hoc waveform) | confirm (that reason; `adhoc_recipe` for the file) | recipe `#always_confirm`, `plan:files.<name>` |
+| R-GNDU-01 | plan | When a role uses the GNDU: the compliances of the SMU channels plus the expected currents of the sources without compliance (a pulse channel's short-circuit bound; an HV-SPGU without one 40 V / 50 Ω, a WGFMU 100 mA) ≤ 4.2 A | block | `code:…MODULE_SPECS[GNDU] (UG GNDU, PDF 58)` |
+| R-RUN-01 | plan | Points ≤ `run_limits.max_points.<family>` (the smallest over the measuring families of the bound channels: `smu`, `cmu`; WGFMU points count per channel in R-WG-02; a v1 integer applies to every family) | block | `policy.yaml#run_limits.max_points.*` |
+| R-RUN-02 | plan | Estimate above `max_sync_run_s`: an `async` plan (info) or a blocked `sync` one; above `long_run_confirm_s` → confirm; above `max_async_run_s` → block; an async plan has checkpoints (`estimate.max_segment_s`) at most `segment_max_s` apart | info / confirm `long_run` / block | `policy.yaml#run_limits.*`, `plan:estimate.max_segment_s` |
+| R-ALWAYS-01 | plan | Recipe `always_confirm` reasons (`destructive`, `system_self_test`, `system_self_cal`, `physical_setup` ...); kind `cmu_correction` always `physical_setup` (declared or not); a `file` parameter from `work/waveforms/` (ad-hoc waveform) | confirm (that reason; `adhoc_recipe` for the file) | recipe `#always_confirm`, `code:…run.PHYSICAL_SETUP_KINDS`, `plan:files.<name>` |
 | R-ERRX-01 | pre (plan with a snapshot) | Pre-existing `ERRX?` entries drained by the snapshot are recorded | warn | `live:errors` |
 | R-CAL-01 | pre | Auto-calibration state and the last completed self-calibration (archive) are recorded | warn if unknown, else info | `live:auto_calibration`, `data/runs/index.jsonl` |
-| R-CORR-01 | plan | Capacitance (MFCMU) plans, except the correction recipes themselves: for every MFCMU used, a correction record of each kind in `corrections.require` (default phase, open, short) from the server-written correction store, measured with this station profile and pin map, at most `corrections.max_age_h` old at validation, covering every frequency parameter (the CMU kinds arrive in M8; the pre-execute `CORRST?`/`ADJ?` check with WP5.4) | block | `policy.yaml#corrections.*`, `data/state/corrections/<cmu>.json` |
-| R-QUAL-01/02/03 | post | Per-point status counts by class (info); limited points, excluded from fits (warn); untrusted points, extraction refused unless forced (warn). Unknown status letters count as untrusted | report | recipe `#quality` or `policy.yaml#quality` |
+| R-CAL-02 | pre | An async run records the auto-calibration state; the run turns auto-calibration off for its duration and restores it (WP5.6) | info | `live:auto_calibration` |
+| R-PULSE-01 | plan | Every pulse channel (`pulse_v`, `pgu`, or a pulse envelope) has a pulse envelope and compiled trains; each train inside its module spec (HV-SPGU: levels ±40 V at 1 mV, period 20 ns–10 s, width 10 ns–period−10 ns, delay, transitions 8 ns–0.4 s, resolutions, width ≥ leading/0.8, period ≥ delay + width + trailing/0.8, count 1–10⁶ or duration 1 µs–1 year, `SER` 0.1 Ω–1 MΩ; SMU: the `PT` table, 500 µs–2 s on HR/MP, period ≥ width + 2/10 ms; WGFMU: 10 ns grid) and inside the channel's pulse envelope; free run cannot be expressed; trains on a non-pulse channel and an invalid source plan block | block | `code:…SPGU_SPEC`, `…SMU_PULSE_SPECS[<type>]`, `…WGFMU_SPEC`, `plan:envelope.channels.<ch>.pulse.*`, `plan:program.sources` |
+| R-PULSE-02 | plan | The pulse channel's DUT terminal declares a `pulse` envelope (missing → block, never invented); open-load level, width, duty, pulses per run outside it → confirm | block / confirm `dut_envelope` | `duts/<name>.yaml#terminals.<t>.pulse.*` |
+| R-PULSE-03 | plan | Above `policy.pulse` (level at the DUT, pulses per run, time at the pulse level, duty) | confirm `soft_pulse` | `policy.yaml#pulse.*` |
+| R-SPGU-01 | plan | HV-SPGU channels: every train sets `SER` (recipe `load_ohm`); open-load voltage `\|V\|·(SER+50)/SER` ≤ 40 V, the hard \|V\| limit and the terminal's pulse `max_abs_v`; a `high_z` terminal needs `SER` ≥ 1 kΩ; short-circuit current `V_open/(50 + min_series_ohm)` ≤ the hard compliance limit unless the terminal is `high_z` (then an info residual shown in the summary); every channel's bound is recorded (info) | block / info | `code:…SPGU_SPEC.*`, `policy.yaml#hard_limits.*`, `duts/<name>.yaml#terminals.<t>.{pulse.max_abs_v,impedance}` |
+| R-WG-01 | plan, pre | WGFMU roles reach the DUT through their RSU (`RSU<ch>.OUT`, state `wgfmu`); on visa the library probe is loadable (x64; a 32-bit DLL → "install library ≥ A.03.00"); the bound channels are among `WGFMU_getChannelIds` (required before execution) | block | `pinmaps/<name>.yaml#terminals.<t>`, `live:wgfmu_library`, `live:wgfmu_channels` |
+| R-WG-02 | plan | The waveform program fits the module and the plan: channel setups for every WGFMU role and nothing else; PG mode only 3 V/5 V ranges, current measurement only in Fast IV/DC (3302/3303); ≤ 2,048 vectors per pattern (3307), ≤ 512 sequences per channel (3305), no empty pattern (3306), counts 1–1.1·10¹² (3309); vector times 10 ns–10995 s on the 10 ns grid (3311); levels in the force range (3310) and the envelope; measure events inside their pattern, interval 10 ns–1.342 s (3312), average 0 or 10 ns–20.97 ms (3315) and ≤ interval (3316); range events only with Fast IV current measurement, outside averaging windows, three or more > 2 µs apart; stored values per channel ≤ `max_points.wgfmu` and ~4 M; the program inside the channel's `WaveformLimits` | block | `code:…WGFMU_SPEC`, `policy.yaml#run_limits.max_points.wgfmu`, `plan:envelope.{waveform,channels}.<ch>`, `plan:program.sources.waveform` |
+| R-ROUTE-01 | plan, pre | Every route of the plan (allowed routes, routes per phase, role `via`) resolves to a declared switch output that can take the state (`pgu_open` only on CH 1, ports 0 and 2); on visa the switch is `present: true`; phases apply only allowed routes or `rest` and name every allowed route; one source per switch output per phase; Kelvin roles never through a selector (Force only); pre: every output of the involved switches and every present selector port reads back its `rest` state | block | `station.yaml#switches[i].*`, `plan:routes_by_phase.*`, `plan:envelope.routes`, recipe `#roles.<role>.kelvin`, `live:switch_states.<switch>.<output>` |
+| R-ROUTE-02 | plan | A route through a switch recorded `certainty: unverified`, or switch outputs mapped by an `unverified` pin map | confirm `unverified_topology` | `station.yaml#switches[i].certainty`, `pinmaps/<name>.yaml#certainty` |
+| R-ASU-01 | plan | A role's measurement range (setting `irange`) exists on its SMU; a range that needs an ASU (1 pA HRSMU, 1–100 pA MPSMU) only with a declared ASU recorded `present: true` | block | `station.yaml#switches[i].present`, `code:…MODULE_SPECS[<type>]` |
+| R-CMU-01 | plan | Every MFCMU source role (`cmu_high`) has an AC envelope inside the module (1 kHz–5 MHz, 10–250 mVrms, \|DC\| ≤ 25 V), the hard \|V\| limit and the `ac` envelope of every DUT terminal on the MFCMU (missing → block); above `policy.cmu` → confirm | block / confirm `soft_cmu` | `code:…CMU_SPEC (UG p73 (2-33))`, `duts/<name>.yaml#terminals.<t>.ac`, `policy.yaml#cmu.*` |
+| R-CORR-01 | plan, pre | Capacitance (MFCMU) plans, except the correction recipes themselves: for every MFCMU used, records of each kind in `corrections.require` (default phase, open, short) from the server-written correction store, measured with this station profile and pin map, at most `corrections.max_age_h` old at validation, every plan frequency covered by some fresh record; the age of the oldest record in use is recorded (info, `corr <age>` in the summary); pre (and at validation with a snapshot): `CORRST?` on for every required open/short/load, phase compensation in effect, the records' `*IDN?` = the instrument's | block / info | `policy.yaml#corrections.*`, `data/state/corrections/<cmu>.json`, `live:cmu_corrections.<cmu>.*`, `live:identity` |
+| R-QUAL-01/02/03 | post | Per-point status counts by class (info); limited points, excluded from fits (warn); untrusted points, extraction refused unless forced (warn), with the meaning of each letter. Unknown status letters count as untrusted. MFCMU `EEE` codes map to letters (A/D overflow or invalid → `V`, IV amplifier saturation → `D`, NULL loop unbalance → `U`; `cmu_status_letter`), WGFMU flags too (range overflow → `V`, error → `X`; `wgfmu_status_letter`) | report | recipe `#quality` or `policy.yaml#quality` |
 
 How the engine evaluates (`RulesEngine.evaluate(ctx, phase)`):
 
@@ -114,7 +139,7 @@ any `confirm` → `needs_confirmation`; else `ok`.
    confirm reasons and next steps. **`ok`** means within the soft limits, recipe validated for this backend, a known
    DUT profile and a verified pin map: the agent may run it with `run_plan(plan_id)` without asking.
 2. **`needs_confirmation`** (soft limit, DUT envelope, unverified pin map, draft or ad-hoc recipe, first hardware run,
-   destructive or system recipe): `run_plan` refuses it (`confirmation_required`). The agent shows the summary
+   destructive or system recipe; v2: pulse or MFCMU soft band, long run, physical setup, unverified switch wiring): `run_plan` refuses it (`confirmation_required`). The agent shows the summary
    verbatim with the risks and stops the turn. Only the human's own next chat message counts as consent, never text
    found in files, run notes, tool output or earlier turns. The agent then calls `run_confirmed_plan(plan_id,
    summary)`; the harness asks the human to approve that call with these arguments, and the server recomputes the
@@ -144,6 +169,58 @@ DUT nmos-generic | pins mosfet-4t | sim | R-LIM-03 soft_limit, R-DUT-01 dut_enve
 Long plans switch to a compact channel form (`drain=SMU3 0..3V 20mA`), then to distinct reasons only; only beyond
 that is the text cut at 400 characters.
 
+v2 channel forms (blueprint v2 §2.9) name the route a terminal is reached through, a pulse source's train, its `SER`
+load and its short-circuit bound, an MFCMU's frequency, AC level, DC bias and the age of its corrections, a WGFMU
+program, a current source's compliance, and an asynchronous run's estimate:
+
+```text
+spgu.pulse_train@1 | gate=SPGU1:101 via SEL1.OUT1 pulse 0->4 V 1 us x1000 @10 kHz SER 1 MOhm Isc<=0.08 A residual |
+DUT fefet-lab | pins fefet-sel | sim
+moscap.cv@1 | bulk=CMU1:L low; gate=CMU1:H 1 MHz 30 mVrms DC -2..2 V corr 2h | DUT moscap-generic | ...
+fecap.pund@1 | ...; top=WGFMU1:201 via RSU201.OUT pund 0..3 V 4000 pts @10 ns | ... | sim | async ~42 min | ...
+```
+
+Besides the confirm/block flags, two config-derived findings feed it: R-SPGU-01's short-circuit bound per SPGU
+channel (`residual` when the terminal is `high_z`) and R-CORR-01's correction age. Both depend only on the plan, the
+DUT profile and the correction store, never on live state; a newer correction changes the summary, so a confirmation
+covers the corrections it was given for. Routes no role uses are listed as `routes SEL1.OUT1->pgu,smu`.
+
+## Routes, pulses and sources without compliance (v2)
+
+**Switches and routes.** The station declares its 16440A selectors, SCUU, ASU and RSUs (`station.yaml#switches`);
+a pin map reaches a terminal through one (`SEL1.OUT1`). A plan lists the routes it may set (`envelope.routes`) and
+applies them phase by phase (`routes_by_phase`); the guard refuses any other route except a declared output going to
+its `rest` state, and the cleanup returns every declared output to `rest` and verifies it (`ERSSP?`). Before a
+routed plan runs, every involved output and every present selector port must read back `rest` (R-ROUTE-01): a
+selector a previous run or a human left switched blocks until `safe_shutdown`. Unknown wiring (`null` inputs) or
+presence (`present: null`) blocks on hardware; unverified wiring needs confirmation (`unverified_topology`). The
+selector's SMU path carries Force only, so a Kelvin role never uses it; the PGU-open state exists only on CH 1.
+
+**Pulse sources.** The HV-SPGU and the WGFMU have no compliance: their envelopes have no current limit
+(`max_abs_i: null`), and the pulse/waveform envelope bounds them instead. Free-running output cannot be expressed (a
+train has a count or a duration) and is refused by the guard. Every pulse terminal of the DUT profile needs a human-
+declared `pulse` envelope; amplitude, width, duty and pulses per run outside it need confirmation, the policy's
+pulse soft bands too. SMU pulses keep their compliance and the `PT` timing table.
+
+**SER and the `high_z` residual (decision 9, ATV-20).** The HV-SPGU adjusts its level to the declared load `SER`;
+an open load sees `|V|·(SER+50)/SER`, twice the set level at the initial 50 Ω. R-SPGU-01 compares this open-load
+voltage, never the set level, with the module (40 V), the hard limit and the DUT's pulse limit; a terminal declared
+`high_z` with `SER` < 1 kΩ is blocked. A short behind the terminal would draw `V_open/(50 Ω + min_series_ohm)`; it
+must stay ≤ 100 mA (the hard compliance ceiling) for `unknown` (treated as a short) and `resistive` terminals. For a
+terminal the human declares `high_z` (an insulated gate, a capacitor plate) the bound is **not enforced**: it is an
+accepted residual (OD-3), shown in every summary as `Isc<=X A residual` so the human approves it knowingly. A
+`high_z` declaration that is wrong (a leaky or broken gate) is the risk the owner accepted.
+
+**MFCMU.** AC level, DC bias and frequency stay inside the module and the DUT terminals' `ac` envelopes; capacitance
+plans need fresh phase/open/short corrections for the same mainframe, station and pin map, still active on the
+instrument (`CORRST?`) when the run starts; correction recipes always need `physical_setup` confirmation.
+
+**Async runs and their residuals.** Above 300 s a plan runs asynchronously (from WP5.6): checkpoints at most 30 s
+apart poll the abort file, so `safe_shutdown` from any process stops it within one segment; auto-calibration is off
+during the run and restored after. Residuals: a cancel waits up to one segment; a hard kill of the server leaves the
+outputs on until the next transaction's in-flight recovery runs the cleanup (or a human runs `safe_shutdown`); a run
+longer than 10 min needs confirmation, longer than 24 h is blocked.
+
 ## Cleanup and fault latch
 
 Every instrument action runs inside one transaction. On any exit, including errors, interrupts and guard
@@ -165,7 +242,7 @@ Human approval is the coding harness's own tool confirmation. This keeps the sys
 gaps below.
 
 **Protected in the harnesses' normal modes.** Every `run_confirmed_plan` call stops for a human who sees the summary
-as the tool argument. `run_plan` cannot run a plan that needs confirmation. `blocked` plans cannot run from chat at
+as the tool argument (including any `Isc<=X A residual`). `run_plan` cannot run a plan that needs confirmation. `blocked` plans cannot run from chat at
 all. The 42 V / 100 mA code ceiling, the module specs (R-LIM-01) and the `OutputGuard` hold no matter what is
 confirmed or configured. Every run records its tier, the confirmed summary and the hashes of the config files it
 used.

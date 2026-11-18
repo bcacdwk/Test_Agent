@@ -1,23 +1,37 @@
-"""Built-in rules: module, hard, soft and DUT limits, explicit compliance and the interlock (blueprint 2.8 / v1 4.2
-table rows R-LIM-01, R-LIM-02, R-LIM-03, R-DUT-01, R-COMP-01, R-IL-01, in table order). ``interlock_errors`` is the
-shared reading of the ``ERRX?`` interlock codes that measurement kinds call after ``CN``."""
+"""Built-in rules: module, hard, soft and DUT limits, explicit compliance, the interlock and the GNDU budget
+(blueprint 2.8 / v1 4.2 table rows R-LIM-01, R-LIM-02, R-LIM-03, R-DUT-01, R-COMP-01, R-IL-01, R-GNDU-01, in table
+order). ``interlock_errors`` is the shared reading of the ``ERRX?`` interlock codes that measurement kinds call after
+``CN``."""
 
 from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Iterator
 
-from b1500_test_agent.driver.modules import module_spec, violations
-from b1500_test_agent.models.station import InstrumentError
+from b1500_test_agent.driver.modules import (
+    CMU_SPEC,
+    SPEC_SYMBOL,
+    SPGU_SPEC,
+    WGFMU_SPEC,
+    ModuleSpec,
+    module_spec,
+    violations,
+)
+from b1500_test_agent.models.plan import ChannelEnvelope
+from b1500_test_agent.models.recipe import COMPLIANCE_FREE_FUNCTIONS, SMU_FUNCTIONS
+from b1500_test_agent.models.station import InstrumentError, ModuleSlot
 from b1500_test_agent.rules.builtin.common import (
     CEILING_A_SYMBOL,
     CEILING_V_SYMBOL,
     COMPLIANCE_SETTING,
+    CURRENT_SOURCING_FUNCTIONS,
     INTERLOCK_ERRORS,
     SOURCING_FUNCTIONS,
+    VOLTAGE_COMPLIANCE_SETTING,
     channel_envelope,
     envelope_items,
     is_real,
+    role_function,
     scalar,
     setting_value,
     who,
@@ -25,14 +39,23 @@ from b1500_test_agent.rules.builtin.common import (
 from b1500_test_agent.rules.engine import Finding, RuleContext, RuleEnv, block, confirm, rule, warn
 from b1500_test_agent.rules.tiers import HARD_CEILING_A, HARD_CEILING_V
 
+NON_DC_LIMITS: dict[str, tuple[str, float, str, frozenset[str]]] = {
+    "HVSPGU": ("SPGU_SPEC.max_open_v", SPGU_SPEC.max_open_v, "UG p76 (2-36)", frozenset({"pgu"})),
+    "WGFMU": ("WGFMU_SPEC.max_abs_v", WGFMU_SPEC.max_abs_v, "WG p16 (1-4)", frozenset({"wgfmu"})),
+    "MFCMU": ("CMU_SPEC.max_dc_v", CMU_SPEC.max_dc_v, CMU_SPEC.source, frozenset({"cmu_high", "cmu_low"})),
+}
+"""Module types without a DC source spec: (spec field, largest |V|, citation, role functions they serve)."""
+
 # -- R-LIM-01 --------------------------------------------------------------------------------------------------------
 
 
 @rule("R-LIM-01", {"plan"})
 def module_spec_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
-    """|V|, |Icomp| and V*I of every envelope channel lie within its module's DC spec (``driver/modules.py``);
-    the GNDU must sink the summed compliance of all channels when a role uses it. A channel without a current limit
-    (``pgu``/``wgfmu`` role, no compliance) counts with 0 A here; R-PULSE-*/R-SPGU-01/R-GNDU-01 bound it."""
+    """Every envelope channel lies within its module's spec (``driver/modules.py``): an SMU's |V|, |I| and V-I
+    corners (voltage forcing: |V| with |Icomp|; current forcing ``sweep_i``/``bias_i``/``step_i``: |I| with |Vcomp|,
+    the I-source corners); an HV-SPGU's open-load 40 V, a WGFMU's 10 V and an MFCMU's 25 V DC bias. A role function
+    the module cannot serve is refused. The GNDU must sink the summed compliance of all channels when a role uses it
+    (R-GNDU-01 adds the currents of sources without compliance)."""
     total_i = 0.0
     for channel, entry in envelope_items(ctx):
         current = entry.max_abs_i if entry.max_abs_i is not None else 0.0
@@ -42,27 +65,18 @@ def module_spec_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
             yield block(f"{who(entry, channel)} has no module in the station profile", subject=entry.role,
                         source=env.station("modules"), observed=channel, limit=None)
             continue
-        try:
-            spec = module_spec(module.model)
-        except KeyError:
-            yield block(f"{who(entry, channel)}: {module.type} is not a DC source in v1 (no module spec)",
-                        subject=entry.role, source=env.code("b1500_test_agent.driver.modules.MODULE_SPECS"),
-                        observed=module.type, limit="an SMU")
+        function = role_function(ctx, entry.role, entry)
+        if module.type in NON_DC_LIMITS:
+            yield from _non_dc_limits(env, entry, channel, module, function)
             continue
-        problems = violations(spec, entry.max_abs_v, current, source="V")
-        if not problems:
+        if function is not None and function not in SMU_FUNCTIONS:
+            yield block(f"{who(entry, channel)}: a {module.type} cannot serve a {function} role",
+                        subject=entry.role, source=env.code(f"{SPEC_SYMBOL}.MODULE_SPECS"), observed=function,
+                        limit="an SMU role function")
             continue
-        if entry.max_abs_v > spec.max_abs_v:
-            observed, limit = entry.max_abs_v, spec.max_abs_v
-        elif current > spec.max_abs_i:
-            observed, limit = current, spec.max_abs_i
-        else:
-            observed = f"{entry.max_abs_v:g} V @ {current:g} A"
-            limit = ", ".join(f"{v:g} V @ {i:g} A" for v, i in spec.v_source_envelope)
-        yield block(f"{who(entry, channel)}: " + "; ".join(problems), subject=entry.role,
-                    source=env.code(f"b1500_test_agent.driver.modules.MODULE_SPECS[{spec.module_type}] "
-                                    f"({spec.envelope_source})"),
-                    observed=observed, limit=limit)
+        spec = module_spec(module.model)
+        forcing_i = function in CURRENT_SOURCING_FUNCTIONS
+        yield from _dc_limits(env, entry, channel, spec, current, forcing_i)
     if any(b.gndu for b in ctx.plan.binding.roles.values()):
         gndu = module_spec("GNDU")
         if total_i > gndu.max_abs_i:
@@ -71,6 +85,39 @@ def module_spec_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
                         source=env.code(f"b1500_test_agent.driver.modules.MODULE_SPECS[GNDU] "
                                         f"({gndu.envelope_source})"),
                         observed=total_i, limit=gndu.max_abs_i)
+
+
+def _dc_limits(env: RuleEnv, entry: ChannelEnvelope, channel: int, spec: ModuleSpec, current: float,
+               forcing_i: bool) -> Iterator[Finding]:
+    problems = violations(spec, entry.max_abs_v, current, source="I" if forcing_i else "V")
+    if not problems:
+        return
+    if entry.max_abs_v > spec.max_abs_v:
+        observed, limit = entry.max_abs_v, spec.max_abs_v
+    elif current > spec.max_abs_i:
+        observed, limit = current, spec.max_abs_i
+    elif forcing_i:
+        observed = f"{current:g} A @ {entry.max_abs_v:g} V"
+        limit = ", ".join(f"{i:g} A @ {v:g} V" for i, v in spec.i_source_envelope)
+    else:
+        observed = f"{entry.max_abs_v:g} V @ {current:g} A"
+        limit = ", ".join(f"{v:g} V @ {i:g} A" for v, i in spec.v_source_envelope)
+    yield block(f"{who(entry, channel)}: " + "; ".join(problems), subject=entry.role,
+                source=env.code(f"{SPEC_SYMBOL}.MODULE_SPECS[{spec.module_type}] ({spec.envelope_source})"),
+                observed=observed, limit=limit)
+
+
+def _non_dc_limits(env: RuleEnv, entry: ChannelEnvelope, channel: int, module: ModuleSlot,
+                   function: str | None) -> Iterator[Finding]:
+    field, max_v, citation, functions = NON_DC_LIMITS[module.type]
+    source = env.code(f"{SPEC_SYMBOL}.{field} ({citation})")
+    if function is not None and function not in functions:
+        yield block(f"{who(entry, channel)}: a {module.type} cannot serve a {function} role", subject=entry.role,
+                    source=source, observed=function, limit=", ".join(sorted(functions)))
+        return
+    if not math.isfinite(entry.max_abs_v) or entry.max_abs_v > max_v:
+        yield block(f"{who(entry, channel)}: |V| {entry.max_abs_v:g} V exceeds the {module.type}'s {max_v:g} V",
+                    subject=entry.role, source=source, observed=scalar(entry.max_abs_v), limit=max_v)
 
 
 # -- R-LIM-02 / R-LIM-03 ---------------------------------------------------------------------------------------------
@@ -167,12 +214,14 @@ def dut_envelope(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 
 @rule("R-COMP-01", {"plan"})
 def explicit_compliance(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
-    """Every connected channel has a non-zero compliance in the envelope; sourcing roles set it explicitly
-    (role setting ``icomp``)."""
+    """Every connected channel has a non-zero compliance in the envelope; voltage-forcing roles (``sweep_v``,
+    ``bias_v``, ``step_v``, ``sync_v``, ``pulse_v``) set ``icomp`` explicitly, current-forcing roles (``sweep_i``,
+    ``bias_i``, ``step_i``) set ``vcomp``. Sources without compliance (``pgu``, ``wgfmu``) are exempt: R-PULSE-*,
+    R-SPGU-01 and R-WG-* bound them."""
     recipe, plan = ctx.recipe, ctx.plan
     for role_name, spec in sorted(recipe.roles.items()):
         bound = plan.binding.roles.get(role_name)
-        if bound is None or bound.channel is None:
+        if bound is None or bound.channel is None or spec.function in COMPLIANCE_FREE_FUNCTIONS:
             continue
         channel = bound.channel
         entry = channel_envelope(ctx, channel)
@@ -181,12 +230,15 @@ def explicit_compliance(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
                         "compliance", subject=role_name, source=env.plan("envelope.channels"), observed=None,
                         limit="non-zero compliance")
             continue
-        if spec.function in SOURCING_FUNCTIONS:
-            value = setting_value(spec, COMPLIANCE_SETTING, plan.resolved_params)
+        for functions, key, what in ((SOURCING_FUNCTIONS, COMPLIANCE_SETTING, "voltage"),
+                                     (CURRENT_SOURCING_FUNCTIONS, VOLTAGE_COMPLIANCE_SETTING, "current")):
+            if spec.function not in functions:
+                continue
+            value = setting_value(spec, key, plan.resolved_params)
             if value is None or not is_real(value) or value == 0:
-                yield block(f"{role_name} forces voltage without an explicit non-zero compliance "
-                            f"(settings.{COMPLIANCE_SETTING} = {value!r})", subject=role_name,
-                            source=env.recipe(recipe, f"roles.{role_name}.settings.{COMPLIANCE_SETTING}"),
+                yield block(f"{role_name} forces {what} without an explicit non-zero compliance "
+                            f"(settings.{key} = {value!r})", subject=role_name,
+                            source=env.recipe(recipe, f"roles.{role_name}.settings.{key}"),
                             observed=scalar(value), limit="non-zero compliance")
         if entry.max_abs_i is not None and entry.max_abs_i <= 0:
             yield block(f"{role_name} (channel {channel}): compliance is zero", subject=role_name,
@@ -226,6 +278,38 @@ def interlock_closed(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     for error in interlock_errors(live.errors):
         yield block(f"{need}; instrument error {error.code} ({INTERLOCK_ERRORS[error.code]}) reports an interlock "
                     "refusal", source=env.live("errors"), observed=error.code, limit="no error 202/203")
+
+
+# -- R-GNDU-01 -------------------------------------------------------------------------------------------------------
+
+
+@rule("R-GNDU-01", {"plan"})
+def gndu_budget(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
+    """When a role uses the GNDU, every current that can return through it stays within its 4.2 A (UG p58 (2-18)
+    "4.2 A"): the compliances of the SMU channels plus the expected currents of the sources without compliance
+    (a pulse channel's short-circuit bound ``pulse.max_short_circuit_a``; without a pulse envelope an HV-SPGU's
+    open-load maximum into its 50 Ohm, a WGFMU's ``WGFMU_SPEC.max_output_a``)."""
+    if not any(b.gndu for b in ctx.plan.binding.roles.values()):
+        return
+    dc = pulsed = 0.0
+    for channel, entry in envelope_items(ctx):
+        if entry.max_abs_i is not None:
+            dc += entry.max_abs_i
+        elif entry.pulse is not None:
+            pulsed += entry.pulse.max_short_circuit_a
+        else:
+            module = ctx.station.module_for_channel(channel)
+            if module is not None and module.type == "WGFMU":
+                pulsed += WGFMU_SPEC.max_output_a
+            else:
+                pulsed += SPGU_SPEC.max_open_v / SPGU_SPEC.output_ohm
+    gndu = module_spec("GNDU")
+    total = dc + pulsed
+    if total > gndu.max_abs_i:
+        yield block(f"up to {total:g} A could return through the GNDU ({dc:g} A of compliances + {pulsed:g} A from "
+                    f"sources without compliance), above its {gndu.max_abs_i:g} A", subject="GNDU",
+                    source=env.code(f"{SPEC_SYMBOL}.MODULE_SPECS[GNDU] ({gndu.envelope_source})"),
+                    observed=round(total, 9), limit=gndu.max_abs_i)
 
 
 def interlock_errors(errors: Iterable[InstrumentError]) -> list[InstrumentError]:

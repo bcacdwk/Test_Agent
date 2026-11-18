@@ -203,10 +203,16 @@ class CompiledEnvelope(StrictModel):
 
 
 class Estimate(StrictModel):
-    """Size of a run: measurement points and expected duration."""
+    """Size of a run: measurement points and expected duration.
+
+    ``max_segment_s`` is the longest stretch between two checkpoints of the run (``tx.checkpoint``), i.e. the worst
+    cancel latency; ``None`` means the kind has no checkpoints (the whole run is one segment). R-RUN-02 bounds it by
+    ``policy.run_limits.segment_max_s`` for asynchronous runs.
+    """
 
     points: int = Field(ge=0)
     duration_s: float = Field(ge=0)
+    max_segment_s: float | None = Field(default=None, ge=0)
 
 
 class ParamFile(StrictModel):

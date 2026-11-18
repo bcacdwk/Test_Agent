@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
 from functools import partial
 from typing import Any
 from unittest.mock import ANY
@@ -13,17 +14,18 @@ import pytest
 
 from b1500_test_agent.config import ConfigBundle
 from b1500_test_agent.models.analysis import Quantity, TrustPolicy
-from b1500_test_agent.models.plan import ChannelEnvelope
+from b1500_test_agent.models.plan import ChannelEnvelope, ParamFile
 from b1500_test_agent.models.policy import (
     DutProfile,
+    DutTerminal,
     HardLimits,
     InterlockPolicy,
     Policy,
     SoftLimits,
-    TerminalEnvelope,
 )
+from b1500_test_agent.models.routing import Route
 from b1500_test_agent.models.run import FaultRecord
-from b1500_test_agent.models.station import InstrumentError
+from b1500_test_agent.models.station import CorrectionRecord, InstrumentError
 from b1500_test_agent.paths import Paths
 from b1500_test_agent.rules.builtin import interlock_errors, quality_findings
 from b1500_test_agent.rules.engine import RuleContext, registered_rules
@@ -36,9 +38,11 @@ from tests.unit.rules_factory import (
     IDVG,
     SYSTEM,
     T0,
+    ZERO_SHA,
     context,
     dut,
     engine,
+    example_station,
     force,
     live_state,
     pin_map,
@@ -54,6 +58,7 @@ STA = "config/local/station.yaml#"
 PM = "config/local/pinmaps/mosfet-4t.yaml#"
 DUT = "config/local/duts/nmos-generic.yaml#"
 REC = "recipe:mosfet.idvg@1#"
+NO_TARGET = "a channel, GNDU or switch output"
 MPSMU_SPEC = "code:b1500_test_agent.driver.modules.MODULE_SPECS[MPSMU] (PG Tables 4-6/4-7, PDF 341-342)"
 
 
@@ -94,7 +99,7 @@ def gndu_overload() -> tuple[ConfigBundle, RuleContext]:
     slots = (1, 3, 5, 7, 9)
     profile = station(
         modules=[{"slot": s, "model": "B1512A", "type": "HCSMU", "channels": [s], "alias": f"HC{s}"} for s in slots],
-        topology={}, corrections={},
+        topology={}, switches=[], corrections={},
     )
     bias = {"function": "bias_v", "measure": ["I"], "settings": {"v": "$v", "icomp": "$icomp"}}
     roles: dict[str, Any] = {f"r{s}": bias for s in slots}
@@ -106,18 +111,46 @@ def gndu_overload() -> tuple[ConfigBundle, RuleContext]:
 
 
 GATE_ONLY_DUT = DutProfile(name="gate-only", device_type="nmos",
-                           terminals={"gate": TerminalEnvelope(max_abs_v=3.0, max_abs_i=1e-3)})
+                           terminals={"gate": DutTerminal(max_abs_v=3.0, max_abs_i=1e-3)})
 AVAILABLE = station(interlock={"available": True})
 IL_POLICY = Policy(interlock=InterlockPolicy(required_above_v=5.0))
-CMU_PERFORMED = {"module": "CMU1", "phase_compensation": {"status": "performed"},
-                 "open": {"status": "performed", "frequency_range_hz": [1e3, 5e6]},
-                 "short": {"status": "performed", "frequency_range_hz": [1e3, 5e6]}}
-CMU_NARROW = {**CMU_PERFORMED, "open": {"status": "performed", "frequency_range_hz": [1e3, 1e5]},
-              "short": {"status": "performed", "frequency_range_hz": [1e3, 1e5]}}
+CORR_FILE = "data/state/corrections/CMU1.json"
+PGU_ENVELOPE = ChannelEnvelope(role="pulse", max_abs_v=4.0, max_abs_i=None, function="pgu")
+"""An SPGU output (no compliance): the DC current checks skip it, the pulse rules of WP5.4 bound it."""
+
+
+def corr(kind: str, freqs: tuple[float, ...] = (1e3, 1e5, 1e6), *, age_h: float = 1.0,
+         station_sha: str = ZERO_SHA) -> CorrectionRecord:
+    """A correction record measured ``age_h`` hours before the plan (``T0``) on the factory's config hashes."""
+    return CorrectionRecord(kind=kind, freqs_hz=[] if kind == "phase" else list(freqs), run_id="S20261117T053012Z-00cd",
+                            ts=T0 - timedelta(hours=age_h), idn="Keysight Technologies,B1500A,SIM1,A.06",
+                            pin_map_sha=ZERO_SHA, station_sha=station_sha,
+                            corr_state={"open": True, "short": True, "load": False})
+
+
+CORRECTED = {"CMU1": [corr("phase"), corr("open"), corr("short")]}
 
 
 def cmu(**kw: Any) -> tuple[ConfigBundle, RuleContext]:
-    return context(rec=recipe(CMU), pm=pin_map(name="cmu-1", gate=7), **kw)
+    """The CMU recipe (gate = cmu_high) on pin map ``cmu-1`` with the gate on CMU1 High (``7H``)."""
+    kw.setdefault("rec", recipe(CMU))
+    kw.setdefault("pm", pin_map(name="cmu-1", gate="7H"))
+    return context(**kw)
+
+
+SEL1_WIRED = station(switches=[{**example_station().switches[0].model_dump(mode="json"),
+                                "ports": {"OUT1": {"index": 0, "inputs": {"smu": 5, "pgu": 101}},
+                                          "OUT2": {"index": 1, "inputs": {"smu": 6, "pgu": 102}}}}])
+SEL1_SMU = Route(switch="SEL1", output="OUT1", state="smu")
+WAVE = {"wave": {"type": "file", "doc": "waveform table"}}
+WORK_FILE = ParamFile(path="work/waveforms/a.csv", origin="work", sha256="b" * 64, size_bytes=120)
+LIB_FILE = ParamFile(path="recipes/waveforms/a.csv", origin="library", sha256="c" * 64, size_bytes=120)
+
+
+def wave(path: str, record: ParamFile | None, **kw: Any) -> tuple[ConfigBundle, RuleContext]:
+    """``mosfet.idvg`` plus a ``file`` parameter ``wave`` = ``path`` and the planner's record of it."""
+    return context(rec=recipe(params={**IDVG["params"], **WAVE}), params={"wave": path},
+                   files={"wave": record} if record is not None else {}, **kw)
 
 
 CASES: list[Case] = [
@@ -187,34 +220,71 @@ CASES: list[Case] = [
     Case("param-unit-mismatch", "R-PARAM-01",
          partial(context, resolved_override={"vd": Quantity(value=0.05, unit="A")}),
          (F("block", "A", "V", REC + "params.vd.unit"),)),
+    Case("param-file-ok", "R-PARAM-01", partial(wave, WORK_FILE.path, WORK_FILE)),
+    Case("param-file-not-a-csv-path", "R-PARAM-01", partial(wave, "/etc/passwd.csv", None),
+         (F("block", "'/etc/passwd.csv'", "recipes/waveforms/<name>.csv or work/waveforms/<name>.csv",
+            REC + "params.wave.type"),)),
+    Case("param-file-not-read", "R-PARAM-01", partial(wave, WORK_FILE.path, None),
+         (F("block", "work/waveforms/a.csv", "a read file", "plan:files.wave"),)),
+    Case("param-file-unusable", "R-PARAM-01",
+         partial(wave, WORK_FILE.path, ParamFile(path=WORK_FILE.path, origin="work",
+                                                 problem="work/waveforms/a.csv does not exist")),
+         (F("block", "work/waveforms/a.csv", "an existing CSV of at most 1 MiB in its folder", "plan:files.wave"),)),
     # R-PIN-01
     Case("pin-ok", "R-PIN-01", context),
     Case("pin-map-missing", "R-PIN-01", partial(context, pm=None),
          (F("block", "ghost-map", "an existing pin map", "config:pinmaps/ghost-map"),)),
     Case("pin-role-without-terminal", "R-PIN-01",
-         partial(context, pm=pin_map_exact("partial", {"gate": 1, "source": "GNDU"})),
-         (F("block", None, "a channel or GNDU", "config/local/pinmaps/partial.yaml#terminals.drain"),)),
+         partial(context, pm=pin_map_exact("partial", {"gate": 5, "source": "GNDU"})),
+         (F("block", None, NO_TARGET, "config/local/pinmaps/partial.yaml#terminals.drain"),)),
     Case("pin-terminal-unconnected", "R-PIN-01", partial(context, pm=pin_map(drain=None)),
-         (F("block", None, "a channel or GNDU", PM + "terminals.drain"),)),
+         (F("block", None, NO_TARGET, PM + "terminals.drain"),)),
     Case("pin-channel-twice", "R-PIN-01", partial(context, pm=pin_map(gate=3)),
          (F("block", 3, "one role per channel", PM + "terminals.gate"),)),
     Case("pin-channel-without-module", "R-PIN-01", partial(context, pm=pin_map(gate=8)),
-         (F("block", 8, "1, 2, 3, 4, 501, 502, 601, 602, 7", STA + "modules"),)),
-    Case("pin-module-type-not-allowed", "R-PIN-01", partial(context, pm=pin_map(gate=501)),
+         (F("block", 8, "101, 102, 201, 202, 3, 4, 5, 6, 7", STA + "modules"),)),
+    Case("pin-module-type-not-allowed", "R-PIN-01", partial(context, pm=pin_map(gate=201)),
          (F("block", "WGFMU", "MPSMU, HRSMU, HPSMU", REC + "roles.gate.module_types"),)),
+    Case("pin-spgu-is-not-an-smu", "R-PIN-01", partial(context, pm=pin_map(gate=1)),
+         (F("block", "HVSPGU", "MPSMU, HRSMU, HPSMU", REC + "roles.gate.module_types"),)),
     Case("pin-low-current-needs-hrsmu", "R-PIN-01",
-         partial(context, rec=recipe_with_role(IDVG, "drain", low_current=True), pm=pin_map(drain=2)),
+         partial(context, rec=recipe_with_role(IDVG, "drain", low_current=True), pm=pin_map(drain=6)),
          (F("block", "MPSMU", "HRSMU", REC + "roles.drain.low_current"),)),
     Case("pin-gndu-not-allowed", "R-PIN-01", partial(context, pm=pin_map(gate="GNDU")),
          (F("block", "GNDU", "an SMU channel", REC + "roles.gate.allow_gndu"),)),
     Case("pin-gndu-cannot-source", "R-PIN-01",
          partial(context, rec=recipe_with_role(IDVG, "drain", allow_gndu=True), pm=pin_map(drain="GNDU")),
          (F("block", "GNDU", "an SMU channel", REC + "roles.drain.function"),)),
-    Case("pin-binding-differs", "R-PIN-01", partial(context, plan_pin_map=pin_map(gate=2)),
-         (F("block", 2, 1, PM + "terminals.gate"), F("block", "B1511B", "B1511B", STA + "modules[0]"))),
+    Case("pin-binding-differs", "R-PIN-01", partial(context, plan_pin_map=pin_map(gate=6)),
+         (F("block", 6, 5, PM + "terminals.gate"), F("block", "B1511B", "B1511B", STA + "modules[4]"))),
     Case("pin-envelope-channel-unbound", "R-PIN-01",
          partial(context, extra_envelope={4: ChannelEnvelope(role="drain", max_abs_v=1.0, max_abs_i=1e-3)}),
          (F("block", 4, None, "plan:envelope.channels.4"),)),
+    # R-PIN-01, v2 targets: switch outputs and MFCMU sides
+    Case("pin-switch-ok-routed", "R-PIN-01",
+         partial(context, pm=pin_map(gate="SEL1.OUT1"), station_profile=SEL1_WIRED, routes=[SEL1_SMU])),
+    Case("pin-switch-wiring-unknown", "R-PIN-01", partial(context, pm=pin_map(gate="SEL1.OUT1")),
+         (F("block", None, "a channel", STA + "switches[0].ports.OUT1.inputs.smu"),)),
+    Case("pin-switch-kind-not-routing", "R-PIN-01",
+         partial(context, pm=pin_map(gate="SEL1.OUT1"), station_profile=SEL1_WIRED),
+         (F("block", None, "SEL1.OUT1->smu", "plan:envelope.routes"),)),
+    Case("pin-switch-undeclared", "R-PIN-01", partial(context, pm=pin_map(gate="SEL9.OUT1")),
+         (F("block", "SEL9.OUT1", "a declared switch output", STA + "switches"),)),
+    Case("pin-switch-declared-absent", "R-PIN-01",
+         partial(context, pm=pin_map(gate="SEL1.OUT1"), routes=[SEL1_SMU], station_profile=station(
+             switches=[{**SEL1_WIRED.switches[0].model_dump(mode="json"), "present": False}])),
+         (F("block", False, True, STA + "switches[0].present"),)),
+    Case("pin-switch-cannot-connect-resource", "R-PIN-01",
+         partial(context, rec=recipe(CMU), pm=pin_map(name="cmu-1", gate="SEL1.OUT1"), station_profile=SEL1_WIRED),
+         (F("block", "selector_16440a", "open, pgu, pgu_open, smu", STA + "switches[0].kind"),)),
+    Case("pin-cmu-ok", "R-PIN-01", cmu),
+    Case("pin-cmu-needs-side", "R-PIN-01", partial(cmu, pm=pin_map(name="cmu-1", gate=7)),
+         (F("block", 7, "7H", "config/local/pinmaps/cmu-1.yaml#terminals.gate"),)),
+    Case("pin-cmu-wrong-side", "R-PIN-01", partial(cmu, pm=pin_map(name="cmu-1", gate="7L")),
+         (F("block", "7L", "7H", "config/local/pinmaps/cmu-1.yaml#terminals.gate"),)),
+    Case("pin-cmu-side-for-smu-role", "R-PIN-01", partial(context, pm=pin_map(gate="7H")),
+         (F("block", "7H", NO_TARGET, PM + "terminals.gate"),
+          F("block", "MFCMU", "MPSMU, HRSMU, HPSMU", REC + "roles.gate.module_types"))),
     # R-PIN-02
     Case("pin2-ok", "R-PIN-02", context),
     Case("pin2-unverified", "R-PIN-02", partial(context, pm=pin_map(certainty="unverified")),
@@ -226,8 +296,8 @@ CASES: list[Case] = [
          "pre_execute"),
     Case("inv-slot-model-differs", "R-INV-01", partial(context, live=live_state(slots={3: "B1511B"})),
          (F("block", "B1511B", "B1517A", STA + "modules[2].model"),), "pre_execute"),
-    Case("inv-slot-empty", "R-INV-01", partial(context, live=live_state(slots={1: None})),
-         (F("block", None, "B1511B", STA + "modules[0].model"),), "pre_execute"),
+    Case("inv-slot-empty", "R-INV-01", partial(context, live=live_state(slots={5: None})),
+         (F("block", None, "B1511B", STA + "modules[4].model"),), "pre_execute"),
     Case("inv-identity-differs", "R-INV-01", partial(context, live=live_state(model="B1505A")),
          (F("block", "B1505A", "B1500A", STA + "mainframe.model"),), "pre_execute"),
     Case("inv-identity-missing", "R-INV-01", partial(context, live=live_state(model=None)),
@@ -246,6 +316,8 @@ CASES: list[Case] = [
          (F("block", "30 V @ 0.08 A", "20 V @ 0.1 A, 40 V @ 0.05 A, 100 V @ 0.02 A", MPSMU_SPEC),)),
     Case("lim1-not-a-dc-source", "R-LIM-01", partial(force, 1.0, 1e-3, channel=7),
          (F("block", "MFCMU", "an SMU", "code:b1500_test_agent.driver.modules.MODULE_SPECS"),)),
+    Case("lim1-spgu-has-no-dc-spec-yet", "R-LIM-01", partial(context, extra_envelope={101: PGU_ENVELOPE}),
+         (F("block", "HVSPGU", "an SMU", "code:b1500_test_agent.driver.modules.MODULE_SPECS"),)),
     Case("lim1-gndu-overload", "R-LIM-01", gndu_overload,
          (F("block", 5.0, 4.2, "code:b1500_test_agent.driver.modules.MODULE_SPECS[GNDU] (UG GNDU, PDF 58)"),)),
     # R-LIM-02
@@ -264,8 +336,10 @@ CASES: list[Case] = [
          partial(context, extra_envelope={3: ChannelEnvelope.model_construct(
              role="drain", max_abs_v=float("nan"), max_abs_i=1e-3, function=None, v_start=None, v_stop=None)}),
          (F("block", "nan", 42.0, POL + "hard_limits.max_abs_voltage_v"),)),
+    Case("lim2-ok-compliance-free-channel", "R-LIM-02", partial(context, extra_envelope={101: PGU_ENVELOPE})),
     # R-LIM-03
     Case("lim3-ok-at-soft-limit", "R-LIM-03", partial(force, 10.0, 0.01)),
+    Case("lim3-ok-compliance-free-channel", "R-LIM-03", partial(context, extra_envelope={101: PGU_ENVELOPE})),
     Case("lim3-voltage", "R-LIM-03", partial(force, 15.0, 1e-3),
          (F("confirm", 15.0, 10.0, POL + "soft_limits.voltage_v", "soft_limit"),)),
     Case("lim3-compliance", "R-LIM-03", partial(force, 5.0, 0.02),
@@ -322,7 +396,13 @@ CASES: list[Case] = [
     # R-RUN-01
     Case("run-ok", "R-RUN-01", context),
     Case("run-too-many-points", "R-RUN-01", partial(context, points=20000),
-         (F("block", 20000, 10001, POL + "run_limits.max_points"),)),
+         (F("block", 20000, 10001, POL + "run_limits.max_points.smu"),)),
+    Case("run-family-limit-cmu", "R-RUN-01",
+         partial(cmu, points=200, cfg_policy=Policy(run_limits={"max_points": {"cmu": 100}})),
+         (F("block", 200, 100, POL + "run_limits.max_points.cmu"),)),
+    Case("run-int-max-points-applies-to-all", "R-RUN-01",
+         partial(context, points=600, cfg_policy=Policy(run_limits={"max_points": 500})),
+         (F("block", 600, 500, POL + "run_limits.max_points.smu"),)),
     Case("run-too-long", "R-RUN-01", partial(context, duration_s=400.0),
          (F("block", 400.0, 300.0, POL + "run_limits.max_sync_run_s"),)),
     # R-ALWAYS-01
@@ -331,6 +411,9 @@ CASES: list[Case] = [
          (F("confirm", "destructive", None, REC + "always_confirm", "destructive"),)),
     Case("always-system-self-test", "R-ALWAYS-01", partial(context, rec=recipe(SYSTEM), du=None, dut_profile=None),
          (F("confirm", "system_self_test", None, "recipe:system.self_test@1#always_confirm", "system_self_test"),)),
+    Case("always-library-file-ok", "R-ALWAYS-01", partial(wave, LIB_FILE.path, LIB_FILE)),
+    Case("always-adhoc-work-file", "R-ALWAYS-01", partial(wave, WORK_FILE.path, WORK_FILE),
+         (F("confirm", "work/waveforms/a.csv", "recipes/waveforms/", "plan:files.wave", "adhoc_recipe"),)),
     # R-ERRX-01
     Case("errx-ok", "R-ERRX-01", partial(context, live=live_state()), phase="pre_execute"),
     Case("errx-plan-without-live", "R-ERRX-01", context),
@@ -348,17 +431,25 @@ CASES: list[Case] = [
          "pre_execute"),
     # R-CORR-01
     Case("corr-ok-not-cmu", "R-CORR-01", context),
-    Case("corr-ok-performed", "R-CORR-01", partial(cmu, station_profile=station(corrections={"cmu": CMU_PERFORMED}))),
-    Case("corr-not-performed", "R-CORR-01", cmu,
-         (F("block", "unknown", "performed", STA + "corrections.cmu.phase_compensation.status"),
-          F("block", "unknown", "performed", STA + "corrections.cmu.open.status"),
-          F("block", "unknown", "performed", STA + "corrections.cmu.short.status"))),
+    Case("corr-ok-records", "R-CORR-01", partial(cmu, corrections=CORRECTED)),
+    Case("corr-ok-correction-recipe-exempt", "R-CORR-01", partial(cmu, rec=recipe(CMU, kind="cmu_correction"))),
+    Case("corr-no-records", "R-CORR-01", cmu,
+         (F("block", None, "phase", POL + "corrections.require"),
+          F("block", None, "open", POL + "corrections.require"),
+          F("block", None, "short", POL + "corrections.require"))),
+    Case("corr-policy-adds-load", "R-CORR-01",
+         partial(cmu, corrections=CORRECTED, cfg_policy=Policy(corrections={"require": ["phase", "open", "short",
+                                                                                        "load"]})),
+         (F("block", None, "load", POL + "corrections.require"),)),
     Case("corr-frequency-not-covered", "R-CORR-01",
-         partial(cmu, station_profile=station(corrections={"cmu": CMU_NARROW})),
-         (F("block", 1e6, "1000..100000", STA + "corrections.cmu.open.frequency_range_hz"),
-          F("block", 1e6, "1000..100000", STA + "corrections.cmu.short.frequency_range_hz"))),
-    Case("corr-no-record", "R-CORR-01", partial(cmu, station_profile=station(corrections={})),
-         (F("block", None, "performed corrections", STA + "corrections.cmu"),)),
+         partial(cmu, corrections={"CMU1": [corr("phase"), corr("open", (1e3, 1e5)), corr("short", (1e3, 1e5))]}),
+         (F("block", 1e6, "1000, 100000", CORR_FILE), F("block", 1e6, "1000, 100000", CORR_FILE))),
+    Case("corr-stale", "R-CORR-01",
+         partial(cmu, corrections={"CMU1": [corr("phase"), corr("open", age_h=9.0), corr("short")]}),
+         (F("block", 9.0, 8.0, POL + "corrections.max_age_h"),)),
+    Case("corr-other-landing", "R-CORR-01",
+         partial(cmu, corrections={"CMU1": [corr("phase"), corr("open"), corr("short", station_sha="d" * 64)]}),
+         (F("block", "S20261117T053012Z-00cd", "this station profile and pin map", CORR_FILE),)),
 ]
 
 
@@ -389,6 +480,7 @@ def test_table_outcomes_are_covered() -> None:
                                                                              "unverified_pin_map"),
         ("R-LIM-03", "confirm", "soft_limit"), ("R-DUT-01", "block", None), ("R-DUT-01", "confirm", "dut_envelope"),
         ("R-ALWAYS-01", "confirm", "destructive"), ("R-ERRX-01", "warn", None), ("R-CAL-01", "warn", None),
+        ("R-ALWAYS-01", "confirm", "adhoc_recipe"), ("R-CORR-01", "block", None), ("R-PIN-01", "block", None),
     ]:
         assert (rule_id, severity, reason) in seen
 

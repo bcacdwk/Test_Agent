@@ -1,23 +1,33 @@
 # Safety policy (example; committed). Schema: b1500_test_agent.models.policy.Policy.
 # A human copies this file to config/local/policy.yaml and may tighten it there; the agent never edits it.
-# Defaults are conservative (blueprint 4.1). hard_limits may only tighten the code ceiling of 42 V / 0.1 A: a
-# higher value makes the configuration invalid (invalid_config, rule R-CFG-01). Soft limits must not exceed the
-# hard limits. Checked by the built-in rules R-LIM-02/03, R-IL-01, R-RUN-01 and R-QUAL-*.
+# Defaults are conservative (blueprint v1 4.1; v2 sections = OD-3, accepted by the owner on 2026-11-18). hard_limits
+# may only tighten the code ceiling of 42 V / 0.1 A: a higher value makes the configuration invalid (invalid_config,
+# rule R-CFG-01). Soft limits must not exceed the hard limits. Checked by the built-in rules R-LIM-02/03, R-IL-01,
+# R-RUN-01/02, R-PULSE-03, R-CMU-01, R-CORR-01 and R-QUAL-*.
 #
 # Former v0.2 approval list, now enforced by rules instead of flags:
 #   voltage above the interlock threshold -> R-LIM-02 (blocked above hard_limits) and R-IL-01
 #   first run of a new recipe             -> R-REC-01 (draft_recipe / first_hw_run on visa)
 #   unknown DUT / pin map                 -> R-DUT-01 / R-PIN-01 (blocked); unverified pin map -> R-PIN-02
-#   stale capacitance correction          -> R-CORR-01 (C-V kinds are not_implemented in v1)
-#   long batch run                        -> R-RUN-01 (run_limits)
+#   stale capacitance correction          -> R-CORR-01 (corrections: required kinds, max age)
+#   long batch run                        -> R-RUN-01/02 (run_limits; long_run confirmation)
 #   destructive or breakdown test         -> R-ALWAYS-01 (recipe always_confirm: destructive)
 #   zero outputs on error                 -> always done by the transaction cleanup (not configurable)
-# Module ratings (e.g. MPSMU/HRSMU +-100 V, HV-SPGU +-40 V, WGFMU +-10 V) are code data in driver/modules.py.
+# Module ratings (e.g. MPSMU/HRSMU +-100 V, HV-SPGU +-40 V open load, WGFMU +-10 V, MFCMU 25 V DC / 0.25 Vrms) are
+# code data in driver/modules.py.
 
 hard_limits: {max_abs_voltage_v: 42.0, max_abs_compliance_a: 0.1}   # above → blocked; may only tighten the code ceiling
 soft_limits: {voltage_v: 10.0, compliance_a: 0.01}                  # above → needs_confirmation (soft_limit)
 interlock: {required_above_v: 42.0}
-run_limits: {max_points: 10001, max_sync_run_s: 300}
+run_limits:
+  max_points: {smu: 10001, cmu: 10001, wgfmu: 4000000}   # per run; wgfmu per channel (a single integer applies to all)
+  max_sync_run_s: 300           # longer estimates run asynchronously (progress via get_run, cancel via safe_shutdown)
+  long_run_confirm_s: 600       # above → needs_confirmation (long_run)
+  max_async_run_s: 86400        # above → blocked
+  segment_max_s: 30             # longest segment between checkpoints (cancel latency)
+pulse: {soft_abs_v: 5.0, soft_count: 10000, soft_on_time_s: 60.0, max_duty: 0.5}   # above → needs_confirmation (soft_pulse)
+cmu: {soft_dc_bias_v: 10.0, soft_ac_vrms: 0.05}                     # above → needs_confirmation (soft_cmu)
+corrections: {require: [phase, open, short], max_age_h: 8.0}        # C-V needs these records; may add load, never drop
 confirmation: {claude_require_user_interaction: true}              # §5.1; read at server start
 plans: {ttl_h: 24}
 quality: {ok: [N], limited: [C, T], untrusted: [V, X, F, D, G, S, U]}

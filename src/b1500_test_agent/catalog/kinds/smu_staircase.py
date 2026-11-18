@@ -10,7 +10,8 @@ Roles (recipe ``roles``, bound to channels through the pin map):
   ``icomp`` or, when absent, the sum of the compliances of the sourcing roles (the ground terminal returns at most
   their currents);
 - ``measure_only`` roles: an SMU at 0 V like a grounded SMU, measured;
-- ``step_v`` roles need kind ``smu_stepped`` and are refused.
+- ``step_v`` roles need kind ``smu_stepped`` and are refused, as is every other role function (current forcing,
+  synchronous, pulse, SPGU, WGFMU and MFCMU roles belong to their own kinds).
 
 Each role's ``measure`` (``[I]`` or ``[V]``; both at once is not supported in v1) puts its channel into the ``MM 2``
 list (sweep role first, then recipe order) with ``CMM`` 1 (current) or 2 (voltage). The recipe parameter
@@ -50,6 +51,9 @@ from b1500_test_agent.rules.builtin import COMPLIANCE_SETTING, interlock_errors
 
 if TYPE_CHECKING:
     from b1500_test_agent.session.transaction import Transaction
+
+STAIRCASE_FUNCTIONS = frozenset({"sweep_v", "bias_v", "ground", "measure_only"})
+"""Role functions this kind executes."""
 
 INTEGRATION_PARAM = "integration"
 """Recipe parameter that selects the ADC preset (enum ``short``/``medium``/``long``)."""
@@ -251,6 +255,11 @@ class SmuStaircaseKind:
         stepped = [name for name, role in recipe.roles.items() if role.function == "step_v"]
         if stepped:
             raise CompileError(f"step_v roles {stepped} need kind smu_stepped, not {self.kind_id}")
+        other = sorted(f"{name} ({role.function})" for name, role in recipe.roles.items()
+                       if role.function not in STAIRCASE_FUNCTIONS)
+        if other:
+            raise CompileError(f"{self.kind_id} cannot execute role(s) {', '.join(other)}; it supports "
+                               f"{', '.join(sorted(STAIRCASE_FUNCTIONS))}")
         integration = self._integration(params)
         channels: dict[int, ChannelEnvelope] = {}
         biases: list[BiasOutput] = []

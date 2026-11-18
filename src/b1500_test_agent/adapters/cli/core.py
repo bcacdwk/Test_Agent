@@ -197,7 +197,8 @@ def status_lines(result: StationStatus) -> list[str]:
     if result.limits is not None:
         lim = result.limits
         lines.append(f"limits: hard {lim.hard_max_abs_voltage_v:g} V / {lim.hard_max_abs_compliance_a:g} A; soft "
-                     f"{lim.soft_voltage_v:g} V / {lim.soft_compliance_a:g} A; max {lim.max_points} points, "
+                     f"{lim.soft_voltage_v:g} V / {lim.soft_compliance_a:g} A; max points "
+                     f"{', '.join(f'{k} {v}' for k, v in lim.max_points.items())}; sync runs <= "
                      f"{lim.max_sync_run_s:g} s; plans expire after {lim.plan_ttl_h:g} h")
     if result.pin_maps:
         lines.append("pin maps: " + ", ".join(f"{k} ({v})" for k, v in result.pin_maps.items()))

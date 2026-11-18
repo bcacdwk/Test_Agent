@@ -15,6 +15,7 @@ from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from b1500_test_agent.catalog.planner import bind_roles
 from b1500_test_agent.config import ConfigBundle, load_yaml
 from b1500_test_agent.models.analysis import Quantity
 from b1500_test_agent.models.common import Backend, ConfigFile, ConfigSource, ValidationStatus
@@ -24,14 +25,17 @@ from b1500_test_agent.models.plan import (
     ChannelEnvelope,
     CompiledEnvelope,
     Estimate,
+    ParamFile,
     PlanRecord,
     PlanRequest,
     RulesReport,
 )
-from b1500_test_agent.models.policy import DutProfile, Policy, TerminalEnvelope
+from b1500_test_agent.models.policy import DutProfile, DutTerminal, Policy
 from b1500_test_agent.models.recipe import Recipe
+from b1500_test_agent.models.routing import Route
 from b1500_test_agent.models.run import FaultRecord
 from b1500_test_agent.models.station import (
+    CorrectionRecord,
     Identity,
     InstalledModule,
     InstrumentError,
@@ -41,7 +45,6 @@ from b1500_test_agent.models.station import (
     Settings,
     StationProfile,
     StatusByte,
-    channel_slot,
 )
 from b1500_test_agent.paths import Paths
 from b1500_test_agent.rules.engine import CalibrationState, RuleContext, RulesEngine
@@ -59,7 +62,8 @@ def sha(data: Any) -> str:
 
 
 def example_station() -> StationProfile:
-    """The committed example station: SMU1/SMU2 MPSMU (slots 1-2), SMU3/SMU4 HRSMU (3-4), WGFMU 5, SPGU 6, CMU 7."""
+    """The committed lab-shaped example station: SPGU1 (slot 1, 101/102), WGFMU1 (2, 201/202), SMU3/SMU4 HRSMU (3-4),
+    SMU5/SMU6 MPSMU (5-6), CMU1 (7), switches SEL1/SEL2/RSU201/RSU202/SCUU1/ASU3/ASU4."""
     raw = (CONFIG_DIR / "station.example.yaml").read_bytes()
     return StationProfile.model_validate(load_yaml(raw))
 
@@ -72,9 +76,9 @@ def station(**changes: Any) -> StationProfile:
 
 
 def pin_map(name: str = "mosfet-4t", certainty: str = "verified", **terminals: Any) -> PinMap:
-    """``mosfet-4t`` (gate 1, drain 3, source/bulk GNDU) with terminals replaced (``None`` = not connected); use
-    ``pin_map_exact`` to leave a terminal out entirely."""
-    mapping: dict[str, Any] = {"gate": 1, "drain": 3, "source": "GNDU", "bulk": "GNDU"}
+    """``mosfet-4t``-like map (gate 5 = SMU5 MPSMU, drain 3 = SMU3 HRSMU, source/bulk GNDU) with terminals replaced
+    (``None`` = not connected); use ``pin_map_exact`` to leave a terminal out entirely."""
+    mapping: dict[str, Any] = {"gate": 5, "drain": 3, "source": "GNDU", "bulk": "GNDU"}
     mapping.update(terminals)
     return PinMap(name=name, certainty=certainty, terminals=mapping)
 
@@ -90,14 +94,14 @@ def dut(name: str = "nmos-generic", device_type: str = "nmos", **terminals: tupl
     return DutProfile(
         name=name,
         device_type=device_type,
-        terminals={t: TerminalEnvelope(max_abs_v=v, max_abs_i=i) for t, (v, i) in limits.items()},
+        terminals={t: DutTerminal(max_abs_v=v, max_abs_i=i) for t, (v, i) in limits.items()},
     )
 
 
 def wide_dut(name: str = "wide", terminals: Iterable[str] = ("gate", "drain", "source", "bulk", "force")) -> DutProfile:
     """A DUT profile whose envelope (100 V, 1 A) never limits, to isolate policy bands."""
     return DutProfile(name=name, device_type="nmos",
-                      terminals={t: TerminalEnvelope(max_abs_v=100.0, max_abs_i=1.0) for t in terminals})
+                      terminals={t: DutTerminal(max_abs_v=100.0, max_abs_i=1.0) for t in terminals})
 
 
 # -- Recipes ---------------------------------------------------------------------------------------------------------
@@ -106,6 +110,7 @@ IDVG: dict[str, Any] = {
     "id": "mosfet.idvg",
     "version": 1,
     "title": "MOSFET transfer curve",
+    "family": "smu",
     "kind": "smu_staircase",
     "status": "sim_validated",
     "card": None,
@@ -138,6 +143,7 @@ IDVD: dict[str, Any] = {
     **copy.deepcopy(IDVG),
     "id": "mosfet.idvd",
     "title": "MOSFET output curve",
+    "family": "smu",
     "kind": "smu_stepped",
     "roles": {
         "drain": {"function": "sweep_v", "measure": ["I"], "module_types": ["MPSMU", "HRSMU", "HPSMU"],
@@ -163,6 +169,7 @@ FORCE: dict[str, Any] = {
     **copy.deepcopy(IDVG),
     "id": "generic.smu_force",
     "title": "One forced channel against ground (wide ranges for limit tests)",
+    "family": "smu",
     "device_types": [],
     "roles": {
         "force": {"function": "bias_v", "measure": ["I"], "settings": {"v": "$v", "icomp": "$icomp"}},
@@ -180,6 +187,7 @@ SYSTEM: dict[str, Any] = {
     **copy.deepcopy(IDVG),
     "id": "system.self_test",
     "title": "Instrument self-test",
+    "family": "system",
     "kind": "system",
     "device_types": [],
     "roles": {},
@@ -192,9 +200,10 @@ CMU: dict[str, Any] = {
     **copy.deepcopy(IDVG),
     "id": "mosfet.cgg_cv",
     "title": "Gate capacitance (declared)",
+    "family": "cmu",
     "kind": "cmu_cv",
     "status": "not_implemented",
-    "roles": {"gate": {"function": "sweep_v", "measure": [], "module_types": ["MFCMU"],
+    "roles": {"gate": {"function": "cmu_high", "measure": [], "module_types": ["MFCMU"],
                        "settings": {"start": "$vg_start", "stop": "$vg_stop", "icomp": "$icomp_gate"}}},
     "params": {
         "vg_start": {"unit": "V", "default": -1.0, "range": [-10, 10]},
@@ -297,6 +306,8 @@ def compile_plan(
     duration_s: float = 1.0,
     extra_envelope: Mapping[int, ChannelEnvelope] | None = None,
     drop_envelope: Iterable[int] = (),
+    routes: Iterable[Route] = (),
+    files: Mapping[str, ParamFile] | None = None,
     label: str | None = "W3-D12 batch",
     created_at: datetime = T0,
 ) -> PlanRecord:
@@ -310,21 +321,7 @@ def compile_plan(
     if resolved_override is not None:
         resolved.update(resolved_override)
     name = pm.name if pm is not None else (pin_map_name or "mosfet-4t")
-    roles: dict[str, BoundChannel] = {}
-    for role_name in rec.roles:
-        target = pm.terminals.get(role_name) if pm is not None else None
-        if target is None:
-            continue
-        if target == "GNDU":
-            roles[role_name] = BoundChannel(role=role_name, terminal=role_name, gndu=True)
-            continue
-        module = station_profile.module_for_channel(target)
-        roles[role_name] = BoundChannel(
-            role=role_name, terminal=role_name, channel=target,
-            slot=module.slot if module else channel_slot(target),
-            module_type=module.type if module else None, module_model=module.model if module else None,
-            alias=module.alias if module else None,
-        )
+    roles: dict[str, BoundChannel] = dict(bind_roles(rec, pm, station_profile, name).roles)
     channels: dict[int, ChannelEnvelope] = {}
     sweep_points = 1
     for role_name, bound in roles.items():
@@ -360,11 +357,12 @@ def compile_plan(
         kind=rec.kind,
         resolved_params=resolved,
         binding=ChannelBinding(pin_map=name, roles=roles),
-        envelope=CompiledEnvelope(channels=channels),
+        envelope=CompiledEnvelope(channels=channels, routes=frozenset(routes)),
         estimate=Estimate(points=points if points is not None else sweep_points, duration_s=duration_s),
         flex_preview=[],
         hashes={"station": ZERO_SHA, "policy": ZERO_SHA, "pin_map": ZERO_SHA, "dut_profile": ZERO_SHA},
         backend=backend,
+        files=dict(files or {}),
         rules=report,
         tier=report.tier,
         summary="pending",
@@ -430,6 +428,7 @@ def context(
     inflight_unrecovered: bool = False,
     calibration: CalibrationState | None = None,
     recipe_source: str | None = None,
+    corrections: Mapping[str, list[CorrectionRecord]] | None = None,
     **plan_kwargs: Any,
 ) -> tuple[ConfigBundle, RuleContext]:
     """A bundle and rule context for one plan. Defaults: ``mosfet.idvg`` on pin map ``mosfet-4t`` (verified) with
@@ -464,6 +463,7 @@ def context(
         inflight_unrecovered=inflight_unrecovered,
         calibration=calibration,
         recipe_source=recipe_source,
+        corrections=dict(corrections or {}),
     )
     return cfg, ctx
 
@@ -472,8 +472,8 @@ def engine(cfg: ConfigBundle) -> RulesEngine:
     return RulesEngine(cfg, clock=lambda: T0)
 
 
-def force(v: float, i: float, *, channel: int = 1, **kw: Any) -> tuple[ConfigBundle, RuleContext]:
+def force(v: float, i: float, *, channel: int = 5, **kw: Any) -> tuple[ConfigBundle, RuleContext]:
     """``generic.smu_force`` (one bias channel, wide parameter ranges) with a wide DUT, forcing ``v`` V at
-    compliance ``i`` A on ``channel`` (default SMU1, an MPSMU) against the GNDU."""
+    compliance ``i`` A on ``channel`` (default SMU5, an MPSMU) against the GNDU."""
     return context(rec=recipe(FORCE), pm=pin_map(name="force-1", force=channel), du=wide_dut(),
                    params={"v": v, "icomp": i}, **kw)

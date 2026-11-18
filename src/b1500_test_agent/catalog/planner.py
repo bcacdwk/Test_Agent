@@ -4,12 +4,16 @@ Steps of ``Planner.plan`` (no instrument I/O):
 
 1. **Resolve** parameters: request values over recipe defaults; numerically equal int/float values are coerced to
    the declared type (``101.0`` → ``101``); units come from the ``ParamSpec``. A value of the wrong type is kept as
-   given (unit dropped) so that rule R-PARAM-01 reports it.
+   given (unit dropped) so that rule R-PARAM-01 reports it. ``file`` parameters are read and hashed
+   (``catalog/files.py``) into ``PlanRecord.files``; an unusable file skips compilation like a wrong type.
 2. **Bind** each recipe role to the pin-map terminal of the same name: a channel (with the station profile's slot,
-   module type, model and alias) or the GNDU; unmapped roles stay unbound (R-PIN-01 decides).
-3. **Compile** through the recipe's kind (pure): envelope, estimate, FLEX preview, program. When parameters have the
-   wrong type compilation is skipped (empty envelope); a kind's ``CompileError`` is reported as ``invalid_input``
-   unless R-PARAM-01 already blocks the plan (then the blocked plan explains it).
+   module type, model and alias), an MFCMU side (``7H``/``7L``), a switch output (``SEL1.OUT1``: the route for the
+   role's resource and the channel wired to that input, ``None`` when unknown) or the GNDU; unmapped roles stay
+   unbound (R-PIN-01 decides).
+3. **Compile** through the recipe's kind (pure): envelope (incl. allowed routes), estimate, FLEX preview, program
+   and the routes per phase. When parameters have the wrong type compilation is skipped (empty envelope); a kind's
+   ``CompileError`` is reported as ``invalid_input`` unless R-PARAM-01 already blocks the plan (then the blocked
+   plan explains it).
 4. **Hash**: ``plan_hash`` = sha256 of the canonical JSON of everything except the label, rule reports, tier,
    summary and timestamps; ``plan_id`` = ``"P-" + base32(sha256 digest)[:10]``. Identical requests give the same
    plan id whatever their label, so one plan serves a die batch.
@@ -33,6 +37,7 @@ from typing import Any, ClassVar
 
 from pydantic import ValidationError
 
+from b1500_test_agent.catalog.files import FileRoots, resolve_param_files
 from b1500_test_agent.catalog.registry import RecipeRegistry
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError
 from b1500_test_agent.config import ConfigBundle
@@ -49,9 +54,17 @@ from b1500_test_agent.models.plan import (
     RulesReport,
 )
 from b1500_test_agent.models.policy import DutProfile
-from b1500_test_agent.models.recipe import ParamSpec, Recipe
+from b1500_test_agent.models.recipe import FILE_PARAM_PATTERN, FUNCTION_INPUT, ParamSpec, Recipe
+from b1500_test_agent.models.routing import Route
 from b1500_test_agent.models.run import FaultRecord
-from b1500_test_agent.models.station import LiveState, PinMap, StationProfile, channel_slot
+from b1500_test_agent.models.station import (
+    LiveState,
+    PinMap,
+    StationProfile,
+    channel_slot,
+    cmu_side,
+    switch_target,
+)
 from b1500_test_agent.rules import CalibrationState, RuleContext, RulesEngine, with_rules
 from b1500_test_agent.session.lock import atomic_write_json
 
@@ -158,6 +171,8 @@ def coerce_param(spec: ParamSpec, value: Any) -> tuple[Any, bool]:
         return value, isinstance(value, bool)
     if spec.type == "enum":
         return value, isinstance(value, str) and value in (spec.choices or [])
+    if spec.type == "file":
+        return value, isinstance(value, str) and FILE_PARAM_PATTERN.match(value) is not None
     if spec.type == "int":
         if isinstance(value, float) and math.isfinite(value) and value == int(value):
             value = int(value)
@@ -191,24 +206,43 @@ def resolve_params(recipe: Recipe, params: dict[str, Any]) -> tuple[dict[str, Qu
     return resolved, sorted(set(mistyped))
 
 
+def _bound(name: str, channel: int | None, station: StationProfile, **extra: object) -> BoundChannel:
+    """A role bound to ``channel`` (module facts from the station profile), or to no channel (``extra`` = route)."""
+    if channel is None:
+        return BoundChannel(role=name, terminal=name, **extra)  # type: ignore[arg-type]
+    module = station.module_for_channel(channel)
+    return BoundChannel(
+        role=name, terminal=name, channel=channel,
+        slot=module.slot if module is not None else channel_slot(channel),
+        module_type=module.type if module is not None else None,
+        module_model=module.model if module is not None else None,
+        alias=module.alias if module is not None else None,
+        **extra,  # type: ignore[arg-type]
+    )
+
+
 def bind_roles(recipe: Recipe, pin_map: PinMap | None, station: StationProfile, pin_map_name: str) -> ChannelBinding:
-    """Bind every recipe role to the pin-map terminal of the same name (unmapped roles stay unbound)."""
+    """Bind every recipe role to the pin-map terminal of the same name (unmapped roles stay unbound).
+
+    A switch target binds the role through the route ``(switch, output, state)`` whose state is the role's resource
+    (``smu``, ``pgu``, ``cmu``, ``wgfmu``); the channel is the one the station wires to that input of the switch
+    port (``None`` when the switch, the output or the wiring is unknown: R-PIN-01 blocks it)."""
     roles: dict[str, BoundChannel] = {}
-    for name in recipe.roles:
+    for name, role in recipe.roles.items():
         target = pin_map.terminals.get(name) if pin_map is not None else None
         if target is None:
             continue
         if target == "GNDU":
             roles[name] = BoundChannel(role=name, terminal=name, gndu=True)
-            continue
-        module = station.module_for_channel(target)
-        roles[name] = BoundChannel(
-            role=name, terminal=name, channel=target,
-            slot=module.slot if module is not None else channel_slot(target),
-            module_type=module.type if module is not None else None,
-            module_model=module.model if module is not None else None,
-            alias=module.alias if module is not None else None,
-        )
+        elif (ref := switch_target(target)) is not None:
+            via = Route(switch=ref[0], output=ref[1], state=FUNCTION_INPUT[role.function])
+            switch = station.switch(via.switch)
+            channel = switch.input_channel(via.output, via.state) if switch is not None else None
+            roles[name] = _bound(name, channel, station, via=via)
+        elif (side := cmu_side(target)) is not None:
+            roles[name] = _bound(name, side[0], station, cmu_side=side[1])
+        elif isinstance(target, int):
+            roles[name] = _bound(name, target, station)
     return ChannelBinding(pin_map=pin_map_name, roles=roles)
 
 
@@ -261,6 +295,8 @@ class Planner:
         recipe = self.registry.get(req.recipe_id)
         now = now or self._clock()
         params, mistyped = resolve_params(recipe, dict(req.params))
+        files = resolve_param_files(recipe, params, FileRoots.of(self.registry.root, bundle.paths.work_dir))
+        mistyped = sorted({*mistyped, *(name for name, f in files.items() if f.problem is not None)})
         pin_map, _ = lookup(bundle, req)
         binding = bind_roles(recipe, pin_map, bundle.station, req.pin_map)
         kind = self.registry.kinds.get(recipe.kind)
@@ -279,7 +315,8 @@ class Planner:
             "kind": recipe.kind, "resolved_params": params, "binding": binding, "envelope": compiled.envelope,
             "estimate": compiled.estimate, "flex_preview": list(compiled.flex_preview),
             "hashes": config_hashes(bundle, req.pin_map, req.dut_profile), "backend": bundle.backend,
-            "program": dict(compiled.program), "rules": report, "tier": report.tier, "summary": PLACEHOLDER_SUMMARY,
+            "program": dict(compiled.program), "routes_by_phase": dict(compiled.routes_by_phase), "files": files,
+            "rules": report, "tier": report.tier, "summary": PLACEHOLDER_SUMMARY,
             "created_at": now, "expires_at": now + timedelta(hours=bundle.policy.plans.ttl_h),
         }
         provisional = PlanRecord(plan_id="P-AAAAAAAAAA", plan_hash="0" * 64, **fields)

@@ -18,7 +18,7 @@ from b1500_test_agent.models.plan import (
     PlanRecord,
     RuleFinding,
 )
-from b1500_test_agent.rules.tiers import SUMMARY_MAX_CHARS, _amps, _volts, plan_summary, with_rules
+from b1500_test_agent.rules.tiers import SUMMARY_MAX_CHARS, _amps, _channels, _volts, plan_summary, with_rules
 from tests.unit.rules_factory import (
     FORCE,
     IDVD,
@@ -37,7 +37,7 @@ from tests.unit.rules_factory import (
     wide_dut,
 )
 
-BASE = ("mosfet.idvg@1 | drain=SMU3(HRSMU) bias 0.05 V Icomp 1 mA; gate=SMU1(MPSMU) sweep -1..3 V Icomp 1 uA | "
+BASE = ("mosfet.idvg@1 | drain=SMU3(HRSMU) bias 0.05 V Icomp 1 mA; gate=SMU5(MPSMU) sweep -1..3 V Icomp 1 uA | "
         "DUT nmos-generic | pins mosfet-4t | sim")
 
 
@@ -61,7 +61,7 @@ def test_ok_plan_summary_is_exact() -> None:
 def test_blueprint_example_shape() -> None:
     """Blueprint 2.5 example (drain on SMU3 of the example station instead of SMU2)."""
     text, _ = summarize(context(rec=recipe(IDVD)))
-    assert text == ("mosfet.idvd@1 | drain=SMU3(HRSMU) sweep 0..3 V Icomp 20 mA; gate=SMU1(MPSMU) step 0..2 V "
+    assert text == ("mosfet.idvd@1 | drain=SMU3(HRSMU) sweep 0..3 V Icomp 20 mA; gate=SMU5(MPSMU) step 0..2 V "
                     "Icomp 1 uA | DUT nmos-generic | pins mosfet-4t | sim | R-LIM-03 soft_limit, "
                     "R-DUT-01 dut_envelope")
 
@@ -75,7 +75,7 @@ def test_blocked_and_confirm_flags_follow_the_rule_table_order() -> None:
 def test_flags_are_deduplicated_per_rule_and_reason() -> None:
     text, findings = summarize(force(15.0, 0.02))
     assert [f.rule_id for f in findings] == ["R-LIM-03", "R-LIM-03"]
-    assert text == ("generic.smu_force@1 | force=SMU1(MPSMU) bias 15 V Icomp 20 mA | DUT wide | pins force-1 | sim "
+    assert text == ("generic.smu_force@1 | force=SMU5(MPSMU) bias 15 V Icomp 20 mA | DUT wide | pins force-1 | sim "
                     "| R-LIM-03 soft_limit")
 
 
@@ -88,13 +88,22 @@ def test_dut_none_and_no_outputs() -> None:
 def test_levels_without_function_and_narrower_than_the_envelope() -> None:
     _, ctx = context()
     extra = {
-        1: ChannelEnvelope(role="gate", max_abs_v=3.0, max_abs_i=1e-6),
+        5: ChannelEnvelope(role="gate", max_abs_v=3.0, max_abs_i=1e-6),
         3: ChannelEnvelope(role="drain", max_abs_v=5.0, max_abs_i=1e-3, function="bias_v", v_start=0.05,
                            v_stop=0.05),
     }
     plan = PlanRecord.model_validate({**ctx.plan.model_dump(), "envelope": CompiledEnvelope(channels=extra)})
     assert plan_summary(plan, []).split(" | ")[1] == (
-        "drain=SMU3(HRSMU) bias 0.05 V (max 5 V) Icomp 1 mA; gate=SMU1(MPSMU) max 3 V Icomp 1 uA")
+        "drain=SMU3(HRSMU) bias 0.05 V (max 5 V) Icomp 1 mA; gate=SMU5(MPSMU) max 3 V Icomp 1 uA")
+
+
+def test_a_channel_without_compliance_says_so() -> None:
+    """A ``pgu``/``wgfmu`` channel has no current limit: the summary never invents an Icomp for it."""
+    _, ctx = context()
+    pgu = {5: ChannelEnvelope(role="gate", max_abs_v=4.0, max_abs_i=None, function="pgu")}
+    plan = PlanRecord.model_validate({**ctx.plan.model_dump(), "envelope": CompiledEnvelope(channels=pgu)})
+    assert plan_summary(plan, []).split(" | ")[1] == "gate=SMU5(MPSMU) max 4 V no Icomp"
+    assert _channels(plan, compact=True) == "gate=SMU5 <=4V noIcomp"
 
 
 @pytest.mark.parametrize(
@@ -157,7 +166,7 @@ def test_live_state_never_changes_the_summary() -> None:
 def _ten_channel_context() -> tuple[Any, Any]:
     slots = range(1, 11)
     profile = station(modules=[{"slot": s, "model": "B1511B", "type": "MPSMU", "channels": [s], "alias": f"SMU{s}"}
-                               for s in slots], corrections={})
+                               for s in slots], switches=[], corrections={})
     bias = {"function": "bias_v", "measure": ["I"], "settings": {"v": "$v", "icomp": "$icomp"}}
     roles: dict[str, Any] = {f"r{s}": bias for s in slots}
     roles["source"] = {"function": "ground", "allow_gndu": True}
@@ -195,7 +204,7 @@ def test_overlong_content_is_cut_to_400_characters() -> None:
 def _contexts() -> list[tuple[Any, Any]]:
     return [
         context(), context(rec=recipe(IDVD)), force(45.0, 0.2), force(-3.3, 1e-9), _ten_channel_context(),
-        context(pm=pin_map(gate=501)), context(du=dut(drain=(0.01, 1e-12))), context(pm=None),
+        context(pm=pin_map(gate=201)), context(du=dut(drain=(0.01, 1e-12))), context(pm=None),
     ]
 
 
@@ -224,7 +233,7 @@ def test_the_stored_plan_accepts_every_summary() -> None:
 def test_compile_plan_fixture_matches_the_envelope_contract() -> None:
     """Guard for the in-test planner: sweep levels are start..stop, bias levels equal, max |V| covers both."""
     plan = compile_plan(recipe(), pin_map(), station())
-    gate, drain = plan.envelope.channels[1], plan.envelope.channels[3]
+    gate, drain = plan.envelope.channels[5], plan.envelope.channels[3]
     assert (gate.function, gate.v_start, gate.v_stop, gate.max_abs_v, gate.max_abs_i) == ("sweep_v", -1.0, 3.0, 3.0,
                                                                                            1e-6)
     assert (drain.function, drain.v_start, drain.v_stop, drain.max_abs_i) == ("bias_v", 0.05, 0.05, 1e-3)

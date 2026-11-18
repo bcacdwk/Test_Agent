@@ -8,6 +8,7 @@ import pytest
 
 from b1500_test_agent.driver.b1500 import B1500Driver, StaircaseSetup
 from b1500_test_agent.driver.guard import EnvelopeViolation, OutputGuard
+from b1500_test_agent.models.plan import ChannelEnvelope, CompiledEnvelope
 from tests.unit.driver_helpers import SpyTransport, envelope
 
 ENV = envelope(ch1=(3.0, 1e-6), ch3=(0.1, 1e-3), ch4=(0.0, 1e-3))
@@ -59,6 +60,23 @@ def test_guard_refusals(args: tuple, reason: str) -> None:
         OutputGuard(ENV).check(*args)
     assert info.value.reason == reason
     assert info.value.channel == args[0]
+
+
+def test_guard_refuses_smu_sourcing_on_a_compliance_free_channel() -> None:
+    """A ``pgu``/``wgfmu`` channel envelope has no current limit (``max_abs_i`` None): the v1 SMU check refuses every
+    source command on it, whatever the level (the pulse/waveform checks of WP5.4 govern such channels)."""
+    pulse_env = CompiledEnvelope(channels={101: ChannelEnvelope(role="gate", max_abs_v=4.0, max_abs_i=None,
+                                                                function="pgu")})
+    guard = OutputGuard(pulse_env)
+    guard.check_channel(101)
+    for quantity in ("V", "I"):
+        with pytest.raises(EnvelopeViolation) as caught:
+            guard.check(101, quantity, 0.0, 1e-6)
+        assert caught.value.reason == "channel_not_allowed" and "without compliance" in str(caught.value)
+    spy = SpyTransport()
+    with pytest.raises(EnvelopeViolation):
+        B1500Driver(spy, guard).force_v(101, 1.0, icomp=1e-6)
+    assert spy.sent == []
 
 
 def test_guard_rejects_unknown_quantity() -> None:

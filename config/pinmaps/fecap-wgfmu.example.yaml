@@ -1,0 +1,15 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Ferroelectric capacitor between the two WGFMU channels through their RSUs (lwp LFN_noise_meas.cpp connects channels
+# 201 and 202): the top electrode on RSU201 (WGFMU channel 201), the bottom electrode on RSU202 (channel 202). A wgfmu
+# role binds through the route RSU20x.OUT -> wgfmu.
+#
+# certainty: unverified (every plan needs confirmation, unverified_pin_map); the RSUs are unverified switches too.
+# The visa backend never reads this example file.
+
+description: FeCap; top electrode RSU201.OUT (WGFMU 201), bottom electrode RSU202.OUT (WGFMU 202).
+certainty: unverified
+terminals:
+  top: RSU201.OUT
+  bottom: RSU202.OUT
+notes:
+  - PUND forces on the top electrode and measures the switching current on the bottom electrode.

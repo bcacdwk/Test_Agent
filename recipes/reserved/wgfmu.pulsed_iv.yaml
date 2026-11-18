@@ -4,6 +4,7 @@
 id: wgfmu.pulsed_iv
 version: 1
 title: WGFMU fast pulsed I-V (Id-Vg/Id-Vd with short pulses)
+family: wgfmu
 kind: wgfmu_pulsed_iv
 status: not_implemented
 card: null

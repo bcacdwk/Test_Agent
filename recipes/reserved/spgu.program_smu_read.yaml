@@ -4,6 +4,7 @@
 id: spgu.program_smu_read
 version: 1
 title: SPGU/HV-SPGU program pulse, then SMU read through the 16440A selector
+family: nvm
 kind: spgu_program_read
 status: not_implemented
 card: null

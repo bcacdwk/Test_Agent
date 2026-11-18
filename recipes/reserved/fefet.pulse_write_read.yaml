@@ -4,6 +4,7 @@
 id: fefet.pulse_write_read
 version: 1
 title: FeFET pulse write/read for endurance and retention (program, read Id-Vg, erase, read Id-Vg)
+family: nvm
 kind: wgfmu_pulse_sequence
 status: not_implemented
 card: null

@@ -5,7 +5,7 @@
 blueprint 2.6 docstring:
 
 1. load the plan (unknown, or content not hashing to its id → ``unknown_plan``; past its TTL → ``plan_expired``;
-   recipe, config hashes or backend changed → ``plan_stale``);
+   recipe, config hashes, a ``file`` parameter's CSV or backend changed → ``plan_stale``);
 2. effective status ``not_implemented`` → refuse;
 3. re-run the plan-phase rules, never trusting the stored tier: ``blocked`` → ``blocked_by_rules``;
    ``needs_confirmation`` without a summary → ``confirmation_required``; a summary that differs from the fresh
@@ -39,6 +39,7 @@ from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.registry import run_method
 from b1500_test_agent.archive.audit import RUN_AUDIT_FILE
 from b1500_test_agent.archive.store import QUALITY_FILE, RunFolder, RunStore, analysis_payload, software_version
+from b1500_test_agent.catalog.files import FileRoots, changed_param_files
 from b1500_test_agent.catalog.kinds import MeasurementKind
 from b1500_test_agent.catalog.planner import (
     PlanError,
@@ -237,6 +238,11 @@ class Executor:
             changed = sorted(k for k in set(current) | set(plan.hashes) if current.get(k) != plan.hashes.get(k))
             raise PlanStaleError(f"config changed since plan {plan_id} was validated ({', '.join(changed)}); "
                                  "validate again")
+        files = changed_param_files(plan.files, FileRoots.of(registry.root, bundle.paths.work_dir))
+        if files:
+            names = ", ".join(f"{name} ({plan.files[name].path})" for name in files)
+            raise PlanStaleError(f"file parameter(s) {names} changed since plan {plan_id} was validated; validate "
+                                 "again")
         return plan, recipe, registry.kinds.get(recipe.kind)
 
     def _fresh(self, plan: PlanRecord, bundle: ConfigBundle) -> tuple[PlanRecord, RulesReport]:

@@ -206,7 +206,7 @@ def test_sources_name_the_committed_example_files(repo: Path) -> None:
     assert [(f.rule_id, f.source) for f in report.findings] == [  # per rule, in channel order (drain 3, gate 4)
         ("R-DUT-01", "config/duts/nmos-generic.example.yaml#terminals.drain.max_abs_i"),
         ("R-DUT-01", "config/duts/nmos-generic.example.yaml#terminals.gate.max_abs_v"),
-        ("R-RUN-01", "config/policy.example.yaml#run_limits.max_points"),
+        ("R-RUN-01", "config/policy.example.yaml#run_limits.max_points.smu"),
     ]
 
 

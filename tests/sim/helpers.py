@@ -21,6 +21,10 @@ NMOS_SLOTS = [
     {"slot": 4, "model": "B1517A"}, {"slot": 5, "model": "B1530A"}, {"slot": 6, "model": "B1525A"},
     {"slot": 7, "model": "B1520A"},
 ]  # fmt: skip
+"""The fixed test mainframe of the FLEX-level simulator tests: MPSMU in slots 1-2, HRSMU 3-4, WGFMU 5, HV-SPGU 6,
+MFCMU 7 (the v1 example layout). These tests check command semantics on "an MPSMU in slot 1"; keeping their
+mainframe fixed keeps their channel numbers independent of the station example, whose lab layout (WP5.3: SPGU 1,
+WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7) the committed scenarios use (``test_scenarios.py``, integration tests)."""
 
 
 def load_scenario(name: str) -> SimScenario:
@@ -32,6 +36,12 @@ def load_scenario(name: str) -> SimScenario:
 def noiseless(scenario: SimScenario) -> SimScenario:
     """``scenario`` without measurement noise."""
     return scenario.model_copy(update={"noise": scenario.noise.model_copy(update={"rel": 0.0, "floor_a": {}})})
+
+
+def on_test_mainframe(scenario: SimScenario) -> SimScenario:
+    """``scenario`` (devices, wiring, noise) on the fixed FLEX test mainframe ``NMOS_SLOTS``; its wiring must only use
+    slots both layouts share (3, 4, 7, GNDU), which every committed v1 scenario does."""
+    return SimScenario.model_validate({**scenario.model_dump(mode="json"), "slots": NMOS_SLOTS})
 
 
 def scenario_with(models: dict[str, Any], wiring: dict[str, Any], **extra: Any) -> SimScenario:

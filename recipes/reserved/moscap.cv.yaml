@@ -4,6 +4,7 @@
 id: moscap.cv
 version: 1
 title: MOS capacitor C-V sweep with the MFCMU
+family: cmu
 kind: cmu_cv
 status: not_implemented
 card: null

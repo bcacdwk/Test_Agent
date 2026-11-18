@@ -86,11 +86,12 @@ def test_resolve_params_defaults_units_and_mistyped() -> None:
 
 def test_bind_roles() -> None:
     rec = recipe()
-    binding = bind_roles(rec, pin_map(gate=1, drain=4, source=None), STATION, "mosfet-4t")
+    binding = bind_roles(rec, pin_map(gate=5, drain=4, source=None), STATION, "mosfet-4t")
     assert set(binding.roles) == {"gate", "drain"}
     gate = binding.roles["gate"]
     assert (gate.channel, gate.slot, gate.module_type, gate.module_model, gate.alias) == \
-        (1, 1, "MPSMU", "B1511B", "SMU1")
+        (5, 5, "MPSMU", "B1511B", "SMU5")
+    assert gate.via is None and gate.cmu_side is None
     assert binding.roles["drain"].module_type == "HRSMU"
     grounded = bind_roles(rec, pin_map(), STATION, "mosfet-4t").roles["source"]
     assert grounded.gndu and grounded.channel is None
@@ -103,12 +104,13 @@ def test_bind_roles() -> None:
 
 def test_idvg_compiles_to_envelope_estimate_preview_and_program() -> None:
     compiled = compile_idvg()
-    gate, drain = compiled.envelope.channels[1], compiled.envelope.channels[3]
+    gate, drain = compiled.envelope.channels[5], compiled.envelope.channels[3]
     assert (gate.role, gate.max_abs_v, gate.max_abs_i, gate.v_start, gate.v_stop) == ("gate", 3.0, 1e-6, -1.0, 3.0)
     assert (drain.role, drain.max_abs_v, drain.max_abs_i, drain.function) == ("drain", 0.05, 1e-3, "bias_v")
-    assert compiled.flex_preview == ["FMT 1,1", "AAD 1,0", "AAD 3,0", "AIT 0,2,1", "CN 1,3", "DV 3,0,0.05,0.001",
-                                     "MM 2,1,3", "CMM 1,1", "CMM 3,1", "WV 1,1,0,-1,3,101,1E-06", "WT 0,0", "WM 2,1",
+    assert compiled.flex_preview == ["FMT 1,1", "AAD 5,0", "AAD 3,0", "AIT 0,2,1", "CN 5,3", "DV 3,0,0.05,0.001",
+                                     "MM 2,5,3", "CMM 5,1", "CMM 3,1", "WV 5,1,0,-1,3,101,1E-06", "WT 0,0", "WM 2,1",
                                      "XE"]
+    assert compiled.routes_by_phase == {} and compiled.envelope.routes == frozenset()
     assert compiled.estimate.points == 101
     assert compiled.estimate.duration_s == pytest.approx(1.0 + 101 * 2 * 0.02)
     program = StaircaseProgram.model_validate(json.loads(json.dumps(compiled.program)))
@@ -117,13 +119,13 @@ def test_idvg_compiles_to_envelope_estimate_preview_and_program() -> None:
 
 
 def test_ground_on_an_smu_gets_the_summed_compliance_unless_explicit() -> None:
-    compiled = compile_idvg(pm=pin_map(source=2))
-    source = compiled.envelope.channels[2]
+    compiled = compile_idvg(pm=pin_map(source=6))
+    source = compiled.envelope.channels[6]
     assert (source.max_abs_v, source.max_abs_i, source.function) == (0.0, pytest.approx(1e-3 + 1e-6), "ground")
-    assert "DV 2,0,0,0.001001" in compiled.flex_preview and "CN 1,3,2" in compiled.flex_preview
+    assert "DV 6,0,0,0.001001" in compiled.flex_preview and "CN 5,3,6" in compiled.flex_preview
     explicit = recipe(IDVG, roles={**IDVG["roles"], "source": {"function": "ground", "allow_gndu": True,
                                                               "settings": {"icomp": 5e-3}}})
-    assert compile_idvg(explicit, pm=pin_map(source=2)).envelope.channels[2].max_abs_i == 5e-3
+    assert compile_idvg(explicit, pm=pin_map(source=6)).envelope.channels[6].max_abs_i == 5e-3
 
 
 def test_presets_double_sweep_and_unbound_sweep() -> None:
@@ -132,7 +134,7 @@ def test_presets_double_sweep_and_unbound_sweep() -> None:
     double = recipe(IDVG, roles={**IDVG["roles"], "gate": {**IDVG["roles"]["gate"], "settings": {
         **IDVG["roles"]["gate"]["settings"], "mode": "double"}}})
     compiled = compile_idvg(double)
-    assert compiled.estimate.points == 202 and "WV 1,3,0,-1,3,101,1E-06" in compiled.flex_preview
+    assert compiled.estimate.points == 202 and "WV 5,3,0,-1,3,101,1E-06" in compiled.flex_preview
     unbound = compile_idvg(pm=pin_map(gate=None))
     assert unbound.program == {} and unbound.flex_preview == [] and list(unbound.envelope.channels) == [3]
 
@@ -143,6 +145,8 @@ def test_presets_double_sweep_and_unbound_sweep() -> None:
     (IDVG, {**IDVG["roles"], "drain": {**IDVG["roles"]["drain"], "measure": ["I", "V"]}}, "one quantity per channel"),
     (IDVG, {**IDVG["roles"], "gate": {**IDVG["roles"]["gate"], "measure": []},
             "drain": {**IDVG["roles"]["drain"], "measure": []}}, "no bound role measures"),
+    (IDVG, {**IDVG["roles"], "drain": {"function": "bias_i", "measure": ["V"]}}, r"cannot execute role\(s\) drain"),
+    (IDVG, {**IDVG["roles"], "drain": {"function": "pulse_v", "measure": ["I"]}}, "pulse_v"),
 ])
 def test_staircase_refuses_what_it_cannot_express(base: dict[str, Any], roles: dict[str, Any], message: str) -> None:
     with pytest.raises(CompileError, match=message):

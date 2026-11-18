@@ -7,6 +7,7 @@
 id: system.self_cal
 version: 1
 title: Instrument self-calibration (*CAL?) of all modules and the mainframe
+family: system
 kind: system
 status: sim_validated
 card: null

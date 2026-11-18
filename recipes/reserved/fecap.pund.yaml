@@ -4,6 +4,7 @@
 id: fecap.pund
 version: 1
 title: Ferroelectric capacitor PUND (positive-up-negative-down)
+family: nvm
 kind: wgfmu_pulse_sequence
 status: not_implemented
 card: null

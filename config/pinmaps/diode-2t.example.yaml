@@ -1,6 +1,6 @@
 # Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
-# Two-terminal diode on the example station: recipe roles bind to the terminal of the same name (rule R-PIN-01),
-# so a diode recipe uses the roles `anode` and `cathode`. Target: a channel number, GNDU, or null.
+# Two-terminal diode on the lab-shaped example station: recipe roles bind to the terminal of the same name (rule
+# R-PIN-01), so a diode recipe uses the roles `anode` and `cathode`. Target: a channel number, GNDU, or null.
 #
 # certainty: verified here because this map matches the wiring of the simulator scenario diode_basic. On a real
 # station set `unverified` until a human has checked the wiring; every plan using an unverified map needs
@@ -12,4 +12,5 @@ terminals:
   anode: 3
   cathode: GNDU
 notes:
-  - Reverse leakage needs the HRSMU; keep the anode on SMU3 or SMU4.
+  - Reverse leakage needs the HRSMU (basic.diode_iv's anode role is low_current); keep the anode on SMU3 or SMU4.
+    The MPSMUs SMU5/SMU6 may take the cathode instead of the GNDU (role cathode is a ground role).

@@ -4,6 +4,7 @@
 id: wgfmu.fast_bti
 version: 1
 title: WGFMU fast BTI (stress with on-the-fly Vth monitoring)
+family: reliability
 kind: wgfmu_fast_bti
 status: not_implemented
 card: null

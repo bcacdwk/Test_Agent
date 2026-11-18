@@ -46,19 +46,19 @@ def with_gate(**settings: Any) -> dict[str, Any]:
 
 def test_idvd_compiles_to_envelope_estimate_preview_and_program() -> None:
     compiled = compile_stepped(vg_stop=2.0, vg_points=4)  # four gate steps 0.5 .. 2.0 V
-    gate, drain = compiled.envelope.channels[1], compiled.envelope.channels[3]
+    gate, drain = compiled.envelope.channels[5], compiled.envelope.channels[3]
     assert (gate.role, gate.function, gate.max_abs_v, gate.max_abs_i, gate.v_start, gate.v_stop) == \
         ("gate", "step_v", 2.0, 1e-6, 0.5, 2.0)
     assert (drain.role, drain.function, drain.max_abs_v, drain.max_abs_i, drain.v_start, drain.v_stop) == \
         ("drain", "sweep_v", 3.0, 1e-3, 0.0, 3.0)
-    assert set(compiled.envelope.channels) == {1, 3}  # the source is on the GNDU
+    assert set(compiled.envelope.channels) == {5, 3}  # the source is on the GNDU
     assert compiled.flex_preview == [
-        "FMT 1,1", "AAD 3,0", "AAD 1,0", "AIT 0,2,1", "CN 3,1", "MM 2,3,1", "CMM 3,1", "CMM 1,1",
+        "FMT 1,1", "AAD 3,0", "AAD 5,0", "AIT 0,2,1", "CN 3,5", "MM 2,3,5", "CMM 3,1", "CMM 5,1",
         "WV 3,1,0,0,3,101,0.001", "WT 0,0", "WM 2,1",
-        "DV 1,0,0.5,1E-06", "XE", "DV 1,0,1,1E-06", "XE", "DV 1,0,1.5,1E-06", "XE", "DV 1,0,2,1E-06", "XE",
+        "DV 5,0,0.5,1E-06", "XE", "DV 5,0,1,1E-06", "XE", "DV 5,0,1.5,1E-06", "XE", "DV 5,0,2,1E-06", "XE",
     ]
     program = SteppedProgram.model_validate(json.loads(json.dumps(compiled.program)))
-    assert program.step_values == [0.5, 1.0, 1.5, 2.0] and program.step_channel == 1 and program.step_icomp == 1e-6
+    assert program.step_values == [0.5, 1.0, 1.5, 2.0] and program.step_channel == 5 and program.step_icomp == 1e-6
     assert program.step_role == "gate" and program.step_column == "gate_V"
     assert program.staircase.biases == [] and program.staircase.source_columns == {}  # the step is not a bias
     assert [m.role for m in program.staircase.measure] == ["drain", "gate"] and program.staircase.width == 3
@@ -72,11 +72,11 @@ def test_values_list_parameter_keeps_its_order() -> None:
     data = with_gate(values="$vg_list", icomp="$icomp_gate")
     data["params"] = {**data["params"], "vg_list": {"type": "float_list", "unit": "V", "default": [1.2, 0.0, -0.4]}}
     compiled = compile_stepped(recipe(data))
-    gate = compiled.envelope.channels[1]
+    gate = compiled.envelope.channels[5]
     assert (gate.max_abs_v, gate.v_start, gate.v_stop) == (1.2, 1.2, -0.4)
     assert compiled.program["step_values"] == [1.2, 0.0, -0.4]
-    assert [line for line in compiled.flex_preview if line.startswith("DV 1,")] == \
-        ["DV 1,0,1.2,1E-06", "DV 1,0,0,1E-06", "DV 1,0,-0.4,1E-06"]
+    assert [line for line in compiled.flex_preview if line.startswith("DV 5,")] == \
+        ["DV 5,0,1.2,1E-06", "DV 5,0,0,1E-06", "DV 5,0,-0.4,1E-06"]
 
 
 def test_single_point_and_rounding() -> None:
@@ -87,10 +87,10 @@ def test_single_point_and_rounding() -> None:
 
 
 def test_grounded_source_smu_gets_the_summed_compliance_including_the_step() -> None:
-    compiled = compile_stepped(pm=pin_map(source=2))
-    source = compiled.envelope.channels[2]
+    compiled = compile_stepped(pm=pin_map(source=6))
+    source = compiled.envelope.channels[6]
     assert (source.function, source.max_abs_v, source.max_abs_i) == ("ground", 0.0, pytest.approx(1e-3 + 1e-6))
-    assert "DV 2,0,0,0.001001" in compiled.flex_preview
+    assert "DV 6,0,0,0.001001" in compiled.flex_preview
 
 
 def test_unbound_step_or_sweep_compiles_to_no_program() -> None:
@@ -142,7 +142,7 @@ def test_plan_tier_and_summary() -> None:
     plan = make_plan()
     assert plan.kind == "smu_stepped" and plan.tier == "ok"
     assert not any(f.rule_id == "R-REC-01" for f in plan.rules.findings)  # sim_validated on sim (WP2.2)
-    assert plan.summary == ("mosfet.idvd@1 | drain=SMU3(HRSMU) sweep 0..3 V Icomp 1 mA; gate=SMU1(MPSMU) step "
+    assert plan.summary == ("mosfet.idvd@1 | drain=SMU3(HRSMU) sweep 0..3 V Icomp 1 mA; gate=SMU5(MPSMU) step "
                             "0.5..1.5 V Icomp 1 uA | DUT nmos-generic | pins mosfet-4t | sim")
     beyond = make_plan(vg_stop=3.5)  # the DUT gate envelope is 3 V: every step value is checked
     assert beyond.tier == "needs_confirmation" and beyond.rules.confirm_reasons == ["dut_envelope"]
@@ -152,16 +152,16 @@ def test_plan_tier_and_summary() -> None:
 
 
 def _block(currents: list[tuple[float, float]], *, abort_from: int | None = None) -> RawBlock:
-    """One sweep block of the idvd program shape: per step drain I (channel 3 = C), gate I (channel 1 = A) and the
+    """One sweep block of the idvd program shape: per step drain I (channel 3 = C), gate I (channel 5 = E) and the
     drain source value; steps from ``abort_from`` on carry the dummy value with status V."""
     elements = []
     last = len(currents) - 1
     for i, (i_d, i_g) in enumerate(currents):
         source = "E" if i == last else "W"
         if abort_from is not None and i >= abort_from:
-            elements += ["VCI+199.999E+99", "VAI+199.999E+99", f"{source}CV+199.999E+99"]
+            elements += ["VCI+199.999E+99", "VEI+199.999E+99", f"{source}CV+199.999E+99"]
         else:
-            elements += [f"NCI{i_d:+.5E}", f"NAI{i_g:+.5E}", f"{source}CV{0.03 * i:+.5E}"]
+            elements += [f"NCI{i_d:+.5E}", f"NEI{i_g:+.5E}", f"{source}CV{0.03 * i:+.5E}"]
     points = parse_fmt1(",".join(elements))
     now = datetime.now(UTC)
     return RawBlock(raw="", points=tuple(points), fmt=1, expected_points=len(points), xe_at=now, read_at=now,

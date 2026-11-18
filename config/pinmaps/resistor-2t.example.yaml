@@ -1,6 +1,6 @@
 # Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
-# Two-terminal resistor or contact structure on the example station: recipe roles bind to the terminal of the same
-# name (rule R-PIN-01), so a two-terminal recipe uses the roles `a` (forced side) and `b` (return side).
+# Two-terminal resistor or contact structure on the lab-shaped example station: recipe roles bind to the terminal of
+# the same name (rule R-PIN-01), so a two-terminal recipe uses the roles `a` (forced side) and `b` (return side).
 # Target: a channel number, GNDU, or null.
 #
 # certainty: verified here because this map matches the wiring of the simulator scenario resistor_100k (and the
@@ -15,3 +15,5 @@ terminals:
   b: GNDU
 notes:
   - The HRSMU resolves the open-circuit noise floor, so an unlanded probe reads as open, not as a large resistor.
+  - SMU3 is also the drain probe of mosfet-4t, so this map checks the drain landing of a MOSFET too. A copy with a on
+    SMU5 or SMU6 (MPSMU) checks other probes (basic.contact_resistor allows MPSMU).

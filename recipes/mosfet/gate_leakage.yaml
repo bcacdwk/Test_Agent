@@ -11,6 +11,7 @@
 id: mosfet.gate_leakage
 version: 1
 title: MOSFET gate leakage (Ig-Vg, drain and source at 0 V) - leakage at the operating bias vs a limit
+family: smu
 kind: smu_staircase
 status: sim_validated
 card: .agents/skills/b1500-test/cards/gate-leakage.md

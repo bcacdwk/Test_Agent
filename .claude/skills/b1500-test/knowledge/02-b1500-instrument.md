@@ -53,7 +53,8 @@ Deck slide 11, corrected against the User's Guide. DC values; v1 sources DC only
 ## Channel numbering and UNT
 
 - PG Table 4-1 (PDF 334): an SMU or MFCMU in slot n is channel n (also written n01). The two subchannels of a
-  WGFMU or HVSPGU in slot n are n01 and n02 (for example 501, 502). A two-slot module uses the lower slot number.
+  WGFMU or HVSPGU in slot n are n01 and n02 (the lab WGFMU in slot 2: 201, 202). A two-slot module uses the lower
+  slot number.
 - Deck slide 11 says channels 11-20 are the subchannels of slots 1-10. That contradicts PG Table 4-1 and the
   WGFMU channel ids 101-1002; the manual wins `TODO(verify)` whether any firmware mode accepts 11-20.
 - `UNT?` returns model and revision per slot, `[FrameModel,FrameRevision;]Slot1Model,Slot1Revision;...`

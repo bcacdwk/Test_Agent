@@ -4,6 +4,7 @@
 id: cmu.correction
 version: 1
 title: MFCMU phase compensation and open/short/load correction
+family: cmu
 kind: cmu_correction
 status: not_implemented
 card: null

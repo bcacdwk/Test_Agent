@@ -4,6 +4,7 @@
 id: reliability.hci
 version: 1
 title: Hot-carrier injection stress with periodic Id-Vg reads
+family: reliability
 kind: smu_stress_measure
 status: not_implemented
 card: null

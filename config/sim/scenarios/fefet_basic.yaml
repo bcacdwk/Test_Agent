@@ -6,13 +6,13 @@
 
 description: n-channel FeFET wired like pin map mosfet-4t (gate SMU4, drain SMU3, source/bulk GNDU); instant timing.
 idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101
-slots:
-  - {slot: 1, model: B1511B}
-  - {slot: 2, model: B1511B}
+slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
   - {slot: 3, model: B1517A}
   - {slot: 4, model: B1517A}
-  - {slot: 5, model: B1530A}
-  - {slot: 6, model: B1525A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
   - {slot: 7, model: B1520A}
 interlock_closed: false
 wiring:

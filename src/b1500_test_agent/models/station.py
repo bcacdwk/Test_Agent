@@ -1,21 +1,29 @@
 """What is physically there and how to reach it: runtime settings, station profile, pin maps, simulator scenarios
-and the live instrument state read back from the mainframe (blueprint 2.2, 2.4, 3, 4.1).
+and the live instrument state read back from the mainframe (blueprint v1 2.2, 2.4, 3, 4.1; v2 2.3, 7.3).
 
 Config files: ``settings`` (``Settings``), ``station`` (``StationProfile``), ``pinmaps/<name>`` (``PinMap``) and
 ``sim/scenarios/<name>`` (``SimScenario``). Module models and channel numbers follow the Keysight B1500 Series
 Programming Guide, Edition 15 ("PG"): Table 4-1 (PDF 334) for channel numbers, ``UNT?`` (PDF 545) for the inventory,
 the status byte table (PDF 76) for bit 3 = interlock open.
+
+v2 (blueprint 2.3): the station declares its switches (``switches``: 16440A selectors, SCUU, ASU, RSU; see
+``models/routing.py``) instead of the v1 ``topology.switching`` booleans; a pin-map terminal may target a channel,
+the GNDU, an MFCMU side (``"7H"``/``"7L"``) or a switch output (``"SEL1.OUT1"``); MFCMU correction *records* are
+server state (``CorrectionRecord``, written to ``data/state/corrections/<cmu alias>.json`` by the correction
+recipes) and only the static reference values of the load standard stay in ``station.yaml#corrections``.
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from datetime import datetime
+from typing import Annotated, Final, Literal
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, Field, field_validator, model_validator
 
-from b1500_test_agent.models.analysis import PositiveFloat
-from b1500_test_agent.models.common import Backend, ConfigName, StrictModel
+from b1500_test_agent.models.analysis import PositiveFloat, RunId
+from b1500_test_agent.models.common import Alias, Backend, ConfigName, Sha256Hex, StrictModel
 from b1500_test_agent.models.measurement import Channel
+from b1500_test_agent.models.routing import SwitchSpec, SwitchTarget, split_switch_target
 
 ModuleType = Literal["HPSMU", "MPSMU", "HRSMU", "MCSMU", "HCSMU", "HVSMU", "MFCMU", "HVSPGU", "WGFMU"]
 """Plug-in module types a station profile and a recipe role may name (``RoleSpec.module_types``)."""
@@ -43,11 +51,48 @@ SMU_TYPES: frozenset[str] = frozenset({"HPSMU", "MPSMU", "HRSMU", "MCSMU", "HCSM
 TWO_CHANNEL_TYPES: frozenset[str] = frozenset({"HVSPGU", "WGFMU"})
 """Module types with two subchannels, addressed as ``slot*100+1`` and ``slot*100+2`` (PG Table 4-1)."""
 
+MeasureFamily = Literal["smu", "cmu", "wgfmu"]
+"""Measuring module families with their own point limit (``policy.run_limits.max_points``)."""
+
+MODULE_FAMILY: Final[dict[str, MeasureFamily]] = {
+    **{t: "smu" for t in sorted(SMU_TYPES)}, "MFCMU": "cmu", "WGFMU": "wgfmu",
+}  # fmt: skip
+"""Measuring family of each module type (the HV-SPGU only sources pulses and measures nothing)."""
+
+SWITCH_INPUT_TYPES: Final[dict[str, frozenset[str]]] = {
+    "smu": SMU_TYPES, "pgu": frozenset({"HVSPGU"}), "cmu": frozenset({"MFCMU"}), "wgfmu": frozenset({"WGFMU"}),
+}  # fmt: skip
+"""Module types that may feed each switch input side."""
+
+ASU_SCUU_SMU_TYPES: Final = frozenset({"HRSMU", "MPSMU"})
+"""SMU types an ASU or SCUU works with (UG PDF 44-45, 103; PG p390 (4-72) DCV: SCUU with MPSMU or HRSMU)."""
+
 Slot = Annotated[int, Field(ge=1, le=10)]
-Alias = Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,31}$")]
 
 PinTarget = Channel | Literal["GNDU"] | None
-"""Where a DUT terminal is wired: a channel number, the mainframe ground unit, or ``None`` (not connected)."""
+"""Physical wiring target of a simulated DUT terminal (``SimScenario.wiring``): a channel number, the mainframe
+ground unit, or ``None`` (not connected). Pin maps use the wider ``TerminalTarget``."""
+
+CmuSideTarget = Annotated[str, Field(pattern=r"^(10|[1-9])[HL]$")]
+"""An MFCMU terminal pair: ``"7H"`` = High (Hc/Hp) and ``"7L"`` = Low (Lc/Lp) of the MFCMU in slot 7."""
+
+TerminalTarget = Channel | Literal["GNDU"] | CmuSideTarget | SwitchTarget | None
+"""Where a pin-map terminal is wired (blueprint v2 2.3): a channel number, the GNDU, an MFCMU side (``"7H"``,
+``"7L"``), a switch output (``"SEL1.OUT1"``, resolved through ``StationProfile.switches``), or ``None``."""
+
+
+def cmu_side(target: object) -> tuple[int, Literal["H", "L"]] | None:
+    """``(7, "H")`` for the MFCMU side target ``"7H"``; ``None`` for anything else."""
+    if isinstance(target, str) and len(target) >= 2 and target[-1] in "HL" and target[:-1].isdigit():
+        channel = int(target[:-1])
+        if 1 <= channel <= 10:
+            return channel, "H" if target[-1] == "H" else "L"
+    return None
+
+
+def switch_target(target: object) -> tuple[str, str] | None:
+    """``("SEL1", "OUT1")`` for the switch target ``"SEL1.OUT1"``; ``None`` for anything else."""
+    return split_switch_target(target) if isinstance(target, str) else None
 
 
 def channel_slot(channel: int) -> int:
@@ -99,6 +144,17 @@ class PathSettings(StrictModel):
     work_dir: str = Field(default="work", min_length=1)
 
 
+class WgfmuSettings(StrictModel):
+    """Keysight B1530A WGFMU instrument library (blueprint v2 2.4, decision 6).
+
+    ``library`` is the path of ``wgfmu.dll``; empty = the library installer's default, the 64-bit
+    ``%SystemRoot%\\System32\\wgfmu.dll`` of library A.03.00 or later. Only ``transport/wgfmu/dll.py`` loads it, and
+    only with ``backend: visa`` on Windows.
+    """
+
+    library: str = ""
+
+
 class Settings(StrictModel):
     """Contents of ``settings.yaml``: backend, transport, simulator scenario and runtime paths.
 
@@ -109,6 +165,7 @@ class Settings(StrictModel):
     backend: Backend = "sim"
     sim: SimSettings = Field(default_factory=SimSettings)
     visa: VisaSettings = Field(default_factory=VisaSettings)
+    wgfmu: WgfmuSettings = Field(default_factory=WgfmuSettings)
     paths: PathSettings = Field(default_factory=PathSettings)
 
 
@@ -170,62 +227,90 @@ class CablePath(StrictModel):
     note: str = ""
 
 
-class Switching(StrictModel):
-    """Switching accessories in the signal path; ``None`` means unknown."""
-
-    asu: bool | None = None
-    scuu: bool | None = None
-    selector_16440a: bool | None = None
-
-
 class Topology(StrictModel):
-    """Shielding and cabling around the mainframe; ``cables`` is keyed by module alias."""
+    """Shielding and cabling around the mainframe; ``cables`` is keyed by module alias. Switching accessories are
+    declared in ``StationProfile.switches`` (v2; replaces the v1 ``topology.switching`` booleans)."""
 
     shield_box: bool | None = None
     guard: bool | None = None
     kelvin: bool | None = None
     cables: dict[str, CablePath] = Field(default_factory=dict)
-    switching: Switching = Field(default_factory=Switching)
 
 
-CorrectionStatus = Literal["unknown", "not_performed", "performed", "failed"]
+CorrectionKind = Literal["phase", "open", "short", "load"]
+"""MFCMU corrections: phase compensation (``ADJ``) and open/short/load data correction (``CORR?``)."""
+
+CorrectionFunction = Literal["open", "short", "load"]
+"""Data-correction functions switched by ``CORRST`` and read back by ``CORRST?``."""
+
+
+class LoadStandard(StrictModel):
+    """Reference value of the MFCMU load standard, sent as ``DCORR chnum,3,400,Ls,Rs`` (Ls-Rs mode; PG p389 (4-71)).
+
+    Static station data (the standard on the bench); the correction record itself is server state.
+    """
+
+    ls_h: float = 0.0
+    rs_ohm: PositiveFloat
+    description: str = ""
+
+
+class CmuStandards(StrictModel):
+    """Static correction-standard values of one MFCMU (``station.yaml#corrections.<cmu alias>``). ``load`` is
+    ``None`` until a human records the load standard; ``cmu.correction_load`` is blocked without it."""
+
+    load: LoadStandard | None = None
 
 
 class CorrectionRecord(StrictModel):
-    """State of one MFCMU correction (rule R-CORR-01). ``timestamp`` must carry a time zone (UTC recommended)."""
+    """One completed MFCMU correction (blueprint v2 2.6), written by the executor after a successful correction run
+    to ``data/state/corrections/<cmu alias>.json`` (a list of records; never edited by hand).
 
-    status: CorrectionStatus = "unknown"
-    timestamp: AwareDatetime | None = None
-    frequency_range_hz: tuple[PositiveFloat, PositiveFloat] | None = None
+    ``freqs_hz``: the frequencies the correction data were measured at (empty only for ``phase``, which ``ADJ``
+    performs for the whole range). ``idn``: ``*IDN?`` of the mainframe; ``pin_map_sha``/``station_sha``: the
+    sha256 of the pin map and station profile the correction was measured with (a re-landing or rewiring makes it
+    stale). ``corr_state``: the ``CORRST?`` answers (open/short/load correction on or off) read back after the run.
+    """
+
+    kind: CorrectionKind
+    freqs_hz: list[PositiveFloat] = Field(default_factory=list)
+    run_id: RunId
+    ts: AwareDatetime
+    idn: str = Field(min_length=1)
+    pin_map_sha: Sha256Hex
+    station_sha: Sha256Hex
+    corr_state: dict[CorrectionFunction, bool] = Field(default_factory=dict)
+
+    @field_validator("freqs_hz")
+    @classmethod
+    def _sorted_unique(cls, freqs: list[float]) -> list[float]:
+        return sorted(set(freqs))
 
     @model_validator(mode="after")
-    def _ordered_range(self) -> CorrectionRecord:
-        if self.frequency_range_hz is not None and self.frequency_range_hz[0] > self.frequency_range_hz[1]:
-            raise ValueError("frequency_range_hz must be [low, high].")
+    def _frequencies(self) -> CorrectionRecord:
+        if self.kind != "phase" and not self.freqs_hz:
+            raise ValueError(f"A {self.kind} correction record lists the frequencies it was measured at.")
         return self
 
+    def covers(self, freqs: list[float], *, rel_tol: float = 1e-9) -> bool:
+        """True when every frequency in ``freqs`` was corrected (phase compensation covers all frequencies)."""
+        if self.kind == "phase":
+            return True
+        return all(any(abs(f - g) <= rel_tol * max(abs(f), abs(g)) for g in self.freqs_hz) for f in freqs)
 
-class CmuCorrections(StrictModel):
-    """Phase compensation and open/short/load correction of the MFCMU named by ``module`` (its alias)."""
-
-    module: Alias | None = None
-    phase_compensation: CorrectionRecord = Field(default_factory=CorrectionRecord)
-    open: CorrectionRecord = Field(default_factory=CorrectionRecord)
-    short: CorrectionRecord = Field(default_factory=CorrectionRecord)
-    load: CorrectionRecord = Field(default_factory=CorrectionRecord)
-
-
-class Corrections(StrictModel):
-    """Correction records of the station (C-V kinds stay ``not_implemented`` until correction flows exist)."""
-
-    cmu: CmuCorrections | None = None
+    def age_h(self, now: datetime) -> float:
+        """Hours since the correction (negative when ``ts`` lies after ``now``)."""
+        return (now - self.ts).total_seconds() / 3600.0
 
 
 class StationProfile(StrictModel):
-    """Contents of ``station.yaml``: inventory, interlock, topology and corrections (blueprint 4.1).
+    """Contents of ``station.yaml``: inventory, interlock, topology, switches and correction standards (blueprint v1
+    4.1, v2 2.3).
 
     The inventory must match the live ``*IDN?``/``UNT?`` answers for every bound channel (rule R-INV-01); pin maps
-    and rules resolve channels to module types through it.
+    and rules resolve channels to module types through it. ``switches`` declares the switch accessories; every
+    switch input must be a channel of a module type that can feed it (SMU → ``smu``, HV-SPGU → ``pgu``, MFCMU →
+    ``cmu``, WGFMU → ``wgfmu``). ``corrections`` holds static MFCMU standard values keyed by the MFCMU alias.
     """
 
     name: str = Field(min_length=1)
@@ -233,7 +318,8 @@ class StationProfile(StrictModel):
     modules: list[ModuleSlot] = Field(min_length=1)
     interlock: InterlockInfo = Field(default_factory=InterlockInfo)
     topology: Topology = Field(default_factory=Topology)
-    corrections: Corrections = Field(default_factory=Corrections)
+    switches: list[SwitchSpec] = Field(default_factory=list)
+    corrections: dict[Alias, CmuStandards] = Field(default_factory=dict)
     notes: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -250,14 +336,56 @@ class StationProfile(StrictModel):
         unknown = sorted(set(self.topology.cables) - set(aliases))
         if unknown:
             raise ValueError(f"topology.cables names unknown module aliases: {unknown}.")
-        cmu = self.corrections.cmu
-        if (
-            cmu is not None
-            and cmu.module is not None
-            and not any(m.alias == cmu.module and m.type == "MFCMU" for m in self.modules)
-        ):
-            raise ValueError(f"corrections.cmu.module {cmu.module!r} is not the alias of an MFCMU.")
+        cmus = {m.alias for m in self.modules if m.type == "MFCMU" and m.alias is not None}
+        not_cmu = sorted(set(self.corrections) - cmus)
+        if not_cmu:
+            raise ValueError(f"corrections names {not_cmu}, which are not MFCMU aliases ({sorted(cmus) or 'none'}).")
+        self._check_switches(set(aliases))
         return self
+
+    def _check_switches(self, aliases: set[str]) -> None:
+        ids = [s.id for s in self.switches]
+        if len(set(ids)) != len(ids):
+            raise ValueError("A switch id is used twice.")
+        clash = sorted(set(ids) & aliases)
+        if clash:
+            raise ValueError(f"Switch ids {clash} are also module aliases; use distinct names.")
+        selector_ports: dict[int, str] = {}
+        for switch in self.switches:
+            for output, port in switch.ports.items():
+                where = f"switches.{switch.id}.{output}"
+                if switch.kind == "selector_16440a":
+                    other = selector_ports.setdefault(port.index, where)
+                    if other != where:
+                        raise ValueError(f"{where}: ERSSP port {port.index} is already used by {other}.")
+                else:
+                    self._check_switch_index(switch.kind, port.index, where)
+                for side, channel in port.inputs.items():
+                    if channel is None:
+                        continue
+                    module = self.module_for_channel(channel)
+                    if module is None:
+                        raise ValueError(f"{where}: input {side} -> channel {channel} has no module in the station.")
+                    allowed = SWITCH_INPUT_TYPES[side]
+                    if side == "smu" and switch.kind in ("asu", "scuu"):
+                        allowed = ASU_SCUU_SMU_TYPES
+                    if module.type not in allowed:
+                        raise ValueError(f"{where}: input {side} -> channel {channel} is a {module.type}; "
+                                         f"needs {', '.join(sorted(allowed))}.")
+                    if side == "smu" and switch.kind in ("asu", "scuu") and channel != port.index:
+                        raise ValueError(f"{where}: the smu input of an {switch.kind} output is its index "
+                                         f"channel {port.index}.")
+
+    def _check_switch_index(self, kind: str, index: int, where: str) -> None:
+        module = self.module_for_channel(index) if index >= 1 else None
+        found = "no module" if module is None else f"a {module.type}"
+        if kind == "rsu":
+            if module is None or module.type != "WGFMU" or index <= 10:
+                raise ValueError(f"{where}: an RSU index is a WGFMU subchannel (e.g. 201); channel {index} is "
+                                 f"{found} in this station.")
+        elif module is None or module.type not in ASU_SCUU_SMU_TYPES or index > 10:
+            raise ValueError(f"{where}: an {kind} index is the channel of an HRSMU or MPSMU; channel {index} is "
+                             f"{found} in this station.")
 
     def module_for_channel(self, channel: int) -> ModuleSlot | None:
         """The module that owns ``channel`` (``1`` and ``101`` both address slot 1's first subchannel)."""
@@ -268,22 +396,52 @@ class StationProfile(StrictModel):
                     return module
         return None
 
+    def module_by_alias(self, alias: str) -> ModuleSlot | None:
+        """The module with alias ``alias``."""
+        return next((m for m in self.modules if m.alias == alias), None)
+
+    def switch(self, switch_id: str) -> SwitchSpec | None:
+        """The declared switch ``switch_id``."""
+        return next((s for s in self.switches if s.id == switch_id), None)
+
+    def target_problem(self, target: object) -> str | None:
+        """Why a pin-map switch target does not resolve in this station (``None`` when it does or is no switch
+        target): an undeclared switch or an output the switch does not have (``b1500 config check``, R-CFG-01)."""
+        ref = switch_target(target)
+        if ref is None:
+            return None
+        switch_id, output = ref
+        spec = self.switch(switch_id)
+        if spec is None:
+            declared = ", ".join(s.id for s in self.switches) or "none"
+            return f"switch {switch_id!r} is not declared in the station profile (switches: {declared})"
+        if output not in spec.ports:
+            return f"switch {switch_id} has no output {output!r} (outputs: {', '.join(spec.ports)})"
+        return None
+
 
 # -- Pin maps (config/pinmaps/*.yaml) --------------------------------------------------------------------------------
 
 
 class PinMap(StrictModel):
-    """Which channel each DUT terminal is wired to; recipe roles bind to terminals of the same name (R-PIN-01).
+    """Where each DUT terminal is wired; recipe roles bind to terminals of the same name (R-PIN-01).
 
-    ``certainty: unverified`` makes every plan using this map need confirmation (``unverified_pin_map``, R-PIN-02);
-    set ``verified`` only after a human has checked the wiring. ``name`` is the file name without ``.yaml``.
+    A target is a channel number, ``GNDU``, an MFCMU side (``"7H"``/``"7L"``, for ``cmu_high``/``cmu_low`` roles)
+    or a switch output ``"<switch>.<output>"`` declared in the station profile (an unknown switch or output makes
+    the configuration invalid). ``certainty: unverified`` makes every plan using this map need confirmation
+    (``unverified_pin_map``, R-PIN-02); set ``verified`` only after a human has checked the wiring. ``name`` is the
+    file name without ``.yaml``.
     """
 
     name: ConfigName
     description: str = ""
     certainty: Literal["verified", "unverified"]
-    terminals: dict[Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,31}$")], PinTarget] = Field(min_length=1)
+    terminals: dict[Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,31}$")], TerminalTarget] = Field(min_length=1)
     notes: list[str] = Field(default_factory=list)
+
+    def switch_targets(self) -> dict[str, tuple[str, str]]:
+        """Terminal → ``(switch id, output)`` for every terminal wired through a switch."""
+        return {t: ref for t, target in self.terminals.items() if (ref := switch_target(target)) is not None}
 
 
 # -- Simulator scenarios (config/sim/scenarios/*.yaml) ---------------------------------------------------------------

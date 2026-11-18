@@ -9,6 +9,7 @@
 id: basic.contact_resistor
 version: 1
 title: Contact / resistor check (+-0.1 V staircase) - R, linearity, offset; open/short/in-range
+family: smu
 kind: smu_staircase
 status: sim_validated
 card: .agents/skills/b1500-test/cards/contact-resistor-check.md

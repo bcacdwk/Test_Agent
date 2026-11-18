@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Final, Literal
 
-from pydantic import AwareDatetime, model_validator
+from pydantic import AwareDatetime, Field, model_validator
 
 from b1500_test_agent.config import ConfigBundle
 from b1500_test_agent.models.analysis import RunId, TrustPolicy
@@ -44,7 +44,7 @@ from b1500_test_agent.models.plan import PlanRecord, RuleFinding, RulesReport
 from b1500_test_agent.models.policy import DutProfile, Policy
 from b1500_test_agent.models.recipe import Recipe
 from b1500_test_agent.models.run import FaultRecord
-from b1500_test_agent.models.station import LiveState, PinMap, StationProfile
+from b1500_test_agent.models.station import CorrectionRecord, LiveState, PinMap, StationProfile
 
 Phase = Literal["plan", "pre_execute"]
 """Evaluation phases of ``RulesEngine.evaluate`` (blueprint 4.1): ``plan`` at ``validate_plan`` and again without
@@ -82,8 +82,9 @@ class RuleContext(StrictModel):
 
     Additions to the blueprint signature: ``effective_status`` (the registry's status of the recipe for this
     backend, so a kind missing on the backend makes it ``not_implemented``; R-REC-01), ``fault`` and
-    ``inflight_unrecovered`` (fault latch and in-flight marker; R-FAULT-01), ``calibration`` (R-CAL-01) and
-    ``recipe_source`` (the recipe file path, used in finding sources). ``pin_map`` and ``dut`` are ``None`` when
+    ``inflight_unrecovered`` (fault latch and in-flight marker; R-FAULT-01), ``calibration`` (R-CAL-01),
+    ``recipe_source`` (the recipe file path, used in finding sources) and ``corrections`` (MFCMU correction records
+    by MFCMU alias, from the server-written correction store; R-CORR-01). ``pin_map`` and ``dut`` are ``None`` when
     the request names a pin map or DUT profile that does not exist, so that R-PIN-01 and R-DUT-01 can block it.
     ``live`` is ``None`` when no snapshot was taken (always at the zero-I/O re-check of a run).
     """
@@ -101,6 +102,7 @@ class RuleContext(StrictModel):
     inflight_unrecovered: bool = False
     calibration: CalibrationState | None = None
     recipe_source: str | None = None
+    corrections: dict[str, list[CorrectionRecord]] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _consistent(self) -> RuleContext:

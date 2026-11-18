@@ -7,6 +7,7 @@
 id: mosfet.idvg
 version: 1
 title: MOSFET transfer curve (Id-Vg, linear region) for Vth/gm/SS/Ion-Ioff
+family: smu
 kind: smu_staircase
 status: sim_validated
 card: .agents/skills/b1500-test/cards/mosfet-idvg.md

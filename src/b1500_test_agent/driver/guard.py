@@ -91,6 +91,9 @@ class OutputGuard:
             raise ValueError(f"quantity must be 'V' or 'I', got {quantity!r}")
         details = {"channel": ch, "quantity": quantity, "level": level, "compliance": compliance}
         env = self.channel_envelope(ch)
+        if env.max_abs_i is None:
+            raise EnvelopeViolation("channel_not_allowed", f"channel {ch} ({env.role}, {env.function}) is a source "
+                                    "without compliance; SMU source commands are not allowed on it", **details)
         if not (math.isfinite(level) and math.isfinite(compliance)):
             raise EnvelopeViolation("non_finite", f"channel {ch}: level and compliance must be finite", **details)
         level_limit, comp_limit = (env.max_abs_v, env.max_abs_i) if quantity == "V" else (env.max_abs_i, env.max_abs_v)

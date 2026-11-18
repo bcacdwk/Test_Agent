@@ -83,7 +83,8 @@ class LimitsStatus(StrictModel):
     soft_voltage_v: float
     soft_compliance_a: float
     interlock_required_above_v: float
-    max_points: int
+    max_points: dict[str, int]
+    """Largest points per run by measuring family (``smu``, ``cmu``, ``wgfmu``)."""
     max_sync_run_s: float
     plan_ttl_h: float
     tiers: str
@@ -121,6 +122,7 @@ class RecipeDetail(StrictModel):
     id: str
     version: int
     title: str
+    family: str
     kind: str
     status: ValidationStatus
     card: str | None = None

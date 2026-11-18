@@ -1,0 +1,25 @@
+# DUT profile (example; committed). Schema: b1500_test_agent.models.policy.DutProfile; name = file name.
+# Generic MOS capacitor (p-type Si, 5 nm SiO2, 100 um x 100 um gate) on the MFCMU (pin map moscap-cmu: gate 7H, bulk
+# 7L); example values, not a real device. DC envelope (R-DUT-01: DC bias, QSCV), AC envelope (R-CMU-01), geometry
+# (analysis: Cox, doping profile, Dit need the area). Nominal values help choose parameters, never measurements.
+
+device_type: moscap
+description: Generic MOS capacitor (example envelope; C-V, C-f, QSCV).
+terminals:
+  gate:
+    max_abs_v: 3.0              # about 6 MV/cm across 5 nm oxide: stays below breakdown
+    max_abs_i: 1.0e-6
+    impedance: high_z
+    ac: {max_vrms: 0.1}
+  bulk:
+    max_abs_v: 3.0
+    max_abs_i: 1.0e-6
+    impedance: high_z
+    ac: {max_vrms: 0.1}
+geometry: {area_um2: 10000.0, tox_nm: 5.0}
+nominal:
+  cox: {value: 6.9e-11, unit: F}         # eps_ox x area / tox = 3.45e-11 F/m x 1e-8 m2 / 5e-9 m
+  vfb: {value: -0.9, unit: V}
+notes:
+  - Sweep from accumulation to inversion and back to see hysteresis; keep |Vg| inside the envelope.
+  - Gate leakage above about 1 nA distorts C-V (the MFCMU sees a parallel conductance); check with gate leakage first.

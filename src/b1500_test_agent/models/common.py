@@ -33,9 +33,14 @@ ErrorCode = Literal[
 ConfirmReason = Literal[
     "soft_limit", "dut_envelope", "unverified_pin_map", "draft_recipe", "first_hw_run",
     "adhoc_recipe", "destructive", "system_self_test", "system_self_cal",
+    "soft_pulse", "soft_cmu", "long_run", "physical_setup", "unverified_topology",
 ]  # fmt: skip
-"""Why a plan needs a human confirmation (blueprint 2.5); set on ``confirm`` rule findings and recipe
-``always_confirm``."""
+"""Why a plan needs a human confirmation (v1 blueprint 2.5, v2 blueprint 2.1/2.8); set on ``confirm`` rule findings
+and recipe ``always_confirm``. v2 adds ``soft_pulse`` (above ``policy.pulse`` soft bands, R-PULSE-03), ``soft_cmu``
+(above ``policy.cmu`` soft bands, R-CMU-01), ``long_run`` (estimate above ``run_limits.long_run_confirm_s``,
+R-RUN-02), ``physical_setup`` (the human changes the probe state, e.g. CMU open/short corrections) and
+``unverified_topology`` (an ``unverified`` switch or wiring is involved, R-ROUTE-02); custom waveform files from
+``work/`` reuse ``adhoc_recipe``."""
 
 JsonScalar = str | int | float | bool | None
 """A JSON scalar, e.g. the observed value or limit of a rule finding."""
@@ -49,6 +54,9 @@ ConfigName = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")]
 
 Sha256Hex = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 """Lower-case hex SHA-256 digest."""
+
+Alias = Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,31}$")]
+"""Human-readable name of a module (``SMU3``, ``CMU1``) or a switch (``SEL1``, ``RSU201``) in the station profile."""
 
 
 class StrictModel(BaseModel):

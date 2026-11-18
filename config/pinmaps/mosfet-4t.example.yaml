@@ -1,10 +1,12 @@
 # Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
-# Four-terminal MOSFET on the example station: recipe roles bind to the terminal of the same name (rule R-PIN-01).
-# Target: a channel number, GNDU, or null (not connected).
+# Four-terminal MOSFET on the lab-shaped example station (config/station.example.yaml): recipe roles bind to the
+# terminal of the same name (rule R-PIN-01). Target: a channel number, GNDU, an MFCMU side (7H/7L), a switch output
+# (SEL1.OUT1), or null (not connected).
 #
-# certainty: verified here because this map matches the wiring of the simulator scenario nmos_basic. On a real
-# station set `unverified` until a human has checked the wiring (contact check); every plan using an unverified map
-# needs confirmation (unverified_pin_map, rule R-PIN-02). The visa backend never reads this example file.
+# certainty: verified here because this map matches the wiring of the simulator scenarios nmos_basic, fefet_basic,
+# open_drain_noisy and gd_short. On a real station set `unverified` until a human has checked the wiring (contact
+# check); every plan using an unverified map needs confirmation (unverified_pin_map, rule R-PIN-02). The visa
+# backend never reads this example file.
 
 description: 4-terminal MOSFET; gate on SMU4 and drain on SMU3 (both HRSMU, low current), source and bulk on GNDU.
 certainty: verified
@@ -14,6 +16,7 @@ terminals:
   source: GNDU
   bulk: GNDU
 notes:
-  - Gate and drain sit on the two HRSMUs, so one landing serves Id-Vg, Id-Vd, gate leakage (its gate role needs an
-    HRSMU, rule R-PIN-01 low_current) and the FeFET dual sweep.
-  - Source and bulk share the ground unit; move bulk to an SMU channel for body-bias measurements.
+  - Gate and drain sit on the two HRSMUs (slots 3 and 4 of the lab station), so one landing serves Id-Vg, Id-Vd, gate
+    leakage (its gate role needs an HRSMU, rule R-PIN-01 low_current) and the FeFET dual sweep.
+  - Source and bulk share the ground unit; move bulk to an SMU channel (SMU5/SMU6) for body-bias measurements.
+  - The lab's own scripts ground the source with SMU5 instead of the GNDU; that wiring is pin map mosfet-3t-lab.

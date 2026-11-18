@@ -19,18 +19,32 @@ from b1500_test_agent.models.analysis import (
 )
 from b1500_test_agent.models.common import ConfigFile
 from b1500_test_agent.models.plan import (
+    AcEnvelope,
     BoundChannel,
     ChannelBinding,
     ChannelEnvelope,
     CompiledEnvelope,
     Estimate,
+    ParamFile,
     PlanRecord,
     PlanRequest,
+    PulseEnvelope,
     RuleFinding,
     RulesReport,
+    RunProgress,
+    WaveformLimits,
     tier_from_findings,
 )
-from b1500_test_agent.models.recipe import ParamSpec, Recipe, RecipeSummary, RoleSpec
+from b1500_test_agent.models.recipe import (
+    FUNCTION_INPUT,
+    FUNCTION_MODULE_TYPES,
+    ParamSpec,
+    Recipe,
+    RecipeSummary,
+    RoleSpec,
+    file_param_origin,
+)
+from b1500_test_agent.models.routing import SWITCH_STATES, Route, SwitchSpec, split_switch_target
 from b1500_test_agent.models.run import (
     CleanupReport,
     CleanupStep,
@@ -50,6 +64,7 @@ IDVG_YAML = """
 id: mosfet.idvg
 version: 1
 title: MOSFET transfer curve (Id-Vg, linear region) for Vth/gm/SS/Ion-Ioff
+family: smu
 kind: smu_staircase
 status: sim_validated
 card: null
@@ -132,7 +147,9 @@ def test_blueprint_recipe_example_validates() -> None:
     assert recipe.quality.max_limited_fraction_in_fit == 0.05
     assert recipe.quality.classify("C") == "limited" and recipe.quality.classify("V") == "untrusted"
     assert_roundtrip(recipe)
-    summary = RecipeSummary(id=recipe.id, title=recipe.title, kind=recipe.kind, status="draft", card=None)
+    assert recipe.family == "smu"
+    summary = RecipeSummary(id=recipe.id, title=recipe.title, family=recipe.family, kind=recipe.kind, status="draft",
+                            card=None)
     assert_roundtrip(summary)
 
 
@@ -141,7 +158,10 @@ def test_blueprint_recipe_example_validates() -> None:
     [
         {"roles": {"gate": {"function": "sweep_v", "settings": {"start": "$vg_begin"}}}},  # undeclared parameter
         {"roles": {"gate": {"function": "sweep_v", "settings": {"start": "$Vg"}}}},  # malformed reference
-        {"roles": {"gate": {"function": "pulse_v"}}},
+        {"roles": {"gate": {"function": "pulse_v", "module_types": ["HVSPGU"]}}},  # SMU function on an SPGU
+        {"roles": {"gate": {"function": "cmu_high", "module_types": ["HRSMU"]}}},  # MFCMU function on an SMU
+        {"roles": {"gate": {"function": "sweep_x"}}},
+        {"family": "fefet"},
         {"roles": {"gate": {"function": "sweep_v", "module_types": ["MPSMU"], "prefer": "HRSMU"}}},
         {"id": "idvg"},
         {"version": 0},
@@ -180,6 +200,12 @@ def test_recipe_card_is_required_but_may_be_null() -> None:
         {"type": "bool", "range": [0, 1]},
         {"type": "float_list", "default": [0.0, 20.0], "range": [-5, 5]},
         {"type": "float", "unit": "volt"},
+        {"type": "file", "unit": "V"},
+        {"type": "file", "range": [0, 1]},
+        {"type": "file", "default": "work/waveforms/adhoc.csv"},  # a recipe default is a committed library file
+        {"type": "file", "default": "recipes/waveforms/../secret.csv"},
+        {"type": "file", "default": "recipes/waveforms/table.txt"},
+        {"type": "file", "default": 3},
     ],
 )
 def test_param_spec_rejects_inconsistent_specs(spec: dict[str, Any]) -> None:
@@ -195,6 +221,8 @@ def test_param_spec_accepts_every_type() -> None:
         ParamSpec(type="enum", choices=["short", "medium"], default="medium"),
         ParamSpec(type="float_list", unit="V", default=[0.0, 0.5, 1.0], range=(-5, 5)),
         ParamSpec(type="float", unit="A"),  # required parameter (no default)
+        ParamSpec(type="file", default="recipes/waveforms/lwp_sample.csv", doc="waveform table"),
+        ParamSpec(type="file"),  # required file parameter
     ]
     for spec in specs:
         assert_roundtrip(spec)
@@ -203,6 +231,26 @@ def test_param_spec_accepts_every_type() -> None:
 def test_role_settings_keep_literal_values() -> None:
     role = RoleSpec(function="bias_v", settings={"v": 0.0, "mode": "single", "icomp": "$icomp"})
     assert role.param_refs() == {"icomp"}
+
+
+@pytest.mark.parametrize(("function", "types", "resource"), [
+    ("sweep_i", ["HRSMU"], "smu"), ("bias_i", ["MPSMU"], "smu"), ("step_i", [], "smu"), ("sync_v", [], "smu"),
+    ("pulse_v", ["HRSMU", "MPSMU"], "smu"), ("pgu", ["HVSPGU"], "pgu"), ("wgfmu", ["WGFMU"], "wgfmu"),
+    ("cmu_high", ["MFCMU"], "cmu"), ("cmu_low", ["MFCMU"], "cmu"),
+])
+def test_v2_role_functions_and_their_resources(function: str, types: list[str], resource: str) -> None:
+    role = RoleSpec(function=function, module_types=types)
+    assert role.resource == resource == FUNCTION_INPUT[function]
+    assert set(types) <= FUNCTION_MODULE_TYPES[function]
+    assert_roundtrip(role)
+
+
+def test_file_param_paths() -> None:
+    assert file_param_origin("recipes/waveforms/lwp_sample.csv") == "library"
+    assert file_param_origin("work/waveforms/run7/ch1.csv") == "work"
+    for bad in ("work/waveforms/../x.csv", "/tmp/x.csv", "recipes/waveforms/x.CSV", "work\\waveforms\\x.csv",
+                "config/local/x.csv", "work/waveforms/.hidden.csv", 3, None):
+        assert file_param_origin(bad) is None, bad
 
 
 # -- Rule findings and reports ---------------------------------------------------------------------------------------
@@ -304,6 +352,150 @@ def test_bound_channel_is_a_channel_or_the_gndu() -> None:
         BoundChannel(role="source", terminal="source", gndu=True, channel=4)
     with pytest.raises(ValidationError):
         BoundChannel(role="source", terminal="source")
+    route = Route(switch="SEL1", output="OUT1", state="pgu")
+    with pytest.raises(ValidationError):
+        BoundChannel(role="gate", terminal="gate", gndu=True, via=route)
+    with pytest.raises(ValidationError):
+        BoundChannel(role="gate", terminal="gate", cmu_side="H")  # an MFCMU side needs its channel
+    unknown_wiring = BoundChannel(role="gate", terminal="gate", via=route)  # switch input not recorded yet
+    assert unknown_wiring.channel is None and unknown_wiring.via == route
+    wired = BoundChannel(role="gate", terminal="gate", via=route, channel=101, slot=1, module_type="HVSPGU",
+                         module_model="B1525A", alias="SPGU1")
+    side = BoundChannel(role="gate", terminal="gate", channel=7, slot=7, module_type="MFCMU", cmu_side="H")
+    for bound in (unknown_wiring, wired, side):
+        assert_roundtrip(bound)
+
+
+# -- Routing (blueprint v2 2.3) --------------------------------------------------------------------------------------
+
+
+def selector(**changes: Any) -> SwitchSpec:
+    data: dict[str, Any] = {"id": "SEL1", "kind": "selector_16440a", "present": True,
+                            "ports": {"OUT1": {"index": 0, "inputs": {"smu": 5, "pgu": 101}},
+                                      "OUT2": {"index": 1, "inputs": {"smu": None}}}}
+    data.update(changes)
+    return SwitchSpec.model_validate(data)
+
+
+def test_routes_are_frozen_hashable_and_ordered() -> None:
+    a = Route(switch="SEL1", output="OUT1", state="pgu")
+    assert a == Route.model_validate({"switch": "SEL1", "output": "OUT1", "state": "pgu"})
+    assert len({a, Route(switch="SEL1", output="OUT1", state="pgu"), Route(switch="SEL1", output="OUT1",
+                                                                        state="smu")}) == 2
+    assert a.target == "SEL1.OUT1" and str(a) == "SEL1.OUT1->pgu"
+    with pytest.raises(ValidationError):
+        a.state = "smu"  # type: ignore[misc]  # frozen
+    for bad in ({"switch": "SEL1", "output": "OUT1", "state": "on"}, {"switch": "1SEL", "output": "OUT1",
+                                                                     "state": "smu"},
+                {"switch": "SEL1", "output": "OUT.1", "state": "smu"}):
+        with pytest.raises(ValidationError):
+            Route.model_validate(bad)
+    assert_roundtrip(a)
+
+
+def test_switch_spec_states_inputs_and_pgu_open() -> None:
+    spec = selector()
+    assert spec.certainty == "unverified" and spec.rest == "open"
+    assert spec.allows("OUT1", "pgu_open") and not spec.allows("OUT2", "pgu_open")  # PGU open only on CH 1
+    assert spec.allows("OUT2", "smu") and not spec.allows("OUT1", "cmu") and not spec.allows("OUT3", "smu")
+    assert spec.input_channel("OUT1", "pgu") == spec.input_channel("OUT1", "pgu_open") == 101
+    assert spec.input_channel("OUT1", "open") is None and spec.input_channel("OUT2", "smu") is None
+    assert spec.input_channel("OUT2", "pgu") is None  # not connected
+    assert SWITCH_STATES["rsu"] == {"open", "smu", "wgfmu"} and split_switch_target("RSU201.OUT") == ("RSU201", "OUT")
+    assert split_switch_target("GNDU") is None
+    assert_roundtrip(spec)
+
+
+@pytest.mark.parametrize("changes", [
+    {"rest": "pgu_open"},
+    {"rest": "cmu"},
+    {"kind": "router"},
+    {"present": "maybe"},
+    {"ports": {}},
+    {"ports": {"OUT1": {"index": 0}, "OUT2": {"index": 0}}},
+    {"ports": {"OUT1": {"index": 4}}},
+    {"ports": {"OUT1": {"index": 0, "inputs": {"wgfmu": 201}}}},
+    {"ports": {"OUT 1": {"index": 0}}},
+    {"certainty": "verified"},  # OUT2's smu input is unknown
+])
+def test_switch_spec_rejects_inconsistent_specs(changes: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        selector(**changes)
+
+
+# -- Envelope v2 ------------------------------------------------------------------------------------------------------
+
+
+PULSE = PulseEnvelope(max_abs_v_dut=4.0, min_width_s=1e-6, max_width_s=1e-6, max_duty=0.1, max_count=1000,
+                      max_on_time_s=1e-3, max_short_circuit_a=0.08)
+AC = AcEnvelope(max_vrms=0.03, max_dc_v=2.0, f_min_hz=1e3, f_max_hz=1e6)
+
+
+def test_v2_envelopes_roundtrip_and_check_their_bounds() -> None:
+    pgu = ChannelEnvelope(role="gate", max_abs_v=4.0, max_abs_i=None, function="pgu", pulse=PULSE)
+    cmu = ChannelEnvelope(role="gate", max_abs_v=2.0, max_abs_i=1e-3, function="cmu_high", ac=AC)
+    waveform = WaveformLimits(max_vectors=1825, max_points=504000, total_time_s=0.06)
+    assert waveform.grid_s == 1e-8
+    envelope = CompiledEnvelope(channels={101: pgu, 7: cmu}, waveform={201: waveform},
+                                routes=frozenset({Route(switch="SEL1", output="OUT1", state="pgu")}))
+    assert envelope.max_abs_v == 4.0 and envelope.max_abs_i == 1e-3  # the compliance-free channel adds no current
+    for model in (PULSE, AC, waveform, pgu, cmu, envelope):
+        assert_roundtrip(model)
+    with pytest.raises(ValidationError):
+        ChannelEnvelope(role="gate", max_abs_v=3.0, max_abs_i=None, function="sweep_v")  # an SMU always has Icomp
+    with pytest.raises(ValidationError):
+        ChannelEnvelope(role="gate", max_abs_v=3.0, max_abs_i=None, function="pgu", pulse=PULSE)  # 4 V at the DUT
+    with pytest.raises(ValidationError):
+        ChannelEnvelope(role="gate", max_abs_v=1.0, max_abs_i=1e-3, function="cmu_high", ac=AC)  # 2 V DC bias
+    for bad in ({**PULSE.model_dump(), "min_width_s": 1e-3}, {**PULSE.model_dump(), "max_duty": 1.5},
+                {**PULSE.model_dump(), "max_count": 0}):
+        with pytest.raises(ValidationError):
+            PulseEnvelope.model_validate(bad)
+    with pytest.raises(ValidationError):
+        AcEnvelope.model_validate({**AC.model_dump(), "f_min_hz": 2e6})
+    with pytest.raises(ValidationError):
+        WaveformLimits(max_vectors=0, max_points=1, total_time_s=1.0)
+
+
+def test_route_sets_serialise_sorted_so_the_plan_hash_is_deterministic() -> None:
+    routes = [Route(switch=s, output=o, state="smu") for s, o in (("SEL2", "OUT1"), ("SEL1", "OUT2"), ("SEL1", "OUT1"))]
+    one = CompiledEnvelope(channels={}, routes=frozenset(routes)).model_dump(mode="json")
+    other = CompiledEnvelope(channels={}, routes=frozenset(reversed(routes))).model_dump(mode="json")
+    assert one == other
+    assert [(r["switch"], r["output"]) for r in one["routes"]] == [("SEL1", "OUT1"), ("SEL1", "OUT2"),
+                                                                   ("SEL2", "OUT1")]
+
+
+def test_plan_record_v2_fields() -> None:
+    plan = plan_record()
+    assert (plan.mode, plan.routes_by_phase, plan.files, plan.est_s) == ("sync", {}, {}, 2.5)
+    route = Route(switch="SEL1", output="OUT1", state="pgu")
+    record = ParamFile(path="work/waveforms/a.csv", origin="work", sha256="c" * 64, size_bytes=12)
+    v2 = plan_record(mode="async", routes_by_phase={"program": [route], "read": [route.model_copy(
+        update={"state": "smu"})]}, files={"wave": record})
+    assert v2.routes_by_phase["read"][0].state == "smu" and v2.files["wave"].origin == "work"
+    assert_roundtrip(v2)
+    with pytest.raises(ValidationError):
+        plan_record(mode="background")
+
+
+def test_param_file_has_content_or_a_problem() -> None:
+    assert ParamFile(path="work/waveforms/a.csv", origin="work", problem="missing").sha256 is None
+    for bad in ({"path": "x.csv", "origin": "work"},
+                {"path": "x.csv", "origin": "work", "sha256": "c" * 64, "size_bytes": 1, "problem": "x"},
+                {"path": "x.csv", "origin": "elsewhere", "problem": "x"}):
+        with pytest.raises(ValidationError):
+            ParamFile.model_validate(bad)
+
+
+def test_run_progress() -> None:
+    progress = RunProgress(state="running", done=40, total=120, phase="stress", elapsed_s=12.5, eta_s=25.0,
+                           last_values={"drain_I": 1.2e-6}, updated_at=T0)
+    assert_roundtrip(progress)
+    assert RunProgress(state="completed", done=0, total=0, elapsed_s=0.0, updated_at=T0).eta_s is None
+    for bad in ({"done": 130}, {"state": "paused"}, {"eta_s": -1.0}, {"updated_at": datetime(2026, 11, 17)}):
+        with pytest.raises(ValidationError):
+            RunProgress.model_validate({**progress.model_dump(), **bad})
 
 
 # -- Runs ------------------------------------------------------------------------------------------------------------

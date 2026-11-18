@@ -4,6 +4,7 @@
 id: mosfet.cgd_cv
 version: 1
 title: MOSFET gate-drain capacitance C-V (Cgd) with the MFCMU
+family: cmu
 kind: cmu_cv
 status: not_implemented
 card: null

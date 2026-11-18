@@ -1,0 +1,18 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Three-terminal MOSFET as the lab's own Id-Vg script wires it (lwp test_IdVg.m: gate SMU3 with Icomp 10 mA, drain
+# SMU4 at 0.1 V with Icomp 100 mA, source SMU5 at 0 V); bulk is not probed (substrate on the chuck or tied to the
+# source on the die). Roles bind to the terminal of the same name (rule R-PIN-01).
+#
+# certainty: unverified, because this wiring comes from lab code, not from a human check of the probes. Every plan
+# using it needs confirmation (unverified_pin_map, rule R-PIN-02) until a human sets `verified` in a copy under
+# config/local/pinmaps/. The visa backend never reads this example file.
+
+description: 3-terminal MOSFET (lab wiring); gate SMU3, drain SMU4 (both HRSMU), source SMU5 (MPSMU at 0 V).
+certainty: unverified
+terminals:
+  gate: 3
+  drain: 4
+  source: 5
+notes:
+  - The source is an SMU forced to 0 V (role source = ground); its compliance is the sum of the sourcing roles'.
+  - The lab script's 100 mA drain compliance is far above what a sub-uA device needs; recipes default to 1 mA.

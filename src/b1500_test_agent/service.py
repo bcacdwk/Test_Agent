@@ -445,7 +445,7 @@ class B1500Service:
             hard_max_abs_voltage_v=hard.max_abs_voltage_v, hard_max_abs_compliance_a=hard.max_abs_compliance_a,
             soft_voltage_v=soft.voltage_v, soft_compliance_a=soft.compliance_a,
             interlock_required_above_v=policy.interlock.required_above_v,
-            max_points=policy.run_limits.max_points, max_sync_run_s=policy.run_limits.max_sync_run_s,
+            max_points=policy.run_limits.max_points.model_dump(), max_sync_run_s=policy.run_limits.max_sync_run_s,
             plan_ttl_h=policy.plans.ttl_h, tiers=tiers,
         )
 
@@ -525,7 +525,8 @@ class B1500Service:
             recipe = entry.recipe
             status = registry.effective_status(recipe.id, backend)
             detail = RecipeDetail(
-                id=recipe.id, version=recipe.version, title=recipe.title, kind=recipe.kind, status=status,
+                id=recipe.id, version=recipe.version, title=recipe.title, family=recipe.family, kind=recipe.kind,
+                status=status,
                 card=recipe.card, device_types=list(recipe.device_types), params=dict(recipe.params),
                 roles=dict(recipe.roles), analysis_defaults=list(recipe.analysis_defaults),
                 always_confirm=list(recipe.always_confirm), preconditions=list(recipe.preconditions),

@@ -41,8 +41,10 @@ def test_committed_examples_validate(repo_paths: Paths) -> None:
     bundle = load_config(repo_paths)
     assert bundle.backend == "sim"
     assert "example" in bundle.backend_reason
-    assert set(bundle.pin_maps) >= {"mosfet-4t"}
-    assert set(bundle.dut_profiles) >= {"nmos-generic", "fefet-generic"}
+    assert set(bundle.pin_maps) == {"mosfet-4t", "diode-2t", "resistor-2t", "mosfet-3t-lab", "fefet-sel",
+                                    "fecap-wgfmu", "moscap-cmu"}
+    assert set(bundle.dut_profiles) == {"nmos-generic", "fefet-generic", "diode-generic", "resistor-generic",
+                                        "fefet-lab", "fecap-generic", "moscap-generic", "capacitor-100p"}
     assert bundle.sim_scenario is not None and bundle.sim_scenario.name == "nmos_basic"
     assert {f.source for f in bundle.files.values()} == {"example"}
     assert bundle.warnings == []
@@ -282,6 +284,57 @@ def test_pin_map_channel_without_module_warns(repo: Path, repo_paths: Paths) -> 
     write_yaml(local(repo, "pinmaps", "odd.yaml"), {"certainty": "unverified", "terminals": {"gate": 9}})
     bundle = load_config(repo_paths)
     assert any("odd" in w and "channel 9" in w for w in bundle.warnings)
+
+
+def test_lab_example_is_unverified(repo_paths: Paths) -> None:
+    """The lab-shaped examples claim no wiring the lab code does not prove: every switch and every lab pin map is
+    ``unverified`` (only the v1 maps that match the simulator scenarios are ``verified``)."""
+    bundle = load_config(repo_paths)
+    assert bundle.station.switches and all(s.certainty == "unverified" for s in bundle.station.switches)
+    assert all(ch is None for s in bundle.station.switches if s.kind == "selector_16440a"
+               for port in s.ports.values() for ch in port.inputs.values())
+    lab = {name: pm.certainty for name, pm in bundle.pin_maps.items() if name not in {"mosfet-4t", "diode-2t",
+                                                                                       "resistor-2t"}}
+    assert lab == dict.fromkeys(["mosfet-3t-lab", "fefet-sel", "fecap-wgfmu", "moscap-cmu"], "unverified")
+
+
+@pytest.mark.parametrize(("target", "message"), [
+    ("SEL9.OUT1", "switch 'SEL9' is not declared in the station profile"),
+    ("SEL1.OUT3", "switch SEL1 has no output 'OUT3'"),
+    ("RSU203.OUT", "switch 'RSU203' is not declared"),
+])
+def test_unknown_switch_target_is_invalid_config(repo: Path, repo_paths: Paths, target: str, message: str) -> None:
+    write_yaml(local(repo, "pinmaps", "odd.yaml"), {"certainty": "unverified", "terminals": {"gate": target}})
+    report = check_config(repo_paths)
+    assert not report.ok and report.error_code == "invalid_config"
+    [problem] = report.problems
+    assert problem.file == "config/local/pinmaps/odd.yaml" and problem.location == "terminals.gate"
+    assert message in problem.message and target in problem.message
+    with pytest.raises(InvalidConfigError):
+        load_config(repo_paths)
+
+
+def test_switch_wiring_to_a_wrong_module_is_invalid_config(repo: Path, repo_paths: Paths) -> None:
+    copy_examples_to_local(repo, ("station",))
+    station = read_yaml(local(repo, "station.yaml"))
+    station["switches"][0]["ports"]["OUT1"]["inputs"]["pgu"] = 3  # an HRSMU on the PGU input of SEL1
+    write_yaml(local(repo, "station.yaml"), station)
+    report = check_config(repo_paths)
+    assert not report.ok and report.error_code == "invalid_config"
+    assert any("input pgu -> channel 3 is a HRSMU" in p.message for p in report.problems)
+
+
+def test_switch_target_through_an_absent_switch_and_odd_cmu_sides_warn(repo: Path, repo_paths: Paths) -> None:
+    copy_examples_to_local(repo, ("station",))
+    station = read_yaml(local(repo, "station.yaml"))
+    station["switches"][1]["present"] = False  # SEL2 declared absent
+    write_yaml(local(repo, "station.yaml"), station)
+    write_yaml(local(repo, "pinmaps", "odd.yaml"),
+               {"certainty": "unverified", "terminals": {"gate": "SEL2.OUT1", "bulk": "3L", "top": "9H"}})
+    bundle = load_config(repo_paths)
+    assert any("odd" in w and "SEL2" in w and "absent" in w for w in bundle.warnings)
+    assert any("odd" in w and "3L needs an MFCMU in slot 3" in w and "HRSMU" in w for w in bundle.warnings)
+    assert any("odd" in w and "9H needs an MFCMU in slot 9" in w and "no module" in w for w in bundle.warnings)
 
 
 def test_bad_home_is_reported_not_raised(tmp_path: Path) -> None:

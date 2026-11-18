@@ -7,8 +7,9 @@ from collections.abc import Iterator
 
 from b1500_test_agent.config import CORE_ITEMS
 from b1500_test_agent.models.plan import BoundChannel
-from b1500_test_agent.models.recipe import RoleSpec
-from b1500_test_agent.models.station import SMU_TYPES
+from b1500_test_agent.models.recipe import CMU_SIDES, FUNCTION_INPUT, FUNCTION_MODULE_TYPES, RoleSpec
+from b1500_test_agent.models.routing import Route
+from b1500_test_agent.models.station import cmu_side, switch_target
 from b1500_test_agent.rules.builtin.common import (
     CEILING_A_SYMBOL,
     CEILING_V_SYMBOL,
@@ -146,7 +147,8 @@ def recipe_status(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 
 @rule("R-PARAM-01", {"plan"})
 def params_match_spec(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
-    """Requested and resolved parameters match the recipe's ``ParamSpec`` type, choices and range."""
+    """Requested and resolved parameters match the recipe's ``ParamSpec`` type, choices and range; every ``file``
+    parameter was read by the planner (exists, inside its folder, at most ``FILE_PARAM_MAX_BYTES``)."""
     recipe = ctx.recipe
     specs, resolved, requested = recipe.params, ctx.plan.resolved_params, ctx.plan.request.params
     declared = ", ".join(sorted(specs)) or "none"
@@ -177,6 +179,18 @@ def params_match_spec(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
             yield block(f"parameter {name}: resolved value {quantity.value!r} differs from the requested "
                         f"{requested[name]!r}", subject=name, source=env.plan(f"resolved_params.{name}"),
                         observed=scalar(quantity.value), limit=scalar(requested[name]))
+        if spec.type == "file" and problem is None:
+            record = ctx.plan.files.get(name)
+            if record is None or record.path != quantity.value:
+                yield block(f"file parameter {name} = {quantity.value!r} was not read by the planner", subject=name,
+                            source=env.plan(f"files.{name}"), observed=scalar(quantity.value), limit="a read file")
+            elif record.problem is not None:
+                yield block(f"file parameter {name}: {record.problem}", subject=name,
+                            source=env.plan(f"files.{name}"), observed=record.path,
+                            limit="an existing CSV of at most 1 MiB in its folder")
+    for name in sorted(set(ctx.plan.files) - set(specs)):
+        yield block(f"the plan records file {name!r}, which is not a recipe parameter", subject=name,
+                    source=env.plan(f"files.{name}"), observed=name, limit=declared)
 
 
 # -- R-PIN-01 --------------------------------------------------------------------------------------------------------
@@ -185,7 +199,11 @@ def params_match_spec(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 @rule("R-PIN-01", {"plan"})
 def pin_map_complete(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     """The pin map exists, maps every non-optional role, uses existing channels once each with an allowed module
-    type (``low_current`` needs an HRSMU), and the plan binding and envelope agree with it."""
+    type (``low_current`` needs an HRSMU), and the plan binding and envelope agree with it. MFCMU roles use an MFCMU
+    side target (``7H`` for ``cmu_high``, ``7L`` for ``cmu_low``) and only they may. A terminal wired through a switch
+    (``SEL1.OUT1``) needs a declared, not absent switch that can connect the role's resource to that output, a known
+    channel on that input, and a plan that applies the route (``envelope.routes``); kinds that route no switch
+    therefore cannot use such a terminal. Presence on hardware, Kelvin paths and rest states are R-ROUTE-01."""
     recipe, plan = ctx.recipe, ctx.plan
     name = plan.binding.pin_map
     pin_map = ctx.pin_map
@@ -197,7 +215,7 @@ def pin_map_complete(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     for role_name in sorted(set(binding) - set(recipe.roles)):
         yield block(f"the plan binds role {role_name!r}, which recipe {recipe.id} does not define",
                     subject=role_name, source=env.plan(f"binding.roles.{role_name}"), observed=role_name)
-    seen: dict[int, str] = {}
+    seen: dict[tuple[int, str], str] = {}
     for role_name, spec in sorted(recipe.roles.items()):
         yield from _check_role(ctx, env, role_name, spec, binding.get(role_name), seen)
     bound_channels = {
@@ -212,7 +230,7 @@ def pin_map_complete(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 
 
 def _check_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, bound: BoundChannel | None,
-                seen: dict[int, str]) -> Iterator[Finding]:
+                seen: dict[tuple[int, str], str]) -> Iterator[Finding]:
     assert ctx.pin_map is not None
     pin_map, station, recipe = ctx.pin_map, ctx.station, ctx.recipe
     terminal_src = env.pin_map(pin_map.name, f"terminals.{role_name}")
@@ -225,7 +243,7 @@ def _check_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, 
             return
         why = "has no terminal" if role_name not in pin_map.terminals else "leaves the terminal unconnected"
         yield block(f"role {role_name} is not mapped: pin map {pin_map.name} {why} {role_name!r}",
-                    subject=role_name, source=terminal_src, observed=None, limit="a channel or GNDU")
+                    subject=role_name, source=terminal_src, observed=None, limit="a channel, GNDU or switch output")
         return
     if bound is None:
         yield block(f"role {role_name} is mapped in pin map {pin_map.name} but missing from the plan binding",
@@ -252,16 +270,41 @@ def _check_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, 
             yield block("the station profile has no GNDU", subject=role_name,
                         source=env.station("mainframe.gndu"), observed=False, limit=True)
         return
-    channel = target
-    if bound.channel is None or norm_channel(bound.channel) != norm_channel(channel):
-        yield block(f"role {role_name}: the plan binding (channel {bound.channel}) differs from the pin map "
-                    f"(channel {channel})", subject=role_name, source=terminal_src, observed=bound.channel,
-                    limit=channel)
-    previous = seen.get(norm_channel(channel))
+    side = ""
+    if switch_target(target) is not None:
+        findings, resolved = _check_switch_role(ctx, env, role_name, spec, bound, str(target), terminal_src)
+        yield from findings
+        if resolved is None:
+            return
+        channel = resolved
+    elif (cmu := cmu_side(target)) is not None:
+        channel, side = cmu
+        expected = CMU_SIDES.get(spec.function)
+        if expected is None:
+            yield block(f"role {role_name} ({spec.function}) cannot use the MFCMU side {target}", subject=role_name,
+                        source=terminal_src, observed=str(target), limit="a channel, GNDU or switch output")
+        elif expected != side:
+            yield block(f"role {role_name} ({spec.function}) needs the MFCMU {expected} side, the pin map gives "
+                        f"{target}", subject=role_name, source=terminal_src, observed=str(target),
+                        limit=f"{channel}{expected}")
+        if (bound.channel, bound.cmu_side) != (channel, side):
+            yield block(f"role {role_name}: the plan binding differs from the pin map ({target})", subject=role_name,
+                        source=terminal_src, observed=bound.channel, limit=str(target))
+    else:
+        channel = int(target)  # type: ignore[arg-type]
+        if spec.function in CMU_SIDES:
+            yield block(f"role {role_name} ({spec.function}) needs an MFCMU side target "
+                        f"({channel}{CMU_SIDES[spec.function]})", subject=role_name, source=terminal_src,
+                        observed=channel, limit=f"{channel}{CMU_SIDES[spec.function]}")
+        if bound.channel is None or norm_channel(bound.channel) != norm_channel(channel) or bound.via is not None:
+            yield block(f"role {role_name}: the plan binding (channel {bound.channel}) differs from the pin map "
+                        f"(channel {channel})", subject=role_name, source=terminal_src, observed=bound.channel,
+                        limit=channel)
+    previous = seen.get((norm_channel(channel), side))
     if previous is not None:
-        yield block(f"channel {channel} is mapped to both {previous} and {role_name}", subject=role_name,
+        yield block(f"channel {channel}{side} is mapped to both {previous} and {role_name}", subject=role_name,
                     source=terminal_src, observed=channel, limit="one role per channel")
-    seen[norm_channel(channel)] = role_name
+    seen[(norm_channel(channel), side)] = role_name
     module = station.module_for_channel(channel)
     if module is None:
         installed = ", ".join(str(c) for m in station.modules for c in m.channels)
@@ -274,7 +317,7 @@ def _check_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, 
                     f"{module.slot})", subject=role_name,
                     source=env.station(f"modules[{module_index(ctx, module)}]"), observed=bound.module_model,
                     limit=module.model)
-    allowed = list(spec.module_types) or sorted(SMU_TYPES)
+    allowed = list(spec.module_types) or sorted(FUNCTION_MODULE_TYPES[spec.function])
     if module.type not in allowed:
         yield block(f"role {role_name} needs one of {', '.join(allowed)}; channel {channel} is a {module.type}",
                     subject=role_name, source=env.recipe(recipe, f"roles.{role_name}.module_types"),
@@ -283,6 +326,52 @@ def _check_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, 
         yield block(f"role {role_name} is low_current and needs an HRSMU; channel {channel} is a {module.type}",
                     subject=role_name, source=env.recipe(recipe, f"roles.{role_name}.low_current"),
                     observed=module.type, limit="HRSMU")
+
+
+def _check_switch_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, bound: BoundChannel,
+                       target: str, terminal_src: str) -> tuple[list[Finding], int | None]:
+    """Findings for a role whose terminal is a switch output, and the channel wired to the role's input of that
+    output (``None`` when the route does not resolve to one)."""
+    ref = switch_target(target)
+    assert ref is not None
+    switch_id, output = ref
+    route = Route(switch=switch_id, output=output, state=FUNCTION_INPUT[spec.function])
+    switch = ctx.station.switch(switch_id)
+    if switch is None or output not in switch.ports:
+        problem = ctx.station.target_problem(target) or f"{target} does not resolve"
+        return [block(f"role {role_name}: {problem}", subject=role_name, source=env.station("switches"),
+                      observed=target, limit="a declared switch output")], None
+    index = next(i for i, s in enumerate(ctx.station.switches) if s.id == switch_id)
+    switch_src = env.station(f"switches[{index}]")
+    found: list[Finding] = []
+    if bound.via != route:
+        found.append(block(f"role {role_name}: the plan binding ({bound.via}) differs from the pin map ({route})",
+                           subject=role_name, source=terminal_src, observed=str(bound.via), limit=str(route)))
+    if switch.present is False:
+        found.append(block(f"role {role_name}: switch {switch_id} is declared absent", subject=role_name,
+                           source=f"{switch_src}.present", observed=False, limit=True))
+    if not switch.allows(output, route.state):
+        found.append(block(f"role {role_name} ({spec.function}) needs {target} -> {route.state}, which a "
+                           f"{switch.kind} cannot connect", subject=role_name, source=f"{switch_src}.kind",
+                           observed=switch.kind, limit=", ".join(sorted(switch.states()))))
+        return found, None
+    channel = switch.input_channel(output, route.state)
+    if channel is None:
+        state = "unknown (null)" if route.state in switch.ports[output].inputs else "not connected"
+        found.append(block(f"role {role_name}: the {route.state} input of {target} is {state} in the station "
+                           "profile; a human records the wiring", subject=role_name,
+                           source=f"{switch_src}.ports.{output}.inputs.{route.state}", observed=None,
+                           limit="a channel"))
+        return found, None
+    if bound.channel is None or norm_channel(bound.channel) != norm_channel(channel):
+        found.append(block(f"role {role_name}: the plan binding (channel {bound.channel}) differs from the "
+                           f"{route.state} input of {target} (channel {channel})", subject=role_name,
+                           source=terminal_src, observed=bound.channel, limit=channel))
+    if route not in ctx.plan.envelope.routes:
+        found.append(block(f"role {role_name} reaches its terminal only through {route}, but the plan sets no such "
+                           f"route (kind {ctx.recipe.kind} does not route switches)", subject=role_name,
+                           source=env.plan("envelope.routes"), observed=None, limit=str(route)))
+    return found, channel
 
 
 # -- R-PIN-02 --------------------------------------------------------------------------------------------------------

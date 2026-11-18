@@ -4,6 +4,7 @@
 id: reliability.bti_sms
 version: 1
 title: BTI stress-measure-stress with SMUs
+family: reliability
 kind: smu_stress_measure
 status: not_implemented
 card: null

@@ -8,6 +8,7 @@ from collections.abc import Iterator, Mapping
 
 from b1500_test_agent.models.analysis import TrustPolicy
 from b1500_test_agent.models.plan import RuleFinding
+from b1500_test_agent.models.station import MODULE_FAMILY
 from b1500_test_agent.rules.engine import Finding, RuleContext, RuleEnv, block, confirm, info, rule, warn
 
 # -- R-RUN-01 --------------------------------------------------------------------------------------------------------
@@ -15,11 +16,17 @@ from b1500_test_agent.rules.engine import Finding, RuleContext, RuleEnv, block, 
 
 @rule("R-RUN-01", {"plan"})
 def run_size(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
-    """Points and estimated duration within ``policy.run_limits``."""
+    """Points and estimated duration within ``policy.run_limits``. The point limit is the smallest
+    ``max_points.<family>`` over the measuring families of the bound channels (``smu`` when none is bound)."""
     limits, estimate = ctx.policy.run_limits, ctx.plan.estimate
-    if estimate.points > limits.max_points:
-        yield block(f"{estimate.points} points exceed the run limit {limits.max_points}",
-                    source=env.policy("run_limits.max_points"), observed=estimate.points, limit=limits.max_points)
+    families = sorted({MODULE_FAMILY[b.module_type] for b in ctx.plan.binding.roles.values()
+                       if b.module_type is not None and b.module_type in MODULE_FAMILY}) or ["smu"]
+    family = min(families, key=limits.max_points.for_family)
+    max_points = limits.max_points.for_family(family)
+    if estimate.points > max_points:
+        yield block(f"{estimate.points} points exceed the {family} run limit {max_points}",
+                    source=env.policy(f"run_limits.max_points.{family}"), observed=estimate.points,
+                    limit=max_points)
     if estimate.duration_s > limits.max_sync_run_s:
         yield block(f"estimated {estimate.duration_s:g} s exceeds the synchronous run limit "
                     f"{limits.max_sync_run_s:g} s", source=env.policy("run_limits.max_sync_run_s"),
@@ -31,11 +38,18 @@ def run_size(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 
 @rule("R-ALWAYS-01", {"plan"})
 def always_confirm(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
-    """Recipe ``always_confirm`` reasons (destructive, system self-test/self-calibration)."""
+    """Recipe ``always_confirm`` reasons (destructive, system self-test/self-calibration, physical setup), and an
+    ad-hoc ``file`` parameter from ``work/waveforms/`` (``adhoc_recipe``: a human reviews a waveform no recipe
+    ships)."""
     recipe = ctx.recipe
     for reason in recipe.always_confirm:
         yield confirm(reason, f"recipe {recipe.id} always needs confirmation ({reason})",
                       source=env.recipe(recipe, "always_confirm"), observed=reason, limit=None)
+    for name, record in sorted(ctx.plan.files.items()):
+        if record.origin == "work":
+            yield confirm("adhoc_recipe", f"parameter {name} uses the ad-hoc file {record.path} (not in the "
+                          "committed waveform library)", subject=name, source=env.plan(f"files.{name}"),
+                          observed=record.path, limit="recipes/waveforms/")
 
 
 # -- R-ERRX-01 -------------------------------------------------------------------------------------------------------

@@ -31,10 +31,12 @@ from b1500_test_agent.rules.tiers import HARD_CEILING_A, HARD_CEILING_V
 @rule("R-LIM-01", {"plan"})
 def module_spec_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     """|V|, |Icomp| and V*I of every envelope channel lie within its module's DC spec (``driver/modules.py``);
-    the GNDU must sink the summed compliance of all channels when a role uses it."""
+    the GNDU must sink the summed compliance of all channels when a role uses it. A channel without a current limit
+    (``pgu``/``wgfmu`` role, no compliance) counts with 0 A here; R-PULSE-*/R-SPGU-01/R-GNDU-01 bound it."""
     total_i = 0.0
     for channel, entry in envelope_items(ctx):
-        total_i += entry.max_abs_i
+        current = entry.max_abs_i if entry.max_abs_i is not None else 0.0
+        total_i += current
         module = ctx.station.module_for_channel(channel)
         if module is None:
             yield block(f"{who(entry, channel)} has no module in the station profile", subject=entry.role,
@@ -47,15 +49,15 @@ def module_spec_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
                         subject=entry.role, source=env.code("b1500_test_agent.driver.modules.MODULE_SPECS"),
                         observed=module.type, limit="an SMU")
             continue
-        problems = violations(spec, entry.max_abs_v, entry.max_abs_i, source="V")
+        problems = violations(spec, entry.max_abs_v, current, source="V")
         if not problems:
             continue
         if entry.max_abs_v > spec.max_abs_v:
             observed, limit = entry.max_abs_v, spec.max_abs_v
-        elif entry.max_abs_i > spec.max_abs_i:
-            observed, limit = entry.max_abs_i, spec.max_abs_i
+        elif current > spec.max_abs_i:
+            observed, limit = current, spec.max_abs_i
         else:
-            observed = f"{entry.max_abs_v:g} V @ {entry.max_abs_i:g} A"
+            observed = f"{entry.max_abs_v:g} V @ {current:g} A"
             limit = ", ".join(f"{v:g} V @ {i:g} A" for v, i in spec.v_source_envelope)
         yield block(f"{who(entry, channel)}: " + "; ".join(problems), subject=entry.role,
                     source=env.code(f"b1500_test_agent.driver.modules.MODULE_SPECS[{spec.module_type}] "
@@ -76,7 +78,8 @@ def module_spec_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 
 @rule("R-LIM-02", {"plan"})
 def hard_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
-    """Every envelope channel stays within ``policy.hard_limits`` and never above the code ceiling."""
+    """Every envelope channel stays within ``policy.hard_limits`` and never above the code ceiling (channels without
+    a current limit, i.e. sources without compliance, are bounded by the pulse/waveform rules instead)."""
     hard = ctx.policy.hard_limits
     checks = (
         ("|V|", "V", "max_abs_v", hard.max_abs_voltage_v, HARD_CEILING_V, "max_abs_voltage_v", CEILING_V_SYMBOL),
@@ -88,6 +91,8 @@ def hard_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
         source = env.policy(f"hard_limits.{field}") if policy_limit <= ceiling else env.code(symbol)
         for channel, entry in envelope_items(ctx):
             value = getattr(entry, attr)
+            if value is None:
+                continue
             if not math.isfinite(value):
                 yield block(f"{who(entry, channel)}: {label} is not finite", subject=entry.role, source=source,
                             observed=repr(value), limit=limit)
@@ -106,7 +111,7 @@ def soft_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     ):
         for channel, entry in envelope_items(ctx):
             value = getattr(entry, attr)
-            if value > limit:
+            if value is not None and value > limit:
                 yield confirm("soft_limit", f"{who(entry, channel)}: {label} {value:g} {unit} is above the soft "
                               f"limit {limit:g} {unit}", subject=entry.role,
                               source=env.policy(f"soft_limits.{field}"), observed=value, limit=limit)
@@ -151,7 +156,7 @@ def dut_envelope(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
             ("|V|", "V", entry.max_abs_v, limits.max_abs_v, "max_abs_v"),
             ("|Icomp|", "A", entry.max_abs_i, limits.max_abs_i, "max_abs_i"),
         ):
-            if value > limit:
+            if value is not None and value > limit:
                 yield confirm("dut_envelope", f"{terminal} (channel {channel}): {label} {value:g} {unit} is outside "
                               f"DUT {dut.name}'s envelope {limit:g} {unit}", subject=terminal,
                               source=env.dut(dut.name, f"terminals.{terminal}.{field}"), observed=value, limit=limit)
@@ -183,7 +188,7 @@ def explicit_compliance(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
                             f"(settings.{COMPLIANCE_SETTING} = {value!r})", subject=role_name,
                             source=env.recipe(recipe, f"roles.{role_name}.settings.{COMPLIANCE_SETTING}"),
                             observed=scalar(value), limit="non-zero compliance")
-        if entry.max_abs_i <= 0:
+        if entry.max_abs_i is not None and entry.max_abs_i <= 0:
             yield block(f"{role_name} (channel {channel}): compliance is zero", subject=role_name,
                         source=env.plan(f"envelope.channels.{channel}.max_abs_i"), observed=entry.max_abs_i,
                         limit="> 0")

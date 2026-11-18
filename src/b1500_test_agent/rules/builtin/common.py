@@ -8,7 +8,7 @@ from collections.abc import Mapping
 
 from b1500_test_agent.models.analysis import Quantity
 from b1500_test_agent.models.plan import ChannelEnvelope
-from b1500_test_agent.models.recipe import ParamSpec, RoleSpec
+from b1500_test_agent.models.recipe import ParamSpec, RoleSpec, file_param_origin
 from b1500_test_agent.models.station import ModuleSlot
 from b1500_test_agent.rules.engine import RuleContext
 
@@ -25,9 +25,6 @@ INTERLOCK_ERRORS: dict[int, str] = {
 """``ERRX?`` codes that report the interlock refusing a high-voltage state (Programming Guide Ed. 15, PDF 577,
 printed 5-5). R-IL-01 checks them in addition to status-byte bit 3, because bit 3 latches an event and is cleared by
 a serial poll rather than tracking the interlock level (ATV-10 fallback)."""
-
-CMU_CORRECTIONS = ("phase_compensation", "open", "short")
-"""MFCMU corrections a capacitance measurement needs (R-CORR-01); open and short must also cover its frequencies."""
 
 CEILING_V_SYMBOL = "b1500_test_agent.rules.tiers.HARD_CEILING_V"
 CEILING_A_SYMBOL = "b1500_test_agent.rules.tiers.HARD_CEILING_A"
@@ -75,6 +72,11 @@ def param_problem(spec: ParamSpec, value: object) -> tuple[str, str, object, obj
         if isinstance(value, str) and value in choices:
             return None
         return "is not one of the choices", "choices", repr(value), ", ".join(choices)
+    if spec.type == "file":
+        if file_param_origin(value) is not None:
+            return None
+        return ("is not a CSV path under recipes/waveforms/ or work/waveforms/", "type", repr(value),
+                "recipes/waveforms/<name>.csv or work/waveforms/<name>.csv")
     if spec.type == "int":
         if not (isinstance(value, int) and not isinstance(value, bool)):
             return "is not an integer", "type", repr(value), "int"

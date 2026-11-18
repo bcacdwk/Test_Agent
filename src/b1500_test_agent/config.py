@@ -15,7 +15,10 @@ R-CFG-01 (any violation → ``invalid_config``, reported as structured ``ConfigP
 files parse and validate; an example file can never select ``backend: visa``; ``visa`` requires
 ``config/local/{settings,station,policy}.yaml`` (no example, no ``$B1500_CONFIG_DIR`` file, and
 ``$B1500_CONFIG_DIR`` must be unset) and sees only ``config/local/`` pin maps and DUT profiles; ``policy.hard_limits``
-above the code ceiling (42 V / 0.1 A) does not validate.
+above the code ceiling (42 V / 0.1 A) does not validate; the station's switches must be wired to channels of
+fitting module types (schema), and every pin-map switch target (``SEL1.OUT1``) must name a declared switch and one
+of its outputs (blueprint v2 2.3). Channel and MFCMU-side targets without a fitting module stay warnings: the
+plan-phase rule R-PIN-01 blocks the plans that use them.
 
 ``ConfigLoader.get()`` re-reads the raw bytes on every call (cheap: a few small files) and re-parses only when a
 digest or the set of files changed (the "digest cache" of blueprint 2.9).
@@ -43,7 +46,14 @@ from b1500_test_agent.models.common import (
 )
 from b1500_test_agent.models.policy import DutProfile, Policy
 from b1500_test_agent.models.sim import SimFaultProfile
-from b1500_test_agent.models.station import PinMap, Settings, SimScenario, StationProfile
+from b1500_test_agent.models.station import (
+    PinMap,
+    Settings,
+    SimScenario,
+    StationProfile,
+    cmu_side,
+    switch_target,
+)
 from b1500_test_agent.paths import ENV_CONFIG_DIR, Paths
 
 CORE_ITEMS: tuple[str, ...] = ("settings", "station", "policy")
@@ -333,11 +343,29 @@ class _Builder:
 
     def cross_checks(self, station: StationProfile, pin_maps: Mapping[str, PinMap],
                      scenario: SimScenario | None) -> None:
-        """Non-blocking hints; the plan-phase rules (R-PIN-01, R-INV-01) make the binding decisions."""
+        """Pin-map switch targets must resolve in the station (problem); the rest are non-blocking hints, the
+        plan-phase rules (R-PIN-01, R-INV-01, R-ROUTE-01) make the binding decisions."""
         for name, pin_map in pin_maps.items():
+            where = self.paths.display(self.resolved[f"pinmaps/{name}"].path)
             for terminal, target in pin_map.terminals.items():
-                if target == "GNDU" and not station.mainframe.gndu:
+                problem = station.target_problem(target)
+                ref = switch_target(target)
+                side = cmu_side(target)
+                if problem is not None:
+                    self.problem(where, f"{terminal} -> {target}: {problem}.", f"terminals.{terminal}")
+                elif ref is not None:
+                    switch = station.switch(ref[0])
+                    if switch is not None and switch.present is False:
+                        self.warnings.append(f"pin map {name}: {terminal} -> {target} goes through switch "
+                                             f"{switch.id}, which the station declares absent.")
+                elif target == "GNDU" and not station.mainframe.gndu:
                     self.warnings.append(f"pin map {name}: {terminal} uses the GNDU, which the station lacks.")
+                elif side is not None:
+                    module = station.module_for_channel(side[0])
+                    if module is None or module.type != "MFCMU":
+                        found = "no module" if module is None else f"a {module.type}"
+                        self.warnings.append(f"pin map {name}: {terminal} -> {target} needs an MFCMU in slot "
+                                             f"{side[0]}; the station profile has {found} there.")
                 elif isinstance(target, int) and station.module_for_channel(target) is None:
                     self.warnings.append(f"pin map {name}: {terminal} -> channel {target} has no module in the "
                                          "station profile.")

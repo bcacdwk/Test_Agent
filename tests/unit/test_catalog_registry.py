@@ -22,7 +22,8 @@ RESERVED_SLOTS = {"wgfmu.pulsed_iv", "wgfmu.fast_bti", "spgu.program_smu_read", 
 
 def minimal(recipe_id: str = "basic.thing", **changes: Any) -> dict[str, Any]:
     data: dict[str, Any] = {
-        "id": recipe_id, "version": 1, "title": "t", "kind": "smu_staircase", "status": "draft", "card": None,
+        "id": recipe_id, "version": 1, "title": "t", "family": "smu", "kind": "smu_staircase", "status": "draft",
+        "card": None,
         "device_types": [], "roles": {"sweep": {"function": "sweep_v", "measure": ["I"],
                                                 "settings": {"start": "$a", "stop": 1.0, "points": 11,
                                                              "icomp": 1e-3}}},

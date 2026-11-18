@@ -7,9 +7,10 @@ what has to exist before they may be un-reserved (``preconditions``).
 ``problems()`` lists everything wrong with the tree, one line each (``b1500 dev recipe-check`` exits 0 iff it is
 empty): schema errors (including ``$param`` references that do not resolve), file name ≠ recipe id, duplicate ids,
 unknown kinds, dangling card paths, unknown analysis methods (or methods/options that do not apply to the recipe),
-reserved slots that are not ``not_implemented`` or lack preconditions, and a validated status on a kind that has
-no simulator code path. Recipes with schema errors are left out of the registry; the others load even when the tree
-has other problems.
+reserved slots that are not ``not_implemented`` or lack preconditions, a validated status on a kind that has
+no simulator code path, and ``file`` parameter defaults that do not name a readable CSV of at most
+``FILE_PARAM_MAX_BYTES`` in the waveform library (``recipes/waveforms/``). Recipes with schema errors are left out
+of the registry; the others load even when the tree has other problems.
 
 ``effective_status(recipe_id, backend)``: ``not_implemented`` when the recipe's kind is unknown or has no code path
 for ``backend``, else the recipe's own status.
@@ -26,9 +27,11 @@ from b1500_test_agent.catalog.kinds import MeasurementKind, default_kinds, imple
 from b1500_test_agent.catalog.schema import RECIPE_SUFFIX, RecipeFileError, parse_recipe, recipe_sha256
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.common import Backend, ValidationStatus
-from b1500_test_agent.models.recipe import Recipe, RecipeSummary
+from b1500_test_agent.models.recipe import FILE_PARAM_MAX_BYTES, Recipe, RecipeSummary
 
 RESERVED_DIR = "reserved"
+WAVEFORMS_DIR = "waveforms"
+"""The committed waveform library ``recipes/waveforms/`` (``file`` parameters ``recipes/waveforms/<name>.csv``)."""
 
 
 class UnknownRecipeError(InvalidInputError):
@@ -148,7 +151,7 @@ class RecipeRegistry:
             recipe = self.get(recipe_id)
             if device_type is not None and recipe.device_types and device_type not in recipe.device_types:
                 continue
-            out.append(RecipeSummary(id=recipe.id, title=recipe.title, kind=recipe.kind,
+            out.append(RecipeSummary(id=recipe.id, title=recipe.title, family=recipe.family, kind=recipe.kind,
                                      status=self.effective_status(recipe.id, backend), card=recipe.card,
                                      device_types=list(recipe.device_types)))
         return out
@@ -183,6 +186,13 @@ def _check(recipe: Recipe, path: Path, root: Path, repo_root: Path,
             problems.append(f"card {recipe.card!r} must be a repository-relative path")
         elif not (repo_root / card).is_file():
             problems.append(f"card {recipe.card} does not exist (dangling card path)")
+    for name, param in recipe.params.items():
+        if param.type == "file" and isinstance(param.default, str):
+            library = root / WAVEFORMS_DIR / param.default.removeprefix(f"recipes/{WAVEFORMS_DIR}/")
+            if not library.is_file():
+                problems.append(f"params.{name}: default {param.default} does not exist in the waveform library")
+            elif library.stat().st_size > FILE_PARAM_MAX_BYTES:
+                problems.append(f"params.{name}: default {param.default} exceeds {FILE_PARAM_MAX_BYTES} bytes")
     for index, spec in enumerate(recipe.analysis_defaults):
         method = ANALYSIS_METHODS.get(spec.method)
         where = f"analysis_defaults[{index}]"

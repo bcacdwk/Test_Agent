@@ -10,7 +10,7 @@ Milestone tags in parentheses say when a part arrives (see [roadmap](roadmap.md)
 
 | Layer | Responsibility | Code / files |
 |---|---|---|
-| L1 Physical safety | Interlock, shield box, triax/Guard/Kelvin wiring, per-channel compliance | `config/station.example.yaml` (interlock, topology, corrections), rule `R-IL-01`, M4 bring-up checklist |
+| L1 Physical safety | Interlock, shield box, triax/Guard/Kelvin wiring, switches, per-channel compliance | `config/station.example.yaml` (interlock, topology, switches, correction standards), rule `R-IL-01`, M4 bring-up checklist |
 | L2 GPIB / VISA | Byte transport; every I/O audited | `transport/` (`base`, `audit`, `visa`, `factory`), `transport/sim/` simulator (M1) |
 | L3 Driver | FLEX builders, guarded `B1500Driver`, parser, discovery, error decoding, module specs | `driver/` (`parser.py` status tables exist; rest M1) |
 | L4 Measurement transaction | Lock, transaction with guaranteed cleanup, fault latch; recipes, kinds, planner, executor; run archive | `session/`, `catalog/`, `recipes/`, `archive/` (M1) |
@@ -38,7 +38,7 @@ fails a test.
 
 | Module | Content | Status |
 |---|---|---|
-| `models/` | Pydantic models: common envelope, station, policy, plan, recipe, run, analysis, measurement | all present (M0 salvage + WP1.1); later M1 WPs extend them |
+| `models/` | Pydantic models: common envelope, station, routing (switches, routes), policy, plan, recipe, run, analysis, measurement | all present (M0 salvage + WP1.1); v2 models WP5.3 (switches/routes, pulse/AC/waveform envelopes, `RunProgress`, correction records, `file` parameters) |
 | `config.py`, `paths.py`, `errors.py` | Config loading and resolution, repo-relative default paths, error types | done (WP1.1; `b1500 config check`) |
 | `transport/` | `Transport` protocol, `AuditingTransport`, `VisaTransport`, `make_transport` (never selects visa implicitly) | done (WP1.2; audit event model `models/audit.py`) |
 | `transport/sim/` | Deterministic FLEX state machine: `instrument.py` (dispatcher: clock, persisted state, command log, measurement lifecycle, `SimTransport`) over `units/` (`core`, `smu`; handlers registered by mnemonic), `flex.py` (syntax, error codes), `format.py` (output formatter), `devices/` (`basic`, `mosfet`, `ferro`, `circuit`), `faults.py`, `state.py` | done for the v1 subset and open/resistor/short/`mosfet_ekv` (WP1.2; schemas `models/sim.py`); `diode`, `fefet` (persisted polarization), `mosfet_damaged` and scenarios `diode_basic`, `resistor_100k`, `fefet_basic`, `open_drain_noisy`, `gd_short` (WP2.1) |
@@ -92,10 +92,42 @@ The code is split per instrument family (blueprint §9), so a family's work pack
 ## Files and locations
 
 Everything lives in the repository clone (owner decision D1): `.venv/` (uv), `data/runs/` and `data/state/`
-(server-written archive, plans, locks, fault latch, simulator state), `config/local/` (live configuration, edited by
-a human only) and `work/` (agent scratch for ad-hoc analysis). All four are gitignored. Configuration resolves
-`B1500_CONFIG_DIR` (tests and the M3 runner only) → `config/local/<file>` → `config/<file>.example.yaml`; the visa
-backend never falls back to examples. The lab PC runs the same clone.
+(server-written archive, plans, locks, fault latch, simulator state, MFCMU correction records), `config/local/` (live
+configuration, edited by a human only) and `work/` (agent scratch for ad-hoc analysis and ad-hoc waveform CSVs in
+`work/waveforms/`). All four are gitignored. Configuration resolves `B1500_CONFIG_DIR` (tests and the M3 runner only)
+→ `config/local/<file>` → `config/<file>.example.yaml`; the visa backend never falls back to examples. The lab PC
+runs the same clone.
+
+## Configuration (v2, WP5.3)
+
+`b1500 config check` validates every file below (schema errors, R-CFG-01 and the cross-file checks) and exits 0 only
+when the configuration is valid. The committed examples are lab-shaped (blueprint v2 §1.1, §7.3): they mirror the
+inventory the lab's own `UNT?` snapshot recorded and leave every unproven wiring fact `null`/`unverified`.
+
+| File | Model | Content |
+|---|---|---|
+| `settings.yaml` | `models.station.Settings` | backend (`sim`/`visa`), sim scenario, VISA resource, `wgfmu.library` (empty = the library's 64-bit `System32\wgfmu.dll`), paths |
+| `station.yaml` | `models.station.StationProfile` | modules per slot (lab example: SPGU1 1, WGFMU1 2, SMU3/SMU4 HRSMU, SMU5/SMU6 MPSMU, CMU1 7), interlock, topology (shield, Guard, Kelvin, cables), `switches`, `corrections` |
+| `policy.yaml` | `models.policy.Policy` | hard/soft limits, interlock threshold, per-family `run_limits` (`max_points.{smu,cmu,wgfmu}`; an integer still works and caps all), `pulse` and `cmu` soft bands, required `corrections` and their age, plan TTL, quality classes |
+| `pinmaps/<name>.yaml` | `models.station.PinMap` | DUT terminal → channel, `GNDU`, MFCMU side (`7H`/`7L`) or switch output (`SEL1.OUT1`); `certainty` |
+| `duts/<name>.yaml` | `models.policy.DutProfile` | per terminal: max \|V\|, max \|I\|, `impedance` (`unknown`/`high_z`/`resistive`), `min_series_ohm`, `pulse` and `ac` envelopes; `geometry` (analysis only) |
+| `sim/scenarios/<name>.yaml` | `models.station.SimScenario` | simulated mainframe (lab layout), DUT wiring and device truth |
+
+- **Switches** (`models/routing.py`): `SwitchSpec{id, kind (selector_16440a, scuu, asu, rsu), present (true/false/
+  null = unknown), certainty, ports: {output → {index, inputs: {smu|pgu|cmu|wgfmu → channel or null}}}, rest}`. The
+  station validates each input against the module type that can feed it, unique ERSSP ports (0-3) across the two
+  selectors, RSU index = its WGFMU channel, SCUU/ASU index = its SMU, `pgu_open` only on selector CH 1 (ports 0, 2)
+  and a `rest` state every output can take. A pin-map switch target that names an undeclared switch or output is
+  `invalid_config`; channel and MFCMU-side targets without a fitting module only warn (R-PIN-01 blocks the plans).
+- **Binding**: a role reaches a switch output through the route `(switch, output, state = its resource)`; the planner
+  binds it to the channel recorded on that input (none while `null`). Only kinds that set the route
+  (`envelope.routes`) can use such a terminal; the v1 SMU kinds cannot (R-PIN-01).
+- **Corrections**: `station.yaml#corrections.<MFCMU alias>.load` holds only the static load-standard reference
+  (`DCORR`); correction records (`CorrectionRecord`: kind, frequencies, run, time, IDN, pin-map and station sha256,
+  `CORRST?` state) are server state under `data/state/corrections/`.
+- **`file` parameters**: a recipe parameter of type `file` names a CSV in `recipes/waveforms/` (committed library,
+  `tier ok` possible) or `work/waveforms/` (ad-hoc, always `adhoc_recipe`); at most 1 MiB; the planner stores its
+  sha256 in the plan (so the plan hash follows the content) and every run re-checks it (`plan_stale` otherwise).
 
 ## Agent integration
 

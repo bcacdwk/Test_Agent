@@ -1,44 +1,107 @@
 # Station profile (example; committed). Schema: b1500_test_agent.models.station.StationProfile.
-# Generic example of a seven-module B1500A; not a real station. A human copies this file to
-# config/local/station.yaml and edits it to match the real mainframe: every module's model must equal the live
-# UNT? answer for its slot (rule R-INV-01). Channel numbers follow Programming Guide Table 4-1: an SMU or MFCMU in
-# slot n is channel n; the two subchannels of a WGFMU or HV-SPGU in slot n are n01 and n02.
+# Lab-shaped example (blueprint v2 1.1, 7.3): the module inventory the lab's own configuration snapshot recorded from
+# UNT? 0 (lwp/matlab_B1500/B1500_Config.mat: SPGU1=1, WGFMU1=2, HRSMU1=3, HRSMU2=4, MPSMU1=5, MPSMU2=6, CMU1=7), with
+# no serial numbers. Wiring facts the lab code does not prove stay `null` / `certainty: unverified` (OD-2). A human
+# copies this file to config/local/station.yaml (or adopts the proposal of `b1500 bringup propose-station`) and edits
+# it to match the real mainframe: every module's model must equal the live UNT? answer for its slot (rule R-INV-01).
+# Channel numbers follow Programming Guide Table 4-1: an SMU or MFCMU in slot n is channel n; the two subchannels of
+# a WGFMU or HV-SPGU in slot n are n01 and n02. Aliases follow the lab code (SMU3 = the SMU in slot 3).
 
-name: example-b1500-station
+name: lab-b1500a-example
 
 mainframe:
   model: B1500A
-  gndu: true                    # built-in ground unit; pin maps may use GNDU
+  gndu: true                    # built-in ground unit (sinks up to 4.2 A, UG PDF 58); pin maps may use GNDU
 
 modules:
-  - {slot: 1, model: B1511B, type: MPSMU, channels: [1], alias: SMU1}
-  - {slot: 2, model: B1511B, type: MPSMU, channels: [2], alias: SMU2}
+  - {slot: 1, model: B1525A, type: HVSPGU, channels: [101, 102], alias: SPGU1}
+  - {slot: 2, model: B1530A, type: WGFMU, channels: [201, 202], alias: WGFMU1}
   - {slot: 3, model: B1517A, type: HRSMU, channels: [3], alias: SMU3}
   - {slot: 4, model: B1517A, type: HRSMU, channels: [4], alias: SMU4}
-  - {slot: 5, model: B1530A, type: WGFMU, channels: [501, 502], alias: WGFMU1}
-  - {slot: 6, model: B1525A, type: HVSPGU, channels: [601, 602], alias: SPGU1}
+  - {slot: 5, model: B1511B, type: MPSMU, channels: [5], alias: SMU5}   # B1511A or B: confirm at L0 (UNT?)
+  - {slot: 6, model: B1511B, type: MPSMU, channels: [6], alias: SMU6}   # B1511A or B: confirm at L0 (UNT?)
   - {slot: 7, model: B1520A, type: MFCMU, channels: [7], alias: CMU1}
+  # Slots 8-10: not recorded by the lab snapshot (empty or an unlisted model); bring-up stage L0 reads UNT?.
 
 interlock:
-  available: null               # true only after the interlock circuit is wired and tested (M4 stage 0); null = unknown
-  note: v1 keeps every output at or below 42 V, so no workflow needs a closed interlock.
+  available: null               # true only after the interlock circuit is wired and tested (stage S0); null = unknown
+  note: Every output stays at or below 42 V (code ceiling), so no workflow needs a closed interlock.
 
 topology:                       # null = unknown
   shield_box: null
   guard: null
   kelvin: null
   cables:                       # per module alias; record type, length, Guard and Kelvin after inspecting the station
-    SMU1: {cable: triax, length_m: null, guard: null, kelvin: false}
-    SMU2: {cable: triax, length_m: null, guard: null, kelvin: false}
-  switching: {asu: null, scuu: null, selector_16440a: null}
+    SMU3: {cable: triax, length_m: null, guard: null, kelvin: false}
+    SMU4: {cable: triax, length_m: null, guard: null, kelvin: false}
+    SMU5: {cable: triax, length_m: null, guard: null, kelvin: false}
+    SMU6: {cable: triax, length_m: null, guard: null, kelvin: false}
 
-corrections:                    # MFCMU correction records (rule R-CORR-01; C-V kinds are not_implemented in v1)
-  cmu:
-    module: CMU1
-    phase_compensation: {status: unknown, timestamp: null, frequency_range_hz: null}
-    open: {status: unknown, timestamp: null, frequency_range_hz: null}
-    short: {status: unknown, timestamp: null, frequency_range_hz: null}
-    load: {status: unknown, timestamp: null, frequency_range_hz: null}
+# Switch accessories (models/routing.py). A pin map reaches a DUT terminal through one with "<id>.<output>".
+# inputs: the channel wired to each input side of an output; null = wiring unknown (routes through it are blocked on
+# hardware until a human records it at bring-up stage L7); present: null = unknown; rest = the state the cleanup
+# restores and verifies. certainty: verified only after a human has checked the wiring (then no input may be null).
+switches:
+  - id: SEL1                    # first 16440A SMU/PGU selector: ERSSP ports 0 (CH 1) and 1 (CH 2), PG p433 (4-115)
+    kind: selector_16440a
+    present: true               # lwp SPGU_pulse.m drives ERMOD 1 and ERSSP 0..3 ("first/second selector output 1/2")
+    certainty: unverified
+    ports:
+      OUT1: {index: 0, inputs: {smu: null, pgu: null}}   # CH 1: SMU, PGU, PGU-open (PG p154 (2-66))
+      OUT2: {index: 1, inputs: {smu: null, pgu: null}}   # CH 2: SMU or PGU only
+    rest: open
+    note: SMU inputs carry Force only (Sense open), so Kelvin roles never go through a selector.
+  - id: SEL2                    # second 16440A selector: ERSSP ports 2 (CH 1) and 3 (CH 2)
+    kind: selector_16440a
+    present: true
+    certainty: unverified
+    ports:
+      OUT1: {index: 2, inputs: {smu: null, pgu: null}}
+      OUT2: {index: 3, inputs: {smu: null, pgu: null}}
+    rest: open
+  - id: RSU201                  # remote-sense and switch unit of WGFMU channel 201 (lwp LFN_noise_meas.cpp connects 201/202)
+    kind: rsu
+    present: true
+    certainty: unverified
+    ports:
+      OUT: {index: 201, inputs: {wgfmu: 201, smu: null}}   # smu: the SMU wired to the RSU's SMU input, if any
+    rest: open
+  - id: RSU202
+    kind: rsu
+    present: true
+    certainty: unverified
+    ports:
+      OUT: {index: 202, inputs: {wgfmu: 202, smu: null}}
+    rest: open
+  - id: SCUU1                   # SMU CMU unify unit on CMU1: no evidence in the lab code (OD-2); presence unknown
+    kind: scuu
+    present: null
+    certainty: unverified
+    ports:                      # SSP path table (PG p520 (4-202)): Force1 = SMU in slot 6, Force2 = SMU in slot 5
+      OUT1: {index: 6, inputs: {smu: 6, cmu: 7}}           # CMUH / Force1
+      OUT2: {index: 5, inputs: {smu: 5, cmu: 7}}           # CMUL / Force2
+    rest: smu
+  - id: ASU3                    # atto sense and switch unit on SMU3: no evidence in the lab code; presence unknown
+    kind: asu
+    present: null
+    certainty: unverified
+    ports:
+      OUT: {index: 3, inputs: {smu: 3, cmu: null}}         # cmu = the AUX input (SAP path 1), wiring unknown
+    rest: smu
+  - id: ASU4
+    kind: asu
+    present: null
+    certainty: unverified
+    ports:
+      OUT: {index: 4, inputs: {smu: 4, cmu: null}}
+    rest: smu
+
+# Static MFCMU correction-standard values per MFCMU alias. Correction records (phase/open/short/load, frequencies,
+# time, run) are server state in data/state/corrections/<alias>.json, written by the correction recipes.
+corrections:
+  CMU1:
+    load: null                  # load standard reference (DCORR ...,3,400,Ls,Rs; PG p389 (4-71)), e.g. {ls_h: 0, rs_ohm: 100}
 
 notes:
-  - Example values only. Record the real inventory, cabling and correction state in config/local/station.yaml.
+  - Lab-shaped example; module models from the lab's UNT? snapshot, wiring unverified. Record the real inventory,
+    cabling and switch wiring in config/local/station.yaml (bring-up stages L0 and L7).

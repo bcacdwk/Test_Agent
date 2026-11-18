@@ -7,6 +7,7 @@
 id: system.self_test
 version: 1
 title: Instrument self-test (*TST?) of all modules and the mainframe
+family: system
 kind: system
 status: sim_validated
 card: null

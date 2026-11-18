@@ -4,6 +4,7 @@
 id: reliability.tddb_cvs
 version: 1
 title: TDDB constant-voltage stress with leakage sampling
+family: reliability
 kind: smu_sampling
 status: not_implemented
 card: null

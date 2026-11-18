@@ -1,0 +1,15 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# MOS capacitor on the MFCMU in slot 7: target 7H = the High terminal pair (Hc/Hp), 7L = the Low pair (Lc/Lp). A
+# cmu_high role binds only to an H side and a cmu_low role only to an L side (rule R-PIN-01); recipe roles bind to
+# the terminal of the same name, so a MOS-C recipe uses the roles `gate` (cmu_high) and `bulk` (cmu_low).
+#
+# certainty: unverified (every plan needs confirmation, unverified_pin_map). The visa backend never reads this file.
+
+description: MOS capacitor; gate on CMU1 High (7H), bulk/substrate on CMU1 Low (7L).
+certainty: unverified
+terminals:
+  gate: 7H
+  bulk: 7L
+notes:
+  - Corrections (phase, open, short) are measured with this landing and pin map; a re-landing makes them stale.
+  - With an SCUU the same pads reach SMU5/SMU6 for I-V (SCUU1.OUT1/OUT2); that needs a separate map.

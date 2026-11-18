@@ -1,0 +1,19 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# FeFET whose gate is reached through the first 16440A selector (SEL1 output 1): pulse programming from the HV-SPGU
+# (route SEL1.OUT1 -> pgu) and SMU reads (route SEL1.OUT1 -> smu) on one landing, as the lab's SPGU scripts do
+# (lwp SPGU_pulse.m: ERMOD 1, ERSSP p,2 for pulses, ERSSP p,1 back to the SMU). Drain on SMU4, source on the GNDU.
+#
+# A gate role binds through the route for its resource (smu, pgu); the channel is the one the station profile
+# wires to that selector input (config/station.example.yaml leaves both inputs null until stage L7 records them,
+# so plans through it are blocked by R-PIN-01 until then). Kinds that do not route switches cannot use this map.
+# certainty: unverified (every plan needs confirmation, unverified_pin_map). The visa backend never reads this file.
+
+description: FeFET; gate via selector SEL1.OUT1 (SPGU pulses or SMU reads), drain SMU4 (HRSMU), source GNDU.
+certainty: unverified
+terminals:
+  gate: SEL1.OUT1
+  drain: 4
+  source: GNDU
+notes:
+  - SEL1.OUT1 is selector CH 1, the only channel with the PGU-open state (PG p154 (2-66)).
+  - Through a selector the SMU path is Force only (Sense open), so no Kelvin role may use the gate terminal.

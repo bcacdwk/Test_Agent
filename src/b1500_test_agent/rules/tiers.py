@@ -11,7 +11,7 @@ version, the per-channel envelope and its role binding, DUT profile and pin-map 
 ``confirm``/``block`` findings, never from labels, messages, timestamps or live state, so it changes only when the
 plan or the config changes. Format (fields separated by `` | ``)::
 
-    mosfet.idvg@1 | drain=SMU3(HRSMU) bias 0.05 V Icomp 1 mA; gate=SMU1(MPSMU) sweep -1..3 V Icomp 1 uA |
+    mosfet.idvg@1 | drain=SMU3(HRSMU) bias 0.05 V Icomp 1 mA; gate=SMU5(MPSMU) sweep -1..3 V Icomp 1 uA |
     DUT nmos-generic | pins mosfet-4t | sim | R-PIN-02 unverified_pin_map
 
 Channels are sorted by role name; flags follow the rule-table order, one per (rule, reason) pair, ``blocked`` for a
@@ -115,10 +115,11 @@ def _channels(plan: PlanRecord, *, compact: bool) -> str:
         name = bound.alias if bound is not None and bound.alias else f"ch{channel}"
         module = bound.module_type if bound is not None and bound.module_type else "?"
         if compact:
-            parts.append(f"{entry.role}={name} {_levels(entry, compact=True)} {_amps(entry.max_abs_i, space=False)}")
+            current = "noIcomp" if entry.max_abs_i is None else _amps(entry.max_abs_i, space=False)
+            parts.append(f"{entry.role}={name} {_levels(entry, compact=True)} {current}")
         else:
-            parts.append(f"{entry.role}={name}({module}) {_levels(entry, compact=False)} "
-                         f"Icomp {_amps(entry.max_abs_i)}")
+            current = "no Icomp" if entry.max_abs_i is None else f"Icomp {_amps(entry.max_abs_i)}"
+            parts.append(f"{entry.role}={name}({module}) {_levels(entry, compact=False)} {current}")
     return "; ".join(parts) if parts else "no outputs"
 
 

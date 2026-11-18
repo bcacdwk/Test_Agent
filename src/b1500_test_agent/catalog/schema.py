@@ -4,8 +4,9 @@ The recipe schema itself is ``models.recipe.Recipe`` (shared with the rules and 
 YAML file under ``recipes/`` into a ``Recipe`` (``sha256`` = digest of the raw file bytes, computed here and never
 written in the file) and defines the kind interface's value types:
 
-- ``CompiledKindPlan``: what ``MeasurementKind.compile`` returns (pure): the per-channel envelope, the size
-  estimate, the exact FLEX preview and the kind's JSON program that ``acquire`` executes.
+- ``CompiledKindPlan``: what ``MeasurementKind.compile`` returns (pure): the per-channel envelope (with the switch
+  routes it may set), the size estimate, the exact FLEX preview, the kind's JSON program that ``acquire`` executes
+  and the routes it applies per phase (``PlanRecord.routes_by_phase``).
 - ``RawAcquisition``: what ``MeasurementKind.acquire`` returns: the raw measurement blocks (each one was already
   handed to the run folder before parsing) and kind-specific result facts.
 
@@ -37,6 +38,7 @@ from b1500_test_agent.models.recipe import (
     RecipeSummary,
     RoleSpec,
 )
+from b1500_test_agent.models.routing import Route
 
 __all__ = [
     "AnalysisSpec",
@@ -72,12 +74,15 @@ class RecipeFileError(ValueError):
 
 @dataclass(frozen=True)
 class CompiledKindPlan:
-    """Result of ``MeasurementKind.compile``: envelope, estimate, FLEX preview and program (JSON, hashed)."""
+    """Result of ``MeasurementKind.compile``: envelope, estimate, FLEX preview, program (JSON, hashed) and the
+    switch routes per phase (a kind that routes no switch leaves it empty; R-PIN-01 then blocks roles whose
+    terminal is wired through a switch)."""
 
     envelope: CompiledEnvelope
     estimate: Estimate
     flex_preview: list[str] = field(default_factory=list)
     program: dict[str, JsonValue] = field(default_factory=dict)
+    routes_by_phase: dict[str, list[Route]] = field(default_factory=dict)
 
 
 @dataclass

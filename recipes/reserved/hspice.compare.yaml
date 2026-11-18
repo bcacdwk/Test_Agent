@@ -4,6 +4,7 @@
 id: hspice.compare
 version: 1
 title: Compare a measured run with an HSPICE simulation
+family: smu
 kind: hspice_compare
 status: not_implemented
 card: null

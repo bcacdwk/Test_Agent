@@ -171,10 +171,10 @@ def test_simulated_queries_parse_with_the_driver() -> None:
     assert 0 <= transport.serial_poll() <= 255
     lop = parse_lop(transport.query("LOP?"))
     assert set(lop) == set(range(1, 11)) and not any(o.output_on for o in lop.values())
-    transport.write("CN 1")
-    transport.write("DV 1,0,0.5,1E-4")
+    transport.write("CN 5")  # SMU5 (MPSMU) of the lab layout
+    transport.write("DV 5,0,0.5,1E-4")
     on = parse_lop(transport.query("LOP?"))
-    assert on[1].output_on and on[1].state == "01" and not on[3].output_on
+    assert on[5].output_on and on[5].state == "01" and not on[3].output_on
     transport.write("CL")
     assert parse_self_test_result(transport.query("*TST?")) == 0
     assert parse_self_test_result(transport.query("*CAL?")) == 0

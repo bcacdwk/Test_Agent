@@ -7,6 +7,7 @@
 id: generic.smu_staircase
 version: 1
 title: Generic SMU staircase sweep (ad-hoc; one swept, one optional biased, one ground terminal)
+family: smu
 kind: smu_staircase
 status: sim_validated
 card: null

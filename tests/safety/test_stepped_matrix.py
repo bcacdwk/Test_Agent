@@ -55,7 +55,7 @@ POSITIONS = ("configure", "after_xe", "during_read", "during_cleanup")
 FAULTS = ("compliance_at", "errx", "timeout", "garbage_data", "interlock_open", "disconnect", "oscillation",
           "ignore_dz", "cleanup_failure", "keyboard_interrupt", "parser_exception", "envelope_violation")
 ERRX_CODE = 305
-GATE, DRAIN = 1, 3
+GATE, DRAIN = 5, 3  # SMU5 (MPSMU) and SMU3 (HRSMU) of the lab-shaped example station
 NTH = 2
 """The ``after_xe``/``during_read`` moments fire at the second XE / data read (mid-loop)."""
 
@@ -349,7 +349,7 @@ def test_tampered_step_value_of_50_v_never_reaches_the_simulator(tmp_path: Path)
         KIND.acquire(tx, plan)
     assert caught.value.reason == "level_exceeds_envelope" and caught.value.limit == 1.1
     assert_global_invariant(h, envelope=plan.envelope)
-    assert [r.command for r in h.log if r.mnemonic == "DV" and r.args[0] == "1"] == ["DV 1,0,0.5,1E-06"]
+    assert [r.command for r in h.log if r.mnemonic == "DV" and r.args[0] == str(GATE)] == [f"DV {GATE},0,0.5,1E-06"]
     assert sum(r.mnemonic == "XE" for r in h.log) == 1  # the first sweep ran; nothing after the refusal
     assert not any(e.ev == "write" and e.cmd and "50" in e.cmd for e in h.events())
     assert tx.cleanup is not None and tx.cleanup.verified == "sim_state"

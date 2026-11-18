@@ -4,6 +4,7 @@
 id: moscap.qscv
 version: 1
 title: Quasi-static C-V with SMUs
+family: cmu
 kind: smu_qscv
 status: not_implemented
 card: null

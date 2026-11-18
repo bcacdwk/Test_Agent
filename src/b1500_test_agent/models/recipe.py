@@ -1,21 +1,28 @@
-"""Recipe schema (blueprint 2.6): parameters, roles, quality criteria, default analyses and the recipe itself.
+"""Recipe schema (blueprint v1 2.6, v2 2.3): parameters, roles, quality criteria, default analyses and the recipe.
 
 A recipe is registry source YAML under ``recipes/``; ``sha256`` is computed by the registry at load (WP1.7) and is
 not written in the file. Role ``settings`` values may reference parameters as ``$name``; there is no other
 expression language.
+
+v2: ``family`` files a recipe under one of seven families (the card folder); role functions cover current forcing,
+synchronous and pulsed SMU roles, SPGU, WGFMU and MFCMU roles; a ``file`` parameter names a CSV waveform/table under
+``recipes/waveforms/`` (committed library) or ``work/waveforms/`` (ad-hoc, always confirmed as ``adhoc_recipe``),
+at most ``FILE_PARAM_MAX_BYTES``; the planner records its sha256 in the plan, so the plan hash changes with the
+file content.
 """
 
 from __future__ import annotations
 
 import math
 import re
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Final, Literal
 
 from pydantic import Field, JsonValue, model_validator
 
 from b1500_test_agent.models.analysis import Identifier, Provenance, TrustPolicy, Unit
 from b1500_test_agent.models.common import ConfirmReason, Sha256Hex, StrictModel, ValidationStatus
-from b1500_test_agent.models.station import ModuleType
+from b1500_test_agent.models.routing import SwitchInput
+from b1500_test_agent.models.station import SMU_TYPES, ModuleType
 
 RecipeId = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$")]
 """Dotted recipe id, e.g. ``mosfet.idvg``, ``generic.smu_staircase``, ``system.self_test``."""
@@ -23,9 +30,62 @@ RecipeId = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$"
 PARAM_REF = re.compile(r"^\$([a-z][a-z0-9_]{0,63})$")
 """A role-setting value that references a recipe parameter, e.g. ``$vg_start``."""
 
-RoleFunction = Literal["sweep_v", "bias_v", "step_v", "ground", "measure_only"]
-"""What a recipe role does on its channel: voltage sweep, constant voltage bias, host-stepped voltage list, 0 V
-reference, or measurement only (blueprint 2.6)."""
+RoleFunction = Literal[
+    "sweep_v", "bias_v", "step_v", "ground", "measure_only",
+    "sweep_i", "bias_i", "step_i", "sync_v", "pulse_v", "pgu", "wgfmu", "cmu_high", "cmu_low",
+]  # fmt: skip
+"""What a recipe role does on its channel (v1 blueprint 2.6, v2 2.1): voltage sweep, constant voltage bias,
+host-stepped voltage list, 0 V reference, measurement only; v2: current sweep, current bias, host-stepped current
+list, synchronous voltage sweep (``WSV``), SMU pulse source, HV-SPGU pulse output, WGFMU channel, MFCMU High and Low
+side."""
+
+SMU_FUNCTIONS: Final[frozenset[str]] = frozenset({
+    "sweep_v", "bias_v", "step_v", "ground", "measure_only", "sweep_i", "bias_i", "step_i", "sync_v", "pulse_v",
+})  # fmt: skip
+"""Role functions served by an SMU."""
+
+FUNCTION_INPUT: Final[dict[str, SwitchInput]] = {
+    **{f: "smu" for f in sorted(SMU_FUNCTIONS)}, "pgu": "pgu", "wgfmu": "wgfmu", "cmu_high": "cmu", "cmu_low": "cmu",
+}  # fmt: skip
+"""The instrument resource behind each role function, i.e. the switch input (and route state) a role needs when
+its terminal is wired through a switch."""
+
+FUNCTION_MODULE_TYPES: Final[dict[str, frozenset[str]]] = {
+    **{f: SMU_TYPES for f in sorted(SMU_FUNCTIONS)}, "pgu": frozenset({"HVSPGU"}), "wgfmu": frozenset({"WGFMU"}),
+    "cmu_high": frozenset({"MFCMU"}), "cmu_low": frozenset({"MFCMU"}),
+}  # fmt: skip
+"""Module types that can serve each role function (``RoleSpec.module_types`` must be a subset)."""
+
+CMU_SIDES: Final[dict[str, Literal["H", "L"]]] = {"cmu_high": "H", "cmu_low": "L"}
+"""MFCMU side of each MFCMU role function (pin-map target ``<channel>H`` / ``<channel>L``)."""
+
+COMPLIANCE_FREE_FUNCTIONS: Final[frozenset[str]] = frozenset({"pgu", "wgfmu"})
+"""Sources without a compliance (50 Ohm outputs): their envelope has no current limit; R-PULSE-*/R-SPGU-01/R-WG-*
+bound them instead (blueprint v2 decision 9)."""
+
+RecipeFamily = Literal["smu", "cmu", "spgu", "wgfmu", "nvm", "reliability", "system"]
+"""Recipe family = card folder (blueprint v2 6.3); ``list_recipes`` filters by it."""
+
+FILE_PARAM_DIRS: Final[dict[str, Literal["library", "work"]]] = {
+    "recipes/waveforms/": "library", "work/waveforms/": "work",
+}  # fmt: skip
+"""Allowed homes of a ``file`` parameter's CSV: the committed waveform library (next to the recipes) and the agent's
+ad-hoc folder (under the configured ``paths.work_dir``)."""
+
+FILE_PARAM_MAX_BYTES: Final = 1_048_576
+"""Largest ``file`` parameter CSV (1 MiB)."""
+
+_FILE_SEGMENT = r"[A-Za-z0-9_-][A-Za-z0-9_.-]*"
+FILE_PARAM_PATTERN = re.compile(rf"^(recipes|work)/waveforms/({_FILE_SEGMENT}/)*{_FILE_SEGMENT}\.csv$")
+"""A ``file`` parameter value: ``recipes/waveforms/<name>.csv`` or ``work/waveforms/<name>.csv`` (sub-folders allowed,
+POSIX separators, no ``..``, no absolute paths)."""
+
+
+def file_param_origin(value: object) -> Literal["library", "work"] | None:
+    """``library`` or ``work`` for a well-formed ``file`` parameter value, else ``None``."""
+    if not isinstance(value, str) or not FILE_PARAM_PATTERN.match(value):
+        return None
+    return next(origin for prefix, origin in FILE_PARAM_DIRS.items() if value.startswith(prefix))
 
 
 def _is_real(value: object) -> bool:
@@ -34,9 +94,10 @@ def _is_real(value: object) -> bool:
 
 class ParamSpec(StrictModel):
     """One recipe parameter. ``range`` is the hard recipe envelope (R-PARAM-01); ``recommended`` is advisory and
-    shown to the agent. ``default`` ``None`` means the parameter is required."""
+    shown to the agent. ``default`` ``None`` means the parameter is required. A ``file`` parameter is a CSV path
+    (``FILE_PARAM_PATTERN``); its default may only name a committed library file under ``recipes/waveforms/``."""
 
-    type: Literal["float", "int", "bool", "enum", "float_list"] = "float"
+    type: Literal["float", "int", "bool", "enum", "float_list", "file"] = "float"
     unit: Unit | None = None
     default: Any = None
     recommended: tuple[float, float] | None = None
@@ -79,10 +140,13 @@ class ParamSpec(StrictModel):
             ok = isinstance(value, int) and not isinstance(value, bool)
         elif self.type == "float":
             ok = _is_real(value)
+        elif self.type == "file":
+            ok = file_param_origin(value) == "library"
         else:
             ok = isinstance(value, list) and all(_is_real(v) for v in value)
         if not ok:
-            raise ValueError(f"default {value!r} does not match type {self.type}.")
+            expected = "a recipes/waveforms/<name>.csv path" if self.type == "file" else f"type {self.type}"
+            raise ValueError(f"default {value!r} does not match {expected}.")
         if self.range is not None:
             values = value if isinstance(value, list) else [value]
             if any(not self.range[0] <= v <= self.range[1] for v in values):
@@ -90,7 +154,11 @@ class ParamSpec(StrictModel):
 
 
 class RoleSpec(StrictModel):
-    """One DUT role of a recipe (``gate``, ``drain`` ...); bound to the pin-map terminal of the same name."""
+    """One DUT role of a recipe (``gate``, ``drain`` ...); bound to the pin-map terminal of the same name.
+
+    ``module_types`` must fit the function (SMU functions on SMUs, ``pgu`` on an HV-SPGU, ``wgfmu`` on a WGFMU,
+    ``cmu_high``/``cmu_low`` on an MFCMU); R-PIN-01 refuses the GNDU for anything but a plain ``ground`` role.
+    """
 
     function: RoleFunction
     measure: list[Literal["I", "V"]] = Field(default_factory=list)
@@ -107,10 +175,19 @@ class RoleSpec(StrictModel):
             raise ValueError("measure lists a quantity twice.")
         if self.prefer is not None and self.module_types and self.prefer not in self.module_types:
             raise ValueError("prefer must be one of module_types.")
+        fitting = FUNCTION_MODULE_TYPES[self.function]
+        wrong = sorted(set(self.module_types) - fitting)
+        if wrong:
+            raise ValueError(f"a {self.function} role cannot use {wrong}; module types: {sorted(fitting)}.")
         for key, value in self.settings.items():
             if isinstance(value, str) and value.startswith("$") and not PARAM_REF.match(value):
                 raise ValueError(f"settings.{key}: {value!r} is not a valid $parameter reference.")
         return self
+
+    @property
+    def resource(self) -> SwitchInput:
+        """The instrument resource behind the role (``smu``, ``pgu``, ``wgfmu`` or ``cmu``)."""
+        return FUNCTION_INPUT[self.function]
 
     def param_refs(self) -> set[str]:
         """Names of the recipe parameters referenced by ``$name`` in ``settings``."""
@@ -137,11 +214,13 @@ class AnalysisSpec(StrictModel):
 
 
 class Recipe(StrictModel):
-    """A recipe (blueprint 2.6). Every executable action, including self-test and self-calibration, is one."""
+    """A recipe (blueprint v1 2.6, v2 2.3). Every executable action, including self-test and self-calibration, is
+    one. ``family`` is the card family folder it belongs to."""
 
     id: RecipeId
     version: int = Field(ge=1)
     title: str = Field(min_length=1)
+    family: RecipeFamily
     kind: Identifier
     status: ValidationStatus
     card: str | None
@@ -173,6 +252,7 @@ class RecipeSummary(StrictModel):
 
     id: RecipeId
     title: str
+    family: RecipeFamily
     kind: Identifier
     status: ValidationStatus
     card: str | None

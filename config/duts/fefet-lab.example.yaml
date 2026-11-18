@@ -1,0 +1,33 @@
+# DUT profile (example; committed). Schema: b1500_test_agent.models.policy.DutProfile; name = file name.
+# n-channel HfZrO FeFET as the lab measures it (pin map fefet-sel: gate through selector SEL1 for SPGU program/erase
+# pulses and SMU reads); example values, not a real device. Per terminal: max |V| (V) and max |I| (A; also the largest
+# compliance) for DC sourcing (R-DUT-01); impedance class and minimum series resistance for sources without compliance
+# (R-SPGU-01); pulse envelope (R-PULSE-02). A plan outside the envelope needs confirmation (dut_envelope); a pulse on a
+# terminal without a pulse envelope is blocked. Nominal values help choose parameters and are never measurements.
+
+device_type: fefet
+description: Lab n-channel FeFET (example envelope; program/erase pulses on the gate through SEL1).
+terminals:
+  gate:
+    max_abs_v: 5.0
+    max_abs_i: 1.0e-3
+    impedance: high_z           # insulated gate stack: the SPGU short-circuit bound becomes a residual in the summary
+    pulse: {max_abs_v: 5.0, max_width_s: 1.0e-3, max_duty: 0.5, max_count: 1000000}
+  drain:
+    max_abs_v: 1.0
+    max_abs_i: 1.0e-3
+    impedance: resistive
+    min_series_ohm: 1000.0      # channel + contact resistance at full inversion (example)
+  source:
+    max_abs_v: 1.0
+    max_abs_i: 1.0e-3
+    impedance: resistive
+    min_series_ohm: 1000.0
+geometry: {w_um: 10.0, l_um: 1.0, tox_nm: 10.0}   # analysis only (e.g. current per width); tox = ferroelectric + IL
+nominal:
+  vth: {value: 0.6, unit: V}
+  memory_window: {value: 1.0, unit: V}
+  vc: {value: 2.8, unit: V}
+notes:
+  - Program/erase amplitude and width must be reviewed against film thickness and coercive field before any run.
+  - Reads use conservative SMU I-V settings (|Vg| well below the coercive voltage, Vd 0.1 V).

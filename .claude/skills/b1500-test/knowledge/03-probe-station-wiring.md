@@ -79,7 +79,8 @@ Seeded from deck slide 12.
 - Connect or disconnect the ASU only with the instrument off (UG PDF 57, 98). The ASU must stay with the SMU it
   was calibrated with (UG PDF 98).
 - Commands: `SAP` path, `SAR` 1 pA auto range (PG PDF 505-506); after reset the path is SMU side and 1 pA auto
-  ranging is disabled (PG Table 2-13, PDF 180). v1 does not drive the ASU; `topology.switching.asu` records it.
+  ranging is disabled (PG Table 2-13, PDF 180). The station profile declares an ASU under `switches`
+  (`kind: asu`, `present: null` until a human checks it); the ASU recipes arrive with the SMU milestone.
 
 ## SCUU GSWU and the 16440A selector
 
@@ -141,7 +142,11 @@ analysis ([06](06-analysis-extraction.md#resistance-fit)); the physics of contac
 ## Station topology records
 
 - `config/local/station.yaml` (human-owned, gitignored; the agent never edits it) records `topology`: `shield_box`,
-  `guard`, `kelvin`, per-module `cables` (cable type, `length_m`, guard, kelvin) and `switching` (`asu`, `scuu`,
-  `selector_16440a`), plus `interlock.available`. `null` means nobody has checked.
+  `guard`, `kelvin`, per-module `cables` (cable type, `length_m`, guard, kelvin), plus `interlock.available`. `null`
+  means nobody has checked.
+- `switches` declares the switch accessories (16440A selectors `SEL1`/`SEL2`, WGFMU `RSU201`/`RSU202`, SCUU, ASU):
+  `present` (`null` = unknown), `certainty` and, per DUT-side output, the channel wired to each input (`null` = not
+  recorded yet). A pin map reaches a pad through one with `SEL1.OUT1`; plans through an unrecorded input or an
+  `unverified` switch are blocked or need confirmation. Recording the selector wiring is bring-up stage L7.
 - When a measurement depends on an unknown wiring fact (guarded low-current path, Kelvin sense), say so in the
   report's assumptions and ask the human to confirm or record it.

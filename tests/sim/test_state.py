@@ -10,7 +10,7 @@ import pytest
 from b1500_test_agent.transport.base import StatefulTransport, TransportError, state_hooks
 from b1500_test_agent.transport.sim import SimTransport, sim_state_file
 from b1500_test_agent.transport.sim.state import COMMAND_LOG_LIMIT, SimPersistentState, load_state_file
-from tests.sim.helpers import load_scenario, noiseless, run
+from tests.sim.helpers import load_scenario, noiseless, on_test_mainframe, run
 
 
 def test_state_file_location(tmp_path: Path) -> None:
@@ -19,7 +19,7 @@ def test_state_file_location(tmp_path: Path) -> None:
 
 def test_outputs_and_command_log_persist_across_two_transports(tmp_path: Path) -> None:
     """Process A (e.g. the MCP server) leaves an output on; process B (the CLI) sees it and its command log."""
-    scenario = noiseless(load_scenario("nmos_basic"))
+    scenario = noiseless(on_test_mainframe(load_scenario("nmos_basic")))
     path = sim_state_file(tmp_path, scenario.name)
     first = SimTransport(scenario, state_file=path)
     first.open()
@@ -46,7 +46,7 @@ def test_outputs_and_command_log_persist_across_two_transports(tmp_path: Path) -
 
 
 def test_measurement_counter_persists_so_noise_continues(tmp_path: Path) -> None:
-    scenario = load_scenario("nmos_basic")
+    scenario = on_test_mainframe(load_scenario("nmos_basic"))
     path = sim_state_file(tmp_path, scenario.name)
     a = SimTransport(scenario, state_file=path)
     a.open()
@@ -61,7 +61,7 @@ def test_measurement_counter_persists_so_noise_continues(tmp_path: Path) -> None
 
 
 def test_save_is_atomic_json_and_without_a_file_is_a_no_op(tmp_path: Path) -> None:
-    scenario = noiseless(load_scenario("nmos_basic"))
+    scenario = noiseless(on_test_mainframe(load_scenario("nmos_basic")))
     path = sim_state_file(tmp_path, scenario.name)
     transport = SimTransport(scenario, state_file=path)
     transport.open()
@@ -76,7 +76,7 @@ def test_save_is_atomic_json_and_without_a_file_is_a_no_op(tmp_path: Path) -> No
 
 
 def test_corrupt_or_foreign_state_is_a_transport_error(tmp_path: Path) -> None:
-    scenario = noiseless(load_scenario("nmos_basic"))
+    scenario = noiseless(on_test_mainframe(load_scenario("nmos_basic")))
     path = sim_state_file(tmp_path, scenario.name)
     path.parent.mkdir(parents=True)
     path.write_text("{not json", encoding="utf-8")
@@ -89,7 +89,7 @@ def test_corrupt_or_foreign_state_is_a_transport_error(tmp_path: Path) -> None:
 
 
 def test_command_log_is_trimmed_on_save(tmp_path: Path) -> None:
-    scenario = noiseless(load_scenario("nmos_basic"))
+    scenario = noiseless(on_test_mainframe(load_scenario("nmos_basic")))
     path = sim_state_file(tmp_path, scenario.name)
     transport = SimTransport(scenario, state_file=path)
     transport.open()
@@ -103,7 +103,7 @@ def test_command_log_is_trimmed_on_save(tmp_path: Path) -> None:
 def test_state_hooks_are_found_through_the_audit_wrapper() -> None:
     from b1500_test_agent.transport.audit import AuditingTransport, MemoryAuditSink
 
-    inner = SimTransport(noiseless(load_scenario("nmos_basic")), state_file=None)
+    inner = SimTransport(noiseless(on_test_mainframe(load_scenario("nmos_basic"))), state_file=None)
     wrapped = AuditingTransport(inner, MemoryAuditSink())
     assert state_hooks(wrapped) is inner and isinstance(inner, StatefulTransport)
     assert state_hooks(object()) is None

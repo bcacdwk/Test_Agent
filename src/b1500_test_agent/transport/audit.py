@@ -2,9 +2,11 @@
 
 Every I/O call through ``AuditingTransport`` becomes one ``AuditEvent`` (``write``, ``read``, ``query``, ``poll``,
 ``device_clear``) carrying the command, the response, the duration and the current run/transaction/intent
-context; a failed call is recorded with ``error`` set and the exception is re-raised unchanged. The session
-(WP1.6) writes its lifecycle events (``session_open``, ``cleanup_step`` ...) to the same sink with
-``AuditEvent.now``.
+context; a failed call is recorded with ``error`` set and the exception is re-raised unchanged. The bus lifecycle
+calls ``open``/``lock``/``unlock``/``close`` are audited the same way as ``bus_open``/``bus_lock``/``bus_unlock``/
+``bus_close`` (blueprint v2 2.4; their ``dur_ms`` is the per-transaction overhead of ATV-13), best-effort: a
+failing sink never changes whether the link is open or locked. The session (WP1.6) writes its lifecycle events
+(``session_open``, ``cleanup_step`` ...) to the same sink with ``AuditEvent.now``.
 
 Sinks number events (``seq``) in the order they record them. ``JsonlAuditSink`` appends one UTF-8 line per event,
 ``\\n``-terminated, opening the file per event so no handle stays open (Windows-safe, several processes may
@@ -13,6 +15,7 @@ append to the same daily file).
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -145,11 +148,31 @@ class AuditingTransport:
         self.sink.emit(AuditEvent.now(ev, self.backend, run=ctx.run, tx=ctx.tx, intent=ctx.intent, cmd=cmd,
                                       resp=resp, dur_ms=dur_ms, error=error))
 
+    def _lifecycle(self, ev: AuditEventName, action: Callable[[], None]) -> None:
+        """Run a bus lifecycle call and audit it best-effort: a failing sink never changes whether the link is open
+        or locked (the I/O events still fail loudly, and the transaction's own lifecycle events are best-effort
+        too)."""
+        start = time.perf_counter()
+        try:
+            action()
+        except BaseException as exc:
+            with contextlib.suppress(Exception):
+                self._emit(ev, None, None, start, error=f"{type(exc).__name__}: {exc}")
+            raise
+        with contextlib.suppress(Exception):
+            self._emit(ev, None, None, start)
+
     def open(self) -> None:
-        self.inner.open()
+        self._lifecycle("bus_open", self.inner.open)
 
     def close(self) -> None:
-        self.inner.close()
+        self._lifecycle("bus_close", self.inner.close)
+
+    def lock(self) -> None:
+        self._lifecycle("bus_lock", self.inner.lock)
+
+    def unlock(self) -> None:
+        self._lifecycle("bus_unlock", self.inner.unlock)
 
     def write(self, cmd: str) -> None:
         self._call("write", cmd, lambda: self.inner.write(cmd), lambda _: None)

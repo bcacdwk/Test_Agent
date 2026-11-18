@@ -39,7 +39,7 @@ from typing import Literal
 from b1500_test_agent.models.measurement import CHANNEL_NUMBERS
 from b1500_test_agent.models.sim import SimFault
 from b1500_test_agent.models.station import MODULE_TYPE_BY_MODEL, SMU_TYPES, TWO_CHANNEL_TYPES, SimScenario, SimSlot
-from b1500_test_agent.transport.base import TransportClosed, TransportError, TransportTimeout
+from b1500_test_agent.transport.base import BusLocked, TransportClosed, TransportError, TransportTimeout
 from b1500_test_agent.transport.sim import flex
 from b1500_test_agent.transport.sim.devices import Circuit, canonical_channel
 from b1500_test_agent.transport.sim.faults import FaultEngine
@@ -528,7 +528,9 @@ class SimTransport:
 
     ``state_file`` (usually ``sim_state_file(state_dir, scenario.name)``) holds the persistent state shared by all
     processes; ``open()`` loads it, and the session calls ``load_state()``/``save_state()`` under the instrument
-    lock. ``faults`` are active from the start (the scenario's fault profile); ``inject()`` adds more.
+    lock. ``faults`` are active from the start (the scenario's fault profile); ``inject()`` adds more. The session
+    opens and closes it per transaction like the VISA link (blueprint v2 2.4); ``lock()``/``unlock()`` are no-ops
+    except that an active ``bus_locked`` fault refuses ``lock()``.
     """
 
     backend: Literal["sim"] = "sim"
@@ -542,6 +544,8 @@ class SimTransport:
         self.instrument = SimInstrument(scenario, faults=faults)
         self.time_scale = SCALED_TIME_FACTOR if scenario.timing == "scaled" else 0.0
         self._open = False
+        self.locked = False
+        """True between a successful ``lock()`` and the next ``unlock()``/``close()`` (tests read it)."""
 
     # -- helpers -------------------------------------------------------------------------------------------------------
 
@@ -570,6 +574,21 @@ class SimTransport:
 
     def close(self) -> None:
         self._open = False
+        self.locked = False
+
+    def lock(self) -> None:
+        """No bus lock exists in the simulator; an active ``bus_locked`` fault refuses the request (``BusLocked``),
+        as a VISA exclusive lock held by another client would."""
+        self._require_open()
+        if self.locked:
+            return
+        if self.instrument.faults.lock_refused():
+            raise BusLocked(f"{self.resource} is locked by another client (simulated bus_locked fault); "
+                            "nothing was sent")
+        self.locked = True
+
+    def unlock(self) -> None:
+        self.locked = False
 
     def write(self, cmd: str) -> None:
         self._require_open()

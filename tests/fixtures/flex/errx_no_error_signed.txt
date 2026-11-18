@@ -1,0 +1,6 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 432 (printed 4-114, ERRX? response when no error occurred) with the code sign the lab firmware sends
+# kind: errx
+# command: ERRX?
+# expect: null
+# note: The Programming Guide prints 0,"No Error."; the lab's own control code (lwp/matlab_B1500/lib/IV_sweep.m, IVt_sampling.m, SPGU_pulse.m) checks startsWith(response, '+0,'), so the firmware it ran against answers with a signed code. Both forms mean success (blueprint v2 1.1 pitfall); the exact firmware text is a bring-up L0 item (blueprint 7.6 item 3).
++0,"No Error."

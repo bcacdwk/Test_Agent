@@ -311,18 +311,31 @@ class Slow(StrictModel):
     factor: float = Field(gt=0.0, le=1.0e6)
 
 
+class BusLockedFault(StrictModel):
+    """Another client (EasyEXPERT, a second VISA program) holds the instrument's exclusive bus lock (blueprint v2
+    4.3): starting with the ``nth`` bus-lock request, ``count`` requests (null = every later one) are refused
+    (``BusLocked``, result ``instrument_busy``) and nothing reaches the instrument. A request is
+    ``SimTransport.lock()`` on the simulator and the VISA ``lock_excl`` on visa-loop, i.e. one per transaction or
+    status snapshot (more inside a WGFMU phase, which relocks). A transaction already holding the lock is never
+    interrupted."""
+
+    kind: Literal["bus_locked"] = "bus_locked"
+    nth: int = Field(default=1, ge=1)
+    count: int | None = Field(default=None, ge=1)
+
+
 SimFault = Annotated[
     ComplianceAt | ErrxFault | TimeoutFault | GarbageData | InterlockOpen | Disconnect | Oscillation | IdnOverride
-    | ModulesOverride | IgnoreDz | CleanupFailure | Slow,
+    | ModulesOverride | IgnoreDz | CleanupFailure | Slow | BusLockedFault,
     Field(discriminator="kind"),
 ]
-"""One simulator fault (blueprint 3); the ``kind`` key selects the type."""
+"""One simulator fault (blueprint 3, v2 4.3); the ``kind`` key selects the type."""
 
 FAULT_KINDS: tuple[str, ...] = (
     "compliance_at", "errx", "timeout", "garbage_data", "interlock_open", "disconnect", "oscillation",
-    "idn_override", "modules_override", "ignore_dz", "cleanup_failure", "slow",
+    "idn_override", "modules_override", "ignore_dz", "cleanup_failure", "slow", "bus_locked",
 )  # fmt: skip
-"""Every ``SimFault`` kind, in blueprint order."""
+"""Every ``SimFault`` kind, in blueprint order (v1 kinds, then the v2 additions of blueprint 4.3)."""
 
 
 class SimFaultProfile(StrictModel):

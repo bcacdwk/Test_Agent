@@ -29,6 +29,7 @@ PATTERN_SETS: dict[str, tuple[str, ...]] = {
     "pyvisa": (r"\bpyvisa\b", r"ResourceManager\s*\(", r"\bvisa\.ResourceManager\b"),
     "core_bypass": (
         r"\bB1500Driver\s*\(", r"\bB1500Service\s*\(", r"\bSimTransport\s*\(", r"\bmake_transport\s*\(",
+        r"\bmake_bus\s*\(", r"\bVisaTransport\s*\(",
         r"\b(?:from|import)\s+b1500_test_agent\.(?:transport|driver|session|catalog|service)\b",
     ),
     "human_cli": (r"\bb1500(?:\.exe)?['\"]?\s+fault\b", r"\bb1500(?:\.exe)?['\"]?\s+run\b[^\n]*?--confirm\b"),

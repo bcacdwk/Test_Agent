@@ -100,6 +100,33 @@ def test_errx_forms() -> None:
         parse_errx('"No Error."')
 
 
+@pytest.mark.parametrize("text", ['0,"No Error."', '+0,"No Error."', "0,", "+0,", "0", "+0", ' +0 , "No Error." \r'])
+def test_errx_every_success_form_is_success(text: str) -> None:
+    """Blueprint v2 1.1 lab pitfall: the PG prints ``0,"No Error."``, the lab firmware answers ``+0,...``."""
+    assert parse_errx(text) is None
+
+
+def test_errx_signed_error_codes_keep_code_and_message() -> None:
+    error = parse_errx('+305,"Excess current in HPSMU.; SLOT1"')
+    assert error is not None and (error.code, error.message) == (305, "Excess current in HPSMU.; SLOT1")
+    error = parse_errx("+121")
+    assert error is not None and error.code == 121
+    for bad in ("+", ",0", "No Error", "0x10,"):
+        with pytest.raises(FlexParseError):
+            parse_errx(bad)
+
+
+def test_integer_answers_accept_an_explicit_plus_sign() -> None:
+    assert parse_status_byte("+40").value == 40 and parse_status_byte(" 40\r\n").value == 40
+    assert parse_self_test_result("+0") == 0 and parse_self_test_result("+1028") == 1028
+    for bad in ("-1", "+", "256", "+256", "4 0", "0x28"):
+        with pytest.raises(FlexParseError):
+            parse_status_byte(bad)
+    for bad in ("-0", "+2048", "ok"):
+        with pytest.raises(FlexParseError):
+            parse_self_test_result(bad)
+
+
 def test_status_byte_bits() -> None:
     assert status_flags(StatusByte(value=0)) == []
     assert status_flags(1 + 2 + 16 + 64) == ["data_ready", "wait", "set_ready", "rqs"]

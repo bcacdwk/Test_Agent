@@ -1,12 +1,19 @@
-"""``Session``: one per process; owns the transport, the instrument lock, the fault latch and the audit sink
-(blueprint 2.4, 2.7).
+"""``Session``: one per process; owns the instrument bus, the instrument lock, the fault latch and the audit sink
+(blueprint 2.4, 2.7; bus lifecycle v2 2.4).
 
-Layering: session -> driver -> transport. The transport comes from ``transport_factory`` (normally
-``make_transport(bundle.settings, sink, scenario=bundle.sim_scenario, faults=bundle.sim_faults,
-state_dir=bundle.paths.state_dir)``), is created lazily and opened at the first locked operation; a factory result
-that is not an ``AuditingTransport`` is wrapped in one with the session's sink. Every instrument action holds the
-instrument lock and, on the simulator, loads the shared state right after acquiring it and saves it right before
-releasing it, so the MCP server and the CLI see one instrument.
+Layering: session -> driver -> transport. The bus comes from ``bus_factory`` (normally ``make_bus(bundle.settings,
+sink, scenario=bundle.sim_scenario, faults=bundle.sim_faults, state_dir=bundle.paths.state_dir)``; a factory may
+also return a bare ``Transport``), is created lazily, and its FLEX link is wrapped in an ``AuditingTransport`` with
+the session's sink unless it already is one. Every instrument action holds the instrument lock and, on the
+simulator, loads the shared state right after acquiring it and saves it right before releasing it, so the MCP
+server and the CLI see one instrument.
+
+Bus lifecycle (blueprint v2 2.4, decision 7): every transaction and status snapshot opens the FLEX link, takes its
+exclusive lock, and unlocks and closes it at the end (``_bus_begin``/``_bus_end``, under the instrument lock and
+inside the transaction's audit binding), so no process holds the VISA session or its lock between calls. With
+``visa.session: process`` (ATV-13 fallback, backend visa only) the VISA session stays open for the process and only
+the lock is taken and released per transaction. ``session_open`` is audited once per process (first open); the
+``bus_*`` events of every open/lock/unlock/close go to the transaction's sink.
 
 ``state_dir`` layout (blueprint 2.7): ``locks/`` (``InstrumentLock``), ``fault.json`` (``FaultLatch``),
 ``inflight.json`` (``Transaction``), ``sim/<scenario>.state.json`` (simulator), ``audit/YYYY-MM-DD.jsonl``
@@ -15,10 +22,12 @@ releasing it, so the MCP server and the CLI see one instrument.
 
 from __future__ import annotations
 
+import contextlib
 import os
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal, cast
 
 from b1500_test_agent.driver.b1500 import B1500Driver
 from b1500_test_agent.models.audit import AuditEvent
@@ -38,7 +47,10 @@ from b1500_test_agent.session.transaction import (
     read_live_state,
 )
 from b1500_test_agent.transport.audit import AuditingTransport, AuditSink, JsonlAuditSink
-from b1500_test_agent.transport.base import Transport, TransportError, state_hooks
+from b1500_test_agent.transport.base import Bus, BusLocked, Transport, TransportError, state_hooks
+
+BusMode = Literal["transaction", "process"]
+BusFactory = Callable[[], Bus | Transport]
 
 
 class DailyAuditSink(JsonlAuditSink):
@@ -63,13 +75,14 @@ def state_audit_sink(state_dir: Path) -> DailyAuditSink:
 
 
 class Session:
-    """One per process; lazy open (blueprint 2.4).
+    """One per process; lazy bus (blueprint 2.4, v2 2.4).
 
-    ``state_dir`` defaults to the configured one (``Paths.from_env().with_settings(settings.paths).state_dir``);
-    ``adapter`` is recorded as the lock holder's adapter.
+    ``bus_factory`` returns the ``Bus`` (or a bare FLEX ``Transport``); ``state_dir`` defaults to the configured one
+    (``Paths.from_env().with_settings(settings.paths).state_dir``); ``adapter`` is recorded as the lock holder's
+    adapter.
     """
 
-    def __init__(self, settings: Settings, transport_factory: Callable[[], Transport], audit: AuditSink, *,
+    def __init__(self, settings: Settings, bus_factory: BusFactory, audit: AuditSink, *,
                  state_dir: Path | None = None, adapter: Adapter = "cli") -> None:
         self.settings = settings
         self.audit = audit
@@ -79,25 +92,43 @@ class Session:
         self.fault_latch = FaultLatch(self.state_dir, audit=audit, backend=settings.backend)
         self.last_live: LiveState | None = None
         """The most recent snapshot (``snapshot(refresh=False)`` returns it)."""
-        self._factory = transport_factory
-        self._transport: AuditingTransport | None = None
+        self._factory = bus_factory
+        self._bus: Bus | None = None
         self._lock: InstrumentLock | None = None
-        self._opened = False
+        self._bus_open = False
+        self._announced = False
 
     # -- plumbing ---------------------------------------------------------------------------------------------------
 
     @property
     def backend(self) -> Backend:
-        return self._transport.backend if self._transport is not None else self.settings.backend
+        return self._bus.flex.backend if self._bus is not None else self.settings.backend
+
+    @property
+    def bus(self) -> Bus:
+        """The instrument bus (created by the factory on first use, not yet opened); ``flex`` is audited."""
+        if self._bus is None:
+            made = self._factory()
+            bus = made if isinstance(made, Bus) else Bus(flex=made)
+            flex = bus.flex if isinstance(bus.flex, AuditingTransport) else AuditingTransport(bus.flex, self.audit)
+            self._bus = bus._replace(flex=flex)
+        return self._bus
 
     @property
     def transport(self) -> AuditingTransport:
-        """The audited transport (created by the factory on first use, not yet opened)."""
-        if self._transport is None:
-            transport = self._factory()
-            self._transport = (transport if isinstance(transport, AuditingTransport)
-                               else AuditingTransport(transport, self.audit))
-        return self._transport
+        """The audited FLEX link of the bus."""
+        return cast(AuditingTransport, self.bus.flex)  # the bus property wraps it
+
+    @property
+    def bus_mode(self) -> BusMode:
+        """``transaction`` (open/lock/unlock/close per transaction and snapshot) or ``process`` (``visa.session:
+        process``: the VISA session stays open, the lock is per transaction); always ``transaction`` off visa."""
+        return self.settings.visa.session if self.backend == "visa" else "transaction"
+
+    @property
+    def bus_open(self) -> bool:
+        """True while the FLEX link is open (inside a transaction, or between transactions in ``process`` mode)."""
+        return self._bus_open
 
     @property
     def lock(self) -> InstrumentLock:
@@ -114,22 +145,64 @@ class Session:
         """The inflight marker, if one is present (a transaction is running or a process died inside one)."""
         return read_inflight(self.inflight_path)
 
-    def _open(self) -> None:
-        """Open the transport once (called under the instrument lock)."""
-        if self._opened:
+    def _bus_begin(self) -> None:
+        """Open (if needed) and lock the FLEX link for one transaction or snapshot; called under the instrument lock
+        inside the audit binding. Raises ``BusLocked`` when another client holds the bus (the link is then closed
+        again, except a ``process``-mode session, which stays open) and ``TransportError`` when it cannot open."""
+        transport = self.transport
+        if self._bus_open:  # process mode: the VISA session stayed open; take the lock again
+            try:
+                transport.lock()
+                return
+            except BusLocked:
+                raise
+            except Exception:  # noqa: BLE001 - a stale session (lost link, invalid session) is reopened below
+                self._bus_close()
+            except BaseException:
+                self._bus_close()
+                raise
+        transport.open()
+        self._bus_open = True
+        try:
+            self._announce()
+            transport.lock()
+        except BaseException:
+            self._bus_close()
+            raise
+
+    def _bus_end(self) -> None:
+        """Release the FLEX link after a transaction or snapshot: unlock, and close unless in ``process`` mode. Never
+        raises an ``Exception`` (failures are audited by ``AuditingTransport``; the link is then closed)."""
+        if not self._bus_open:
+            return
+        try:
+            self.transport.unlock()
+        except Exception:  # noqa: BLE001 - recorded as a failed bus_unlock; closing releases the lock anyway
+            self._bus_close()
+            return
+        if self.bus_mode == "transaction":
+            self._bus_close()
+
+    def _bus_close(self) -> None:
+        self._bus_open = False
+        with contextlib.suppress(Exception):  # Transport.close never raises; a broken wrapper must not either
+            self.transport.close()
+
+    def _announce(self) -> None:
+        """Audit ``session_open`` once per process (the first time the bus opens)."""
+        if self._announced:
             return
         transport = self.transport
-        transport.open()
-        self._opened = True
         self.audit.emit(AuditEvent.now("session_open", transport.backend, data={
             "resource": transport.resource, "adapter": self.adapter, "state_dir": self.state_dir.as_posix(),
+            "bus": self.bus_mode,
         }))
+        self._announced = True
 
     def close(self) -> None:
-        """Close the transport (a later action opens it again)."""
-        if self._transport is not None and self._opened:
-            self._transport.close()
-        self._opened = False
+        """Close the bus if it is open (``process`` mode, or an interrupted call); a later action opens it again."""
+        if self._bus is not None and self._bus_open:
+            self._bus_close()
 
     def _holder(self, plan_id: str | None = None) -> LockHolder:
         return LockHolder(pid=os.getpid(), host=host_name(), adapter=self.adapter, plan_id=plan_id,
@@ -152,16 +225,19 @@ class Session:
             self.lock.acquire(self._holder(), timeout_s=lock_timeout_s),
             transport.bind(tx=tx_id, intent="snapshot"),
         ):
-            self._open()
-            hooks = state_hooks(transport)
-            if hooks is not None:
-                hooks.load_state()
+            self._bus_begin()
             try:
-                live = read_live_state(B1500Driver(transport), backend=transport.backend,
-                                       resource=transport.resource)
-            finally:
+                hooks = state_hooks(transport)
                 if hooks is not None:
-                    hooks.save_state()
+                    hooks.load_state()
+                try:
+                    live = read_live_state(B1500Driver(transport), backend=transport.backend,
+                                           resource=transport.resource)
+                finally:
+                    if hooks is not None:
+                        hooks.save_state()
+            finally:
+                self._bus_end()
         self.last_live = live
         return live
 
@@ -178,7 +254,8 @@ class Session:
         recovered (audited ``recovery_cleanup``). It still takes the instrument lock, so a transaction in another
         process finishes its own cleanup first (``InstrumentBusy`` after ``lock_timeout_s``).
 
-        When the transport cannot even be opened, the report is unverified and the fault is latched.
+        When the transport cannot even be opened, or another client holds the bus lock (``BusLocked``), nothing can
+        be verified: the report is unverified and the fault is latched.
         """
         tx = Transaction(self, intent=f"safe_shutdown: {reason}", envelope=None, run=None,
                          lock_timeout_s=lock_timeout_s, mode="shutdown", abort=abort)

@@ -1,8 +1,10 @@
-"""``VisaTransport`` conformance against pyvisa-sim (blueprint 2.2; ATV-2 terminations).
+"""``VisaTransport`` conformance against pyvisa-sim (blueprint 2.2; ATV-2 terminations; v2 2.4 lifecycle).
 
 This module never imports ``pyvisa`` itself (the import lint scans tests too): the simulated VISA library is
 selected through ``VisaSettings.library = "<yaml>@sim"``. pyvisa-sim does not implement serial poll, device clear
-or locking, so those calls surface as ``TransportError`` here; on the vendor ``@ivi`` stack they are real.
+or locking, so those calls surface as ``TransportError`` here; on the vendor ``@ivi`` stack they are real. The full
+behaviour (locking across processes, timeouts, device clear, chunked reads, every recipe) runs against the
+simulator in ``tests/visa_loop/``.
 """
 
 from __future__ import annotations
@@ -88,11 +90,24 @@ def test_backend_limitations_surface_as_transport_errors(visa: VisaTransport) ->
 
 
 @pytest.mark.parametrize("exclusive_lock", [True, False])
-def test_exclusive_lock_option(exclusive_lock: bool) -> None:
+def test_open_never_locks_and_lock_follows_the_exclusive_lock_option(exclusive_lock: bool) -> None:
+    """Blueprint v2 2.4: open (no lock) -> lock_excl only with ``exclusive_lock``; pyvisa-sim has no locking, so a
+    lock request is an unsupported operation there (and leaves the session usable), while ``exclusive_lock: false``
+    never asks for one."""
     transport = VisaTransport(settings(exclusive_lock=exclusive_lock))
     transport.open()
+    assert not transport.locked and transport.query("*OPC?") == "1"
+    if exclusive_lock:
+        with pytest.raises(TransportError, match="not supported"):
+            transport.lock()
+        assert not transport.locked
+    else:
+        transport.lock()
+        assert not transport.locked
+    transport.unlock()  # nothing held: nothing to release
     assert transport.query("*OPC?") == "1"
     transport.close()
+    assert not transport.is_open
 
 
 def test_open_failures_are_transport_errors() -> None:
@@ -110,6 +125,6 @@ def test_auditing_wrapper_records_visa_io() -> None:
     with pytest.raises(TransportTimeout):
         transport.read(timeout_s=0.05)
     transport.close()
-    assert [(e.ev, e.backend, e.error is None) for e in sink.events] == [("query", "visa", True),
-                                                                         ("read", "visa", False)]
-    assert sink.events[0].resp == IDN
+    assert [(e.ev, e.backend, e.error is None) for e in sink.events] == [
+        ("bus_open", "visa", True), ("query", "visa", True), ("read", "visa", False), ("bus_close", "visa", True)]
+    assert sink.events[1].resp == IDN

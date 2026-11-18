@@ -33,11 +33,12 @@ present; values marked `TODO(verify)` are confirmed during execution. Plan of re
 - **Abort** means: stop, then `uv run b1500 shutdown --reason "M4 STAGE abort: WHY"` and continue with "If cleanup
   fails" when it does not report a verified cleanup.
 
-**One b1500 process at a time.** The b1500 MCP server inside a running Codex or Claude Code session keeps its VISA
-session open (with `visa.exclusive_lock: true`) from its first instrument call until the harness exits. A CLI command
-in another window then cannot open the instrument (expected: transport error; a `b1500 shutdown` that cannot reach
-the instrument latches the fault, by design). Keep the harnesses closed during Stage 0 to L3. L0 checks this
-behaviour once.
+**CLI and harness coexist.** Every b1500 call opens the VISA session, takes its exclusive lock
+(`visa.exclusive_lock: true`), and unlocks and closes it before it returns (blueprint v2 2.4), so the b1500 MCP
+server inside an idle Codex or Claude Code session holds nothing and `uv run b1500 status` in another window works.
+Only a program that keeps the instrument (EasyEXPERT, another VISA tool) makes a call answer `busy`
+(`instrument_busy`, nothing sent) after `visa.lock_timeout_ms`; a `b1500 shutdown` that cannot take the bus latches
+the fault, by design. Exit EasyEXPERT before Stage 0. L0 checks this once.
 
 **If cleanup fails** (a run reports cleanup `unverified`, or `fault: latched` appears in `uv run b1500 status`):
 check the front panel and the DUT, run `uv run b1500 lock status`, then `uv run b1500 shutdown --reason "WHY"`. When
@@ -189,11 +190,12 @@ interlock event, not as "closed".
    Expected: `backend: visa`, the same `*IDN?` and module table as the CLI. ATV-4 fallback (the server cannot open
    VISA from inside Codex while the CLI can): follow the Codex documentation for MCP servers that need device access
    and record the setting used in [deployment-windows.md](deployment-windows.md).
-2. With Codex still open, run `uv run b1500 status` in a second PowerShell window. Expected: a transport error
-   (resource locked by the server's VISA session). Close Codex; `uv run b1500 status` works again. Record what
-   happened. If the lock is a problem in daily use, the owner may set `visa.exclusive_lock: false` in
-   `config\local\settings.yaml` (the instrument lock under `data\state\locks\` still serializes every transaction);
-   that is an owner decision.
+2. With Codex still open and idle, run `uv run b1500 status` in a second PowerShell window. Expected: status ok
+   with the same identity (the server holds no VISA session between calls). ATV-13: run `uv run b1500 status` ten
+   times and add up `dur_ms` of the `bus_open`, `bus_lock`, `bus_unlock` and `bus_close` lines per call in
+   `data\state\audit\<date>.jsonl`; expected below 100 ms per call and no errors. Record both. If opening per call
+   is slow or unstable over GPIB, the owner may set `visa.session: process` in `config\local\settings.yaml` (the
+   VISA session stays open, the lock is still taken per call); that is an owner decision.
 
 ### Abort criteria
 

@@ -174,7 +174,8 @@ Start it from the clone root, with no extra flags.
    argument; compare it, then **decline** (nothing is sent to the instrument). Fallback if the prompt hides the
    arguments: approve real runs only after comparing the summary the agent printed in the chat (the skill makes it
    print the summary verbatim; M3 scenario S4 checks that); record it.
-6. Close Codex again before continuing the bring-up with the command line (one b1500 process at a time).
+6. Codex may stay open while you continue the bring-up with the command line: an idle b1500 MCP server holds no
+   VISA session ([hardware-bringup.md](hardware-bringup.md), "CLI and harness coexist").
 
 ### Step 8 — Claude Code (optional)
 
@@ -198,10 +199,11 @@ Start it from the clone root, with no extra flags.
 ### Step 9 — Daily use and updates
 
 - Each measurement day: the interlock test of bring-up Stage 0 (the User Guide asks for it daily, UG PDF 142),
-  EasyEXPERT ended, then `uv run b1500 status` with the harness closed, or `station_status` through the agent.
-- **One b1500 process at a time:** a running harness keeps the instrument's VISA session open, so close it before
-  using the CLI on the instrument (details: [hardware-bringup.md](hardware-bringup.md), "One b1500 process at a
-  time").
+  EasyEXPERT ended, then `uv run b1500 status` (an open harness does not block it), or `station_status` through the
+  agent.
+- **CLI and harness coexist:** every b1500 call opens and closes the instrument's VISA session, so the CLI works
+  while a harness is open; only EasyEXPERT or another VISA program that keeps the instrument makes calls answer
+  `busy` (details: [hardware-bringup.md](hardware-bringup.md), "CLI and harness coexist").
 - Human-only commands, typed by you, never by the agent: `uv run b1500 run --confirm PLAN_ID` and
   `uv run b1500 fault clear --by NAME` (the latter only after a verified `uv run b1500 shutdown`).
 - **Update:** close the harness, then

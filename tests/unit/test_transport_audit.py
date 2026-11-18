@@ -1,4 +1,5 @@
-"""Audit events and ``AuditingTransport`` (blueprint 2.2, 2.7): line shape, sinks, one event per I/O."""
+"""Audit events and ``AuditingTransport`` (blueprint 2.2, 2.7, v2 2.4): line shape, sinks, one event per I/O and
+per bus lifecycle call."""
 
 from __future__ import annotations
 
@@ -10,9 +11,9 @@ import pytest
 from pydantic import ValidationError
 
 from b1500_test_agent.models.audit import AuditEvent, format_ts
-from b1500_test_agent.models.sim import Disconnect, TimeoutFault
+from b1500_test_agent.models.sim import BusLockedFault, Disconnect, TimeoutFault
 from b1500_test_agent.transport.audit import AuditingTransport, JsonlAuditSink, MemoryAuditSink, NullAuditSink
-from b1500_test_agent.transport.base import Transport, TransportError, TransportTimeout
+from b1500_test_agent.transport.base import BusLocked, Transport, TransportError, TransportTimeout
 from b1500_test_agent.transport.sim import SimTransport
 from tests.unit.helpers import CONFIG_DIR, read_yaml
 
@@ -93,14 +94,17 @@ def test_auditing_transport_records_every_io_call() -> None:
     transport.write("CL")
     transport.close()
     events = sink.events
-    assert [e.ev for e in events] == ["write", "query", "write", "read", "poll", "device_clear", "write"]
-    assert events[1].cmd == "*IDN?" and events[1].resp == idn
-    assert events[3].cmd is None and events[3].resp == "1"
-    assert events[4].resp == str(status)
-    assert all(e.run == "S20261117T063012Z-7f3a" and e.intent == "gate sweep" for e in events[:6])
-    assert events[6].run is None and events[6].tx is None  # context restored after the block
+    assert [e.ev for e in events] == ["bus_open", "write", "query", "write", "read", "poll", "device_clear", "write",
+                                      "bus_close"]
+    io = events[1:-1]
+    assert io[1].cmd == "*IDN?" and io[1].resp == idn
+    assert io[3].cmd is None and io[3].resp == "1"
+    assert io[4].resp == str(status)
+    assert all(e.run == "S20261117T063012Z-7f3a" and e.intent == "gate sweep" for e in io[:6])
+    assert io[6].run is None and io[6].tx is None  # context restored after the block
     assert all(e.dur_ms is not None and e.backend == "sim" for e in events)
-    assert [e.seq for e in events] == list(range(7))
+    assert all(e.cmd is None and e.resp is None and e.error is None for e in (events[0], events[-1]))
+    assert [e.seq for e in events] == list(range(9))
 
 
 def test_failed_io_is_audited_with_the_error_and_reraised() -> None:
@@ -114,8 +118,49 @@ def test_failed_io_is_audited_with_the_error_and_reraised() -> None:
     inner.inject(Disconnect(after_writes=0))
     with pytest.raises(TransportError):
         transport.write("DZ")
-    assert [(e.ev, e.cmd) for e in sink.events] == [("read", None), ("write", "DZ")]
-    assert sink.events[0].error.startswith("TransportTimeout") and sink.events[1].error.startswith("TransportError")
+    events = sink.events[1:]  # after bus_open
+    assert [(e.ev, e.cmd) for e in events] == [("read", None), ("write", "DZ")]
+    assert events[0].error.startswith("TransportTimeout") and events[1].error.startswith("TransportError")
+
+
+def test_bus_lifecycle_is_audited_and_a_refused_lock_carries_the_error() -> None:
+    sink = MemoryAuditSink()
+    inner = sim()
+    transport = AuditingTransport(inner, sink)
+    inner.inject(BusLockedFault(count=1))
+    transport.open()
+    with pytest.raises(BusLocked):
+        transport.lock()
+    assert not inner.locked
+    transport.lock()
+    assert inner.locked
+    transport.unlock()
+    transport.close()
+    assert [(e.ev, e.error is None) for e in sink.events] == [
+        ("bus_open", True), ("bus_lock", False), ("bus_lock", True), ("bus_unlock", True), ("bus_close", True)]
+    assert "bus_locked" in (sink.events[1].error or "")
+    assert BusLocked.code == "instrument_busy"
+
+
+def test_a_failing_sink_never_desynchronizes_the_bus_lifecycle() -> None:
+    """Lifecycle auditing is best-effort (an I/O audit failure still raises): the link opens and closes anyway."""
+
+    class Broken(MemoryAuditSink):
+        def _record(self, event: AuditEvent) -> None:
+            raise OSError("disk full")
+
+    inner = sim()
+    transport = AuditingTransport(inner, Broken())
+    transport.open()
+    transport.lock()
+    assert inner.locked
+    with pytest.raises(OSError, match="disk full"):
+        transport.query("*IDN?")
+    transport.unlock()
+    transport.close()
+    assert not inner.locked
+    with pytest.raises(TransportError):
+        inner.write("CL")  # closed
 
 
 def test_nested_bind_restores_the_outer_context() -> None:

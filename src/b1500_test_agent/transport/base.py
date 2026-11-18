@@ -1,15 +1,21 @@
-"""The ``Transport`` protocol and its errors (blueprint 2.2).
+"""The ``Transport`` protocol, the instrument ``Bus`` and the transport errors (blueprint v2 2.4).
 
 A transport moves FLEX text to and from one instrument and knows nothing about FLEX semantics, plans or policy.
 Implementations: ``VisaTransport`` (real B1500A over VISA), ``SimTransport`` (in-process simulator) and the
 ``AuditingTransport`` wrapper. Every method raises only ``TransportError`` subclasses on I/O problems.
+
+Bus lifecycle (blueprint v2 2.4, decision 7): the session opens the link per transaction and per status snapshot
+and closes it afterwards, ``open -> lock -> ... -> unlock -> close``, so no process holds the VISA session or its
+exclusive lock between calls and the CLI and the MCP server coexist. ``lock()``/``unlock()`` also release the bus
+temporarily inside an open session (the WGFMU library phase, WP10.3, and the ``visa.session: process`` fallback of
+ATV-13); on the simulator they are no-ops apart from the ``bus_locked`` fault.
 
 Reads return the message text with the read termination and any trailing ``\\r`` removed (ATV-2).
 """
 
 from __future__ import annotations
 
-from typing import ClassVar, Protocol, runtime_checkable
+from typing import ClassVar, NamedTuple, Protocol, runtime_checkable
 
 from b1500_test_agent.errors import B1500Error
 from b1500_test_agent.models.common import Backend, ErrorCode
@@ -29,6 +35,13 @@ class TransportClosed(TransportError):
     """The transport is not open (never opened, or already closed)."""
 
 
+class BusLocked(TransportError):
+    """Another client holds the instrument's exclusive bus lock (EasyEXPERT, a second VISA program, the simulated
+    ``bus_locked`` fault); nothing was sent. Result code ``instrument_busy``."""
+
+    code: ClassVar[ErrorCode] = "instrument_busy"
+
+
 @runtime_checkable
 class Transport(Protocol):
     """Message-based link to one instrument; ``resource`` is e.g. ``GPIB0::17::INSTR`` or ``SIM::<scenario>``."""
@@ -37,11 +50,20 @@ class Transport(Protocol):
     resource: str
 
     def open(self) -> None:
-        """Connect; calling it on an open transport does nothing."""
+        """Connect (without taking the exclusive lock); calling it on an open transport does nothing."""
         ...
 
     def close(self) -> None:
-        """Disconnect; calling it on a closed transport does nothing."""
+        """Release the lock if held and disconnect; calling it on a closed transport does nothing; never raises."""
+        ...
+
+    def lock(self) -> None:
+        """Take the exclusive bus lock (VISA ``lock_excl`` when ``visa.exclusive_lock``; a no-op otherwise and on
+        the simulator). Raises ``BusLocked`` when another client holds it; calling it while locked does nothing."""
+        ...
+
+    def unlock(self) -> None:
+        """Release the exclusive bus lock; calling it while unlocked does nothing."""
         ...
 
     def write(self, cmd: str) -> None:
@@ -63,6 +85,15 @@ class Transport(Protocol):
     def device_clear(self) -> None:
         """Selected device clear (SDC); recovery path only."""
         ...
+
+
+class Bus(NamedTuple):
+    """The instrument links of one station (blueprint v2 2.4): ``flex`` carries FLEX text (VISA or simulator);
+    ``wgfmu`` is the WGFMU instrument-library session (``WgfmuApi``, WP10.1), ``None`` until then and whenever no
+    WGFMU library is available. ``make_bus`` builds it; the session opens and closes ``flex`` per transaction."""
+
+    flex: Transport
+    wgfmu: object | None = None
 
 
 @runtime_checkable

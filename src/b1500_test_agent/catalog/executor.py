@@ -11,8 +11,9 @@ blueprint 2.6 docstring:
    ``needs_confirmation`` without a summary → ``confirmation_required``; a summary that differs from the fresh
    ``plan_summary`` → ``summary_mismatch`` (the fresh summary is returned). Steps 1-3 do ZERO transport I/O (they
    read only plan, config, recipe and state files);
-4. ``Session.transaction`` (fault-latch check, lock, inflight marker, recovery, baseline drain), a live snapshot and
-   the ``pre_execute`` rules under the lock (``blocked`` → refuse; no source command is ever sent);
+4. ``Session.transaction`` (fault-latch check, lock, bus open + lock (``BusLocked`` -> refused, ``busy``, nothing
+   sent), inflight marker, recovery, baseline drain), a live snapshot and the ``pre_execute`` rules under the lock
+   (``blocked`` → refuse; no source command is ever sent);
 5. ``kind.acquire`` through the guarded driver; every raw read lands in ``raw/block-NNN.txt`` before parsing;
 6. after the transaction's cleanup: table (``data.csv`` or ``data.npz``), ``quality.json``, the recipe's default
    analyses (``analysis/<method>-<n>.json``), then the manifest (written once) and the index line.
@@ -70,10 +71,11 @@ from b1500_test_agent.session import (
     state_audit_sink,
 )
 from b1500_test_agent.transport.audit import AuditSink
-from b1500_test_agent.transport.base import Transport
-from b1500_test_agent.transport.factory import make_transport
+from b1500_test_agent.transport.base import Bus, BusLocked, Transport
+from b1500_test_agent.transport.factory import make_bus
 
-TransportFactory = Callable[[ConfigBundle, AuditSink], Transport]
+BusFactory = Callable[[ConfigBundle, AuditSink], Bus | Transport]
+"""Builds the instrument bus of a config bundle (default ``make_bus``; tests inject e.g. the visa-loop)."""
 SELF_CAL_RECIPE = "system.self_cal"
 DUT_INSTANCE_MAX = 200
 _PLAN_ID = re.compile(r"^P-[A-Z2-7]{10}$")
@@ -118,18 +120,19 @@ class Executor:
     """Plans and runs recipes for one process (blueprint 2.6). ``config`` is re-read on every call (digest cache).
 
     ``registry`` defaults to ``recipes/`` of the configured repository and is reloaded when a recipe file changes;
-    ``transport_factory`` replaces ``make_transport`` (tests); ``clock`` stamps plans and run ids.
+    ``bus_factory`` replaces ``make_bus`` (tests: the visa-loop resource manager); ``clock`` stamps plans and run
+    ids.
     """
 
     def __init__(self, config: ConfigLoader, *, registry: RecipeRegistry | None = None, adapter: Adapter = "cli",
-                 clock: Callable[[], datetime] | None = None, transport_factory: TransportFactory | None = None,
+                 clock: Callable[[], datetime] | None = None, bus_factory: BusFactory | None = None,
                  lock_timeout_s: float = 5.0) -> None:
         self.config = config
         self.adapter: Adapter = adapter
         self.lock_timeout_s = lock_timeout_s
         self._registry = registry
         self._clock = clock or (lambda: datetime.now(UTC))
-        self._transport_factory = transport_factory
+        self._bus_factory = bus_factory
         self._session: Session | None = None
         self._session_key: str | None = None
 
@@ -157,20 +160,20 @@ class Executor:
             if self._session is not None:
                 self._session.close()
             sink = state_audit_sink(state_dir)
-            custom = self._transport_factory
+            custom = self._bus_factory
 
-            def factory() -> Transport:
+            def factory() -> Bus | Transport:
                 if custom is not None:
                     return custom(bundle, sink)
-                return make_transport(bundle.settings, sink, scenario=bundle.sim_scenario, faults=bundle.sim_faults,
-                                      state_dir=state_dir)
+                return make_bus(bundle.settings, sink, scenario=bundle.sim_scenario, faults=bundle.sim_faults,
+                                state_dir=state_dir)
 
             self._session = Session(bundle.settings, factory, sink, state_dir=state_dir, adapter=self.adapter)
             self._session_key = key
         return self._session
 
     def close(self) -> None:
-        """Close the session's transport (a later call opens it again)."""
+        """Close the session's bus if it is still open (a later call opens it again)."""
         if self._session is not None:
             self._session.close()
 
@@ -428,7 +431,7 @@ class Executor:
         if state.error is not None:
             exc = state.error
             outcome = "aborted" if not isinstance(exc, Exception) else (
-                "refused" if isinstance(exc, FaultLatched) else "failed")
+                "refused" if isinstance(exc, FaultLatched | BusLocked) else "failed")
             error_code = _error_code(exc)
             message = f"{type(exc).__name__}: {exc}"
         elif state.refused:
@@ -481,10 +484,11 @@ class Executor:
         ok = outcome in ("completed", "completed_with_flags")
         latched = cleanup is not None and cleanup.latched_fault
         status: ResultStatus = "ok" if ok else (
-            "fault" if latched or error_code == "fault_latched" else ("blocked" if state.refused else "error"))
+            "fault" if latched or error_code == "fault_latched" else
+            "busy" if error_code == "instrument_busy" else ("blocked" if state.refused else "error"))
         return RunSummary(
             ok=ok, status=status, backend=backend, simulated=backend == "sim", message=final.message,
-            error_code=None if ok else error_code, next_steps=self._next_steps(outcome, latched, quality),
+            error_code=None if ok else error_code, next_steps=self._next_steps(outcome, latched, quality, error_code),
             run_id=folder.run_id, plan_id=plan.plan_id, outcome=outcome, status_counts=counts,
             quality_verdict=quality.verdict if quality else None, analyses=analyses,
             cleanup_verified=cleanup.verified if cleanup else None, artifacts=artifacts,
@@ -541,9 +545,13 @@ class Executor:
         return out
 
     @staticmethod
-    def _next_steps(outcome: RunOutcome, latched: bool, quality: QualityReport | None) -> list[str]:
+    def _next_steps(outcome: RunOutcome, latched: bool, quality: QualityReport | None,
+                    error_code: ErrorCode | None = None) -> list[str]:
         if latched:
             return ["the fault latch is set: call safe_shutdown and load skill b1500-debug; only a human clears it"]
+        if error_code == "instrument_busy":
+            return [("another client holds the instrument bus (EasyEXPERT or a second program); nothing was sent: "
+                     "ask the human to close it, then retry")]
         if outcome == "completed":
             return ["get_run for the data; analyze_run for further extractions"]
         if outcome == "completed_with_flags":

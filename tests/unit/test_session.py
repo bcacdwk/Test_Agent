@@ -1,5 +1,5 @@
 """Unit tests of ``session/``: lock, audit sink, inflight marker, cleanup on the hardware path (``LOP?``), snapshot,
-shared simulator state and audit routing (blueprint 2.4, 2.7)."""
+shared simulator state, audit routing (blueprint 2.4, 2.7) and the per-transaction bus lifecycle (v2 2.4)."""
 
 from __future__ import annotations
 
@@ -26,8 +26,8 @@ from b1500_test_agent.session import (
     state_audit_sink,
 )
 from b1500_test_agent.session.transaction import new_tx_id
-from b1500_test_agent.transport.audit import MemoryAuditSink
-from b1500_test_agent.transport.base import TransportError, TransportTimeout
+from b1500_test_agent.transport.audit import AuditingTransport, MemoryAuditSink
+from b1500_test_agent.transport.base import Bus, TransportError, TransportTimeout
 from tests.safety.helpers import DRAIN, GATE, MemoryRun, acquire, make_harness
 from tests.unit.driver_helpers import SpyTransport
 
@@ -275,3 +275,90 @@ def test_safe_shutdown_with_an_unopenable_transport_latches(tmp_path: Path) -> N
     assert record is not None and "transport unavailable" in record.reason
     assert session.lock.holder() is None
     assert [e.ev for e in daily.events][-2:] == ["cleanup_unverified", "fault"]
+
+
+# -- bus lifecycle (blueprint v2 2.4) ----------------------------------------------------------------------------------
+
+
+def test_the_bus_is_opened_and_closed_per_transaction_and_snapshot(tmp_path: Path) -> None:
+    h = make_harness(tmp_path)
+    assert not h.session.bus_open
+    with h.transaction() as tx:
+        assert h.session.bus_open and h.sim.locked
+        acquire(tx, h.hook)
+    assert not h.session.bus_open and not h.sim._open and not h.sim.locked
+    run_events = [e.ev for e in h.run.audit.events]
+    assert run_events[:3] == ["lock_acquired", "bus_open", "bus_lock"]
+    assert run_events[-3:] == ["bus_unlock", "bus_close", "lock_released"]
+    h.session.snapshot()
+    assert not h.session.bus_open and not h.sim._open
+    snapshot = [e.ev for e in h.daily.events if e.ev.startswith("bus_")]
+    assert snapshot == ["bus_open", "bus_lock", "bus_unlock", "bus_close"]
+    with h.transaction(run=False, envelope=None):
+        pass
+    opens = [e for e in h.daily.events if e.ev == "session_open"]
+    assert len(opens) == 1 and opens[0].data is not None and opens[0].data["bus"] == "transaction"
+    assert h.session.bus_mode == "transaction"
+
+
+def test_process_mode_opens_once_and_locks_per_transaction(tmp_path: Path) -> None:
+    spy = HwSpy(answers={"ERRX?": NO_ERROR, "LOP?": LOP_OFF})
+    settings = Settings.model_validate({"visa": {"session": "process"}})
+    session = Session(settings, lambda: spy, MemoryAuditSink(), state_dir=tmp_path)
+    for _ in range(2):
+        with session.transaction(intent="x", envelope=None, run=None) as tx:
+            assert session.bus_open
+        assert tx.cleanup is not None and tx.cleanup.verified == "lop"
+        assert session.bus_open and not session.lock.is_held()  # the session stays, the locks do not
+    assert session.bus_mode == "process"
+    assert [kind for kind, _ in spy.log if kind in ("open", "lock", "unlock", "close")] == [
+        "open", "lock", "unlock", "lock", "unlock"]
+    session.close()
+    assert not session.bus_open and spy.closed
+
+
+def test_a_failing_unlock_closes_the_bus_and_never_escapes(tmp_path: Path) -> None:
+    class StuckLock(HwSpy):
+        def unlock(self) -> None:
+            super().unlock()
+            raise TransportError("unlock failed")
+
+    spy = StuckLock(answers={"ERRX?": NO_ERROR, "LOP?": LOP_OFF})
+    settings = Settings.model_validate({"visa": {"session": "process"}})
+    session = Session(settings, lambda: spy, MemoryAuditSink(), state_dir=tmp_path)
+    with session.transaction(intent="x", envelope=None, run=None):
+        pass
+    assert not session.bus_open and spy.closed and session.lock.holder() is None
+    with session.transaction(intent="again", envelope=None, run=None):  # reopened
+        assert session.bus_open
+    assert [kind for kind, _ in spy.log if kind == "open"] == ["open", "open"]
+
+
+def test_a_bus_that_cannot_open_leaves_nothing_held(tmp_path: Path) -> None:
+    class Unreachable(SpyTransport):
+        backend = "visa"
+        resource = "GPIB0::17::INSTR"
+
+        def open(self) -> None:
+            raise TransportError("VISA library not found")
+
+    daily = MemoryAuditSink()
+    session = Session(Settings(), Unreachable, daily, state_dir=tmp_path)
+    with pytest.raises(TransportError), session.transaction(intent="x", envelope=None, run=None):
+        pytest.fail("the body must not run")  # pragma: no cover
+    with pytest.raises(TransportError):
+        session.snapshot()
+    assert not session.bus_open and session.lock.holder() is None
+    assert not (tmp_path / "inflight.json").exists()
+    failed = [e for e in daily.events if e.ev == "bus_open"]
+    assert len(failed) == 2 and all(e.error and "VISA library" in e.error for e in failed)
+    assert not any(e.ev == "session_open" for e in daily.events)  # announced only once the bus really opened
+
+
+def test_a_factory_may_return_a_bus_with_an_audited_link(tmp_path: Path) -> None:
+    h = make_harness(tmp_path)
+    sink = MemoryAuditSink()
+    session = Session(h.session.settings, lambda: Bus(flex=AuditingTransport(h.hook, sink)), sink,
+                      state_dir=tmp_path / "other")
+    assert session.bus.wgfmu is None and session.transport.sink is sink
+    assert session.snapshot().identity is not None

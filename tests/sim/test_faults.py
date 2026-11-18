@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from b1500_test_agent.models.sim import (
     FAULT_KINDS,
+    BusLockedFault,
     CleanupFailure,
     ComplianceAt,
     Disconnect,
@@ -23,7 +24,7 @@ from b1500_test_agent.models.sim import (
     parse_fault,
 )
 from b1500_test_agent.models.station import SimSlot
-from b1500_test_agent.transport.base import TransportError, TransportTimeout
+from b1500_test_agent.transport.base import BusLocked, TransportError, TransportTimeout
 from b1500_test_agent.transport.sim.faults import GARBAGE_ELEMENT
 from tests.sim.helpers import errx_all, resistor_scenario, run, scenario_with
 
@@ -40,7 +41,7 @@ def test_every_kind_has_a_schema_and_parses_from_yaml_data() -> None:
         "timeout": {"on": "query:*OPC?"}, "garbage_data": {"at_step": 0}, "interlock_open": {},
         "disconnect": {"after_writes": 3}, "oscillation": {"steps": [1, 2]}, "idn_override": {"idn": "x"},
         "modules_override": {"slots": [{"slot": 1, "model": "B1517A"}]}, "ignore_dz": {"channels": [1]},
-        "cleanup_failure": {"count": 1}, "slow": {"factor": 10},
+        "cleanup_failure": {"count": 1}, "slow": {"factor": 10}, "bus_locked": {"nth": 2, "count": 1},
     }  # fmt: skip
     assert set(examples) == set(FAULT_KINDS)
     for kind, fields in examples.items():
@@ -246,3 +247,33 @@ def test_injected_faults_start_counting_at_injection(make_sim) -> None:
     sim.write("XE")
     sim.read()
     assert errx_all(sim) == [305]
+
+
+def test_bus_locked_refuses_lock_requests_nth_to_nth_plus_count_minus_one(make_sim) -> None:
+    """Blueprint v2 4.3: another client holds the bus lock; requests 2 and 3 are refused, nothing reaches the
+    instrument, and the lock works again afterwards."""
+    sim = make_sim(faults=[BusLockedFault(nth=2, count=2)])
+    before = len(sim.instrument.command_log)
+    sim.lock()
+    assert sim.locked
+    sim.lock()  # already locked: not a new request
+    sim.unlock()
+    for _ in range(2):
+        with pytest.raises(BusLocked, match="bus_locked"):
+            sim.lock()
+        assert not sim.locked
+    sim.lock()
+    assert sim.locked and len(sim.instrument.command_log) == before
+    sim.close()
+    assert not sim.locked
+
+
+def test_bus_locked_without_count_refuses_every_request_until_cleared(make_sim) -> None:
+    sim = make_sim(faults=[BusLockedFault()])
+    for _ in range(3):
+        with pytest.raises(BusLocked):
+            sim.lock()
+    assert sim.query("*OPC?") == "1"  # the fault is about the lock only, the link itself works
+    sim.clear_faults()
+    sim.lock()
+    assert sim.locked

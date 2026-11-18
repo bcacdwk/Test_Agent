@@ -102,7 +102,19 @@ def test_settings_example_defaults_to_the_simulator() -> None:
     assert_roundtrip(settings)
 
 
-@pytest.mark.parametrize("data", [{"backend": "gpib"}, {"visa": {"read_termination": "\r"}}, {"extra": 1}])
+def test_visa_bus_lifecycle_settings_default_to_per_transaction() -> None:
+    """Blueprint v2 2.4 / ATV-13: per-transaction session by default; ``process`` is the fallback switch."""
+    settings = Settings.model_validate(example("settings.example.yaml"))
+    assert (settings.visa.session, settings.visa.lock_timeout_ms, settings.visa.exclusive_lock) == (
+        "transaction", 5000, True)
+    assert Settings().visa.session == "transaction"
+    fallback = Settings.model_validate({"visa": {"session": "process", "lock_timeout_ms": 0}})
+    assert (fallback.visa.session, fallback.visa.lock_timeout_ms) == ("process", 0)
+
+
+@pytest.mark.parametrize("data", [{"backend": "gpib"}, {"visa": {"read_termination": "\r"}}, {"extra": 1},
+                                  {"visa": {"session": "thread"}}, {"visa": {"lock_timeout_ms": -1}},
+                                  {"visa": {"lock_timeout_ms": 600_001}}])
 def test_settings_reject_bad_values(data: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         Settings.model_validate(data)

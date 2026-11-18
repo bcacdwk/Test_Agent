@@ -57,7 +57,7 @@ from b1500_test_agent.analysis.plots import PlotSet
 from b1500_test_agent.analysis.registry import ANALYSIS_METHODS, run_method
 from b1500_test_agent.archive.audit import RUN_AUDIT_FILE, read_audit
 from b1500_test_agent.archive.store import ANALYSIS_DIR, NOTES_FILE, QUALITY_FILE, RunFolder, RunStore, analysis_payload
-from b1500_test_agent.catalog.executor import Executor, TransportFactory
+from b1500_test_agent.catalog.executor import BusFactory, Executor
 from b1500_test_agent.catalog.registry import RecipeRegistry
 from b1500_test_agent.config import ConfigBundle, ConfigLoader
 from b1500_test_agent.errors import B1500Error, InvalidConfigError, InvalidInputError
@@ -215,19 +215,19 @@ class B1500Service:
 
     ``paths``/``environ`` select the repository and the test overrides (default: ``Paths.from_env()``); ``adapter``
     is recorded in audit events, lock holders and run manifests (``mcp`` or ``cli``); ``registry``, ``clock``,
-    ``transport_factory`` and ``lock_timeout_s`` are passed to the ``Executor`` (tests).
+    ``bus_factory`` and ``lock_timeout_s`` are passed to the ``Executor`` (tests).
     """
 
     def __init__(self, *, paths: Paths | None = None, environ: Mapping[str, str] | None = None,
                  adapter: Adapter = "cli", registry: RecipeRegistry | None = None,
-                 clock: Callable[[], datetime] | None = None, transport_factory: TransportFactory | None = None,
+                 clock: Callable[[], datetime] | None = None, bus_factory: BusFactory | None = None,
                  lock_timeout_s: float = 5.0) -> None:
         self.adapter: Adapter = adapter
         self._paths = paths
         self._environ = environ
         self.config = ConfigLoader(paths, environ=environ)
         self.executor = Executor(self.config, registry=registry, adapter=adapter, clock=clock,
-                                 transport_factory=transport_factory, lock_timeout_s=lock_timeout_s)
+                                 bus_factory=bus_factory, lock_timeout_s=lock_timeout_s)
         self.lock_timeout_s = lock_timeout_s
         self._lock = threading.RLock()
         self._last_bundle: ConfigBundle | None = None

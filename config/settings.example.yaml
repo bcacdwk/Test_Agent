@@ -13,7 +13,11 @@ visa:                           # used only with backend: visa
   resource: GPIB0::17::INSTR    # factory GPIB address 17 (ATV-2: confirm at hardware bring-up)
   library: ""                   # "" = PyVISA default (vendor @ivi stack); set a path when two VISA stacks exist
   timeout_ms: 10000             # default I/O timeout; reads after a measurement use 2 x estimate + 10 s
-  exclusive_lock: true
+  exclusive_lock: true          # VISA exclusive lock for each transaction / status call, released right after it
+  lock_timeout_ms: 5000         # wait for another VISA client (EasyEXPERT, a second program); then "busy", nothing sent
+  session: transaction          # transaction: open + lock ... unlock + close per call, so the CLI and the MCP server
+                                # coexist; process: ATV-13 fallback (slow/unstable open) keeps the VISA session open
+                                # and still locks per transaction
   write_termination: "\n"
   read_termination: "\n"
 

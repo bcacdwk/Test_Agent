@@ -24,7 +24,7 @@ instrument errors and the module spec table. Spec: blueprint v2 §2.5 (v1 §2.3,
   `tests/unit/flex_fixtures.py`), each citing PDF pages. The simulator formatter shares no code with `parser.py`.
 - Return structured errors (`InstrumentError`, status byte, error codes), never opaque strings or silent retries.
   Cleanup (`AB` → `DZ` → `CL` → verify) is orchestrated by `session/transaction.py`; the driver supplies the steps.
-- Tests run on the simulator (`SimTransport`; pyvisa-sim only for `VisaTransport` conformance), never hardware.
+- Tests run on the simulator: `SimTransport`, or the real `VisaTransport` over `tests/visa_loop/`; never hardware.
 - Legacy v0.2 atoms → driver methods: `references/driver-map/` (`flex-driver-map.yaml` is generated). When you
   add or re-attribute a command, update the tables in `scripts/build_driver_map.py` and regenerate; never
   hand-edit the YAML.

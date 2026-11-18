@@ -1,10 +1,12 @@
 """Fault matrix with the global invariant (blueprint 3, 8.1 ``safety/``).
 
 Faults {compliance_at, errx, timeout, garbage_data, interlock_open, disconnect, oscillation, ignore_dz,
-cleanup_failure, KeyboardInterrupt, parser exception, EnvelopeViolation} x positions {configure, after XE, during
-read, during cleanup}. The position is where the fault takes effect; ``INJECTIONS`` says when it is injected (an
-instrument-side fault that acts on the measurement is injected during configure, before ``XE`` computes the data)
-and with which parameters. Simulator faults use ``SimTransport.inject``; host-side faults are raised by the hook
+cleanup_failure, bus_locked, KeyboardInterrupt, parser exception, EnvelopeViolation} x positions {configure, after
+XE, during read, during cleanup}. The position is where the fault takes effect; ``INJECTIONS`` says when it is
+injected (an instrument-side fault that acts on the measurement is injected during configure, before ``XE``
+computes the data) and with which parameters. ``bus_locked`` (v2 4.3) inside a transaction must change nothing (the
+transaction already holds the bus); its refusal of the next transaction, a snapshot, a shutdown and a recovery is in
+``test_bus_locked.py``. Simulator faults use ``SimTransport.inject``; host-side faults are raised by the hook
 or monkeypatched into the driver. A few combinations cannot act any more (data faults injected for the cleanup
 phase); they still run, because the invariant must hold for every case.
 
@@ -24,6 +26,7 @@ from b1500_test_agent.driver.errors import FlexParseError
 from b1500_test_agent.driver.guard import EnvelopeViolation, OutputGuard
 from b1500_test_agent.driver.ops import core as driver_module  # parse_data/parse_errx are looked up here
 from b1500_test_agent.models.sim import (
+    BusLockedFault,
     CleanupFailure,
     ComplianceAt,
     Disconnect,
@@ -41,7 +44,8 @@ from tests.safety.helpers import ENVELOPE, GATE, Harness, acquire, assert_global
 
 POSITIONS = ("configure", "after_xe", "during_read", "during_cleanup")
 FAULTS = ("compliance_at", "errx", "timeout", "garbage_data", "interlock_open", "disconnect", "oscillation",
-          "ignore_dz", "cleanup_failure", "keyboard_interrupt", "parser_exception", "envelope_violation")
+          "ignore_dz", "cleanup_failure", "bus_locked", "keyboard_interrupt", "parser_exception",
+          "envelope_violation")
 ERRX_CODE = 305
 
 
@@ -167,6 +171,11 @@ INJECTIONS: dict[tuple[str, str], Case] = {
     ("cleanup_failure", "after_xe"): Case(A, sim(CleanupFailure(count=2))),
     ("cleanup_failure", "during_read"): Case(R, sim(CleanupFailure()), raises=CleanupUnverified, latched=True),
     ("cleanup_failure", "during_cleanup"): Case(X, sim(CleanupFailure()), raises=CleanupUnverified, latched=True),
+    # another client wants the bus while this transaction holds it: nothing changes for this transaction
+    ("bus_locked", "configure"): Case(C, sim(BusLockedFault())),
+    ("bus_locked", "after_xe"): Case(A, sim(BusLockedFault())),
+    ("bus_locked", "during_read"): Case(R, sim(BusLockedFault())),
+    ("bus_locked", "during_cleanup"): Case(X, sim(BusLockedFault())),
     # host side: Ctrl-C mid-configure, between XE and the read, in the read, inside cleanup (deferred, re-raised)
     ("keyboard_interrupt", "configure"): Case(C, raise_now(interrupt), raises=KeyboardInterrupt),
     ("keyboard_interrupt", "after_xe"): Case(A, raise_now(interrupt), raises=KeyboardInterrupt),

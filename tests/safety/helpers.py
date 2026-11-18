@@ -81,6 +81,12 @@ class HookTransport:
     def close(self) -> None:
         self.inner.close()
 
+    def lock(self) -> None:
+        self.inner.lock()
+
+    def unlock(self) -> None:
+        self.inner.unlock()
+
     def write(self, cmd: str) -> None:
         self._armed()
         self.inner.write(cmd)

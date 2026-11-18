@@ -1,10 +1,11 @@
-"""Fault engine of the simulator: active ``SimFault``s with their counters (blueprint 3).
+"""Fault engine of the simulator: active ``SimFault``s with their counters (blueprint 3, v2 4.3).
 
 Schemas live in ``models/sim.py`` (``SimFault``, ``SimFaultProfile``). Faults come from the scenario's fault
 profile or from ``SimInstrument.inject()``; counters start when a fault becomes active. Instrument-side faults
 (``compliance_at``, ``errx``, ``timeout`` on ``XE``/queries, ``garbage_data``, ``interlock_open``, ``oscillation``,
 overrides, ``ignore_dz``, ``slow``) are consulted by ``SimInstrument``; link faults (``timeout`` on ``read``,
-``disconnect``, ``cleanup_failure``) by ``SimTransport``. Host-side faults (parser exception, ``KeyboardInterrupt``
+``disconnect``, ``cleanup_failure``, ``bus_locked``) by ``SimTransport`` (and by the visa-loop test resource, which
+puts the real ``VisaTransport`` on the same instrument). Host-side faults (parser exception, ``KeyboardInterrupt``
 between ``XE`` and read, ``EnvelopeViolation``) are injected by monkeypatching in the tests, not here.
 """
 
@@ -14,6 +15,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from b1500_test_agent.models.sim import (
+    BusLockedFault,
     CleanupFailure,
     ComplianceAt,
     Disconnect,
@@ -176,3 +178,18 @@ class FaultEngine:
                 item.spent = True
             fired = True
         return fired
+
+    def lock_refused(self) -> bool:
+        """Count one bus-lock request; True if another client holds the lock now (``bus_locked``: requests
+        ``nth`` .. ``nth + count - 1``, or every request from ``nth`` on when ``count`` is null)."""
+        refused = False
+        for item in self._of(BusLockedFault):
+            fault = item.fault
+            assert isinstance(fault, BusLockedFault)
+            item.count += 1
+            if item.count < fault.nth:
+                continue
+            refused = True
+            if fault.count is not None and item.count >= fault.nth + fault.count - 1:
+                item.spent = True
+        return refused

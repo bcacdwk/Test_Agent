@@ -1,0 +1,6 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 432 (printed 4-114, ERRX? response format error_code,message) reduced to the code and the separator
+# kind: errx
+# command: ERRX?
+# expect: null
+# note: Success form "0," without a message text (blueprint v2 WP5.5 "0," form): the code alone decides success, whatever follows the comma.
+0,

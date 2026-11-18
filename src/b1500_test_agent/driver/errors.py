@@ -5,13 +5,19 @@ pages of ``B1500A Programming Guide.pdf`` (chapter 4: PDF page = printed 4-N + 3
 
 - ``ERRX?``: PG PDF 431-432 (printed 4-113 to 4-114). Response ``error_code,message`` with the message in double
   quotes, e.g. ``305,"Excess current in HPSMU.; SLOT1"``; ``0,"No Error."`` when the queue is empty. The queue holds
-  30 entries and each query removes one.
+  30 entries and each query removes one. The lab's own code (``lwp/matlab_B1500/lib/IV_sweep.m``, ``SPGU_pulse.m``)
+  tests success with ``startsWith(response, '+0,')``, i.e. the firmware signs the code; a parser that expects one
+  form misreads the other (lab pitfall, blueprint v2 1.1), so every success form counts: ``0,"No Error."``,
+  ``+0,"No Error."``, ``0,`` and a bare ``0``/``+0`` (TODO(verify) the exact firmware text at bring-up L0,
+  blueprint 7.6 item 3).
 - Status byte: PG PDF 76-77 (printed 1-56 to 1-57), ``*STB?`` PDF 523 (printed 4-205). Bit 3 (value 8) = interlock
   open. Per the manual it is set when the interlock is open *and* a voltage output or voltage compliance above the
   interlock-open limit is requested, and it is cleared by a serial poll, ``*RST`` or a device clear, i.e. it latches
   an event rather than mirroring the interlock continuously (ATV-10, verified at M4 L0).
 - ``*TST?`` PDF 540-541 (Table 4-32, printed 4-222 to 4-223) and ``*CAL?`` PDF 376-377 (printed 4-58 to 4-59):
   the result is the sum of failure bits, 0 = passed.
+
+Integer answers (``*STB?``, ``*TST?``, ``*CAL?``) may carry an explicit ``+`` sign for the same reason as ``ERRX?``.
 """
 
 from __future__ import annotations
@@ -65,10 +71,18 @@ class DriverStateError(DriverError):
 
 
 _ERRX_RE = re.compile(r"^\s*(?P<code>[+-]?\d+)\s*(?:,\s*(?P<msg>.*?))?\s*$", re.DOTALL)
+_UNSIGNED_RE = re.compile(r"^\+?(?P<value>\d+)$")
+
+
+def _unsigned(text: str) -> int | None:
+    """The value of a non-negative integer answer with an optional ``+`` sign, else ``None``."""
+    match = _UNSIGNED_RE.match(text.strip())
+    return None if match is None else int(match.group("value"))
 
 
 def parse_errx(text: str) -> InstrumentError | None:
-    """Parse one ``ERRX?`` (mode 0) or ``ERRX? 1`` response; ``None`` for code 0 (no error).
+    """Parse one ``ERRX?`` (mode 0) or ``ERRX? 1`` response; ``None`` for code 0 (no error), signed or not, with or
+    without a message (``0,"No Error."``, ``+0,"No Error."``, ``0,``, ``+0``).
 
     Raises:
         FlexParseError: If the response does not start with an integer error code.
@@ -91,10 +105,10 @@ def parse_status_byte(text: str) -> StatusByte:
     Raises:
         FlexParseError: If the response is not an integer from 0 to 255.
     """
-    stripped = text.strip()
-    if not stripped.isdigit() or int(stripped) > 255:
+    value = _unsigned(text)
+    if value is None or value > 255:
         raise FlexParseError(f"*STB? response is not a status byte (0-255): {text!r}", raw=text)
-    return StatusByte(value=int(stripped))
+    return StatusByte(value=value)
 
 
 def status_flags(status: StatusByte | int) -> list[str]:
@@ -109,10 +123,10 @@ def parse_self_test_result(text: str) -> int:
     Raises:
         FlexParseError: If the response is not an integer from 0 to 2047.
     """
-    stripped = text.strip()
-    if not stripped.isdigit() or int(stripped) > 2047:
+    value = _unsigned(text)
+    if value is None or value > 2047:
         raise FlexParseError(f"*TST?/*CAL? response is not a result sum (0-2047): {text!r}", raw=text)
-    return int(stripped)
+    return value
 
 
 def failed_units(result: int) -> list[str]:

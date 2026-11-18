@@ -117,12 +117,21 @@ class VisaSettings(StrictModel):
     ``library`` is passed to ``pyvisa.ResourceManager`` (empty = PyVISA default, i.e. the vendor ``@ivi`` stack);
     set it when two VISA stacks are installed. ``timeout_ms`` is the default I/O timeout; reads after a measurement
     trigger use ``2 x estimate + 10 s`` instead (blueprint 7).
+
+    Bus lifecycle (blueprint v2 2.4): with ``session: transaction`` (default) every transaction and status snapshot
+    opens the VISA session, takes the exclusive lock (``exclusive_lock``), and unlocks and closes it at the end, so
+    no process holds the instrument between calls. ``session: process`` is the ATV-13 fallback for a slow or
+    unstable open: the session stays open for the process, the lock is still taken and released per transaction.
+    ``lock_timeout_ms`` is how long a lock request waits for another VISA client (EasyEXPERT, a second program)
+    before the call is refused as ``instrument_busy``.
     """
 
     resource: str = Field(default="GPIB0::17::INSTR", min_length=1)
     library: str = ""
     timeout_ms: int = Field(default=10_000, ge=100, le=3_600_000)
     exclusive_lock: bool = True
+    lock_timeout_ms: int = Field(default=5_000, ge=0, le=600_000)
+    session: Literal["transaction", "process"] = "transaction"
     write_termination: Literal["\n", "\r\n"] = "\n"
     read_termination: Literal["\n", "\r\n"] = "\n"
 

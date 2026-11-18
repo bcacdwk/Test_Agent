@@ -47,6 +47,12 @@ class SpyTransport:
         self.closed = True
         self.log.append(("close", ""))
 
+    def lock(self) -> None:
+        self.log.append(("lock", ""))
+
+    def unlock(self) -> None:
+        self.log.append(("unlock", ""))
+
     def write(self, cmd: str) -> None:
         self.sent.append(cmd)
         self.log.append(("write", cmd))

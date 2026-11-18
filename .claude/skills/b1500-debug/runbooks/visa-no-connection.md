@@ -24,9 +24,11 @@ disconnect or timeout in the scenario) or is a bug. Report it; nothing physical 
 2. Wrong resource string or GPIB address (factory default 17; ATV-2) in the human's `config/local/settings.yaml`.
 3. VISA library missing or the wrong one (`visa.library` empty means the vendor stack); two VISA stacks installed.
 4. GPIB cable or USB-GPIB adapter loose; adapter not seen by the vendor connection tool.
-5. Another program has an exclusive VISA lock on the resource.
 
-A different process holding the instrument lock gives `busy` with the holder, not `transport_error`.
+Not this runbook: a program that keeps the instrument (EasyEXPERT, another VISA tool) gives `busy`
+(`instrument_busy`, "another client ... holds the instrument", nothing sent), and another b1500 process inside a
+transaction gives `busy` with the lock holder. b1500 itself holds the instrument only during a call, so an open
+harness never blocks the CLI. Ask the human to close the other program, then retry once.
 
 ## First safe checks
 

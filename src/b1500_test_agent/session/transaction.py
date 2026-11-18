@@ -1,7 +1,8 @@
 """``Transaction``: one locked, audited instrument transaction with guaranteed cleanup (blueprint 2.4, 2.7, 3).
 
 ``__enter__``: fault-latch check (a sourcing transaction refuses with ``fault_latched``, zero I/O), instrument lock,
-lazy transport open, simulator state load, ``<state_dir>/inflight.json``; if a previous marker is still there its
+bus open + exclusive lock (blueprint v2 2.4: per transaction; ``BusLocked`` when another client holds the bus, zero
+I/O, marker untouched), simulator state load, ``<state_dir>/inflight.json``; if a previous marker is still there its
 transaction never finished (crash), so a recovery cleanup runs first (``AB``, ``DZ``, ``CL``, verify; audit
 ``recovery_cleanup``); then a baseline ``ERRX?`` drain. The body uses ``tx.driver``, guarded by an ``OutputGuard``
 of the plan's envelope (no envelope: no guard, so every source operation refuses).
@@ -11,7 +12,8 @@ of the plan's envelope (no envelope: no guard, so every source operation refuses
 2 ``DZ`` 3 ``CL`` 4 ``ERRX?`` drain 5 verify outputs off (``LOP?`` on hardware, simulator state on sim)
 6 on any step error: device clear, retry the sequence once
 7 still unverified (``DZ``, ``CL`` or the verification failed in the last attempt) -> ``FaultLatch.set`` + audit
-``cleanup_unverified`` 8 save the simulator state, remove the inflight marker, release the lock.
+``cleanup_unverified`` 8 save the simulator state, remove the inflight marker, unlock and close the bus (``process``
+mode: unlock only), release the lock.
 The original exception is never suppressed. When the body succeeded, ``__exit__`` raises a
 ``KeyboardInterrupt``/``SystemExit`` caught during cleanup (cleanup completes first), else ``CleanupUnverified``
 if the fault latch was set.
@@ -281,6 +283,12 @@ class _RawCapture:
     def close(self) -> None:
         self.inner.close()
 
+    def lock(self) -> None:
+        self.inner.lock()
+
+    def unlock(self) -> None:
+        self.inner.unlock()
+
     def write(self, cmd: str) -> None:
         self.inner.write(cmd)
 
@@ -317,7 +325,8 @@ class Transaction:
     __exit__ runs for ANY exit incl. BaseException/EnvelopeViolation: 1 AB if XE issued and not complete
     (sent alone; on timeout device_clear then AB) 2 DZ 3 CL 4 ERRX drain 5 verify outputs off (LOP? on hw,
     sim_state on sim) 6 on any step error: device_clear, retry once 7 still unverified → FaultLatch.set +
-    audit cleanup_unverified 8 remove inflight marker, release lock. Never suppresses the original exception.
+    audit cleanup_unverified 8 remove inflight marker, unlock + close the bus, release lock. Never suppresses the
+    original exception.
 
     Created by ``Session.transaction`` (and, in ``shutdown`` mode, by ``Session.safe_shutdown``: no latch check,
     no recovery or baseline drain, cleanup with an unconditional ``AB`` when ``abort``, never raises
@@ -348,6 +357,7 @@ class Transaction:
         self._sink: AuditSink | None = None
         self._transport: AuditingTransport | None = None
         self._marker_written = False
+        self._bus_begun = False
         self._cleanup_done = False
         self._used = False
         self.latch_error: Exception | None = None
@@ -412,7 +422,8 @@ class Transaction:
                 record = session.fault_latch.get()  # re-checked under the lock
                 if record is not None:
                     raise FaultLatched(record)
-            session._open()
+            session._bus_begin()
+            self._bus_begun = True
             hooks = state_hooks(transport)
             if hooks is not None:
                 hooks.load_state()
@@ -529,8 +540,8 @@ class Transaction:
         return False
 
     def _release(self, *, save_state: bool) -> None:
-        """Step 8: save the simulator state, remove the inflight marker, release the lock (each step attempted even
-        when an earlier one fails)."""
+        """Step 8: save the simulator state, remove the inflight marker, unlock and close the bus, release the lock
+        (each step attempted even when an earlier one fails; the bus events still go to this transaction's sink)."""
         stack, self._stack = self._stack, None
         if stack is None:
             return
@@ -548,6 +559,9 @@ class Transaction:
                     self._marker_written = False
                 except OSError as exc:
                     self._emit("checkpoint", {"label": "inflight_remove_failed"}, error=str(exc))
+            if self._bus_begun:
+                self._bus_begun = False
+                self._session._bus_end()
             self._emit("lock_released", {"resource": self._session.transport.resource})
         finally:
             stack.close()

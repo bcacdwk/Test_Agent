@@ -1,8 +1,8 @@
 description: The recipe points at a card file that does not exist, so the card's recipe does not point back either.
 edits:
   - file: recipes/mosfet/idvg.yaml
-    old: "card: .agents/skills/b1500-test/cards/mosfet-idvg.md"
-    new: "card: .agents/skills/b1500-test/cards/mosfet-transfer.md"
+    old: "card: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md"
+    new: "card: .agents/skills/b1500-test/cards/smu/mosfet-transfer.md"
 expect:
   - {code: recipe_card, file: recipes/mosfet/idvg.yaml, contains: "does not exist (dangling card)"}
-  - {code: card_recipe, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "the recipe's card must point back"}
+  - {code: card_recipe, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "the recipe's card must point back"}

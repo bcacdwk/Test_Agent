@@ -30,6 +30,8 @@ L7 skills + rules → `.agents/skills/`, `rules/`, `config/` · L8 agent → you
 
 - Measurement, recipe choice, analysis, reports → load skill `b1500-test` before the first tool call.
 - Noisy, impossible, compliance-limited or drifting data, faults, VISA errors → skill `b1500-debug`.
+- Hardware bring-up and validation (lab PC) or its rehearsal → skill `b1500-bringup`.
+- Manual facts → knowledge, then `uv run b1500 manual search`/`page` (not PDFs); cite `PG p433 (4-115)`.
 - Code changes → developer section.
 
 ## Developer section (code changes, only when asked)
@@ -43,17 +45,15 @@ L7 skills + rules → `.agents/skills/`, `rules/`, `config/` · L8 agent → you
 - Safety lives in the core (rules, tiers, `OutputGuard`, verified cleanup, audit), never only in skills or
   adapters. No raw FLEX tool or command (`b1500 dev sim-console` is sim-only). Never weaken rules, limits, tiers,
   tests or graders to make something pass.
-- Shared data objects (requests, policy, recipes, station, results) are Pydantic models in `models/`.
+- Shared data objects are Pydantic models in `models/`; `references/manuals/` is read-only.
 - English comments and docstrings. Windows-safe code (blueprint §7): `pathlib`, `encoding="utf-8"` on every
   open, no `:` in file names, no POSIX-only modules.
 - Tests use the simulator only; `hardware` tests need the owner at the lab PC (M4). Recipes stay `draft` until
   their simulator test passes; `hw_validated` needs an M4 validation record.
 - Commit only `*.example.yaml` config (never private station details), and measurement data only as small
   anonymized fixtures.
-- Runtime knowledge: structured extracts in `references/manuals/` (read-only), not raw PDFs.
-- v1 is SMU I-V only; WGFMU, SPGU/HVSPGU and CMU recipes stay `not_implemented` until manual extraction,
-  correction flows and validation exist.
-- Skills: edit `.agents/skills/**` only (`.claude/skills/` is generated). No `.cursor/` files.
+- v1 is SMU I-V only; WGFMU, SPGU and CMU recipes stay `not_implemented` until their modules land.
+- Skills: edit `.agents/skills/**` only (`.claude/skills/` and `cards/README.md` are generated). No `.cursor/`.
 - Small commits; the message says why.
 - Commands: `uv sync` · `uv run pytest -m "not hardware and not acceptance"` · `uv run ruff check` ·
   `uv run b1500 dev sync-harness --check`. Launch Codex or Claude Code from the repo root.

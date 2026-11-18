@@ -1,7 +1,8 @@
 description: The card lists a recipe that is not registered (dangling card link).
 edits:
-  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
     old: "recipes: [mosfet.idvg]"
     new: "recipes: [mosfet.idvg, mosfet.idvg_pulsed]"
 expect:
-  - {code: card_recipe, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "recipes lists mosfet.idvg_pulsed, which is not a registered recipe"}
+  - {code: card_recipe, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "recipes lists mosfet.idvg_pulsed, which is not a registered recipe"}
+  - {code: card_index, file: .agents/skills/b1500-test/cards/README.md, contains: "out of date (run `uv run b1500 dev gen-index`)"}

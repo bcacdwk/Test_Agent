@@ -10,7 +10,7 @@ title: Instrument self-calibration (*CAL?) of all modules and the mainframe
 family: system
 kind: system
 status: sim_validated
-card: null
+card: .agents/skills/b1500-test/cards/system/self-test-cal.md
 device_types: []
 roles: {}
 params:

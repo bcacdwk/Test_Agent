@@ -1,0 +1,7 @@
+description: The generated card index lost a card's row (edited by hand instead of regenerated with gen-index).
+edits:
+  - file: .agents/skills/b1500-test/cards/README.md
+    old: "| smu | Vth, gm, SS, Ion/Ioff | [mosfet-idvg](smu/mosfet-idvg.md) | `mosfet.idvg` | sim_validated | HRSMU, MPSMU, GNDU | L4 |\n"
+    new: ""
+expect:
+  - {code: card_index, file: .agents/skills/b1500-test/cards/README.md, contains: "line 17 should read: | smu | Vth, gm, SS, Ion/Ioff | [mosfet-idvg](smu/mosfet-idvg.md)"}

@@ -13,7 +13,7 @@ title: FeFET dual gate sweep (Id-Vg double sweep) - Vth_fwd, Vth_rev, memory win
 family: nvm
 kind: smu_staircase
 status: sim_validated
-card: .agents/skills/b1500-test/cards/fefet-dual-sweep-mw.md
+card: .agents/skills/b1500-test/cards/nvm/fefet-dual-sweep-mw.md
 device_types: [fefet]
 roles:
   gate:

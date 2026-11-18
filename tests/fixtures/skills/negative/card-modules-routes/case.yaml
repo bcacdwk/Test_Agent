@@ -1,0 +1,9 @@
+description: Card modules and routes the recipe's roles cannot use (an HV-SPGU and a PGU route on an SMU-only recipe).
+edits:
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
+    old: "modules: [HRSMU, MPSMU, GNDU]\nroutes: []"
+    new: "modules: [HRSMU, MPSMU, GNDU, HVSPGU]\nroutes: [selector_16440a:pgu, selector_16440a:smu]"
+expect:
+  - {code: card_modules, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "modules ['HVSPGU'] are not module types of the card's recipe roles"}
+  - {code: card_routes, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "routes ['selector_16440a:pgu'] are not switch routes of the card's recipe roles"}
+  - {code: card_index, file: .agents/skills/b1500-test/cards/README.md, contains: "out of date"}

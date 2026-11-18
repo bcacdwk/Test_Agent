@@ -1,11 +1,12 @@
-"""The six first test cards of skill ``b1500-test`` and the reserved slots (blueprint 6.3-6.4, 8.2).
+"""The test cards of skill ``b1500-test`` (blueprint v1 6.3-6.4, 8.2; v2 6.1, 6.3) and the reserved slots.
 
-``b1500 dev lint-skills`` (``test_lint_skills.py``) checks frontmatter, sections, budgets, links, the card-recipe
-graph, parameter tables and that each example plan validates on its simulator scenario. These tests pin what the M3
-scenarios rely on beyond that: the example plans of S1 (Vth on ``nmos_basic``) and S10 (memory window on
-``fefet_basic``), the card index status in ``SKILL.md``, debug ids from the eight runbooks, a simulator validation
-record per card, no simulator scenario named in the expected-result section, and one reserved-slot entry per
-``not_implemented`` recipe.
+``b1500 dev lint-skills`` (``test_lint_skills.py``) checks frontmatter, family folders, sections, budgets, links,
+the card-recipe graph, modules/routes/stage, parameter tables, the generated index and that each example plan
+validates on its simulator scenario. These tests pin what the acceptance scenarios and the bring-up rely on beyond
+that: the cards' family paths and v2 frontmatter (family, stage, manual citations), the example plans of S1 (Vth on
+``nmos_basic``) and S10 (memory window on ``fefet_basic``), the generated index rows, debug ids from the eight
+runbooks, a simulator validation record per card plus the hardware record path and stage, no simulator scenario
+named in the expected-result section, and one reserved-slot entry per ``not_implemented`` recipe.
 """
 
 from __future__ import annotations
@@ -17,19 +18,24 @@ import pytest
 import yaml
 
 from b1500_test_agent.catalog.registry import RecipeRegistry
-from b1500_test_agent.devtools.skills.common import CARD_SECTIONS
+from b1500_test_agent.devtools.skills.citations import CANONICAL
+from b1500_test_agent.devtools.skills.common import CARD_SECTIONS, CARDLESS_RECIPES, STAGES
 from b1500_test_agent.devtools.skills.markdown import MarkdownDoc, parse_markdown
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILL_DIR = ROOT / ".agents" / "skills" / "b1500-test"
-CARDS = {  # blueprint 6.4
-    "contact-resistor-check": "basic.contact_resistor",
-    "diode-iv": "basic.diode_iv",
-    "mosfet-idvg": "mosfet.idvg",
-    "mosfet-idvd": "mosfet.idvd",
-    "gate-leakage": "mosfet.gate_leakage",
-    "fefet-dual-sweep-mw": "fefet.dual_sweep_mw",
+CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system card, blueprint 6.3)
+    "smu/contact-resistor-check": ["basic.contact_resistor"],
+    "smu/diode-iv": ["basic.diode_iv"],
+    "smu/mosfet-idvg": ["mosfet.idvg"],
+    "smu/mosfet-idvd": ["mosfet.idvd"],
+    "smu/gate-leakage": ["mosfet.gate_leakage"],
+    "nvm/fefet-dual-sweep-mw": ["fefet.dual_sweep_mw"],
+    "system/self-test-cal": ["system.self_test", "system.self_cal"],
 }
+STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfet-idvg": "L4", "smu/mosfet-idvd": "L4",
+            "smu/gate-leakage": "L4", "nvm/fefet-dual-sweep-mw": "L7", "system/self-test-cal": "L1"}
+"""Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault"}
 RUN_ID = re.compile(r"\bS\d{8}T\d{6}Z-[0-9a-f]{4}\b")
@@ -57,43 +63,71 @@ def _example(doc: MarkdownDoc) -> dict:
     return yaml.safe_load(block.group(1))
 
 
+def test_cards_are_exactly_the_planned_ones() -> None:
+    found = sorted(p.relative_to(SKILL_DIR / "cards").with_suffix("").as_posix()
+                   for p in (SKILL_DIR / "cards").glob("*/*.md") if p.parent.name != "reserved")
+    assert found == sorted(CARDS)
+    assert sorted(p.name for p in (SKILL_DIR / "cards").glob("*.md")) == ["README.md", "_TEMPLATE.md"]
+
+
 @pytest.mark.parametrize("card", sorted(CARDS))
 def test_card_and_recipe_point_at_each_other(card: str, registry: RecipeRegistry) -> None:
     doc = _card(card)
-    assert doc.front["recipes"] == [CARDS[card]]
-    assert registry.get(CARDS[card]).card == f".agents/skills/b1500-test/cards/{card}.md"
+    assert doc.front["recipes"] == CARDS[card]
+    for recipe in CARDS[card]:
+        assert registry.get(recipe).card == f".agents/skills/b1500-test/cards/{card}.md"
+        assert registry.get(recipe).family == doc.front["family"] == card.split("/")[0]
     assert set(doc.front["debug"]) <= RUNBOOKS
 
 
 @pytest.mark.parametrize("card", sorted(CARDS))
-def test_card_has_sim_validation_record_and_no_scenario_in_expected_shape(card: str) -> None:
+def test_card_frontmatter_v2(card: str) -> None:
+    front = _card(card).front
+    assert front["bringup_stage"] == STAGE_OF[card] and front["bringup_stage"] in STAGES
+    assert front["manual"] and all(CANONICAL.fullmatch(entry) for entry in front["manual"])
+    assert front["routes"] == []  # v1 recipes use no switch
+    assert front["intent"]
+
+
+@pytest.mark.parametrize("card", sorted(CARDS))
+def test_card_has_sim_and_hw_validation_records_and_no_scenario_in_expected_shape(card: str) -> None:
     doc = _card(card)
     record = _section(doc, 10)
     sim_rows = [line for line in record.splitlines() if line.startswith("| sim |")]
     assert sim_rows and all(RUN_ID.search(line) for line in sim_rows)
     assert _example(doc)["sim_scenario"] in sim_rows[0]
-    assert "| hw (M4) | pending M4 |" in record
+    assert f"| hw | pending (bring-up stage {STAGE_OF[card]}) |" in record
+    for recipe in CARDS[card]:
+        assert f"`validation/hw/{recipe}.yaml`" in record
+    assert "Routes: none" in _section(doc, 2)
     expected = _section(doc, 8)
     assert [s for s in SCENARIOS if s in expected] == []  # typical ranges, never simulator truth
 
 
 def test_m3_scenarios_find_their_example_plans(registry: RecipeRegistry) -> None:
-    s1 = _example(_card("mosfet-idvg"))
+    s1 = _example(_card("smu/mosfet-idvg"))
     assert (s1["pin_map"], s1["dut_profile"], s1["sim_scenario"]) == ("mosfet-4t", "nmos-generic", "nmos_basic")
     assert registry.get("mosfet.idvg").analysis_defaults[0].method == "vth_linear_extrapolation"
-    s10 = _example(_card("fefet-dual-sweep-mw"))
+    s10 = _example(_card("nvm/fefet-dual-sweep-mw"))
     assert s10["sim_scenario"] == "fefet_basic"
     assert registry.get("fefet.dual_sweep_mw").analysis_defaults[0].method == "memory_window"
-    assert "vth_fwd" in _section(_card("fefet-dual-sweep-mw"), 7)
-    contact = _example(_card("contact-resistor-check"))  # S7: contact check on any landing
+    assert "vth_fwd" in _section(_card("nvm/fefet-dual-sweep-mw"), 7)
+    contact = _example(_card("smu/contact-resistor-check"))  # S7: contact check on any landing
     assert (contact["pin_map"], contact["dut_profile"]) == ("resistor-2t", "resistor-generic")
 
 
-def test_card_index_status_matches_the_cards() -> None:
-    text = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
-    for card, recipe in CARDS.items():
-        row = next(line for line in text.splitlines() if f"(cards/{card}.md)" in line)
-        assert f"`{recipe}`" in row and row.rstrip(" |").endswith(_card(card).front["status"])
+def test_generated_index_has_a_row_per_card_and_recipe(registry: RecipeRegistry) -> None:
+    text = (SKILL_DIR / "cards" / "README.md").read_text(encoding="utf-8")
+    for card, recipes in CARDS.items():
+        row = next(line for line in text.splitlines() if f"]({card}.md)" in line)
+        family = card.split("/")[0]
+        assert row.startswith(f"| {family} |") and all(f"`{r}`" in row for r in recipes)
+        assert f"| {_card(card).front['status']} |" in row and row.endswith(f"| {STAGE_OF[card]} |")
+    for recipe in CARDLESS_RECIPES:
+        assert f"| `{recipe}` |" in text and "no card by design" in text
+    for recipe in registry.ids():
+        if registry.get(recipe).status == "not_implemented":
+            assert f"| `{recipe}` | not_implemented |" in text, recipe
 
 
 def test_reserved_readme_lists_every_reserved_recipe_with_preconditions(registry: RecipeRegistry) -> None:

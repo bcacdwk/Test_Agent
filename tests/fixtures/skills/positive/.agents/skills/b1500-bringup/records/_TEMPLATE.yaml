@@ -1,0 +1,32 @@
+# Draft hardware validation record (skill b1500-bringup, blueprint 7.1). Copy to
+# work/bringup/records/<stage>-<recipe_id>-<UTC date>.yaml and fill it from the run manifests; a human reviewer
+# checks it against the raw runs, fills `reviewer`/`reviewed_on` and moves it to validation/hw/<recipe_id>.yaml.
+# Hardware runs only (run ids H...); simulator runs (S...) are never recorded. Values are copied, never edited.
+stage: ""                 # bring-up stage id: S0, L0 .. L10
+recipe_id: ""             # e.g. mosfet.idvg
+recipe_version: null      # from the run manifest
+recipe_sha256: ""         # from the run manifest (the record is valid only for this recipe file)
+backend: visa
+station:
+  name: ""                # config/local/station.yaml name
+  idn: ""                 # *IDN? answer of the runs
+  firmware: ""
+dut:
+  profile: ""             # DUT profile name
+  instance: ""            # die, lot or standard label
+  reference: ""           # reference used: DMM reading, certificate, EasyEXPERT file, ...
+runs: []                  # hardware run ids, e.g. H20261201T093012Z-1a2b
+measurements:             # one entry per checked quantity
+  - quantity: ""          # e.g. vth, r, cox
+    value: null
+    unit: ""
+    reference: null       # reference value
+    tolerance: ""         # from the stage file, e.g. "±10 mV"
+    method: ""            # analyze_run method, options and fit window
+    pass: null            # true / false
+result: ""                # pass | fail
+operator: ""              # who ran the stage
+date: ""                  # UTC date of the runs (YYYY-MM-DD)
+reviewer: ""              # filled only by the human reviewer
+reviewed_on: null         # date of the review
+notes: ""

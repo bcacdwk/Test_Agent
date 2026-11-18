@@ -1,7 +1,7 @@
 description: A card whose numbered H2 sections deviate from the template.
 edits:
-  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
     old: "## 3. Pre-run checklist"
     new: "## 3. Checklist"
 expect:
-  - {code: card_sections, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "H2 section 3 is '## 3. Checklist'; expected '## 3. Pre-run checklist'"}
+  - {code: card_sections, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "H2 section 3 is '## 3. Checklist'; expected '## 3. Pre-run checklist'"}

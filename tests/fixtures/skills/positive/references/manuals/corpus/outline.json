@@ -1,0 +1,11 @@
+{
+ "format": 1,
+ "catalog": "a80e116836a0438d2c49b3701fc8c24e054ad641727be8b15b8ff33e7b18862f",
+ "docs": {
+  "FX": {"sha256": "439e15fe6df47a866a7027aa8c48483924f973cae91610dc81e08b3ac79ec9b9", "pages": 2, "chars": 303, "outline": [
+   {"level":0,"title":"9 Fixture Commands","p":1},
+   {"level":1,"title":"FIXCMD","p":1},
+   {"level":1,"title":"WGFMU_fixtureEvent","p":2}
+  ]}
+ }
+}

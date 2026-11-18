@@ -16,14 +16,14 @@ When a request needs one of them:
 
 | recipe | measurement | validated alternative today |
 |---|---|---|
-| `wgfmu.pulsed_iv` | WGFMU fast pulsed I-V (Id-Vg/Id-Vd with short pulses) | DC staircase: [mosfet-idvg](../mosfet-idvg.md), [mosfet-idvd](../mosfet-idvd.md) |
+| `wgfmu.pulsed_iv` | WGFMU fast pulsed I-V (Id-Vg/Id-Vd with short pulses) | DC staircase: [mosfet-idvg](../smu/mosfet-idvg.md), [mosfet-idvd](../smu/mosfet-idvd.md) |
 | `wgfmu.fast_bti` | WGFMU fast BTI with on-the-fly Vth monitoring (destructive) | Id-Vg before and after a stress the human runs |
 | `spgu.program_smu_read` | SPGU/HV-SPGU program pulse, then SMU read via the 16440A selector | none |
-| `fefet.pulse_write_read` | FeFET pulse write/read, endurance, retention (destructive) | [fefet-dual-sweep-mw](../fefet-dual-sweep-mw.md) |
-| `fecap.pund` | Ferroelectric capacitor PUND (Pr, Ec) | none (FeFET: [fefet-dual-sweep-mw](../fefet-dual-sweep-mw.md)) |
-| `reliability.bti_sms` | BTI stress-measure-stress with SMUs (destructive) | [mosfet-idvg](../mosfet-idvg.md) before/after a human-run stress |
+| `fefet.pulse_write_read` | FeFET pulse write/read, endurance, retention (destructive) | [fefet-dual-sweep-mw](../nvm/fefet-dual-sweep-mw.md) |
+| `fecap.pund` | Ferroelectric capacitor PUND (Pr, Ec) | none (FeFET: [fefet-dual-sweep-mw](../nvm/fefet-dual-sweep-mw.md)) |
+| `reliability.bti_sms` | BTI stress-measure-stress with SMUs (destructive) | [mosfet-idvg](../smu/mosfet-idvg.md) before/after a human-run stress |
 | `reliability.hci` | Hot-carrier injection stress with periodic Id-Vg reads (destructive) | as above |
-| `reliability.tddb_cvs` | TDDB constant-voltage stress with leakage sampling (destructive) | [gate-leakage](../gate-leakage.md) inside the DUT envelope |
+| `reliability.tddb_cvs` | TDDB constant-voltage stress with leakage sampling (destructive) | [gate-leakage](../smu/gate-leakage.md) inside the DUT envelope |
 | `cmu.correction` | MFCMU phase compensation and open/short/load correction | none |
 | `moscap.cv` | MOS capacitor C-V with the MFCMU | none |
 | `moscap.qscv` | Quasi-static C-V with SMUs | none |
@@ -40,7 +40,7 @@ change, a card from [the template](../_TEMPLATE.md), a passing `b1500 dev lint-s
   `references/manuals/structured/`; RSU wiring and WGFMU channels in the station profile and pin maps;
   pulse-envelope rules (amplitude, width, duty cycle) with tests; a simulator model of the pulsed response and a
   safety-matrix row for the new kind; sim validation, then an M4 hardware validation record.
-- `wgfmu.fast_bti`: `wgfmu.pulsed_iv` validated first; asynchronous runs (`run_status`/`cancel_run`) for stresses
+- `wgfmu.fast_bti`: `wgfmu.pulsed_iv` validated first; asynchronous runs (`outcome: running`, `get_run` progress) for stresses
   longer than `policy.run_limits.max_sync_run_s`; stress-envelope rules and a DUT-profile stress budget; knowledge
   05 reviewed by a human; sim and hardware validation.
 - `spgu.program_smu_read`: 16440A selector and SPGU commands extracted from the manuals; selector topology recorded

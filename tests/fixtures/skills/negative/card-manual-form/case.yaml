@@ -1,0 +1,8 @@
+description: Card manual entries that are not canonical citations of catalog documents.
+edits:
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
+    old: 'manual: [FX p1 (9-1) "FIXCMD"]'
+    new: 'manual: [FX page 1, XY p3]'
+expect:
+  - {code: frontmatter, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "manual entry 'FX page 1' is not a canonical citation"}
+  - {code: citation, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "manual entry 'XY p3': unknown manual id XY (catalog: FX)"}

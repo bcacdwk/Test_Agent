@@ -1,10 +1,10 @@
 description: A card that claims it never needs confirmation, with an example plan above the DUT current envelope.
 edits:
-  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
     old: "confirmation: conditional"
     new: "confirmation: never"
-  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
     old: "params: {vg_start: -1.0, vg_stop: 3.0, vd: 0.05}"
     new: "params: {vg_start: -1.0, vg_stop: 3.0, vd: 0.05, icomp_drain: 0.005}"
 expect:
-  - {code: card_confirmation, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "confirmation is never, but the example plan needs confirmation"}
+  - {code: card_confirmation, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "confirmation is never, but the example plan needs confirmation"}

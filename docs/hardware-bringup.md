@@ -494,7 +494,7 @@ A reviewed change, made and committed by the owner or a developer, never by the 
 
 1. `recipes/<group>/<name>.yaml`: `status: hw_validated`; append the hardware run ids to
    `provenance.validation_runs`; add the reference (e.g. "M4 L4 vs EasyEXPERT, DATE") to `provenance.sources`.
-2. Validation record: in the recipe's test card (`.agents/skills/b1500-test/cards/<card>.md`), section
+2. Validation record: in the recipe's test card (`.agents/skills/b1500-test/cards/<family>/<card>.md`), section
    "10. Validation record", add the `hw (M4)` row: date, station (`station.yaml` `name`), DUT (part, lot or die),
    run ids, value vs reference, reviewer. Update the card's front-matter `status` to match.
 3. Checks: `uv run b1500 dev recipe-check`, `uv run b1500 dev sync-harness`, `uv run b1500 dev lint-skills`,

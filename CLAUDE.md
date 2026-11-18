@@ -2,8 +2,9 @@
 
 ## Claude Code specifics
 
-- Skills `b1500-test` and `b1500-debug` load from `.claude/skills/`, a generated copy of `.agents/skills/`
-  (`uv run b1500 dev sync-harness`); edit only the source. Invoke `b1500-test` before the first `mcp__b1500__*` call.
+- Skills `b1500-test`, `b1500-debug` and `b1500-bringup` load from `.claude/skills/`, a generated copy of
+  `.agents/skills/` (`uv run b1500 dev sync-harness`); edit only the source. Invoke `b1500-test` before the first
+  `mcp__b1500__*` call.
 - `.claude/settings.json` (committed) allows nine `mcp__b1500__*` tools, keeps `run_confirmed_plan` on `ask` and
   denies `b1500 fault`, `b1500 run --confirm` and edits of `config/local/**`, `data/**` and harness settings; the
   `PreToolUse` hook `scripts/hooks/b1500_guard.py` backs it. Never loosen these rules, the hook or the permission mode.

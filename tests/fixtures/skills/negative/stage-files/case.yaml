@@ -1,0 +1,13 @@
+description: Bring-up stage files with a wrong section and an unknown name, a filled reviewer, a draft in records/.
+edits:
+  - file: .agents/skills/b1500-bringup/stages/l4-mosfet.md
+    old: "## 4. Expected values"
+    new: "## 4. Expected results"
+  - file: .agents/skills/b1500-bringup/records/_TEMPLATE.yaml
+    old: 'reviewer: ""              # filled only by the human reviewer'
+    new: 'reviewer: "agent"         # filled only by the human reviewer'
+expect:
+  - {code: stage, file: .agents/skills/b1500-bringup/stages/l4-mosfet.md, contains: "H2 section 4 is '## 4. Expected results'; expected '## 4. Expected values'"}
+  - {code: stage, file: .agents/skills/b1500-bringup/stages/l4-mos.md, contains: "l4-mos.md is not a stage file name"}
+  - {code: stage, file: .agents/skills/b1500-bringup/records/_TEMPLATE.yaml, contains: "reviewer must stay empty in the template"}
+  - {code: stage, file: .agents/skills/b1500-bringup/records/draft.yaml, contains: "records/ holds only _TEMPLATE.yaml"}

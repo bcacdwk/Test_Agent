@@ -120,13 +120,31 @@ def _split_row(line: str) -> list[str]:
 _DELIMITER_ROW = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$")
 
 
+_RECIPE_ID = r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+"
+_QUALIFIED = re.compile(rf"^([a-z][a-z0-9_]*)\s*\(\s*({_RECIPE_ID}(?:\s*,\s*{_RECIPE_ID})*)\s*\)$")
+"""A parameter cell qualified with the recipes it describes: ``operation (system.self_cal)`` (backticks dropped)."""
+
+
 @dataclass(frozen=True)
 class ParamRow:
+    """One parameter-table row; ``recipes`` is empty when the row applies to every card recipe with the parameter,
+    else the recipes named in the qualifier ``param (recipe.id, ...)``."""
+
     name: str
     default: str
     recommended: str
     range: str
     line: int
+    recipes: tuple[str, ...] = ()
+
+
+def split_param_cell(cell: str) -> tuple[str, tuple[str, ...]]:
+    """``(name, recipes)`` of a parameter cell: ``vd`` or ``operation (system.self_cal, system.x)``."""
+    text = _clean(cell)
+    match = _QUALIFIED.match(text)
+    if match is None:
+        return text, ()
+    return match.group(1), tuple(part.strip() for part in match.group(2).split(","))
 
 
 def param_rows(doc: MarkdownDoc, start: int, end: int) -> tuple[list[ParamRow], list[tuple[int, str]]]:
@@ -150,8 +168,9 @@ def param_rows(doc: MarkdownDoc, start: int, end: int) -> tuple[list[ParamRow], 
             if len(row) < 4:
                 problems.append((number, f"parameter table row has {len(row)} cells; expected at least 4"))
             else:
-                rows.append(ParamRow(name=_clean(row[0]), default=row[1], recommended=row[2], range=row[3],
-                                     line=number))
+                name, recipes = split_param_cell(row[0])
+                rows.append(ParamRow(name=name, default=row[1], recommended=row[2], range=row[3], line=number,
+                                     recipes=recipes))
             number += 1
     return rows, problems
 

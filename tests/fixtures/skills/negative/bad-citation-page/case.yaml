@@ -1,0 +1,7 @@
+description: A card cites a manual page outside the document (the fixture catalog's FX has two PDF pages).
+edits:
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
+    old: 'manual: [FX p1 (9-1) "FIXCMD"]'
+    new: 'manual: [FX p9 (9-1) "FIXCMD"]'
+expect:
+  - {code: citation, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: 'FX p9 (9-1) "FIXCMD": page 9 is outside FX (PDF pages 1..2)'}

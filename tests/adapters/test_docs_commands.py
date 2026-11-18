@@ -4,98 +4,23 @@
 Commands are taken from fenced code blocks and inline code spans: every ``b1500`` token (also after ``uv run``) starts
 a command whose following words are walked down the Typer command tree; options must belong to the command reached.
 Placeholders (``PLAN_ID``, ``RUN_ID``, ``...``) end the walk. The checks only read the docs and ask the CLI for help
-text; nothing is executed.
+text; nothing is executed. The walk lives in ``devtools/skills/commands.py`` (WP5.10), where ``b1500 dev lint-skills``
+applies it to every skill, stage file and doc.
 """
 
 from __future__ import annotations
 
 import re
-import shlex
 from pathlib import Path
-from typing import Any
 
 import pytest
-import typer
-from typer.testing import CliRunner
 
-from b1500_test_agent.adapters.cli import app
+from b1500_test_agent.devtools.skills.commands import help_problem, named_commands, resolve
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BRINGUP = REPO_ROOT / "docs" / "hardware-bringup.md"
 DEPLOYMENT = REPO_ROOT / "docs" / "deployment-windows.md"
 DOCS = (BRINGUP, DEPLOYMENT)
-
-CODE_SPAN = re.compile(r"`([^`\n]+)`")
-COMMAND_START = re.compile(r"(?:^|(?<=[\s(]))b1500(?=\s|$)")
-COMMAND_WORD = re.compile(r"^[a-z][a-z0-9-]*$")
-NUMBER = re.compile(r"^-\d")
-STOP_TOKENS = frozenset({";", "&&", "||", "|", "b1500", "uv"})
-
-runner = CliRunner()
-
-
-def code_snippets(text: str) -> list[str]:
-    """Every line of a fenced code block and every inline code span outside the fences."""
-    snippets: list[str] = []
-    in_fence = False
-    for line in text.splitlines():
-        if line.lstrip().startswith("```"):
-            in_fence = not in_fence
-            continue
-        snippets.extend([line] if in_fence else CODE_SPAN.findall(line))
-    return snippets
-
-
-def named_commands(text: str) -> list[list[str]]:
-    """The argument tokens of every ``b1500`` command named in ``text`` (without the program name)."""
-    commands: list[list[str]] = []
-    for snippet in code_snippets(text):
-        for match in COMMAND_START.finditer(snippet):
-            rest = snippet[match.end():]
-            try:
-                tokens = shlex.split(rest, comments=True)
-            except ValueError:
-                tokens = rest.split()
-            end = next((i for i, token in enumerate(tokens) if token in STOP_TOKENS), len(tokens))
-            commands.append(tokens[:end])
-    return commands
-
-
-def resolve(tokens: list[str]) -> tuple[list[str], Any, list[str], str | None]:
-    """Walk ``tokens`` down the CLI tree: (command path, command reached, option names, problem or ``None``).
-
-    Typer ships its own copy of click, so groups are recognised by their ``commands`` mapping."""
-    command: Any = typer.main.get_command(app)
-    path: list[str] = []
-    rest = list(tokens)
-    while isinstance(getattr(command, "commands", None), dict) and rest and COMMAND_WORD.match(rest[0]):
-        name = rest.pop(0)
-        sub = command.commands.get(name)
-        if sub is None:
-            return path, command, [], f"no command `b1500 {' '.join([*path, name])}`"
-        path.append(name)
-        command = sub
-    options = [token.split("=", 1)[0] for token in rest if token.startswith("-") and not NUMBER.match(token)]
-    allowed = {"--help"} | {opt for param in command.params for opt in (*param.opts, *param.secondary_opts)}
-    unknown = [option for option in options if option not in allowed]
-    if unknown:
-        return path, command, options, f"`b1500 {' '.join(path)}` has no option {', '.join(unknown)}"
-    return path, command, options, None
-
-
-def help_problem(path: list[str], options: list[str]) -> str | None:
-    """The command appears in its parent's ``--help`` output, its own ``--help`` works and lists every option."""
-    if path:
-        parent = runner.invoke(app, [*path[:-1], "--help"])
-        if parent.exit_code != 0 or not re.search(rf"(?<![\w-]){re.escape(path[-1])}(?![\w-])", parent.output):
-            return f"`b1500 {' '.join(path)}` is not listed by `b1500 {' '.join([*path[:-1], '--help'])}`"
-    own = runner.invoke(app, [*path, "--help"])
-    if own.exit_code != 0:
-        return f"`b1500 {' '.join([*path, '--help'])}` exits {own.exit_code}"
-    missing = [option for option in options if option not in own.output]
-    if missing:
-        return f"`b1500 {' '.join([*path, '--help'])}` does not list {', '.join(missing)}"
-    return None
 
 
 def sections(text: str, level: int) -> dict[str, str]:

@@ -20,7 +20,7 @@ from b1500_test_agent.devtools.skills.markdown import MarkdownDoc, parse_markdow
 ROOT = Path(__file__).resolve().parents[2]
 SKILL_DIR = ROOT / ".agents" / "skills" / "b1500-debug"
 POSITIVE = ROOT / "tests" / "fixtures" / "skills" / "positive"
-FIXTURE_CARD = ".agents/skills/b1500-test/cards/mosfet-idvg.md"
+FIXTURE_CARD = ".agents/skills/b1500-test/cards/smu/mosfet-idvg.md"
 
 RUNBOOKS = ("current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault")

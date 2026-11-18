@@ -1,20 +1,20 @@
 description: Card knowledge and debug links that do not resolve, and a status that differs from the recipe's.
 edits:
-  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
     old: "knowledge/06-analysis-extraction.md#legacy-ss]"
     new: "knowledge/06-analysis-extraction.md#no-such-section, knowledge/09-missing.md#intro]"
-  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
     old: "debug: [noisy-data, compliance-hit]"
     new: "debug: [noisy-data, vth-drift-igzo]"
-  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
     old: "status: sim_validated"
     new: "status: hw_validated"
-  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
     old: "device_types: [nmos, pmos]"
     new: "device_types: [nmos, diode]"
 expect:
-  - {code: card_knowledge, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "has no heading id 'no-such-section'"}
-  - {code: card_knowledge, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "knowledge/09-missing.md does not exist"}
-  - {code: card_debug, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "debug id 'vth-drift-igzo' is not a runbook"}
-  - {code: card_status, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "status hw_validated differs from recipe mosfet.idvg's effective status on the simulator (sim_validated)"}
-  - {code: card_recipe, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "device_types ['diode'] are not device types"}
+  - {code: card_knowledge, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "has no heading id 'no-such-section'"}
+  - {code: card_knowledge, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "knowledge/09-missing.md does not exist"}
+  - {code: card_debug, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "debug id 'vth-drift-igzo' is not a runbook"}
+  - {code: card_status, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "status hw_validated differs from recipe mosfet.idvg's effective status on the simulator (sim_validated)"}
+  - {code: card_recipe, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "device_types ['diode'] are not device types"}

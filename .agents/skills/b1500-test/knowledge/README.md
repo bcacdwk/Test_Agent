@@ -116,6 +116,31 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Comparing measured and simulated curves](07-hspice-simulation.md#comparing-measured-and-simulated-curves)
 - [BSIM4 and Verilog-A later](07-hspice-simulation.md#bsim4-and-verilog-a-later)
 
+## Manual documents
+
+Ids for `uv run b1500 manual search|page|toc` and for citations (`references/manuals/catalog.yaml`; the committed
+page corpus answers without the PDFs). Knowledge files first; the manuals are the ground truth for commands,
+ranges and error codes. Prefer PG, WG, SEL and CC; WG5 only where an extract cites it.
+
+| id | document | edition | pages | language | use for |
+|---|---|---|---|---|---|
+| PG | B1500 Series Programming Guide | Ed. 15, 2022 | 617 | en | FLEX commands (one outline entry each), modes, data formats, errors |
+| EX | EasyEXPERT Software User's Guide | Ed. 5, 2020 | 700 | en | EasyEXPERT tests and settings (golden comparisons) |
+| UG | B1500A User's Guide | Ed. 17, 2021 | 160 | en | safety, installation, module specifications, calibration |
+| WG | B1530A WGFMU User's Guide | Ed. 8, 2021 | 160 | en | WGFMU instrument library (one entry per function), RSU |
+| WG5 | B1530A WGFMU User's Guide (old) | Ed. 5, 2012 | 164 | en | pages cited by the structured WGFMU extracts; prefer WG |
+| CC | B1500A Configuration and Connection Guide | Ed. 10, 2020 | 122 | en | cabling, Kelvin, guard, ASU/SCUU, prober connections |
+| AC | B1500A Configuration Guide (accessories) | 2024 | 24 | en | accessories and ordering |
+| SEL | 16440A SMU/Pulse Generator Selector User's Guide | Ed. 6, 2014 | 32 | en | selector ports, states, wiring |
+| DS | B1500A technical overview (data sheet) | 2019 | 17 | zh | specifications summary |
+| AN-REL | CMOS reliability test solutions | 2019 | 10 | zh | BTI, HCI, TDDB methods |
+| AN-CHAR | CMOS device characterization | 2014 | 7 | zh | standard I-V/C-V characterization |
+| AN-TUT | B1500A self-study training tutorial | Ed. 9, 2021 | 186 | zh | operation basics, corrections (mostly images) |
+| AN-NVM | Advanced NVM Application Tests User's Guide | Ed. 1, 2019 | 90 | en | NVM (flash) pulse tests, endurance, retention |
+| AN-RTN | Random telegraph noise with the WGFMU | 2019 | 10 | zh | RTN measurement and analysis |
+| AN-CV | IV and CV with MFCMU and SCUU | 2019 | 8 | zh | SCUU same-landing IV/CV, CMU corrections |
+| AN-FIV | 1 us flash-cell IV with the WGFMU | 2014 | 8 | zh | fast IV with short pulses |
+
 ## Conventions
 
 - Frontmatter: `domain`, `maturity` (`seed` = generated from sources, unreviewed; `draft` = reworked, still
@@ -126,8 +151,9 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - Deck citations: "deck slide N" is slide N of the owner's 2026-11-04 deck (title = slide 1; domains 1-8 = slides
   10-17). The deck text file `PPT_slides_content.md` labels those slides as pages 11-18 (it adds a domain overview
   page) and carries a few values not shown on the slides; those are cited as "deck text".
-- Manual citations: "PG" = B1500 Series Programming Guide Ed. 15, "UG" = B1500A User's Guide Ed. 17, "CCG" =
-  B1500A Configuration and Connection Guide; "PDF N" = physical PDF page. Manual definitions win over the deck.
+- Manual citations: `PG p433 (4-115)` = document id (table above), physical 1-based PDF page, printed page label;
+  an optional quoted keyword must occur on the page. Older text writes "PG PDF 433" (same page) and "CCG" for CC.
+  `b1500 dev lint-skills` checks every citation against the catalog. Manual definitions win over the deck.
 - Links stay inside the skill folder (lint rule); repository files are named as code spans.
 - Maintenance (human-reviewed changes): each file stays at or below 300 lines, a domain that outgrows it becomes a
   folder `knowledge/NN-name/`; after an edit run `uv run b1500 dev lint-skills` and `uv run b1500 dev sync-harness`.

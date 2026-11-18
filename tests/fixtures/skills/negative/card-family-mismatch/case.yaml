@@ -1,0 +1,9 @@
+description: A card whose family differs from its folder and from its recipe's family.
+edits:
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
+    old: "family: smu"
+    new: "family: nvm"
+expect:
+  - {code: card_layout, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "family nvm differs from the card's folder cards/smu/"}
+  - {code: card_recipe, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "recipe mosfet.idvg has family smu, the card nvm"}
+  - {code: card_index, file: .agents/skills/b1500-test/cards/README.md, contains: "out of date"}

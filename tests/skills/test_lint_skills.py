@@ -1,12 +1,15 @@
-"""``b1500 dev lint-skills`` (blueprint 6.1-6.5, 8.1 ``skills/``): the repository, a positive fixture tree and one
-negative case per defect class.
+"""``b1500 dev lint-skills`` (blueprint v1 6.1-6.5, v2 6.2, 8.1 ``skills/``): the repository, a positive fixture
+tree and one negative case per defect class.
 
-Fixtures live in ``tests/fixtures/skills/``: ``positive/`` is a complete root (``.agents/skills/`` with both skills,
-a card, a knowledge file and runbooks, plus ``recipes/`` whose ``mosfet.idvg`` copy points at the card; config comes
-from the repository's committed ``config/``). Each ``negative/<case>/`` holds ``case.yaml`` (``edits``: exact text
-substitutions in positive files, each ``old`` occurring exactly once; ``delete``: positive files to remove;
-``expect``: the problems as ``code``/``file``/message substring) and optionally ``tree/``, copied over the positive
-tree. A case passes when the lint fails with exactly the expected problems and nothing else.
+Fixtures live in ``tests/fixtures/skills/``: ``positive/`` is a complete v2 root (``.agents/skills/`` with the three
+skills: a card in ``cards/smu/``, its generated ``cards/README.md``, a knowledge file, runbooks, the bring-up stage
+template, one stage file and the record template; ``recipes/`` whose ``mosfet.idvg`` copy points at the card; a copy
+of the manual-corpus fixture catalog and corpus under ``references/manuals/`` so citations are checked; config
+comes from the repository's committed ``config/``). Each ``negative/<case>/`` holds ``case.yaml`` (``edits``: exact
+text substitutions in positive files, each ``old`` occurring exactly once; ``move``: positive files to rename,
+``{from, to}``; ``delete``: positive files to remove; ``expect``: the problems as ``code``/``file``/message
+substring) and optionally ``tree/``, copied over the positive tree. A case passes when the lint fails with exactly
+the expected problems and nothing else.
 """
 
 from __future__ import annotations
@@ -32,7 +35,8 @@ FIXTURES = ROOT / "tests" / "fixtures" / "skills"
 POSITIVE = FIXTURES / "positive"
 NEGATIVE = FIXTURES / "negative"
 CONFIG = ROOT / "config"
-CARD = ".agents/skills/b1500-test/cards/mosfet-idvg.md"
+CARD = ".agents/skills/b1500-test/cards/smu/mosfet-idvg.md"
+STAGE = ".agents/skills/b1500-bringup/stages/l4-mosfet.md"
 CASES = sorted(p.name for p in NEGATIVE.iterdir() if (p / "case.yaml").is_file())
 
 
@@ -45,6 +49,10 @@ def _materialize(case: str, target: Path) -> dict[str, Any]:
         text = path.read_text(encoding="utf-8")
         assert text.count(edit["old"]) == 1, f"{case}: edit target not unique in {edit['file']}: {edit['old']!r}"
         path.write_text(text.replace(edit["old"], edit["new"]), encoding="utf-8")
+    for move in spec.get("move", []):
+        source, destination = target / move["from"], target / move["to"]
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        source.rename(destination)
     for rel in spec.get("delete", []):
         (target / rel).unlink()
     overlay = NEGATIVE / case / "tree"
@@ -60,6 +68,11 @@ def _lint(root: Path) -> LintReport:
 def test_negative_cases_exist() -> None:
     assert {"broken-link", "param-out-of-range", "dangling-card-path", "card-lists-missing-recipe", "over-budget",
             "bad-frontmatter"} <= set(CASES)
+    # WP5.10 (blueprint 10.1 AC): missing index row, bad citation page, card outside a family folder, and the other
+    # v2 checks
+    assert {"missing-index-row", "bad-citation-page", "card-outside-family-folder", "card-modules-routes",
+            "card-family-mismatch", "card-stage-not-run", "card-manual-form", "stage-files",
+            "unknown-command", "recipe-without-card"} <= set(CASES)
 
 
 def test_repository_skills_are_clean() -> None:
@@ -71,8 +84,11 @@ def test_repository_skills_are_clean() -> None:
 def test_positive_fixture_passes() -> None:
     report = _lint(POSITIVE)
     assert report.ok, lint_skills.format_report(report)
-    assert report.skills == ["b1500-debug", "b1500-test"]
-    assert report.cards == [CARD]  # _TEMPLATE.md and cards/reserved/README.md are not cards
+    assert report.skills == ["b1500-bringup", "b1500-debug", "b1500-test"]
+    assert report.cards == [CARD]  # _TEMPLATE.md, the index README.md and cards/reserved/README.md are not cards
+    assert report.stages == [STAGE]
+    assert "citations: 2 checked (ids, pages, printed labels and keywords)" in report.notes
+    assert any(note.startswith("b1500 commands: ") for note in report.notes)
     assert report.knowledge == [".agents/skills/b1500-test/knowledge/06-analysis-extraction.md"]
     assert report.runbooks == ["compliance-hit", "noisy-data"]
     [example] = report.example_plans

@@ -14,8 +14,9 @@ for the instrument, so everything is developed and tested without hardware.
 > simulator, six SMU measurements (contact/resistor check, diode I-V, MOSFET Id-Vg and Id-Vd, gate leakage, FeFET
 > dual-sweep memory window) run through the 10-tool MCP server or the `b1500` CLI and are analyzed by their
 > extraction methods; these recipes, `generic.smu_staircase` and `system.*` are simulator-validated. Skill
-> `b1500-test` routes requests to six test cards and seven knowledge files, skill `b1500-debug` handles abnormal
-> data; Codex and Claude Code wiring comes from `b1500 harness init`. The hardware probe and lab bring-up are M4
+> `b1500-test` routes requests by family to seven test cards (generated index) and seven knowledge files, skill
+> `b1500-debug` handles abnormal data, skill `b1500-bringup` (stage skeleton) will guide the hardware bring-up;
+> Codex and Claude Code wiring comes from `b1500 harness init`. The hardware probe and lab bring-up are M4
 > (see [docs/roadmap.md](docs/roadmap.md)); no code path has run against a real instrument yet.
 
 ## Layers
@@ -24,7 +25,7 @@ The eight layers of the owner's design deck and where they live:
 
 ```text
 L8 Agent           Codex CLI / Claude Code          AGENTS.md, CLAUDE.md, harness config      (M1–M3)
-L7 Skills + rules  b1500-test, b1500-debug          .agents/skills/  rules/  config/*.example  (M1–M2)
+L7 Skills + rules  b1500-test/-debug/-bringup       .agents/skills/  rules/  config/*.example  (M1–M2, M5)
 L6 MCP + CLI       10 tools, `b1500` CLI            service/    adapters/{mcp_server,cli}.py   (M1)
 L5 Analysis        quality, Vth/SS/gm, plots        analysis/  archive/                        (M1–M2)
 L4 Transaction     recipes, plans, lock, cleanup    catalog/  recipes/  session/               (M1)

@@ -14,7 +14,7 @@ title: MOSFET gate leakage (Ig-Vg, drain and source at 0 V) - leakage at the ope
 family: smu
 kind: smu_staircase
 status: sim_validated
-card: .agents/skills/b1500-test/cards/gate-leakage.md
+card: .agents/skills/b1500-test/cards/smu/gate-leakage.md
 device_types: [nmos, pmos, igzo_tft, fefet]
 roles:
   gate:

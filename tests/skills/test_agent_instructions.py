@@ -89,14 +89,27 @@ def test_skill_frontmatter() -> None:
         assert 0 < len(front["description"]) <= MAX_SKILL_DESCRIPTION_CHARS
 
 
+def test_routing_names_every_skill_and_the_manual_lookup() -> None:
+    """AGENTS.md routes measurements, debugging, bring-up (WP5.10) and manual facts; CLAUDE.md names the three
+    skills."""
+    text = _read(ROOT / "AGENTS.md")
+    routing = text[text.index("## Routing"):text.index("## Developer")]
+    for needle in ("`b1500-test`", "`b1500-debug`", "`b1500-bringup`", "uv run b1500 manual search",
+                   "`PG p433 (4-115)`"):
+        assert needle in routing, needle
+    claude = _read(ROOT / "CLAUDE.md")
+    assert all(f"`{skill}`" in claude for skill in ("b1500-test", "b1500-debug", "b1500-bringup"))
+
+
 def test_always_loaded_token_budget() -> None:
-    """AGENTS.md + CLAUDE.md + both skills' descriptions stay within 2,500 tokens (tiktoken o200k_base)."""
+    """AGENTS.md + CLAUDE.md + the three skills' descriptions stay within 2,500 tokens (tiktoken o200k_base)."""
     assert ALWAYS_LOADED_LIMIT == MAX_ALWAYS_LOADED_TOKENS
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
         counter = load_counter()
     budget = always_loaded_budget(ROOT, counter)
-    assert {"AGENTS.md", "CLAUDE.md", ".agents/skills/b1500-test/SKILL.md#description"} <= set(budget.parts)
+    assert {"AGENTS.md", "CLAUDE.md"} | {f".agents/skills/{skill}/SKILL.md#description" for skill in
+                                         ("b1500-test", "b1500-debug", "b1500-bringup")} <= set(budget.parts)
     if counter.warning and budget.total > MAX_ALWAYS_LOADED_TOKENS:
         pytest.skip(f"only the chars/3.5 estimate is available ({budget.total} tokens): {counter.warning}")
     assert budget.total <= MAX_ALWAYS_LOADED_TOKENS, f"always-loaded text has {budget.total} tokens: {budget.parts}"

@@ -1,0 +1,13 @@
+description: A card moved directly under cards/ (outside its family folder), with the recipe pointing at it.
+edits:
+  - file: recipes/mosfet/idvg.yaml
+    old: "card: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md"
+    new: "card: .agents/skills/b1500-test/cards/mosfet-idvg.md"
+move:
+  - {from: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, to: .agents/skills/b1500-test/cards/mosfet-idvg.md}
+expect:
+  - {code: card_layout, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "card outside a family folder: move it to cards/<family>/mosfet-idvg.md"}
+  - {code: recipe_card, file: recipes/mosfet/idvg.yaml, contains: "is not a test card in a family folder"}
+  - {code: card_index, file: .agents/skills/b1500-test/cards/README.md, contains: "should read: | smu | Vth, gm, SS, Ion/Ioff | [mosfet-idvg](mosfet-idvg.md)"}
+  - {code: link, file: .agents/skills/b1500-test/cards/README.md, contains: "broken link 'smu/mosfet-idvg.md'"}
+  - {code: link, file: .agents/skills/b1500-test/SKILL.md, contains: "broken link 'cards/smu/mosfet-idvg.md#4-recipe-and-parameters'"}

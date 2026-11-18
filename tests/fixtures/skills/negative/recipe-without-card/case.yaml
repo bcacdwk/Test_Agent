@@ -1,0 +1,4 @@
+description: A runnable recipe without a card (only reserved recipes and CARDLESS_RECIPES may have none).
+expect:
+  - {code: recipe_card, file: recipes/mosfet/idvg_copy.yaml, contains: "runnable recipe mosfet.idvg_copy has no card"}
+  - {code: card_index, file: .agents/skills/b1500-test/cards/README.md, contains: "out of date"}

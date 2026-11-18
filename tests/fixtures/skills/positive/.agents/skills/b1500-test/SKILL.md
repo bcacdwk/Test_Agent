@@ -6,13 +6,15 @@ description: Test fixture for b1500 dev lint-skills (positive tree), not a real 
 # Fixture entry skill
 
 Pick a card from the [card index](#card-index), read it, then validate its
-[example plan](cards/mosfet-idvg.md#4-recipe-and-parameters) before anything runs.
+[example plan](cards/smu/mosfet-idvg.md#4-recipe-and-parameters) before anything runs.
 
 ## Card index
 
-| intent | card | recipe | status |
-|---|---|---|---|
-| Vth, gm, SS, Ion/Ioff | [mosfet-idvg](cards/mosfet-idvg.md) | `mosfet.idvg` | sim_validated |
+| family | index |
+|---|---|
+| SMU I-V | [smu](cards/README.md#smu) |
+
+Look things up with `uv run b1500 manual search "FIXCMD" --doc FX` and cite `FX p1 (9-1)`.
 
 New cards start from the [template][template]; reserved measurements are listed in
 [reserved cards](cards/reserved/README.md).

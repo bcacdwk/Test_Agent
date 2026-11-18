@@ -9,12 +9,15 @@ edits:
   - file: .agents/skills/b1500-debug/SKILL.md
     old: "name: b1500-debug"
     new: "name: b1500-debugging"
-  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
     old: "status: sim_validated"
     new: "status: validated"
-  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
     old: "version: 1\n"
     new: ""
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
+    old: "bringup_stage: L4"
+    new: "bringup_stage: L11"
   - file: .agents/skills/b1500-test/knowledge/06-analysis-extraction.md
     old: "maturity: seed"
     new: "maturity: final"
@@ -22,6 +25,7 @@ expect:
   - {code: frontmatter, file: .agents/skills/b1500-test/SKILL.md, contains: "description: String should have at most 300 characters"}
   - {code: frontmatter, file: .agents/skills/b1500-test/SKILL.md, contains: "allowed-tools: Extra inputs are not permitted"}
   - {code: frontmatter, file: .agents/skills/b1500-debug/SKILL.md, contains: "name 'b1500-debugging' must equal the folder name 'b1500-debug'"}
-  - {code: frontmatter, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "status: Input should be"}
-  - {code: frontmatter, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "version: Field required"}
+  - {code: frontmatter, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "status: Input should be"}
+  - {code: frontmatter, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "version: Field required"}
+  - {code: frontmatter, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "bringup_stage: Input should be 'S0'"}
   - {code: frontmatter, file: .agents/skills/b1500-test/knowledge/06-analysis-extraction.md, contains: "maturity: Input should be"}

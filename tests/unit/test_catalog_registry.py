@@ -67,9 +67,11 @@ def test_committed_statuses() -> None:
                       "fefet.dual_sweep_mw"):
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
     assert registry.get("mosfet.idvd").kind == "smu_stepped"
-    cards = {"mosfet.idvg": "mosfet-idvg", "mosfet.idvd": "mosfet-idvd", "mosfet.gate_leakage": "gate-leakage",
-             "basic.contact_resistor": "contact-resistor-check", "basic.diode_iv": "diode-iv",
-             "fefet.dual_sweep_mw": "fefet-dual-sweep-mw"}  # WP2.5: the six first test cards
+    cards = {"mosfet.idvg": "smu/mosfet-idvg", "mosfet.idvd": "smu/mosfet-idvd",
+             "mosfet.gate_leakage": "smu/gate-leakage", "basic.contact_resistor": "smu/contact-resistor-check",
+             "basic.diode_iv": "smu/diode-iv", "fefet.dual_sweep_mw": "nvm/fefet-dual-sweep-mw",
+             "system.self_test": "system/self-test-cal", "system.self_cal": "system/self-test-cal"}
+    # WP2.5: the six first test cards; WP5.10: family folders + the system card
     for recipe_id in registry.ids():
         expected = f".agents/skills/b1500-test/cards/{cards[recipe_id]}.md" if recipe_id in cards else None
         assert registry.get(recipe_id).card == expected, recipe_id

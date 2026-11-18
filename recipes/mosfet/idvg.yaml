@@ -10,7 +10,7 @@ title: MOSFET transfer curve (Id-Vg, linear region) for Vth/gm/SS/Ion-Ioff
 family: smu
 kind: smu_staircase
 status: sim_validated
-card: .agents/skills/b1500-test/cards/mosfet-idvg.md
+card: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
 device_types: [nmos, pmos, igzo_tft]
 roles:
   gate:

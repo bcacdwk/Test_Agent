@@ -2,8 +2,8 @@
 ``mcp-smoke [--config F] [--async]`` (start the server as a harness config says and check it; ``--async`` also
 runs an asynchronous simulator run through it), ``sync-harness [--check]``
 (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``lint-skills`` (skill schema, budgets, links; package
-``devtools/skills/``), ``sim-console`` (raw FLEX, simulator only) and ``acceptance`` (M3 harness acceptance runner,
-``devtools/acceptance/cli.py``).
+``devtools/skills/``), ``gen-index [--check]`` (generated card index ``cards/README.md``), ``sim-console`` (raw FLEX,
+simulator only) and ``acceptance`` (M3 harness acceptance runner, ``devtools/acceptance/cli.py``).
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from b1500_test_agent.adapters.cli import core
 from b1500_test_agent.adapters.cli.core import DEFAULT_MCP_APP_SPEC, JsonOption
 from b1500_test_agent.devtools import budget, harness, mcp_smoke, recipe_check, sim_console, sync_harness
 from b1500_test_agent.devtools.acceptance.cli import acceptance_app
+from b1500_test_agent.devtools.skills import index as card_index
 from b1500_test_agent.devtools.skills import lint as lint_skills
 from b1500_test_agent.paths import find_repo_root
 
@@ -126,6 +127,22 @@ def lint_skills_command(
     example plan on the simulator. Exit 1 with one line per problem."""
     report = lint_skills.lint_skills(root, config_dir=config_dir)
     typer.echo(report.model_dump_json(indent=2) if as_json else lint_skills.format_report(report))
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@dev_app.command("gen-index")
+def gen_index_command(
+    check: Annotated[bool, typer.Option("--check", help="Write nothing; exit 1 when cards/README.md differs from "
+                                                        "the generated index.")] = False,
+    root: Annotated[Path | None, typer.Option("--root", help="Root with .agents/skills/ and recipes/ (default: this "
+                                                             "clone).")] = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Write the generated card index .agents/skills/b1500-test/cards/README.md from the card frontmatter and the
+    recipe registry; --check only compares. Exit 1 on drift or invalid card frontmatter."""
+    report = card_index.gen_index(root, check=check)
+    typer.echo(report.model_dump_json(indent=2) if as_json else card_index.format_report(report))
     if not report.ok:
         raise typer.Exit(code=1)
 

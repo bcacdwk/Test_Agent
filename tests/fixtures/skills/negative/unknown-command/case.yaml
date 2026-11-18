@@ -1,0 +1,10 @@
+description: b1500 commands that do not exist in the CLI, in a skill and in a doc (docs/design/ is not checked).
+edits:
+  - file: .agents/skills/b1500-test/SKILL.md
+    old: 'Look things up with `uv run b1500 manual search "FIXCMD" --doc FX` and cite `FX p1 (9-1)`.'
+    new: 'Look things up with `uv run b1500 manual search "FIXCMD" --doc FX` and cite `FX p1 (9-1)`. Never `uv run b1500 stauts` or `b1500 doctor --yolo`; see `b1500 status|recepies --json`.'
+expect:
+  - {code: command, file: .agents/skills/b1500-test/SKILL.md, contains: "no command `b1500 stauts`"}
+  - {code: command, file: .agents/skills/b1500-test/SKILL.md, contains: "`b1500 doctor` has no option --yolo"}
+  - {code: command, file: .agents/skills/b1500-test/SKILL.md, contains: "no command `b1500 recepies`"}
+  - {code: command, file: docs/guide.md, contains: "no command `b1500 bringup`"}

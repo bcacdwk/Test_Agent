@@ -1,7 +1,7 @@
 description: The example plan asks for 60 V on the gate, so validate_plan blocks it on the simulator.
 edits:
-  - file: .agents/skills/b1500-test/cards/mosfet-idvg.md
+  - file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
     old: "params: {vg_start: -1.0, vg_stop: 3.0, vd: 0.05}"
     new: "params: {vg_start: -1.0, vg_stop: 60.0, vd: 0.05}"
 expect:
-  - {code: example_plan, file: .agents/skills/b1500-test/cards/mosfet-idvg.md, contains: "example plan is blocked on the simulator"}
+  - {code: example_plan, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "example plan is blocked on the simulator"}

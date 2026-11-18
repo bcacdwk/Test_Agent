@@ -26,24 +26,32 @@ from b1500_test_agent.devtools.skills.cards import (
     validate_examples,
 )
 from b1500_test_agent.devtools.skills.citations import check_citations
+from b1500_test_agent.devtools.skills.commands import check_commands
 from b1500_test_agent.devtools.skills.common import (
+    BRINGUP_SKILL,
+    CARDLESS_RECIPES,
     CARDS_DIR,
     DEBUG_SKILL,
     ENTRY_SKILL,
     KNOWLEDGE_DIR,
     README,
     RUNBOOKS_DIR,
+    STAGES_DIR,
     TEMPLATE,
     Card,
     KnowledgeFrontmatter,
     Lint,
     LintProblem,
     LintReport,
+    StageFrontmatter,
     model_front,
 )
+from b1500_test_agent.devtools.skills.index import check_index
 from b1500_test_agent.devtools.skills.layout import check_skill_front, skill_files
 from b1500_test_agent.devtools.skills.links import check_links
+from b1500_test_agent.devtools.skills.stages import check_bringup, missing_stage_notes
 from b1500_test_agent.devtools.sync_harness import SKILL_FILE, SOURCE_DIR
+from b1500_test_agent.manuals.catalog import ManualError, load_catalog
 from b1500_test_agent.paths import find_repo_root
 
 
@@ -99,19 +107,34 @@ def lint_skills(root: Path | None = None, *, recipes_dir: Path | None = None, co
         lint.add("skill_layout", lint.recipes_dir, "recipe folder not found (card and recipe links cannot be checked)")
     registry = RecipeRegistry.load(lint.recipes_dir, repo_root=root)
     check_recipes(lint, registry, entry_dir)
+    stages: dict[str, StageFrontmatter] = {}
+    if BRINGUP_SKILL in skills:
+        stages = check_bringup(lint, base / BRINGUP_SKILL, registry)
+    catalog_ids = manual_ids(root)
     cards: list[Card] = []
     card_paths = find_card_paths(entry_dir) if ENTRY_SKILL in skills else []
     for path in card_paths:
-        card = check_card(lint, path, registry, entry_dir, set(runbooks))
+        card = check_card(lint, path, registry, entry_dir, set(runbooks), stages, catalog_ids)
         if card is not None:
             cards.append(card)
     other = sorted(set((entry_dir / CARDS_DIR).glob("*.md")) - set(card_paths)) if ENTRY_SKILL in skills else []
-    for path in other:  # _TEMPLATE.md (and any README.md): card budget; the template also has the card sections
+    for path in other:  # _TEMPLATE.md (and the index README.md): card budget; the template has the card sections
         doc = lint.doc(path)
         if doc is not None:
             check_budget(lint, doc, CARD_MAX_LINES, path.name)
             if path.name == TEMPLATE:
                 check_sections(lint, doc)
+    if ENTRY_SKILL in skills and (entry_dir / CARDS_DIR).is_dir():
+        if len(cards) == len(card_paths):
+            check_index(lint, entry_dir, [(c.doc.path.relative_to(entry_dir / CARDS_DIR).as_posix(), c.front)
+                                          for c in cards], registry)
+        else:
+            lint.notes.append(f"{CARDS_DIR}/{README} not compared with the generated index: fix the card "
+                              "frontmatter first")
+    lint.notes.extend(missing_stage_notes(cards, stages))
+    cardless = [r for r in CARDLESS_RECIPES if r in registry.ids()]
+    if cardless:
+        lint.notes.append("recipes without a card by design: " + ", ".join(cardless))
     examples = validate_examples(lint, cards, registry)
     budget = always_loaded_budget(root, counter)
     if budget.total > budget.limit:
@@ -122,11 +145,27 @@ def lint_skills(root: Path | None = None, *, recipes_dir: Path | None = None, co
         else:
             lint.notes.append(message + " - estimate only, re-check with the tiktoken encoding")
     check_citations(lint)
+    check_commands(lint)
     problems = sorted(lint.problems, key=lambda p: (p.file, p.line or 0, p.code, p.message))
+    stage_files = sorted(lint.rel(base / BRINGUP_SKILL / STAGES_DIR / p.name)
+                         for p in (base / BRINGUP_SKILL / STAGES_DIR).glob("*.md") if not p.name.startswith("_")) \
+        if BRINGUP_SKILL in skills and (base / BRINGUP_SKILL / STAGES_DIR).is_dir() else []
     return LintReport(ok=not problems, root=root.as_posix(), skills=skills,
                       cards=[lint.rel(p) for p in card_paths], knowledge=knowledge,
-                      runbooks=runbooks, example_plans=examples, always_loaded=budget, notes=lint.notes,
-                      problems=dedupe(problems))
+                      runbooks=runbooks, stages=stage_files, example_plans=examples, always_loaded=budget,
+                      notes=lint.notes, problems=dedupe(problems))
+
+
+def manual_ids(root: Path) -> set[str] | None:
+    """Document ids of ``references/manuals/catalog.yaml`` under ``root`` (``None`` without a readable catalog; the
+    citation lint reports a broken one)."""
+    path = root / "references" / "manuals" / "catalog.yaml"
+    if not path.is_file():
+        return None
+    try:
+        return set(load_catalog(path).ids)
+    except ManualError:
+        return None
 
 
 def dedupe(problems: Iterable[LintProblem]) -> list[LintProblem]:
@@ -149,7 +188,8 @@ def format_report(report: LintReport) -> str:
     """Human-readable report: verdict and counts, the always-loaded budget, notes and problems."""
     verdict = "clean" if report.ok else f"{len(report.problems)} PROBLEM(S)"
     lines = [(f"skills: {verdict} ({len(report.skills)} skills, {len(report.cards)} cards, "
-              f"{len(report.knowledge)} knowledge files, {len(report.runbooks)} runbooks; root {report.root})")]
+              f"{len(report.knowledge)} knowledge files, {len(report.runbooks)} runbooks, {len(report.stages)} "
+              f"stage files; root {report.root})")]
     for check in report.example_plans:
         lines.append(f"  example plan {check.card}: {check.recipe_id} on {check.sim_scenario} -> {check.status}, "
                      f"tier {check.tier or '-'}")

@@ -1,8 +1,9 @@
 # Roadmap
 
-Milestones of the re-architecture (blueprint §9). Each work package (WP) is one commit on branch `rearch/v1`; the
-log with acceptance results and handoff notes is [`docs/design/progress.md`](design/progress.md), which is the
-source of truth for status. This page is updated at milestone boundaries.
+Milestones of the re-architecture. v1 (M0–M4, plan tag `plan-v1`) was built on branch `rearch/v1` and merged into
+`main`; v2 (M5–M12, [blueprint](design/blueprint.md) §10) is built on branch `rearch/v2`, one commit per work package
+(WP). The log with acceptance results and handoff notes is [`docs/design/progress.md`](design/progress.md), which is
+the source of truth for status. This page is updated at milestone boundaries.
 
 | Milestone | Goal | Status |
 |---|---|---|
@@ -11,6 +12,14 @@ source of truth for status. This page is updated at milestone boundaries.
 | M2 Skill system | Six SMU test cards with recipes that run on the simulator; knowledge files; debug skill | **done** (2026-11-18) |
 | M3 Harness acceptance | Ten scenarios on Codex and Claude Code against the simulator | **done** (2026-11-18; [reports](acceptance/)) |
 | M4 Hardware bring-up | Checklists for the Windows lab PC and staged hardware validation | planned (docs only; execution later with the owner) |
+| M5 Foundations | v2 plan, package split, models/config v2, guard + rules v2, per-transaction VISA + visa-loop, async runs, archive v2, manual corpus, device models v2, skills v2 structure | in progress |
+| M6 Lab-ready core | Read-only probe, station proposal and config adoption, visa completeness, bring-up skill, hardware suite, Windows readiness, acceptance v2 | planned |
+| M7 SMU complete | Spot/Kelvin/ASU, sweeps v2, pulsed, sampling + TDDB, search + BDV, stress-measure, compact models | planned |
+| M8 MFCMU, SCUU, GNDU | CMU driver + simulator, corrections, C-V core and variants, QSCV, Dit, GNDU budget | planned |
+| M9 HV-SPGU + 16440A | SPGU driver + simulator, selector routes, pulse kind, program/read, kinetics, endurance, retention | planned |
+| M10 WGFMU | Library protocol + simulator, DLL binding, driver + phase, waveform kind, noise, FeCap PUND, fast BTI | planned |
+| M11 Integration and closure | Async/debug completeness, coverage ledger closure, full safety + visa-loop, docs, final acceptance S1–S18 | planned |
+| M12 Hardware session | Owner at the lab PC: staged bring-up S0–L10, validation records, then per-module developer WPs | owner (outside the v2 goal) |
 
 ## M0 — Re-baseline (done)
 
@@ -75,9 +84,10 @@ iteration until safety scenarios pass 3/3 and functional scenarios pass on both 
   adapter, `git clone`, `uv sync --frozen`, `config/local/`, `b1500 doctor --probe`, `b1500 harness init`),
   residual risks in plain words, facts to collect.
 
-## Later (reserved, not scheduled)
+## v2 (M5–M12)
 
-WGFMU pulsed I-V and fast BTI; SPGU/HVSPGU program + SMU read with the 16440A selector; FeFET pulse write/read,
-endurance and retention; FeCap PUND; BTI, HCI and TDDB stress-measure; CMU correction, C-V and QSCV; HSPICE compare.
-Each is registered as a `not_implemented` recipe and needs manual extraction, correction/leakage flows and
-validation before it can run.
+v2 keeps v1's kernel shape (recipe → kind → guarded driver → transaction with verified cleanup → archive →
+analysis, behind the same 10 MCP tools) and fills it to the whole station: SMU, MFCMU (+SCUU), HV-SPGU with two
+16440A selectors, WGFMU (+RSU) and GNDU, each implemented, simulated, tested, carded and given a bring-up stage
+(68 recipes, 14 kinds, 33 cards). Order: M5 → M6 → (M7 ∥ M8 ∥ M9 ∥ WGFMU 10.1–10.5) → (10.6 ∥ 10.7) → 10.8 → M11;
+M12 is the owner's hardware session. Only the hardware-bound items of blueprint §7.6 wait for M12.

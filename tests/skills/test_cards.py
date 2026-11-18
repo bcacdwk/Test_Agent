@@ -17,7 +17,8 @@ import pytest
 import yaml
 
 from b1500_test_agent.catalog.registry import RecipeRegistry
-from b1500_test_agent.devtools.lint_skills import CARD_SECTIONS, MarkdownDoc, parse_markdown
+from b1500_test_agent.devtools.skills.common import CARD_SECTIONS
+from b1500_test_agent.devtools.skills.markdown import MarkdownDoc, parse_markdown
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILL_DIR = ROOT / ".agents" / "skills" / "b1500-test"

@@ -1,0 +1,27 @@
+{
+  "recipe_id": "mosfet.gate_leakage",
+  "source": "card gate-leakage",
+  "scenario": "nmos_basic",
+  "request": {
+    "params": {},
+    "pin_map": "mosfet-4t",
+    "dut_profile": "nmos-generic"
+  },
+  "config": {},
+  "kind": "smu_staircase",
+  "flex_preview": [
+    "FMT 1,1",
+    "AAD 4,0",
+    "AAD 3,0",
+    "AIT 0,2,16",
+    "CN 4,3",
+    "DV 3,0,0,1E-07",
+    "MM 2,4,3",
+    "CMM 4,1",
+    "CMM 3,1",
+    "WV 4,1,0,0,3,31,1E-07",
+    "WT 0.5,0.05",
+    "WM 2,1",
+    "XE"
+  ]
+}

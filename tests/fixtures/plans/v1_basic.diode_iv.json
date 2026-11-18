@@ -1,0 +1,24 @@
+{
+  "recipe_id": "basic.diode_iv",
+  "source": "card diode-iv",
+  "scenario": "diode_basic",
+  "request": {
+    "params": {},
+    "pin_map": "diode-2t",
+    "dut_profile": "diode-generic"
+  },
+  "config": {},
+  "kind": "smu_staircase",
+  "flex_preview": [
+    "FMT 1,1",
+    "AAD 3,0",
+    "AIT 0,2,1",
+    "CN 3",
+    "MM 2,3",
+    "CMM 3,1",
+    "WV 3,1,0,-5,0.8,291,0.01",
+    "WT 0,0",
+    "WM 2,1",
+    "XE"
+  ]
+}

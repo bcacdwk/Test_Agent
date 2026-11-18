@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from b1500_test_agent.driver import commands
+from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.modules import (
     I_RANGE_FULL_SCALE,
     MODULE_SPECS,
@@ -106,13 +106,13 @@ def test_range_tables_match_the_manual_codes() -> None:
     assert V_RANGE_FULL_SCALE[20] == V_RANGE_FULL_SCALE[11] == 2.0
     assert V_RANGE_FULL_SCALE[2000] == V_RANGE_FULL_SCALE[15] == 200.0
     assert I_RANGE_FULL_SCALE[8] == 1e-12 and I_RANGE_FULL_SCALE[14] == 1e-6 and I_RANGE_FULL_SCALE[19] == 0.1
-    assert set(V_RANGE_FULL_SCALE) == commands.V_RANGE_CODES - {0}
-    assert set(I_RANGE_FULL_SCALE) == commands.I_RANGE_CODES - {0}
+    assert set(V_RANGE_FULL_SCALE) == flex.V_RANGE_CODES - {0}
+    assert set(I_RANGE_FULL_SCALE) == flex.I_RANGE_CODES - {0}
     for spec in MODULE_SPECS.values():
         for rng in spec.v_ranges:
-            assert rng.code in commands.V_RANGE_CODES
+            assert rng.code in flex.V_RANGE_CODES
         for rng in spec.i_ranges:
-            assert rng.code in commands.I_RANGE_CODES
+            assert rng.code in flex.I_RANGE_CODES
 
 
 @pytest.mark.parametrize(

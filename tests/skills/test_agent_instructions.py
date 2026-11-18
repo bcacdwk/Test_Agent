@@ -1,6 +1,7 @@
 """Agent instruction files (blueprint §5.2, §6.6–6.7): size limits, import shape, the driver-map isolation rule,
 the skill frontmatter and the always-loaded budget (AGENTS.md + CLAUDE.md + every skill's frontmatter description
-≤ 2,500 tokens, counted by ``lint_skills.always_loaded_budget`` with the ``devtools/budget.py`` counter).
+≤ 2,500 tokens, counted by ``always_loaded_budget`` of ``devtools/skills/budgets.py`` with the
+``devtools/budget.py`` counter).
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ import pytest
 import yaml
 
 from b1500_test_agent.devtools.budget import load_counter
-from b1500_test_agent.devtools.lint_skills import ALWAYS_LOADED_LIMIT, always_loaded_budget
+from b1500_test_agent.devtools.skills.budgets import ALWAYS_LOADED_LIMIT, always_loaded_budget
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / "src" / "b1500_test_agent"

@@ -5,9 +5,9 @@ The legacy package `src/b1500_test_agent/mcp/` (282 atoms, 97 flows) is read fro
 `ast` only; the legacy modules are never imported. Every A/B/C atom's FLEX basis is the second argument of
 its `_fake_response` call (C atoms pass it through `_c_response`, whose third argument is forwarded as that
 second argument); D atoms take theirs from the `_SPECS` catalog. Each atom is mapped onto the new
-`B1500Driver` methods / `driver/commands.py` builders of blueprint §2.3, or marked `unmapped`. Manual pages of
+`B1500Driver` methods / `driver/flex/` builders of blueprint §2.3, or marked `unmapped`. Manual pages of
 commands that the summary lists only in its grouped index come from `GROUPED_PAGES` (read from the Programming
-Guide by WP1.3; the same pages are cited in the builder docstrings of `driver/commands.py`).
+Guide by WP1.3; the same pages are cited in the builder docstrings of `driver/flex/`).
 
 Usage (from the repo root):
     uv run python scripts/build_driver_map.py            # regenerate the YAML
@@ -63,12 +63,13 @@ COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv",
     "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q",
 )  # fmt: skip
-DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"commands.{b}" for b in COMMAND_BUILDERS)
+DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
 
 
 @dataclass(frozen=True)
 class CommandTarget:
-    """Where a FLEX mnemonic lives in the new driver: a `B1500Driver` method and/or a `commands.py` builder."""
+    """Where a FLEX mnemonic lives in the new driver: a `B1500Driver` method and/or a `driver/flex/` builder
+    (`flex.<name>`, re-exported by `driver/flex/__init__.py`)."""
 
     method: str | None
     builder: str | None
@@ -77,7 +78,7 @@ class CommandTarget:
     @property
     def primary(self) -> str:
         """The method if one sends the command, else the builder."""
-        return f"B1500Driver.{self.method}" if self.method else f"commands.{self.builder}"
+        return f"B1500Driver.{self.method}" if self.method else f"flex.{self.builder}"
 
 
 # FLEX mnemonic -> new driver target. Every mnemonic not listed here is `unmapped`.
@@ -567,7 +568,7 @@ def map_commands(summary: CommandSummary, atoms: list[dict[str, Any]]) -> list[d
                 entry["pdf_pages"], entry["printed_pages"] = (list(x) for x in GROUPED_PAGES[mnemonic])
         entry["target"] = target.primary if target else UNMAPPED
         if target and target.builder:
-            entry["builder"] = f"commands.{target.builder}"
+            entry["builder"] = f"flex.{target.builder}"
         entry["priority"] = _flex_priority(mnemonic)
         entry["atoms"] = users.get(mnemonic, [])
         if target and target.note:

@@ -1,0 +1,24 @@
+{
+  "recipe_id": "basic.contact_resistor",
+  "source": "card contact-resistor-check",
+  "scenario": "resistor_100k",
+  "request": {
+    "params": {},
+    "pin_map": "resistor-2t",
+    "dut_profile": "resistor-generic"
+  },
+  "config": {},
+  "kind": "smu_staircase",
+  "flex_preview": [
+    "FMT 1,1",
+    "AAD 3,0",
+    "AIT 0,2,1",
+    "CN 3",
+    "MM 2,3",
+    "CMM 3,1",
+    "WV 3,1,0,-0.1,0.1,21,0.001",
+    "WT 0,0",
+    "WM 2,1",
+    "XE"
+  ]
+}

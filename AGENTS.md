@@ -37,8 +37,9 @@ L7 skills + rules → `.agents/skills/`, `rules/`, `config/` · L8 agent → you
 - Plan of record: `docs/design/blueprint.md` (WP log `docs/design/progress.md`).
 - Layering (import test): `adapters → service → {catalog, rules, archive, analysis} → session → driver →
   transport`; `models` is a leaf. Only `adapters/mcp_server.py` imports `fastmcp`, only `transport/visa.py`
-  imports `pyvisa`, only `driver/commands.py` contains FLEX mnemonics. Driver or FLEX work: read
-  `src/b1500_test_agent/driver/AGENTS.md` first; analysis work: `src/b1500_test_agent/analysis/AGENTS.md`.
+  imports `pyvisa`, only `driver/flex/` contains FLEX mnemonics, only kind `system` calls `*RST`; no source
+  file over 1,000 lines. Driver or FLEX work: read `src/b1500_test_agent/driver/AGENTS.md` first; analysis work:
+  `src/b1500_test_agent/analysis/AGENTS.md`.
 - Safety lives in the core (rules, tiers, `OutputGuard`, verified cleanup, audit), never only in skills or
   adapters. No raw FLEX tool or command (`b1500 dev sim-console` is sim-only). Never weaken rules, limits, tiers,
   tests or graders to make something pass.

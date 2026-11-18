@@ -20,9 +20,9 @@ from pathlib import Path
 
 import pytest
 
-from b1500_test_agent.driver import b1500 as driver_module
 from b1500_test_agent.driver.errors import FlexParseError
 from b1500_test_agent.driver.guard import EnvelopeViolation, OutputGuard
+from b1500_test_agent.driver.ops import core as driver_module  # parse_data/parse_errx are looked up here
 from b1500_test_agent.models.sim import (
     CleanupFailure,
     ComplianceAt,

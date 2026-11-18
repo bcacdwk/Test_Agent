@@ -9,9 +9,9 @@ A rule is one small function registered with a stable id and the phases it runs 
 
 Rules return ``Finding`` drafts; the engine stamps them with the rule's own id, so a rule cannot speak for another
 one. ``RulesEngine.evaluate`` runs every rule of a phase in registration order (the order of the blueprint 4.2
-table, which ``builtin.py`` follows), keeps each rule's own finding order, and derives the tier: any ``block`` →
-``blocked``; else any ``confirm`` → ``needs_confirmation``; else ``ok``. A rule that raises is reported as a
-``block`` finding of that rule (fail closed), never as an exception.
+table, which ``rules/builtin/`` follows: its modules are imported in table order), keeps each rule's own finding
+order, and derives the tier: any ``block`` → ``blocked``; else any ``confirm`` → ``needs_confirmation``; else
+``ok``. A rule that raises is reported as a ``block`` finding of that rule (fail closed), never as an exception.
 
 Every finding names its ``source``: the resolved config file path and key (``config/local/policy.yaml#soft_limits
 .voltage_v``), the recipe field, a code constant (``code:...``), the live snapshot (``live:...``), the plan

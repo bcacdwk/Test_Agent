@@ -14,15 +14,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-from b1500_test_agent.devtools.lint_skills import (
-    CARD_SECTIONS,
-    EXAMPLE_PLAN_INFO,
-    CardFrontmatter,
-    ExamplePlan,
-    MarkdownDoc,
-    param_rows,
-    parse_markdown,
-)
+from b1500_test_agent.devtools.skills.cards import EXAMPLE_PLAN_INFO
+from b1500_test_agent.devtools.skills.common import CARD_SECTIONS, CardFrontmatter, ExamplePlan
+from b1500_test_agent.devtools.skills.markdown import MarkdownDoc, parse_markdown
+from b1500_test_agent.devtools.skills.params import param_rows
 from b1500_test_agent.service import TOOL_NAMES
 
 ROOT = Path(__file__).resolve().parents[2]

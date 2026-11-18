@@ -14,13 +14,21 @@ rank components
 4    ``session``
 5    ``catalog``, ``rules``, ``archive``, ``analysis`` (peers)
 6    ``service``
-7    ``adapters``, ``devtools`` (peers; ``adapters/cli.py`` runs the dev tools)
+7    ``adapters``, ``devtools`` (peers; ``adapters/cli/`` runs the dev tools)
 ==== ==========================================================================================================
 
 Extra rules: ``analysis`` never imports ``session``, ``driver``, ``transport`` or ``catalog`` (blueprint 2 and
 ``analysis/AGENTS.md``); only ``adapters/mcp_server.py`` imports ``fastmcp`` (``devtools/`` is exempt: its token
 counter loads FastMCP apps, WP0.3). Every import statement counts, including function-level and ``TYPE_CHECKING``
 imports. A new top-level module must be added to ``RANKS`` before it can be imported.
+
+Per-family packages (blueprint 2.2, 9; WP5.2), checked inside their component:
+
+- ``driver/flex/`` holds pure builders: it imports only ``models`` and ``driver.flex`` itself;
+- ``driver.ops`` (the operations mixins) is imported only by the facade ``driver/b1500.py`` and by ``driver/ops/``;
+  everything else uses ``B1500Driver``;
+- ``transport.sim.units`` (the simulator units) is imported only by the dispatcher ``transport/sim/instrument.py``
+  and by ``transport/sim/units/``.
 """
 
 from __future__ import annotations
@@ -55,6 +63,17 @@ FORBIDDEN: dict[str, frozenset[str]] = {"analysis": frozenset({"session", "drive
 FASTMCP_ALLOWED_FILES = frozenset({"adapters/mcp_server.py"})
 FASTMCP_ALLOWED_COMPONENTS = frozenset({"devtools"})
 _FASTMCP = re.compile(r"^fastmcp(\.|$)")
+
+PURE_PACKAGES: dict[str, tuple[str, ...]] = {
+    "driver/flex/": (f"{PACKAGE}.models", f"{PACKAGE}.driver.flex"),
+}
+"""Package path -> the only package-internal modules its files may import (pure builders)."""
+
+PRIVATE_PACKAGES: dict[str, frozenset[str]] = {
+    f"{PACKAGE}.driver.ops": frozenset({"driver/b1500.py", "driver/ops/"}),
+    f"{PACKAGE}.transport.sim.units": frozenset({"transport/sim/instrument.py", "transport/sim/units/"}),
+}
+"""Module prefix -> the files (or folders, trailing ``/``) that may import it (facade or dispatcher only)."""
 
 
 def _module_parts(rel: str) -> list[str]:
@@ -104,8 +123,15 @@ def layering_problems(source: str, rel: str) -> list[str]:
     problems: list[str] = []
     if own and own not in RANKS:
         return [f"{rel}: component {own!r} has no rank in RANKS"]
+    pure = next((allowed for prefix, allowed in PURE_PACKAGES.items() if rel.startswith(prefix)), None)
     for line, module in imported_modules(source, rel):
         where = f"{rel}:{line}"
+        if pure is not None and module.startswith(f"{PACKAGE}.") and not module.startswith(pure):
+            problems.append(f"{where}: imports {module} (pure builder package; only {', '.join(pure)})")
+        for private, owners in PRIVATE_PACKAGES.items():
+            if (module == private or module.startswith(f"{private}.")) and not any(
+                    rel == owner or (owner.endswith("/") and rel.startswith(owner)) for owner in owners):
+                problems.append(f"{where}: imports {module} (only {', '.join(sorted(owners))} may)")
         if _FASTMCP.match(module) and rel not in FASTMCP_ALLOWED_FILES and own not in FASTMCP_ALLOWED_COMPONENTS:
             problems.append(f"{where}: imports {module} (only adapters/mcp_server.py may import fastmcp)")
         target = component_of(module)
@@ -134,6 +160,16 @@ def test_package_follows_the_layering() -> None:
     assert problems == []
 
 
+def test_the_family_package_rules_see_real_files() -> None:
+    """The sub-package rules are not vacuous: the packages exist and their owners import them."""
+    assert {p.name for p in (PACKAGE_DIR / "driver" / "flex").glob("*.py")} >= {"__init__.py", "core.py", "smu.py"}
+    facade = (PACKAGE_DIR / "driver" / "b1500.py").read_text(encoding="utf-8")
+    dispatcher = (PACKAGE_DIR / "transport" / "sim" / "instrument.py").read_text(encoding="utf-8")
+    assert any(m.startswith(f"{PACKAGE}.driver.ops.") for _, m in imported_modules(facade, "driver/b1500.py"))
+    assert any(m.startswith(f"{PACKAGE}.transport.sim.units.")
+               for _, m in imported_modules(dispatcher, "transport/sim/instrument.py"))
+
+
 def test_every_top_level_component_has_a_rank() -> None:
     components = {p.stem if p.is_file() else p.name for p in PACKAGE_DIR.iterdir() if p.suffix == ".py" or p.is_dir()}
     components -= {"__init__", "__pycache__"}
@@ -152,12 +188,19 @@ def test_every_top_level_component_has_a_rank() -> None:
         ("models/plan.py", "from b1500_test_agent.config import ConfigLoader"),
         ("config.py", "from b1500_test_agent.driver.modules import module_spec"),
         ("session/transaction.py", "from b1500_test_agent.catalog.executor import Executor"),
-        ("rules/builtin.py", "from b1500_test_agent.service import B1500Service"),
+        ("rules/builtin/core.py", "from b1500_test_agent.service import B1500Service"),
         ("service.py", "from b1500_test_agent.adapters import cli"),
         ("service.py", "import fastmcp"),
-        ("adapters/cli.py", "from fastmcp import FastMCP"),
+        ("adapters/cli/core.py", "from fastmcp import FastMCP"),
         ("driver/b1500.py", "def f():\n    from b1500_test_agent.catalog import kinds\n"),
         ("newlayer/x.py", "import os"),
+        ("driver/flex/smu.py", "from b1500_test_agent.driver.guard import OutputGuard"),
+        ("driver/flex/core.py", "from b1500_test_agent.driver.ops.core import CoreOps"),
+        ("driver/flex/core.py", "from b1500_test_agent.transport.base import Transport"),
+        ("catalog/kinds/smu_staircase.py", "from b1500_test_agent.driver.ops.smu import StaircaseSetup"),
+        ("session/transaction.py", "from b1500_test_agent.driver.ops import core"),
+        ("transport/factory.py", "from b1500_test_agent.transport.sim.units.smu import SmuUnit"),
+        ("transport/sim/state.py", "from b1500_test_agent.transport.sim.units import base"),
     ],
 )
 def test_checker_flags_violations(rel: str, source: str) -> None:
@@ -183,12 +226,19 @@ if TYPE_CHECKING:
         ("analysis/dataset.py", "from b1500_test_agent.config import ConfigLoader"),
         ("service.py", "from b1500_test_agent.session.session import Session"),
         ("adapters/mcp_server.py", "from fastmcp import FastMCP\nfrom b1500_test_agent.service import B1500Service"),
-        ("adapters/cli.py", "from b1500_test_agent.devtools import budget"),
+        ("adapters/cli/dev.py", "from b1500_test_agent.devtools import budget"),
         ("devtools/budget.py", "def f():\n    from fastmcp import Client\n"),
         ("models/plan.py", "from b1500_test_agent.models.common import StrictModel"),
         ("models/plan.py", "from b1500_test_agent import __version__"),
         ("paths.py", "from b1500_test_agent.errors import InvalidConfigError"),
         ("__init__.py", "import os"),
+        ("driver/flex/smu.py", "from b1500_test_agent.driver.flex.core import _num\nimport math"),
+        ("driver/flex/core.py", "from b1500_test_agent.models.measurement import CHANNEL_NUMBERS"),
+        ("driver/b1500.py", "from b1500_test_agent.driver.ops.core import CoreOps"),
+        ("driver/ops/smu.py", "from b1500_test_agent.driver.ops.core import DriverBase\nfrom ..flex import dv"),
+        ("catalog/kinds/smu_staircase.py", "from b1500_test_agent.driver.b1500 import StaircaseSetup"),
+        ("transport/sim/instrument.py", "from b1500_test_agent.transport.sim.units.core import CoreUnit"),
+        ("transport/sim/units/smu.py", "from b1500_test_agent.transport.sim.units.base import handles"),
     ],
 )
 def test_checker_accepts_allowed_imports(rel: str, source: str) -> None:

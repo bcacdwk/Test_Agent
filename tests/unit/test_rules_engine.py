@@ -60,7 +60,11 @@ def test_builtin_rules_follow_the_blueprint_table() -> None:
     specs = registered_rules()
     assert [s.rule_id for s in specs] == list(TABLE)
     assert {s.rule_id: set(s.phases) for s in specs} == TABLE
-    assert all(s.fn.__module__ == builtin.__name__ and s.fn.__doc__ for s in specs)
+    assert all(s.fn.__doc__ for s in specs)
+    families = [builtin.core.__name__, builtin.limits.__name__, builtin.run.__name__, builtin.cmu.__name__]
+    modules = [s.fn.__module__ for s in specs]
+    assert set(modules) == set(families)
+    assert modules == sorted(modules, key=families.index)  # one block per family module, in table order
 
 
 def test_rule_rank_is_table_order() -> None:

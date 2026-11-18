@@ -21,9 +21,11 @@ import yaml
 from typer.testing import CliRunner
 
 from b1500_test_agent.adapters.cli import app
-from b1500_test_agent.devtools import lint_skills
+from b1500_test_agent.devtools import skills as lint_skills
 from b1500_test_agent.devtools.budget import fallback_counter
-from b1500_test_agent.devtools.lint_skills import LintReport, parse_interval, parse_value, slugify
+from b1500_test_agent.devtools.skills.common import LintReport
+from b1500_test_agent.devtools.skills.markdown import slugify
+from b1500_test_agent.devtools.skills.params import parse_interval, parse_value
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "tests" / "fixtures" / "skills"

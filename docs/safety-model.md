@@ -52,7 +52,8 @@ regardless of policy.
 
 ## Implemented rules (blueprint §4.2)
 
-Each rule is one function in `rules/builtin.py`, registered with a stable id. Thresholds come only from the config
+Each rule is one function in `rules/builtin/` (`core.py`, `limits.py`, `run.py`, `cmu.py`, imported in table order),
+registered with a stable id. Thresholds come only from the config
 files, recipe parameter ranges and the code tables named below. Every finding carries the rule id, severity,
 message, observed value, limit and **source**: the resolved file and key (`config/local/policy.yaml#soft_limits.
 voltage_v`, or `config/policy.example.yaml#...` when the simulator runs on the committed examples), the recipe field

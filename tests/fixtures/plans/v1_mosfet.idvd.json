@@ -1,0 +1,35 @@
+{
+  "recipe_id": "mosfet.idvd",
+  "source": "card mosfet-idvd",
+  "scenario": "nmos_basic",
+  "request": {
+    "params": {},
+    "pin_map": "mosfet-4t",
+    "dut_profile": "nmos-generic"
+  },
+  "config": {},
+  "kind": "smu_stepped",
+  "flex_preview": [
+    "FMT 1,1",
+    "AAD 3,0",
+    "AAD 4,0",
+    "AIT 0,2,1",
+    "CN 3,4",
+    "MM 2,3,4",
+    "CMM 3,1",
+    "CMM 4,1",
+    "WV 3,1,0,0,3,101,0.001",
+    "WT 0,0",
+    "WM 2,1",
+    "DV 4,0,0.5,1E-06",
+    "XE",
+    "DV 4,0,0.75,1E-06",
+    "XE",
+    "DV 4,0,1,1E-06",
+    "XE",
+    "DV 4,0,1.25,1E-06",
+    "XE",
+    "DV 4,0,1.5,1E-06",
+    "XE"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "recipe_id": "system.self_test",
+  "source": "recipe defaults",
+  "scenario": "nmos_basic",
+  "request": {
+    "params": {},
+    "pin_map": "mosfet-4t",
+    "dut_profile": null
+  },
+  "config": {},
+  "kind": "system",
+  "flex_preview": [
+    "*TST?"
+  ]
+}

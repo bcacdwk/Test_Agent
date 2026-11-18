@@ -28,8 +28,11 @@ models: shared leaf, imported by every layer, imports none of them
 
 Enforced by tests (M1): an import-layering test over the package; `analysis` never imports `session`, `driver` or
 `transport`; only `adapters/mcp_server.py` imports `fastmcp` (developer tools in `devtools/` are exempt); only
-`transport/visa.py` imports `pyvisa`; only `driver/commands.py` contains FLEX mnemonics in string literals.
-Hardware access or FLEX text added to a recipe, a tool or an analysis function therefore fails a test.
+`transport/visa.py` imports `pyvisa`; only `driver/flex/` contains FLEX mnemonics in string literals (the simulator,
+the instrument side, is exempt); only kind `system` calls the `*RST` builder; no source file exceeds 1,000 lines
+(`tests/unit/test_layout.py`); `driver/ops/` is imported only by the `B1500Driver` facade and the simulator units
+only by their dispatcher. Hardware access or FLEX text added to a recipe, a tool or an analysis function therefore
+fails a test.
 
 ## Module map (`src/b1500_test_agent/`)
 
@@ -38,22 +41,39 @@ Hardware access or FLEX text added to a recipe, a tool or an analysis function t
 | `models/` | Pydantic models: common envelope, station, policy, plan, recipe, run, analysis, measurement | all present (M0 salvage + WP1.1); later M1 WPs extend them |
 | `config.py`, `paths.py`, `errors.py` | Config loading and resolution, repo-relative default paths, error types | done (WP1.1; `b1500 config check`) |
 | `transport/` | `Transport` protocol, `AuditingTransport`, `VisaTransport`, `make_transport` (never selects visa implicitly) | done (WP1.2; audit event model `models/audit.py`) |
-| `transport/sim/` | Deterministic FLEX state machine, output formatter, device models, fault injection, persisted state | done for the v1 subset and open/resistor/short/`mosfet_ekv` (WP1.2; schemas `models/sim.py`); `diode`, `fefet` (persisted polarization), `mosfet_damaged` and scenarios `diode_basic`, `resistor_100k`, `fefet_basic`, `open_drain_noisy`, `gd_short` (WP2.1) |
-| `driver/` | `commands.py` builders, `b1500.py` driver, `guard.py` `OutputGuard`, `parser.py`, `discovery.py`, `errors.py`, `modules.py` | done for the staircase path (WP1.3: FMT 1/5 parser, discovery, `OutputGuard`, module specs) |
+| `transport/sim/` | Deterministic FLEX state machine: `instrument.py` (dispatcher: clock, persisted state, command log, measurement lifecycle, `SimTransport`) over `units/` (`core`, `smu`; handlers registered by mnemonic), `flex.py` (syntax, error codes), `format.py` (output formatter), `devices/` (`basic`, `mosfet`, `ferro`, `circuit`), `faults.py`, `state.py` | done for the v1 subset and open/resistor/short/`mosfet_ekv` (WP1.2; schemas `models/sim.py`); `diode`, `fefet` (persisted polarization), `mosfet_damaged` and scenarios `diode_basic`, `resistor_100k`, `fefet_basic`, `open_drain_noisy`, `gd_short` (WP2.1) |
+| `driver/` | `flex/` builders (`core`, `smu`; the only FLEX literals), `b1500.py` facade `B1500Driver(CoreOps, SmuOps)` over the `ops/` mixins, `guard.py` `OutputGuard`, `parser.py`, `discovery.py`, `errors.py`, `modules.py` | done for the staircase path (WP1.3: FMT 1/5 parser, discovery, `OutputGuard`, module specs; WP5.2: per-family split) |
 | `session/` | `InstrumentLock` (OS file lock), `Session`, `Transaction` (cleanup `AB → DZ → CL → verify`), `FaultLatch` | done (WP1.6; inflight recovery, daily audit sink, `RunHandle` protocol for the archive) |
-| `rules/` | Rule registry and engine, built-in rules, tiers, hard-limit code ceiling, `plan_summary` | done (WP1.4; rule table in [safety-model.md](safety-model.md)) |
+| `rules/` | Rule registry and engine, built-in rules (`builtin/`: `core`, `limits`, `run`, `cmu`, imported in table order), tiers, hard-limit code ceiling, `plan_summary` | done (WP1.4; rule table in [safety-model.md](safety-model.md)) |
 | `catalog/` | Recipe schema and registry, planner, executor, measurement kinds (`smu_staircase`, `smu_stepped`, `system`, `unimplemented`) | done (WP1.7; recipes `mosfet.idvg`, `generic.smu_staircase`, `system.*` sim-validated, 13 reserved slots; `b1500 dev recipe-check`; WP2.1: `smu_stepped` host loop; WP2.2: `basic.contact_resistor`, `basic.diode_iv`, `mosfet.idvd`, `mosfet.gate_leakage`, `fefet.dual_sweep_mw` sim-validated) |
 | `archive/` | Run folders, manifest, `audit.jsonl`, `index.jsonl`, sha256 of every file | done (WP1.7; raw blocks kept on failure, append-only notes) |
 | `analysis/` | `load_run`, `assess_quality`, extraction methods, plots, `ANALYSIS_METHODS` registry | done (WP1.5: `quality_report`, `vth_linear_extrapolation`; WP2.2: `vth_constant_current`, `vth_max_gm`, `subthreshold_swing`, `gm_max`, `ion_ioff`, `output_metrics`, `resistance`, `diode_fit`, `leakage_at`, `memory_window`, `plot_iv` (PNGs stored under the run's `plots/` by the archive)) |
 | `service.py` | `B1500Service`: one method per MCP tool; reloads changed config, audits every call, never raises to adapters | done (WP1.8; result models in `models/results.py`, responses ≤2k tokens, human-only `B1500Admin` for `fault clear`/`lock status`) |
-| `adapters/` | `mcp_server.py` (10 tools), `cli.py` (`b1500`, `b1500-mcp`) | done (WP1.8: 10 tools at 1,474 tokens, `requiresUserInteraction` on `run_confirmed_plan`; all §5.3 operator commands, `fault clear`, `lock status`, `doctor`, `mcp`; WP1.9: `harness init --codex\|--claude [--check]`, `dev mcp-smoke`) |
-| `devtools/` | `budget.py` (tool-schema token counter), `doctor.py`, `sim_console.py`, `harness.py`, `mcp_smoke.py`, sync-harness, lint-skills, recipe-check, acceptance runner | `budget.py` (M0), `recipe_check.py` (WP1.7), `doctor.py` (non-probe) + `sim_console.py` (WP1.8), `harness.py` (render/check harness configs, doctor harness check) + `mcp_smoke.py` (WP1.9); sync-harness, lint-skills WP2.3; acceptance runner WP3.1 |
+| `adapters/` | `mcp_server.py` (10 tools), `cli/` (`b1500`, `b1500-mcp`: `core.py` root app and operator commands, `dev.py` the `dev` group) | done (WP1.8: 10 tools at 1,474 tokens, `requiresUserInteraction` on `run_confirmed_plan`; all §5.3 operator commands, `fault clear`, `lock status`, `doctor`, `mcp`; WP1.9: `harness init --codex\|--claude [--check]`, `dev mcp-smoke`) |
+| `devtools/` | `budget.py` (tool-schema token counter), `doctor.py`, `sim_console.py`, `harness.py`, `mcp_smoke.py`, sync-harness, lint-skills (`skills/`: `layout`, `cards`, `params`, `links`, `budgets`, `markdown`, `common`, `lint`), recipe-check, acceptance runner | `budget.py` (M0), `recipe_check.py` (WP1.7), `doctor.py` (non-probe) + `sim_console.py` (WP1.8), `harness.py` (render/check harness configs, doctor harness check) + `mcp_smoke.py` (WP1.9); sync-harness, lint-skills WP2.3; acceptance runner WP3.1 |
 
 Outside the package: `recipes/` (registry source YAML), `config/` (examples, sim scenarios and faults, harness
 templates), `.agents/skills/` (canonical skills) with a generated copy in `.claude/skills/`, `references/manuals/`
 (structured manual extracts), `references/driver-map/` (legacy taxonomy mapped onto the driver; read only for
 driver work), `scripts/`, `tests/` (`unit`, `sim`, `safety`, `integration`, `adapters`, `skills`, `acceptance`,
 `hardware`).
+
+## Adding a module family (v2: CMU, SPGU, switches, ...)
+
+The code is split per instrument family (blueprint §9), so a family's work packages touch their own files:
+
+1. `driver/flex/<family>.py`: pure builders and constants, each docstring citing `PG p<pdf> (<printed>)`;
+   re-export them in `driver/flex/__init__.py` (`__all__`) and add the module to `FAMILY_MODULES` in
+   `tests/unit/test_driver_flex.py`; golden strings under `tests/fixtures/flex/<family>/`.
+2. `driver/ops/<family>.py`: a `DriverBase` mixin whose source-like methods pass the `OutputGuard` first; add it to
+   the bases of `B1500Driver` in `driver/b1500.py`.
+3. `transport/sim/units/<family>.py`: a mixin with `@handles("<MNEMONIC>")` handlers and a settings reset; add it to
+   the bases of `SimInstrument`, call its reset from `_reset_settings` and add the mnemonics to `flex.SUPPORTED`
+   (`tests/sim/test_units.py` checks one handler per mnemonic). New device physics go to
+   `transport/sim/devices/<model>.py` and `devices/circuit.py` (`build_device`).
+4. `rules/builtin/<family>.py`, imported in `rules/builtin/__init__.py` at its place in the rule table (import order
+   = registration order = finding order).
+5. The kind (`catalog/kinds/`), recipes, the card folder, knowledge and the bring-up stage.
 
 ## A measurement, end to end (M1)
 

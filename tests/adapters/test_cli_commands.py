@@ -13,8 +13,8 @@ import pytest
 import yaml
 from typer.testing import CliRunner, Result
 
-from b1500_test_agent.adapters import cli
 from b1500_test_agent.adapters.cli import app
+from b1500_test_agent.adapters.cli import core as cli  # make_service/is_interactive are looked up here
 from b1500_test_agent.analysis import load_run
 from b1500_test_agent.devtools import sim_console
 from tests.integration.helpers import REPO_ROOT, World

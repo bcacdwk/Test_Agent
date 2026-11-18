@@ -3,7 +3,7 @@
 A kind turns a recipe into instrument work in three steps:
 
 - ``compile(recipe, params, binding, station)`` is pure (no I/O): the per-channel envelope the ``OutputGuard`` will
-  enforce, the estimate, the exact FLEX preview (built with ``driver/commands.py``) and a JSON program;
+  enforce, the estimate, the exact FLEX preview (built with ``driver/flex/``) and a JSON program;
 - ``acquire(tx, plan)`` executes the stored program through the transaction's guarded driver;
 - ``to_table(raw, plan)`` turns the raw blocks into the tidy ``data.csv`` table (``None`` for kinds that measure
   no data, such as self-test).

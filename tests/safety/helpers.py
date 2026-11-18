@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from b1500_test_agent.driver import commands
+from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.b1500 import RawBlock, StaircaseSetup
 from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.plan import ChannelEnvelope, CompiledEnvelope
@@ -84,7 +84,7 @@ class HookTransport:
     def write(self, cmd: str) -> None:
         self._armed()
         self.inner.write(cmd)
-        if cmd == commands.XE:
+        if cmd == flex.XE:
             self.fire("after_xe")
 
     def read(self, *, timeout_s: float | None = None) -> str:

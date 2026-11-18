@@ -37,7 +37,7 @@ counts:
     total: 97
   commands: 280
   commands_mapped: 25
-driver_targets: [B1500Driver.identify, B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte, B1500Driver.output_state, B1500Driver.abort, B1500Driver.zero, B1500Driver.disconnect, B1500Driver.reset, B1500Driver.self_test, B1500Driver.self_calibrate, B1500Driver.set_format, B1500Driver.set_integration, B1500Driver.set_range, B1500Driver.enable, B1500Driver.force_v, B1500Driver.staircase_v, B1500Driver.execute_and_read, B1500Driver.wait_complete, commands.cn, commands.cl, commands.dz, commands.fmt, commands.mm, commands.cmm, commands.aad, commands.ait, commands.ri, commands.rv, commands.wt, commands.wm, commands.dv, commands.wv, commands.XE, commands.AB, commands.IDN_Q, commands.UNT_Q, commands.ERRX_Q, commands.STB_Q, commands.OPC_Q, commands.LOP_Q, commands.RST, commands.TST_Q, commands.CAL_Q]
+driver_targets: [B1500Driver.identify, B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte, B1500Driver.output_state, B1500Driver.abort, B1500Driver.zero, B1500Driver.disconnect, B1500Driver.reset, B1500Driver.self_test, B1500Driver.self_calibrate, B1500Driver.set_format, B1500Driver.set_integration, B1500Driver.set_range, B1500Driver.enable, B1500Driver.force_v, B1500Driver.staircase_v, B1500Driver.execute_and_read, B1500Driver.wait_complete, flex.cn, flex.cl, flex.dz, flex.fmt, flex.mm, flex.cmm, flex.aad, flex.ait, flex.ri, flex.rv, flex.wt, flex.wm, flex.dv, flex.wv, flex.XE, flex.AB, flex.IDN_Q, flex.UNT_Q, flex.ERRX_Q, flex.STB_Q, flex.OPC_Q, flex.LOP_Q, flex.RST, flex.TST_Q, flex.CAL_Q]
 atoms:
 - {id: A_atom_flex_connect, class: A, basis: ['*IDN?', 'UNT?'], flex: ['*IDN?', 'UNT?'], target: [B1500Driver.identify, B1500Driver.modules], priority: m1}
 - {id: A_atom_flex_disconnect, class: A, basis: [session.close], flex: [], target: unmapped, priority: m1, note: 'successor: Transport.close via Session (sections 2.2, 2.4); B1500Driver.disconnect is CL'}
@@ -420,33 +420,33 @@ flows:
 - {id: CD_flow_analyze_iv_transfer, class: CD}
 - {id: CD_flow_qualify_cv_dataset, class: CD}
 commands:
-- {command: '*IDN?', source: detailed, pdf_pages: [440], printed_pages: [4-122], target: B1500Driver.identify, builder: commands.IDN_Q, priority: m1, atoms: [A_atom_flex_connect, A_atom_flex_identify]}
-- {command: '*RST', source: detailed, pdf_pages: [502], printed_pages: [4-184], target: B1500Driver.reset, builder: commands.RST, priority: m1, atoms: [B_atom_lifecycle_b1500_reset], note: sent alone}
+- {command: '*IDN?', source: detailed, pdf_pages: [440], printed_pages: [4-122], target: B1500Driver.identify, builder: flex.IDN_Q, priority: m1, atoms: [A_atom_flex_connect, A_atom_flex_identify]}
+- {command: '*RST', source: detailed, pdf_pages: [502], printed_pages: [4-184], target: B1500Driver.reset, builder: flex.RST, priority: m1, atoms: [B_atom_lifecycle_b1500_reset], note: sent alone}
 - {command: IN, source: detailed, pdf_pages: [441], printed_pages: [4-123], target: unmapped, priority: later, atoms: [B_atom_lifecycle_b1500_initialize]}
-- {command: '*TST?', source: detailed, pdf_pages: [540], printed_pages: [4-222], target: B1500Driver.self_test, builder: commands.TST_Q, priority: m1, atoms: [B_atom_diagnostic_b1500_self_test]}
-- {command: '*CAL?', source: detailed, pdf_pages: [376], printed_pages: [4-58], target: B1500Driver.self_calibrate, builder: commands.CAL_Q, priority: m1, atoms: [B_atom_calibration_b1500_self_calibration]}
+- {command: '*TST?', source: detailed, pdf_pages: [540], printed_pages: [4-222], target: B1500Driver.self_test, builder: flex.TST_Q, priority: m1, atoms: [B_atom_diagnostic_b1500_self_test]}
+- {command: '*CAL?', source: detailed, pdf_pages: [376], printed_pages: [4-58], target: B1500Driver.self_calibrate, builder: flex.CAL_Q, priority: m1, atoms: [B_atom_calibration_b1500_self_calibration]}
 - {command: CA, source: detailed, pdf_pages: [375], printed_pages: [4-57], target: unmapped, priority: later, atoms: []}
-- {command: 'UNT?', source: detailed, pdf_pages: [545], printed_pages: [4-227], target: B1500Driver.modules, builder: commands.UNT_Q, priority: m1, atoms: [A_atom_flex_connect, A_atom_flex_list_modules, A_atom_flex_get_status, B_atom_safety_b1500_preflight]}
-- {command: 'ERRX?', source: detailed, pdf_pages: [431], printed_pages: [4-113], target: B1500Driver.errors, builder: commands.ERRX_Q, priority: m1, atoms: [A_atom_flex_get_status, A_atom_flex_read_error_queue, B_atom_safety_b1500_preflight]}
+- {command: 'UNT?', source: detailed, pdf_pages: [545], printed_pages: [4-227], target: B1500Driver.modules, builder: flex.UNT_Q, priority: m1, atoms: [A_atom_flex_connect, A_atom_flex_list_modules, A_atom_flex_get_status, B_atom_safety_b1500_preflight]}
+- {command: 'ERRX?', source: detailed, pdf_pages: [431], printed_pages: [4-113], target: B1500Driver.errors, builder: flex.ERRX_Q, priority: m1, atoms: [A_atom_flex_get_status, A_atom_flex_read_error_queue, B_atom_safety_b1500_preflight]}
 - {command: 'ERR?', source: detailed, pdf_pages: [430], printed_pages: [4-112], target: unmapped, priority: later, atoms: [A_atom_flex_read_error_queue]}
 - {command: 'EMG?', source: detailed, pdf_pages: [398], printed_pages: [4-80], target: unmapped, priority: later, atoms: [A_atom_flex_lookup_error]}
 - {command: '*LRN?', source: detailed, pdf_pages: [447, 448, 449, 450, 451, 452, 453], printed_pages: [4-129 to 4-135], target: unmapped, priority: later, atoms: [A_atom_flex_get_status, A_atom_flex_query_settings, A_atom_flex_query_smu_settings, B_atom_safety_b1500_preflight]}
-- {command: '*OPC?', source: detailed, pdf_pages: [479], printed_pages: [4-161], target: B1500Driver.wait_complete, builder: commands.OPC_Q, priority: m1, atoms: [A_atom_flex_wait_opc]}
-- {command: AB, source: detailed, pdf_pages: [351, 352], printed_pages: [4-33 to 4-34], target: B1500Driver.abort, builder: commands.AB, priority: m1, atoms: [B_atom_safety_b1500_abort], note: sent alone}
-- {command: CN, source: detailed, pdf_pages: [380], printed_pages: [4-62], target: B1500Driver.enable, builder: commands.cn, priority: m1, atoms: [B_atom_output_b1500_enable_channels]}
+- {command: '*OPC?', source: detailed, pdf_pages: [479], printed_pages: [4-161], target: B1500Driver.wait_complete, builder: flex.OPC_Q, priority: m1, atoms: [A_atom_flex_wait_opc]}
+- {command: AB, source: detailed, pdf_pages: [351, 352], printed_pages: [4-33 to 4-34], target: B1500Driver.abort, builder: flex.AB, priority: m1, atoms: [B_atom_safety_b1500_abort], note: sent alone}
+- {command: CN, source: detailed, pdf_pages: [380], printed_pages: [4-62], target: B1500Driver.enable, builder: flex.cn, priority: m1, atoms: [B_atom_output_b1500_enable_channels]}
 - {command: CNX, source: detailed, pdf_pages: [381], printed_pages: [4-63], target: unmapped, priority: later, atoms: [B_atom_output_spgu_enable_channels]}
-- {command: CL, source: detailed, pdf_pages: [378], printed_pages: [4-60], target: B1500Driver.disconnect, builder: commands.cl, priority: m1, atoms: [B_atom_output_b1500_disable_channels, B_atom_output_b1500_zero_all]}
-- {command: DZ, source: detailed, pdf_pages: [397], printed_pages: [4-79], target: B1500Driver.zero, builder: commands.dz, priority: m1, atoms: [B_atom_output_b1500_zero_outputs, B_atom_output_b1500_zero_all]}
+- {command: CL, source: detailed, pdf_pages: [378], printed_pages: [4-60], target: B1500Driver.disconnect, builder: flex.cl, priority: m1, atoms: [B_atom_output_b1500_disable_channels, B_atom_output_b1500_zero_all]}
+- {command: DZ, source: detailed, pdf_pages: [397], printed_pages: [4-79], target: B1500Driver.zero, builder: flex.dz, priority: m1, atoms: [B_atom_output_b1500_zero_outputs, B_atom_output_b1500_zero_all]}
 - {command: RZ, source: detailed, pdf_pages: [504], printed_pages: [4-186], target: unmapped, priority: later, atoms: [B_atom_output_b1500_recover_zeroed]}
 - {command: 'WZ?', source: detailed, pdf_pages: [570], printed_pages: [4-252], target: unmapped, priority: later, atoms: [B_atom_output_b1500_confirm_zero]}
-- {command: FMT, source: detailed, pdf_pages: [436, 437], printed_pages: [4-118 to 4-119], target: B1500Driver.set_format, builder: commands.fmt, priority: m1, atoms: [A_atom_flex_set_data_format], note: FMT 1 and 5 only}
+- {command: FMT, source: detailed, pdf_pages: [436, 437], printed_pages: [4-118 to 4-119], target: B1500Driver.set_format, builder: flex.fmt, priority: m1, atoms: [A_atom_flex_set_data_format], note: FMT 1 and 5 only}
 - {command: BC, source: detailed, pdf_pages: [364], printed_pages: [4-46], target: unmapped, priority: m2, atoms: [A_atom_flex_clear_output_buffer]}
 - {command: 'NUB?', source: detailed, pdf_pages: [478], printed_pages: [4-160], target: unmapped, priority: m2, atoms: [A_atom_flex_query_buffer_count]}
-- {command: '*STB?', source: detailed, pdf_pages: [523], printed_pages: [4-205], target: B1500Driver.status_byte, builder: commands.STB_Q, priority: m1, atoms: [A_atom_flex_get_status, A_atom_flex_read_status_byte, B_atom_safety_b1500_preflight], note: bit 3 = interlock open}
+- {command: '*STB?', source: detailed, pdf_pages: [523], printed_pages: [4-205], target: B1500Driver.status_byte, builder: flex.STB_Q, priority: m1, atoms: [A_atom_flex_get_status, A_atom_flex_read_status_byte, B_atom_safety_b1500_preflight], note: bit 3 = interlock open}
 - {command: '*SRE', source: detailed, pdf_pages: [517], printed_pages: [4-199], target: unmapped, priority: later, atoms: [A_atom_flex_configure_srq]}
-- {command: MM, source: detailed, pdf_pages: [470], printed_pages: [4-152], target: B1500Driver.staircase_v, builder: commands.mm, priority: m1, atoms: [C_atom_smu_set_measurement_mode, C_atom_smu_execute_pulsed_spot, C_atom_smu_execute_pulsed_sweep, C_atom_smu_execute_sampling, C_atom_smu_execute_qscv, C_atom_cmu_execute_spot_c, C_atom_cmu_execute_cv_dc_sweep, C_atom_cmu_execute_cf_sweep, C_atom_cmu_execute_ac_level_sweep, C_atom_cmu_execute_pulsed_spot_c, C_atom_cmu_execute_pulsed_cv_sweep, C_atom_cmu_execute_ct_sampling], note: staircase_v sends MM 2 only; every other mode is unmapped}
-- {command: XE, source: detailed, pdf_pages: [570, 571, 572], printed_pages: [4-252 to 4-254], target: B1500Driver.execute_and_read, builder: commands.XE, priority: m1, atoms: [C_atom_smu_execute, C_atom_smu_execute_pulsed_spot, C_atom_smu_execute_pulsed_sweep, C_atom_smu_execute_sampling, C_atom_smu_execute_qscv, C_atom_cmu_execute, C_atom_cmu_execute_spot_c, C_atom_cmu_execute_cv_dc_sweep, C_atom_cmu_execute_cf_sweep, C_atom_cmu_execute_ac_level_sweep, C_atom_cmu_execute_pulsed_spot_c, C_atom_cmu_execute_pulsed_cv_sweep, C_atom_cmu_execute_ct_sampling]}
-- {command: DV, source: detailed, pdf_pages: [396], printed_pages: [4-78], target: B1500Driver.force_v, builder: commands.dv, priority: m1, atoms: [C_atom_smu_force_voltage], note: OutputGuard-checked}
+- {command: MM, source: detailed, pdf_pages: [470], printed_pages: [4-152], target: B1500Driver.staircase_v, builder: flex.mm, priority: m1, atoms: [C_atom_smu_set_measurement_mode, C_atom_smu_execute_pulsed_spot, C_atom_smu_execute_pulsed_sweep, C_atom_smu_execute_sampling, C_atom_smu_execute_qscv, C_atom_cmu_execute_spot_c, C_atom_cmu_execute_cv_dc_sweep, C_atom_cmu_execute_cf_sweep, C_atom_cmu_execute_ac_level_sweep, C_atom_cmu_execute_pulsed_spot_c, C_atom_cmu_execute_pulsed_cv_sweep, C_atom_cmu_execute_ct_sampling], note: staircase_v sends MM 2 only; every other mode is unmapped}
+- {command: XE, source: detailed, pdf_pages: [570, 571, 572], printed_pages: [4-252 to 4-254], target: B1500Driver.execute_and_read, builder: flex.XE, priority: m1, atoms: [C_atom_smu_execute, C_atom_smu_execute_pulsed_spot, C_atom_smu_execute_pulsed_sweep, C_atom_smu_execute_sampling, C_atom_smu_execute_qscv, C_atom_cmu_execute, C_atom_cmu_execute_spot_c, C_atom_cmu_execute_cv_dc_sweep, C_atom_cmu_execute_cf_sweep, C_atom_cmu_execute_ac_level_sweep, C_atom_cmu_execute_pulsed_spot_c, C_atom_cmu_execute_pulsed_cv_sweep, C_atom_cmu_execute_ct_sampling]}
+- {command: DV, source: detailed, pdf_pages: [396], printed_pages: [4-78], target: B1500Driver.force_v, builder: flex.dv, priority: m1, atoms: [C_atom_smu_force_voltage], note: OutputGuard-checked}
 - {command: DI, source: detailed, pdf_pages: [391], printed_pages: [4-73], target: unmapped, priority: m2, atoms: [C_atom_smu_force_current]}
 - {command: TI, source: detailed, pdf_pages: [535], printed_pages: [4-217], target: unmapped, priority: later, atoms: [C_atom_smu_measure_high_speed_spot]}
 - {command: TV, source: detailed, pdf_pages: [545], printed_pages: [4-227], target: unmapped, priority: later, atoms: [C_atom_smu_measure_high_speed_spot]}
@@ -488,8 +488,8 @@ commands:
 - {command: 'PCH?', source: grouped, target: unmapped, priority: later, atoms: []}
 - {command: WAT, source: grouped, target: unmapped, priority: later, atoms: []}
 - {command: AV, source: grouped, target: unmapped, priority: m2, atoms: [C_atom_smu_configure_integration]}
-- {command: AAD, source: grouped, pdf_pages: [351], printed_pages: [4-33], target: B1500Driver.set_integration, builder: commands.aad, priority: m1, atoms: [C_atom_smu_configure_integration]}
-- {command: AIT, source: grouped, pdf_pages: [356, 357, 358, 359], printed_pages: [4-38 to 4-41], target: B1500Driver.set_integration, builder: commands.ait, priority: m1, atoms: [C_atom_smu_configure_integration]}
+- {command: AAD, source: grouped, pdf_pages: [351], printed_pages: [4-33], target: B1500Driver.set_integration, builder: flex.aad, priority: m1, atoms: [C_atom_smu_configure_integration]}
+- {command: AIT, source: grouped, pdf_pages: [356, 357, 358, 359], printed_pages: [4-38 to 4-41], target: B1500Driver.set_integration, builder: flex.ait, priority: m1, atoms: [C_atom_smu_configure_integration]}
 - {command: AITM, source: grouped, target: unmapped, priority: later, atoms: []}
 - {command: 'AITM?', source: grouped, target: unmapped, priority: later, atoms: []}
 - {command: AZ, source: grouped, target: unmapped, priority: later, atoms: [B_atom_calibration_smu_set_adc_zero]}
@@ -510,16 +510,16 @@ commands:
 - {command: ACT, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_set_ranging_integration]}
 - {command: IMP, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_set_impedance_model]}
 - {command: LMN, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_set_monitor_output]}
-- {command: CMM, source: grouped, pdf_pages: [380], printed_pages: [4-62], target: B1500Driver.staircase_v, builder: commands.cmm, priority: m1, atoms: [C_atom_smu_set_measurement_operation], note: sent inside the staircase setup}
+- {command: CMM, source: grouped, pdf_pages: [380], printed_pages: [4-62], target: B1500Driver.staircase_v, builder: flex.cmm, priority: m1, atoms: [C_atom_smu_set_measurement_operation], note: sent inside the staircase setup}
 - {command: PAD, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_set_parallel_measurement]}
 - {command: RC, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_set_ranging_integration]}
-- {command: RI, source: grouped, pdf_pages: [501], printed_pages: [4-183], target: B1500Driver.set_range, builder: commands.ri, priority: m1, atoms: [C_atom_smu_set_measurement_ranging]}
-- {command: RV, source: grouped, pdf_pages: [503, 504], printed_pages: [4-185 to 4-186], target: B1500Driver.set_range, builder: commands.rv, priority: m1, atoms: [C_atom_smu_set_measurement_ranging]}
+- {command: RI, source: grouped, pdf_pages: [501], printed_pages: [4-183], target: B1500Driver.set_range, builder: flex.ri, priority: m1, atoms: [C_atom_smu_set_measurement_ranging]}
+- {command: RV, source: grouped, pdf_pages: [503, 504], printed_pages: [4-185 to 4-186], target: B1500Driver.set_range, builder: flex.rv, priority: m1, atoms: [C_atom_smu_set_measurement_ranging]}
 - {command: RM, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_set_measurement_ranging]}
-- {command: WT, source: grouped, pdf_pages: [564, 565], printed_pages: [4-246 to 4-247], target: B1500Driver.staircase_v, builder: commands.wt, priority: m1, atoms: [C_atom_smu_configure_sweep_timing]}
+- {command: WT, source: grouped, pdf_pages: [564, 565], printed_pages: [4-246 to 4-247], target: B1500Driver.staircase_v, builder: flex.wt, priority: m1, atoms: [C_atom_smu_configure_sweep_timing]}
 - {command: WI, source: grouped, target: unmapped, priority: m2, atoms: [C_atom_smu_configure_staircase_sweep, C_atom_smu_configure_staircase_sweep_pulsed_bias]}
-- {command: WV, source: grouped, pdf_pages: [568, 569], printed_pages: [4-250 to 4-251], target: B1500Driver.staircase_v, builder: commands.wv, priority: m1, atoms: [C_atom_smu_configure_staircase_sweep, C_atom_smu_configure_staircase_sweep_pulsed_bias], note: OutputGuard-checked}
-- {command: WM, source: grouped, pdf_pages: [552, 553], printed_pages: [4-234 to 4-235], target: B1500Driver.staircase_v, builder: commands.wm, priority: m1, atoms: [C_atom_smu_configure_sweep_abort]}
+- {command: WV, source: grouped, pdf_pages: [568, 569], printed_pages: [4-250 to 4-251], target: B1500Driver.staircase_v, builder: flex.wv, priority: m1, atoms: [C_atom_smu_configure_staircase_sweep, C_atom_smu_configure_staircase_sweep_pulsed_bias], note: OutputGuard-checked}
+- {command: WM, source: grouped, pdf_pages: [552, 553], printed_pages: [4-234 to 4-235], target: B1500Driver.staircase_v, builder: flex.wm, priority: m1, atoms: [C_atom_smu_configure_sweep_abort]}
 - {command: WSI, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_synchronous_sweep_source]}
 - {command: WSV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_synchronous_sweep_source]}
 - {command: WNX, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_multi_sweep]}
@@ -696,7 +696,7 @@ commands:
 - {command: 'LST?', source: grouped, target: unmapped, priority: later, atoms: []}
 - {command: DO, source: grouped, target: unmapped, priority: later, atoms: []}
 - {command: RU, source: grouped, target: unmapped, priority: later, atoms: []}
-- {command: 'LOP?', source: grouped, pdf_pages: [446, 447], printed_pages: [4-128 to 4-129], target: B1500Driver.output_state, builder: commands.LOP_Q, priority: m1, atoms: [A_atom_flex_query_compliance_status], note: 'ATV-1: cleanup verification; per PG Table 4-26 code 00 = output switch OFF, one code per slot (SMU/MFCMU); *LRN? 0 is the fallback only for SPGU/WGFMU subchannels'}
+- {command: 'LOP?', source: grouped, pdf_pages: [446, 447], printed_pages: [4-128 to 4-129], target: B1500Driver.output_state, builder: flex.LOP_Q, priority: m1, atoms: [A_atom_flex_query_compliance_status], note: 'ATV-1: cleanup verification; per PG Table 4-26 code 00 = output switch OFF, one code per slot (SMU/MFCMU); *LRN? 0 is the fallback only for SPGU/WGFMU subchannels'}
 - {command: 'WNU?', source: grouped, target: unmapped, priority: later, atoms: []}
 - {command: '*SRE?', source: grouped, target: unmapped, priority: later, atoms: []}
 - {command: HSS, source: extra, pdf_pages: [438], printed_pages: [4-120], target: unmapped, priority: later, atoms: [C_atom_smu_configure_high_speed_spot]}

@@ -40,7 +40,8 @@ from b1500_test_agent.devtools.acceptance.specs import (
 )
 from b1500_test_agent.devtools.acceptance.transcripts import ToolCall
 from b1500_test_agent.models.plan import PlanRecord
-from b1500_test_agent.transport.sim.devices import Circuit, FefetDevice
+from b1500_test_agent.transport.sim.devices import Circuit
+from b1500_test_agent.transport.sim.devices.ferro import FefetDevice
 
 Verdict = Literal["pass", "fail", "skipped"]
 IO_MATCH_WINDOW = timedelta(seconds=5)

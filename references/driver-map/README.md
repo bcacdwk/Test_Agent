@@ -45,7 +45,7 @@ at the top of the script: `COMMAND_TARGETS`, `M2_COMMANDS`, `ATOM_OVERRIDES`, `D
 | `id`, `class` | legacy tool name and class (`A` connection/status, `B` safety/state, `C` measurement, `D` analysis) |
 | `basis` | the legacy basis list, verbatim |
 | `flex` | normalized FLEX mnemonics from `basis`. `MM13` and `MM` with a known mode become `MM 13`. Prefix wildcards (`BD*`, `LS*`, `BS*`, `DSMPL*`) expand within their manual group. WGFMU library calls, EasyEXPERT SCPI and host operations are not FLEX and are left out. Always empty for D |
-| `target` | list of `B1500Driver.<method>`s (or a `commands.<builder>` when no method sends the command), or `unmapped` |
+| `target` | list of `B1500Driver.<method>`s (or a `flex.<builder>` when no method sends the command), or `unmapped` |
 | `unmapped_flex` | only on partially mapped atoms: the FLEX entries no driver target covers |
 | `priority` | `m1`, `m2` or `later` (scale below) |
 | `note` | why a hand decision overrides the automatic rule, or where the capability went instead |
@@ -61,7 +61,7 @@ naming it), `note`.
 
 ## Target vocabulary (§2.3)
 
-| FLEX | `B1500Driver` method | `driver/commands.py` builder |
+| FLEX | `B1500Driver` method | `driver/flex/` builder |
 |---|---|---|
 | `*IDN?` / `UNT?` / `ERRX?` / `*STB?` / `LOP?` | `identify` / `modules` / `errors` / `status_byte` / `output_state` | `IDN_Q` / `UNT_Q` / `ERRX_Q` / `STB_Q` / `LOP_Q` |
 | `AB` / `DZ` / `CL` | `abort` / `zero` / `disconnect` | `AB` / `dz` / `cl` |
@@ -100,8 +100,8 @@ How a priority is set:
   with `pdftotext` on 2026-11-17. `references/manuals/**` stays unmodified.
 - WP1.3 read the syntax of `AAD`, `AIT`, `CMM`, `LOP?`, `RI`, `RV`, `WM`, `WT` and `WV` (grouped-only in the
   summary) from the PDF with `pdftotext` on 2026-11-17 and recorded their pages in `GROUPED_PAGES`; the builder
-  checks them against the chapter-4 formula (PDF = printed 4-N + 318), and `tests/unit/test_driver_commands.py`
-  checks that each builder docstring in `driver/commands.py` cites the same PDF pages.
-- §2.3 lists no builder constants for `*RST`, `*TST?` and `*CAL?`; WP1.3 added `RST`, `TST_Q` and `CAL_Q` to
-  `driver/commands.py` (the only module the FLEX-literal lint allows to hold mnemonics).
+  checks them against the chapter-4 formula (PDF = printed 4-N + 318), and `tests/unit/test_driver_flex.py`
+  checks that each builder docstring in `driver/flex/` cites the same PDF pages.
+- §2.3 lists no builder constants for `*RST`, `*TST?` and `*CAL?`; WP1.3 added `RST`, `TST_Q` and `CAL_Q` (now in
+  `driver/flex/core.py`; `driver/flex/` is the only package the FLEX-literal lint allows to hold mnemonics).
 - `AAD` → `set_integration` and `CMM` → `staircase_v` are this map's attribution choices; §2.3 leaves them open.

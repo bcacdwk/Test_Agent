@@ -1,0 +1,112 @@
+"""Shared constants and helpers of the built-in rules (blueprint 2.8): envelope access, channel and module lookup,
+parameter-range checks and the code-ceiling symbols used as finding sources."""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Mapping
+
+from b1500_test_agent.models.analysis import Quantity
+from b1500_test_agent.models.plan import ChannelEnvelope
+from b1500_test_agent.models.recipe import ParamSpec, RoleSpec
+from b1500_test_agent.models.station import ModuleSlot
+from b1500_test_agent.rules.engine import RuleContext
+
+SOURCING_FUNCTIONS = frozenset({"sweep_v", "bias_v", "step_v"})
+"""Role functions that force a programmed voltage and therefore need an explicit compliance (R-COMP-01)."""
+
+COMPLIANCE_SETTING = "icomp"
+"""Role-settings key that holds a sourcing role's current compliance (blueprint 2.6 recipe example)."""
+
+INTERLOCK_ERRORS: dict[int, str] = {
+    202: "Interlock circuit must be closed.",
+    203: "Cannot enable channel.",
+}
+"""``ERRX?`` codes that report the interlock refusing a high-voltage state (Programming Guide Ed. 15, PDF 577,
+printed 5-5). R-IL-01 checks them in addition to status-byte bit 3, because bit 3 latches an event and is cleared by
+a serial poll rather than tracking the interlock level (ATV-10 fallback)."""
+
+CMU_CORRECTIONS = ("phase_compensation", "open", "short")
+"""MFCMU corrections a capacitance measurement needs (R-CORR-01); open and short must also cover its frequencies."""
+
+CEILING_V_SYMBOL = "b1500_test_agent.rules.tiers.HARD_CEILING_V"
+CEILING_A_SYMBOL = "b1500_test_agent.rules.tiers.HARD_CEILING_A"
+
+
+# -- Helpers ---------------------------------------------------------------------------------------------------------
+
+
+def norm_channel(channel: int) -> int:
+    """PG Table 4-1: channel ``n`` (1-10) and ``n*100+1`` address the same subchannel."""
+    return channel * 100 + 1 if channel <= 10 else channel
+
+
+def envelope_items(ctx: RuleContext) -> list[tuple[int, ChannelEnvelope]]:
+    return sorted(ctx.plan.envelope.channels.items())
+
+
+def channel_envelope(ctx: RuleContext, channel: int) -> ChannelEnvelope | None:
+    return next((e for ch, e in ctx.plan.envelope.channels.items() if norm_channel(ch) == norm_channel(channel)), None)
+
+
+def who(env_entry: ChannelEnvelope, channel: int) -> str:
+    return f"{env_entry.role} (channel {channel})"
+
+
+def module_index(ctx: RuleContext, module: ModuleSlot) -> int:
+    return ctx.station.modules.index(module)
+
+
+def is_real(value: object) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def range_text(spec: ParamSpec) -> str:
+    assert spec.range is not None
+    return f"{spec.range[0]:g}..{spec.range[1]:g}"
+
+
+def param_problem(spec: ParamSpec, value: object) -> tuple[str, str, object, object] | None:
+    """``(problem, spec field, observed, limit)`` when ``value`` does not match ``spec``, else ``None``."""
+    if spec.type == "bool":
+        return None if isinstance(value, bool) else ("is not a bool", "type", repr(value), "bool")
+    if spec.type == "enum":
+        choices = spec.choices or []
+        if isinstance(value, str) and value in choices:
+            return None
+        return "is not one of the choices", "choices", repr(value), ", ".join(choices)
+    if spec.type == "int":
+        if not (isinstance(value, int) and not isinstance(value, bool)):
+            return "is not an integer", "type", repr(value), "int"
+        values: list[float] = [value]
+    elif spec.type == "float":
+        if not is_real(value):
+            return "is not a finite number", "type", repr(value), "float"
+        values = [value]  # type: ignore[list-item]
+    else:
+        if not (isinstance(value, list) and value and all(is_real(v) for v in value)):
+            return "is not a non-empty list of finite numbers", "type", repr(value), "float_list"
+        values = list(value)
+    if spec.range is not None:
+        low, high = spec.range
+        outside = [v for v in values if not low <= v <= high]
+        if outside:
+            return "lies outside the recipe range", "range", outside[0], range_text(spec)
+    return None
+
+
+def setting_value(role: RoleSpec, key: str, params: Mapping[str, Quantity]) -> object:
+    """A role setting with ``$param`` references resolved (``None`` when absent or unresolvable)."""
+    raw = role.settings.get(key)
+    if isinstance(raw, str) and raw.startswith("$"):
+        quantity = params.get(raw[1:])
+        return None if quantity is None else quantity.value
+    return raw
+
+
+def scalar(value: object) -> str | int | float | bool | None:
+    if value is None or isinstance(value, str | bool | int | float):
+        return value  # type: ignore[return-value]
+    return repr(value)
+
+

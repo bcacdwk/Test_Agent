@@ -13,7 +13,8 @@ from b1500_test_agent.analysis import load_run
 from b1500_test_agent.config import load_config
 from b1500_test_agent.models.analysis import ExtractionResult
 from b1500_test_agent.models.run import RunSummary
-from b1500_test_agent.transport.sim.devices import Circuit, DiodeDevice
+from b1500_test_agent.transport.sim.devices import Circuit
+from b1500_test_agent.transport.sim.devices.basic import DiodeDevice
 from tests.integration.helpers import World, plan, run
 
 CONTACT = {"recipe_id": "basic.contact_resistor", "pin_map": "resistor-2t", "dut_profile": "resistor-generic"}

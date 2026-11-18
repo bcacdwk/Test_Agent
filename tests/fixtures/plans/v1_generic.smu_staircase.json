@@ -1,0 +1,53 @@
+{
+  "recipe_id": "generic.smu_staircase",
+  "source": "recipe defaults",
+  "scenario": "nmos_basic",
+  "request": {
+    "params": {},
+    "pin_map": "generic-3t",
+    "dut_profile": "generic-3t"
+  },
+  "config": {
+    "pinmaps/generic-3t.yaml": {
+      "certainty": "verified",
+      "terminals": {
+        "sweep": 3,
+        "bias": 4,
+        "ground": "GNDU"
+      }
+    },
+    "duts/generic-3t.yaml": {
+      "device_type": "nmos",
+      "terminals": {
+        "sweep": {
+          "max_abs_v": 2.0,
+          "max_abs_i": 0.001
+        },
+        "bias": {
+          "max_abs_v": 2.0,
+          "max_abs_i": 0.001
+        },
+        "ground": {
+          "max_abs_v": 0.0,
+          "max_abs_i": 0.01
+        }
+      }
+    }
+  },
+  "kind": "smu_staircase",
+  "flex_preview": [
+    "FMT 1,1",
+    "AAD 3,0",
+    "AAD 4,0",
+    "AIT 0,2,1",
+    "CN 3,4",
+    "DV 4,0,0,0.0001",
+    "MM 2,3,4",
+    "CMM 3,1",
+    "CMM 4,1",
+    "WV 3,1,0,0,1,51,0.0001",
+    "WT 0,0",
+    "WM 2,1",
+    "XE"
+  ]
+}

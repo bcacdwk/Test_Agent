@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from b1500_test_agent.devtools import lint_skills
-from b1500_test_agent.devtools.lint_skills import MarkdownDoc, parse_markdown
+from b1500_test_agent.devtools import skills as lint_skills
+from b1500_test_agent.devtools.skills.markdown import MarkdownDoc, parse_markdown
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILL_DIR = ROOT / ".agents" / "skills" / "b1500-debug"

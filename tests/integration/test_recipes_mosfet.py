@@ -22,7 +22,8 @@ from b1500_test_agent.analysis.dataset import RunData
 from b1500_test_agent.config import load_config
 from b1500_test_agent.models.analysis import ExtractionResult
 from b1500_test_agent.models.run import RunSummary
-from b1500_test_agent.transport.sim.devices import Circuit, MosfetEkv
+from b1500_test_agent.transport.sim.devices import Circuit
+from b1500_test_agent.transport.sim.devices.mosfet import MosfetEkv
 from tests.integration.helpers import IDVG, World, plan, run
 
 IDVD = {"recipe_id": "mosfet.idvd", "pin_map": "mosfet-4t", "dut_profile": "nmos-generic"}

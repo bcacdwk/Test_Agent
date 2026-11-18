@@ -1,0 +1,27 @@
+{
+  "recipe_id": "fefet.dual_sweep_mw",
+  "source": "card fefet-dual-sweep-mw",
+  "scenario": "fefet_basic",
+  "request": {
+    "params": {},
+    "pin_map": "mosfet-4t",
+    "dut_profile": "fefet-generic"
+  },
+  "config": {},
+  "kind": "smu_staircase",
+  "flex_preview": [
+    "FMT 1,1",
+    "AAD 4,0",
+    "AAD 3,0",
+    "AIT 0,2,1",
+    "CN 4,3",
+    "DV 3,0,0.05,0.001",
+    "MM 2,4,3",
+    "CMM 4,1",
+    "CMM 3,1",
+    "WV 4,3,0,-4,4,161,1E-06",
+    "WT 0,0",
+    "WM 2,1",
+    "XE"
+  ]
+}

@@ -37,7 +37,7 @@ import pandas as pd
 from pydantic import Field
 
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError, RawAcquisition, setting_value
-from b1500_test_agent.driver import commands
+from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.b1500 import ADC_MODE_CODES, ADC_TYPE_CODES, RawBlock, StaircaseSetup
 from b1500_test_agent.errors import B1500Error
 from b1500_test_agent.models.analysis import Quantity
@@ -366,19 +366,19 @@ class SmuStaircaseKind:
         adc = ADC_TYPE_CODES[integration.adc]
         sweep = program.sweep
         timing = sweep.timing
-        lines = [commands.fmt(*program.data_format)]
-        lines += [commands.aad(m.channel, adc) for m in program.measure]
-        lines.append(commands.ait(adc, ADC_MODE_CODES[integration.mode], integration.n))
-        lines.append(commands.cn(program.enable))
-        lines += [commands.dv(b.channel, 0, b.v, b.icomp) for b in program.biases]
-        lines.append(commands.mm(2, sweep.measure))
-        lines += [commands.cmm(ch, op) for ch, op in sweep.operation.items()]
-        lines.append(commands.wv(sweep.channel, sweep.wv_mode, sweep.vrange, sweep.start, sweep.stop, sweep.points,
+        lines = [flex.fmt(*program.data_format)]
+        lines += [flex.aad(m.channel, adc) for m in program.measure]
+        lines.append(flex.ait(adc, ADC_MODE_CODES[integration.mode], integration.n))
+        lines.append(flex.cn(program.enable))
+        lines += [flex.dv(b.channel, 0, b.v, b.icomp) for b in program.biases]
+        lines.append(flex.mm(2, sweep.measure))
+        lines += [flex.cmm(ch, op) for ch, op in sweep.operation.items()]
+        lines.append(flex.wv(sweep.channel, sweep.wv_mode, sweep.vrange, sweep.start, sweep.stop, sweep.points,
                                  sweep.icomp))
-        lines.append(commands.wt(timing.hold_s, timing.delay_s, timing.step_delay_s, timing.trigger_delay_s,
+        lines.append(flex.wt(timing.hold_s, timing.delay_s, timing.step_delay_s, timing.trigger_delay_s,
                                  timing.measure_delay_s))
-        lines.append(commands.wm(2 if sweep.auto_abort else 1, 1 if sweep.post == "start" else 2))
-        lines.append(commands.XE)
+        lines.append(flex.wm(2 if sweep.auto_abort else 1, 1 if sweep.post == "start" else 2))
+        lines.append(flex.XE)
         return lines
 
     # acquire -----------------------------------------------------------------------------------------------------

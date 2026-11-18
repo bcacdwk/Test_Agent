@@ -1,1 +1,2 @@
-"""B1500A driver: pure FLEX command builders, output guard, response parser and B1500Driver (blueprint 2.3)."""
+"""B1500A driver: FLEX builders (``flex/``), operations mixins (``ops/``) behind the ``B1500Driver`` facade, output
+guard, response parser, discovery and module specs (blueprint 2.5)."""

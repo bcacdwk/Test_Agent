@@ -1,4 +1,4 @@
-"""FLEX-literal lint (blueprint 2): only ``driver/commands.py`` spells FLEX commands in string literals.
+"""FLEX-literal lint (blueprint 2.1): only ``driver/flex/`` spells FLEX commands in string literals.
 
 Detector: every non-docstring string literal under ``src/b1500_test_agent`` (f-strings with each placeholder
 rendered as ``0``, bytes decoded as latin-1) is searched for a mnemonic from the manual's command summary
@@ -14,8 +14,9 @@ response headers that are not mnemonics (``"LOP"``). Docstrings (module, class, 
 i.e. bare string statements) are documentation and are not scanned.
 
 Exemptions (relative to ``src/b1500_test_agent``):
-- ``driver/commands.py``: the builders, the one place FLEX text is assembled (blueprint 2.3);
-- ``transport/sim/``: the simulator implements the instrument side of FLEX (blueprint 3).
+- ``driver/flex/``: the builders, one module per instrument family, the one place FLEX text is assembled
+  (blueprint 2.5);
+- ``transport/sim/``: the simulator implements the instrument side of FLEX (blueprint 4).
 """
 
 from __future__ import annotations
@@ -31,8 +32,8 @@ ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_DIR = ROOT / "src" / "b1500_test_agent"
 SUMMARY = ROOT / "references" / "manuals" / "structured" / "b1500a-command-summary.yaml"
 
-ALLOWED_FILES = {"driver/commands.py": "FLEX builders and constants (blueprint 2.3)"}
-EXEMPT_PREFIXES = {"transport/sim/": "simulator: the instrument side of FLEX (blueprint 3)"}
+ALLOWED_PREFIXES = {"driver/flex/": "FLEX builders and constants, one module per family (blueprint 2.5)"}
+EXEMPT_PREFIXES = {"transport/sim/": "simulator: the instrument side of FLEX (blueprint 4)"}
 
 
 def flex_mnemonics() -> set[str]:
@@ -99,23 +100,30 @@ def _scanned_files() -> list[Path]:
     files = []
     for path in sorted(PACKAGE_DIR.rglob("*.py")):
         rel = path.relative_to(PACKAGE_DIR).as_posix()
-        if rel in ALLOWED_FILES or rel.startswith(tuple(EXEMPT_PREFIXES)):
+        if rel.startswith(tuple(ALLOWED_PREFIXES) + tuple(EXEMPT_PREFIXES)):
             continue
         files.append(path)
     return files
 
 
-def test_only_commands_py_holds_flex_mnemonics_in_string_literals() -> None:
+def test_only_driver_flex_holds_flex_mnemonics_in_string_literals() -> None:
     files = _scanned_files()
-    assert any(p.name == "b1500.py" for p in files)  # the driver itself is scanned
+    scanned = {p.relative_to(PACKAGE_DIR).as_posix() for p in files}
+    assert {"driver/b1500.py", "driver/ops/core.py", "driver/ops/smu.py", "catalog/kinds/system.py"} <= scanned
     hits = [hit for path in files for hit in flex_hits(path)]
     assert hits == []
 
 
-def test_commands_py_is_detected_so_the_lint_is_not_vacuous() -> None:
-    hits = flex_hits(PACKAGE_DIR / "driver" / "commands.py")
+def test_driver_flex_is_detected_so_the_lint_is_not_vacuous() -> None:
+    hits = [hit for path in sorted((PACKAGE_DIR / "driver" / "flex").glob("*.py")) for hit in flex_hits(path)]
     found = {hit.split(": ")[1].split(" in ")[0] for hit in hits}
     assert {"XE", "AB", "*RST", "*IDN?", "UNT?", "ERRX?", "LOP?", "DV", "WV", "CN", "MM", "WT"} <= found
+
+
+def test_only_the_flex_package_is_allowed() -> None:
+    """The allowance is the package, not a file list: a FLEX literal anywhere else under ``driver/`` is flagged."""
+    assert set(ALLOWED_PREFIXES) == {"driver/flex/"}
+    assert {p.name for p in (PACKAGE_DIR / "driver" / "flex").glob("*.py")} >= {"__init__.py", "core.py", "smu.py"}
 
 
 @pytest.mark.parametrize(

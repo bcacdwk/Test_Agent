@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Final
 
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError, RawAcquisition
-from b1500_test_agent.driver import commands
+from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.errors import failed_units
 from b1500_test_agent.models.analysis import Quantity
 from b1500_test_agent.models.common import Backend
@@ -30,8 +30,8 @@ if TYPE_CHECKING:
 OPERATION_PARAM: Final = "operation"
 
 OPERATIONS: dict[str, tuple[str, float]] = {
-    "self_test": (commands.TST_Q, 120.0),
-    "self_cal": (commands.CAL_Q, 60.0),
+    "self_test": (flex.TST_Q, 120.0),
+    "self_cal": (flex.CAL_Q, 60.0),
 }
 """Operation -> (query, estimated duration in s). The durations are conservative placeholders (TODO(verify) at
 M4 bring-up); the read timeout is ``2 x estimate + 10 s``."""

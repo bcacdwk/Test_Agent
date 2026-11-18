@@ -10,7 +10,9 @@ from pydantic import ValidationError
 
 from b1500_test_agent.models.sim import MosfetEkvParams, ResistorParams, ShortParams
 from b1500_test_agent.models.station import SimDeviceModel, SimScenario
-from b1500_test_agent.transport.sim.devices import Circuit, MosfetEkv, OpenDevice, ResistorDevice
+from b1500_test_agent.transport.sim.devices import Circuit
+from b1500_test_agent.transport.sim.devices.basic import OpenDevice, ResistorDevice
+from b1500_test_agent.transport.sim.devices.mosfet import MosfetEkv
 from tests.sim.helpers import load_scenario, noiseless, run, values
 
 VD_LIN = 0.1

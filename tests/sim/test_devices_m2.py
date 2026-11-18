@@ -17,14 +17,10 @@ from b1500_test_agent.models.sim import DiodeParams, FefetParams, MosfetDamagedP
 from b1500_test_agent.models.station import SimScenario
 from b1500_test_agent.transport.base import TransportError
 from b1500_test_agent.transport.sim import SimTransport, sim_state_file
-from b1500_test_agent.transport.sim.devices import (
-    Circuit,
-    DamagedMosfet,
-    DiodeDevice,
-    FefetDevice,
-    MosfetEkv,
-    StatefulDevice,
-)
+from b1500_test_agent.transport.sim.devices import Circuit, StatefulDevice
+from b1500_test_agent.transport.sim.devices.basic import DiodeDevice
+from b1500_test_agent.transport.sim.devices.ferro import FefetDevice
+from b1500_test_agent.transport.sim.devices.mosfet import DamagedMosfet, MosfetEkv
 from tests.sim.helpers import REPO_ROOT, load_scenario, noiseless, run, scenario_with, values
 
 PINMAP_DIR = REPO_ROOT / "config" / "pinmaps"

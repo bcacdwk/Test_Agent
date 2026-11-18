@@ -22,8 +22,8 @@ from __future__ import annotations
 
 import re
 
-from b1500_test_agent.driver.commands import LOP_RESPONSE_PREFIX
 from b1500_test_agent.driver.errors import FlexParseError
+from b1500_test_agent.driver.flex import LOP_RESPONSE_PREFIX
 from b1500_test_agent.models.station import ChannelOutput, Identity, InstalledModule, ModuleInventory
 
 SLOTS = 10

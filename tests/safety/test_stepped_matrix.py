@@ -26,10 +26,10 @@ from b1500_test_agent.catalog.kinds.smu_staircase import AcquisitionError
 from b1500_test_agent.catalog.planner import Planner
 from b1500_test_agent.catalog.registry import RecipeRegistry
 from b1500_test_agent.catalog.schema import RawAcquisition
-from b1500_test_agent.driver import b1500 as driver_module
-from b1500_test_agent.driver import commands
+from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.errors import FlexParseError
 from b1500_test_agent.driver.guard import EnvelopeViolation, OutputGuard
+from b1500_test_agent.driver.ops import core as driver_module  # parse_data/parse_errx are looked up here
 from b1500_test_agent.models.plan import PlanRecord, PlanRequest
 from b1500_test_agent.models.sim import (
     CleanupFailure,
@@ -89,7 +89,7 @@ class SteppedHook(HookTransport):
         if cmd.startswith("WV "):
             self.fire("configure")
         self.inner.write(cmd)
-        if cmd == commands.XE:
+        if cmd == flex.XE:
             self.xe += 1
             if self.xe == NTH:
                 self.fire("after_xe")

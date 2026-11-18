@@ -17,7 +17,8 @@ from b1500_test_agent.analysis import load_run, run_method, with_trust
 from b1500_test_agent.analysis.dataset import RunData
 from b1500_test_agent.config import load_config
 from b1500_test_agent.models.analysis import ExtractionResult
-from b1500_test_agent.transport.sim.devices import Circuit, FefetDevice
+from b1500_test_agent.transport.sim.devices import Circuit
+from b1500_test_agent.transport.sim.devices.ferro import FefetDevice
 from b1500_test_agent.transport.sim.state import load_state_file, sim_state_file
 from tests.integration.helpers import World, plan, run
 

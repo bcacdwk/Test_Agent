@@ -17,7 +17,9 @@ import yaml
 
 from b1500_test_agent.analysis import load_run
 from b1500_test_agent.config import load_config
-from b1500_test_agent.transport.sim.devices import Circuit, FefetDevice, MosfetEkv
+from b1500_test_agent.transport.sim.devices import Circuit
+from b1500_test_agent.transport.sim.devices.ferro import FefetDevice
+from b1500_test_agent.transport.sim.devices.mosfet import MosfetEkv
 from b1500_test_agent.transport.sim.state import load_state_file, sim_state_file
 from tests.integration.helpers import REPO_ROOT, World, plan, run
 

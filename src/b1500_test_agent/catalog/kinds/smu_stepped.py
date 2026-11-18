@@ -48,7 +48,7 @@ from b1500_test_agent.catalog.kinds.smu_staircase import (
     staircase_rows,
 )
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError, RawAcquisition, setting_value
-from b1500_test_agent.driver import commands
+from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.b1500 import RawBlock
 from b1500_test_agent.models.analysis import Quantity
 from b1500_test_agent.models.common import Backend, StrictModel
@@ -195,8 +195,8 @@ class SmuSteppedKind:
         (``ERRX?`` drains are not listed)."""
         lines = SmuStaircaseKind.preview(program.staircase)[:-1]  # everything but the final XE
         for value in program.step_values:
-            lines.append(commands.dv(program.step_channel, 0, value, program.step_icomp))
-            lines.append(commands.XE)
+            lines.append(flex.dv(program.step_channel, 0, value, program.step_icomp))
+            lines.append(flex.XE)
         return lines
 
     # acquire -----------------------------------------------------------------------------------------------------

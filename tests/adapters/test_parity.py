@@ -9,8 +9,8 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from b1500_test_agent.adapters import cli
 from b1500_test_agent.adapters.cli import TOOL_COMMANDS, app
+from b1500_test_agent.adapters.cli import core as cli  # make_service/is_interactive are looked up here
 from b1500_test_agent.adapters.mcp_server import create_server
 from b1500_test_agent.models.common import ResultEnvelope
 from b1500_test_agent.service import TOOL_NAMES, B1500Service

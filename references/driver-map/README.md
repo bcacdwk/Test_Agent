@@ -11,7 +11,9 @@ demand for FLEX driver work (WP1.3 onward).
 | File | Content |
 |---|---|
 | `flex-driver-map.yaml` | GENERATED: 282 atoms, 97 flow names, and one entry per FLEX command of the manual summary. Do not edit by hand |
-| `legacy-catalog/*.md` | The v0.2 per-family tool catalogs, moved verbatim from the old skill by WP0.4. Their links into the old skill tree only resolve at the archive tag |
+
+The v0.2 per-family tool catalogs are no longer in the tree; read them at the tag with
+`git show archive/v0.2-fake-mcp:.agents/skills/b1500-semiconductor-testing/references/mcp-tools/<file>.md`.
 
 ## Regenerate or check
 

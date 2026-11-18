@@ -1,5 +1,5 @@
-"""Run archive (blueprint 2.7): run folders, raw blocks, tables, quality and analysis files, the manifest, the
-index and append-only notes. Run folders are written only by the server (the executor and, from WP1.8, the
+"""Run archive (blueprint 2.7; v2 2.10): run folders, raw blocks, tables, quality and analysis files, the manifest,
+the index and append-only notes. Run folders are written only by the server (the executor and, from WP1.8, the
 service's ``analyze_run``/``annotate_run``).
 
 Layout under ``<data_root>/runs/`` (``run_relpath`` of ``analysis/dataset.py`` is the single definition)::
@@ -8,7 +8,12 @@ Layout under ``<data_root>/runs/`` (``run_relpath`` of ``analysis/dataset.py`` i
         manifest.json         written exactly once, at finalize (sha256 of every other file at that moment)
         audit.jsonl           the run's transport and lifecycle events
         raw/block-NNN.txt     exact text of every measurement read, latin-1 bytes, kept even on failure
-        data.csv              tidy table (``with_trust`` + ``write_table``)
+        raw/wgfmu-<ch>-<n>.npz  raw WGFMU readback blocks (``archive/runfiles.py``)
+        program.json          ``RunProgram``: the pulse/waveform program (written once, before the source runs)
+        progress.json         ``RunProgress`` of an async run (replaced atomically at each checkpoint)
+        partial.csv           rows acquired so far by an async run (appended per checkpoint)
+        data.csv              tidy table up to 200,000 rows (``with_trust`` + ``write_run_table``), or
+        data.npz + preview.csv  larger tables (``analysis/dataset.py``: npz + 2,000 evenly spaced rows as CSV)
         quality.json          ``QualityReport``
         analysis/<method>-<n>.json   one file per analysis call (n = 1, 2, ...; later calls add files only)
         plots/<name>-<n>.png  plots of ``plot_iv`` (later calls add files only)
@@ -30,27 +35,35 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
 from b1500_test_agent import __version__
 from b1500_test_agent.analysis.dataset import (
-    DATA_FILE,
     INDEX_FILE,
     MANIFEST_FILE,
     check_run_id,
     find_run,
     run_relpath,
-    write_table,
+    write_run_table,
 )
 from b1500_test_agent.analysis.plots import PlotSet
 from b1500_test_agent.archive.audit import RunAuditSink
+from b1500_test_agent.archive.runfiles import (
+    RAW_DIR,
+    WgfmuQuantity,
+    append_partial,
+    write_program,
+    write_progress,
+    write_wgfmu_raw,
+)
 from b1500_test_agent.errors import InvalidInputError
-from b1500_test_agent.models.analysis import ExtractionResult, QualityReport
+from b1500_test_agent.models.analysis import ExtractionResult, QualityReport, TrustPolicy
 from b1500_test_agent.models.common import Backend
-from b1500_test_agent.models.run import RunManifest
+from b1500_test_agent.models.plan import RunProgress
+from b1500_test_agent.models.run import RunManifest, RunProgram
 
-RAW_DIR = "raw"
 QUALITY_FILE = "quality.json"
 ANALYSIS_DIR = "analysis"
 PLOTS_DIR = "plots"
@@ -132,14 +145,33 @@ class RunFolder:
         self.raw_files.append(rel)
         return rel
 
+    def save_wgfmu_raw(self, channel: int, time_s: np.ndarray, value: np.ndarray, *, offset: int = 0,
+                       quantity: WgfmuQuantity | None = None) -> str:
+        """Store one raw WGFMU readback block as the next ``raw/wgfmu-<ch>-<n>.npz`` (``archive/runfiles.py``) and
+        return that run-relative path."""
+        rel = write_wgfmu_raw(self.path, channel, time_s, value, offset=offset, quantity=quantity)
+        self.raw_files.append(rel)
+        return rel
+
     # -- files ------------------------------------------------------------------------------------------------------
 
     def write_table(self, table: pd.DataFrame) -> Path:
-        """``data.csv`` (validated against the contract of ``analysis/dataset.py``)."""
-        target = self.path / DATA_FILE
-        if target.exists():
-            raise FileExistsError(f"{target.as_posix()} already exists")
-        return write_table(table, target)
+        """The run table (validated against the contract of ``analysis/dataset.py``): ``data.csv`` up to 200,000
+        rows, else ``data.npz`` + ``preview.csv``; returns the data file's path. Never overwrites."""
+        return write_run_table(table, self.path)
+
+    def write_program(self, program: RunProgram) -> Path:
+        """``program.json`` (written once)."""
+        return write_program(self.path, program)
+
+    def write_progress(self, progress: RunProgress) -> Path:
+        """Replace ``progress.json`` atomically (async runs, at every checkpoint and once more before finalize)."""
+        return write_progress(self.path, progress)
+
+    def append_partial(self, rows: pd.DataFrame, policy: TrustPolicy | None = None) -> int:
+        """Append rows to ``partial.csv`` (async runs; ``trust`` computed under ``policy`` when missing); returns
+        the number of rows appended."""
+        return append_partial(self.path, rows, policy)
 
     def write_json(self, rel: str, data: Any) -> Path:
         """A new JSON file at run-relative ``rel`` (never overwrites)."""

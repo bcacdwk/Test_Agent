@@ -307,6 +307,49 @@ class CorrectionRecord(StrictModel):
         return (now - self.ts).total_seconds() / 3600.0
 
 
+CorrectionState = Literal["fresh", "missing", "other_setup", "other_instrument", "stale", "uncovered"]
+"""Freshness of one required correction kind, in the order the checks run (``archive/corrections.py``)."""
+
+
+class CorrectionCheck(StrictModel):
+    """Freshness of one required correction kind of one MFCMU (correction store query; R-CORR-01, ``station_status``).
+
+    ``state``: ``fresh`` (a record passes every check), ``missing`` (no record of the kind), ``other_setup`` (only
+    records measured with another station profile or pin map), ``other_instrument`` (only records of another
+    mainframe ``*IDN?``), ``stale`` (older than the age limit), ``uncovered`` (the fresh records miss a frequency,
+    listed in ``missing_hz``). ``run_id``/``age_h`` describe the deciding record: the newest one that passed every
+    check before the failing one (``None`` when there is none).
+    """
+
+    kind: CorrectionKind
+    state: CorrectionState
+    run_id: RunId | None = None
+    age_h: float | None = None
+    missing_hz: list[PositiveFloat] = Field(default_factory=list)
+
+
+class CorrectionFreshness(StrictModel):
+    """Answer of a correction-store freshness query for one MFCMU (``archive.corrections.freshness``): one check
+    per required kind; ``fresh`` is true exactly when every check is ``fresh``."""
+
+    cmu: Alias
+    checked_at: AwareDatetime
+    max_age_h: PositiveFloat
+    freqs_hz: list[PositiveFloat] = Field(default_factory=list)
+    checks: list[CorrectionCheck]
+    fresh: bool
+
+    @model_validator(mode="after")
+    def _fresh_matches_checks(self) -> CorrectionFreshness:
+        if self.fresh != all(check.state == "fresh" for check in self.checks):
+            raise ValueError("fresh must be true exactly when every check is fresh.")
+        return self
+
+    def failing(self) -> list[CorrectionCheck]:
+        """The checks that are not ``fresh``, in ``require`` order."""
+        return [check for check in self.checks if check.state != "fresh"]
+
+
 class StationProfile(StrictModel):
     """Contents of ``station.yaml``: inventory, interlock, topology, switches and correction standards (blueprint v1
     4.1, v2 2.3).

@@ -18,8 +18,8 @@ class RunNotFoundError(InvalidInputError):
 
 
 class RunFormatError(InvalidInputError):
-    """A run folder breaks the archive contract: invalid manifest, missing or malformed ``data.csv``, digest
-    mismatch."""
+    """A run folder breaks the archive contract: invalid manifest, missing or malformed run table (``data.csv`` or
+    ``data.npz``) or run file, digest mismatch."""
 
 
 class MethodNotImplementedError(B1500Error):

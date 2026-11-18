@@ -6,6 +6,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from typing import get_args
 
 import numpy as np
 import pytest
@@ -17,16 +18,19 @@ from b1500_test_agent.analysis import (
     run_method,
 )
 from b1500_test_agent.analysis.plots import PlotSet, new_figure, plot_iv, save_figure
-from b1500_test_agent.analysis.registry import AnalysisMethod, _declared
+from b1500_test_agent.analysis.registry import AnalysisMethod, _declared, methods_for
+from b1500_test_agent.catalog.registry import RecipeRegistry
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport
-from b1500_test_agent.models.recipe import AnalysisSpec, QualityCriteria
+from b1500_test_agent.models.recipe import AnalysisSpec, QualityCriteria, RecipeFamily
 from tests.unit.analysis_helpers import VTH, idvg_table, linear_region_id, manifest
+from tests.unit.helpers import REPO_ROOT
 
 VG = np.linspace(-1.0, 3.0, 101)
 M1 = {"quality_report", "vth_linear_extrapolation"}
 M2 = {"vth_constant_current", "vth_max_gm", "subthreshold_swing", "gm_max", "ion_ioff", "output_metrics",
       "resistance", "diode_fit", "leakage_at", "memory_window", "plot_iv"}
+M5 = {"plot_timeseries"}
 
 
 def idvg_run(recipe_id: str = "mosfet.idvg", drain_status: list[str] | None = None) -> RunData:
@@ -35,11 +39,11 @@ def idvg_run(recipe_id: str = "mosfet.idvg", drain_status: list[str] | None = No
 
 
 def test_registry_lists_every_method_as_implemented() -> None:
-    assert set(ANALYSIS_METHODS) == M1 | M2
+    assert set(ANALYSIS_METHODS) == M1 | M2 | M5
     for name, method in ANALYSIS_METHODS.items():
         assert method.name == name and callable(method.fn) and method.summary
         assert method.status == "implemented"
-        assert method.milestone == ("M1" if name in M1 else "M2")
+        assert method.milestone == ("M1" if name in M1 else "M2" if name in M2 else "M5")
         assert "criteria" not in method.options and "d" not in method.options and "out_dir" not in method.options
         assert (name == "quality_report") == (not method.options)
     assert ANALYSIS_METHODS["vth_linear_extrapolation"].options == (
@@ -52,7 +56,7 @@ def test_registry_lists_every_method_as_implemented() -> None:
 def test_a_declared_method_reports_not_implemented() -> None:
     data = idvg_run("generic.smu_staircase")
     declared = AnalysisMethod(name="cv_fit", status="declared", output="extraction", summary="later",
-                              fn=_declared("cv_fit", "M2"), milestone="M2")
+                              fn=_declared("cv_fit", "M2"), families=("cmu",), milestone="M2")
     with pytest.raises(MethodNotImplementedError, match="declared but not implemented") as info:
         declared.run(data)
     assert info.value.code == "not_implemented" and "M2" in str(info.value)
@@ -166,3 +170,47 @@ def test_plots_module_never_imports_pyplot() -> None:
     code = "import sys, b1500_test_agent.analysis.plots; print('matplotlib.pyplot' in sys.modules)"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=120)
     assert out.stdout.strip() == "False"
+
+
+# -- Family tags (blueprint v2 2.10, WP5.7) --------------------------------------------------------------------------
+
+
+def test_every_method_carries_valid_family_tags() -> None:
+    families = set(get_args(RecipeFamily))
+    for name, method in ANALYSIS_METHODS.items():
+        assert method.families and set(method.families) <= families, name
+        assert len(set(method.families)) == len(method.families), name
+        assert "system" not in method.families, name  # system runs archive no table
+    with pytest.raises(ValueError, match="families"):
+        AnalysisMethod(name="x", status="declared", output="extraction", summary="x", fn=_declared("x", "M7"),
+                       families=())
+    with pytest.raises(ValueError, match="families"):
+        AnalysisMethod(name="x", status="declared", output="extraction", summary="x", fn=_declared("x", "M7"),
+                       families=("smu", "optics"))  # type: ignore[arg-type]
+
+
+def test_methods_for_a_family() -> None:
+    smu = {m.name for m in methods_for("smu")}
+    assert {"quality_report", "vth_linear_extrapolation", "resistance", "plot_iv", "plot_timeseries"} <= smu
+    assert {m.name for m in methods_for("nvm")} >= {"memory_window", "quality_report", "plot_timeseries"}
+    assert "resistance" not in {m.name for m in methods_for("nvm")}
+    assert {m.name for m in methods_for("cmu")} == {"quality_report", "plot_timeseries"}
+    assert methods_for("system") == []
+    with pytest.raises(InvalidInputError, match="family"):
+        methods_for("optics")  # type: ignore[arg-type]
+
+
+def test_applicable_methods_list_the_family_of_every_runnable_recipe() -> None:
+    registry = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)
+    checked = 0
+    for recipe_id in registry.ids():
+        recipe = registry.get(recipe_id)
+        if recipe.kind == "system" or registry.effective_status(recipe_id, "sim") == "not_implemented":
+            continue
+        for method in ANALYSIS_METHODS.values():
+            if method.applies_to(recipe_id, recipe.kind):
+                assert recipe.family in method.families, (method.name, recipe_id, recipe.family)
+                checked += 1
+        for spec in recipe.analysis_defaults:
+            assert recipe.family in ANALYSIS_METHODS[spec.method].families, (spec.method, recipe_id)
+    assert checked > 20

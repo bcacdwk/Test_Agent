@@ -8,6 +8,10 @@ option, or a method that does not apply to the run's recipe/kind, and ``MethodNo
 ``refused``), not exceptions. ``options`` come from JSON (``analyze_run`` ``options{}`` or a recipe's
 ``analysis_defaults``); the trust policy is not an option: the caller passes the recipe's ``QualityCriteria`` as
 ``criteria``, so only ``force`` (flagged) can override a refusal.
+
+Every method carries ``families`` (blueprint v2 2.10): the recipe families (``smu cmu spgu wgfmu nvm reliability
+system``, ``Recipe.family``) whose runs it serves; ``methods_for(family)`` lists them. A method applicable (by
+``recipes``/``kinds``) to a runnable recipe lists that recipe's family (a registry test checks it).
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from types import MappingProxyType
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from pydantic import ValidationError
 
@@ -37,11 +41,15 @@ from b1500_test_agent.analysis.mosfet import (
 )
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv_method
 from b1500_test_agent.analysis.quality import assess_quality
+from b1500_test_agent.analysis.reliability import plot_timeseries_method
 from b1500_test_agent.analysis.resistor import resistance
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport, TrustPolicy
+from b1500_test_agent.models.recipe import RecipeFamily
 
 MethodStatus = Literal["implemented", "declared"]
+Milestone = Literal["M1", "M2", "M5", "M6", "M7", "M8", "M9", "M10", "M11"]
+FAMILIES: tuple[RecipeFamily, ...] = get_args(RecipeFamily)
 MethodOutput = Literal["quality_report", "extraction", "plots"]
 MethodResult = list[ExtractionResult] | QualityReport | PlotSet
 
@@ -50,21 +58,33 @@ _RESERVED_ARGS = frozenset({"d", "criteria"})
 _TRANSFER = ("mosfet.idvg", "fefet.dual_sweep_mw", "generic.*")
 _STAIRCASE = ("smu_staircase",)
 _SWEEPS = ("smu_staircase", "smu_stepped")
+_SMU: tuple[RecipeFamily, ...] = ("smu",)
+_SMU_NVM: tuple[RecipeFamily, ...] = ("smu", "nvm")
+_TABLES: tuple[RecipeFamily, ...] = ("smu", "cmu", "spgu", "wgfmu", "nvm", "reliability")
+"""Families whose runs archive a measurement table (``system`` runs archive none)."""
 
 
 @dataclass(frozen=True)
 class AnalysisMethod:
     """One registered method: ``fn(data, *, criteria=None, **options)``; ``recipes`` are recipe-id patterns
-    (``fnmatch``, e.g. ``generic.*``) and ``kinds`` measurement kinds it applies to (``*`` = any)."""
+    (``fnmatch``, e.g. ``generic.*``) and ``kinds`` measurement kinds it applies to (``*`` = any); ``families`` the
+    recipe families whose runs it serves (at least one)."""
 
     name: str
     status: MethodStatus
     output: MethodOutput
     summary: str
     fn: Callable[..., Any]
+    families: tuple[RecipeFamily, ...]
     recipes: tuple[str, ...] = ("*",)
     kinds: tuple[str, ...] = ("*",)
-    milestone: Literal["M1", "M2"] = "M1"
+    milestone: Milestone = "M1"
+
+    def __post_init__(self) -> None:
+        unknown = sorted(set(self.families) - set(FAMILIES))
+        if not self.families or unknown or len(set(self.families)) != len(self.families):
+            raise ValueError(f"{self.name}: families must be distinct values of {list(FAMILIES)}; got "
+                             f"{list(self.families)}.")
 
     @property
     def options(self) -> tuple[str, ...]:
@@ -121,52 +141,65 @@ def _quality_report(d: RunData, *, criteria: TrustPolicy | None = None) -> Quali
 
 
 def _method(name: str, output: MethodOutput, fn: Callable[..., Any], summary: str, recipes: tuple[str, ...],
-            kinds: tuple[str, ...] = _STAIRCASE) -> AnalysisMethod:
-    return AnalysisMethod(name=name, status="implemented", output=output, summary=summary, fn=fn, recipes=recipes,
-                          kinds=kinds, milestone="M2")
+            kinds: tuple[str, ...] = _STAIRCASE, *, families: tuple[RecipeFamily, ...],
+            milestone: Milestone = "M2") -> AnalysisMethod:
+    return AnalysisMethod(name=name, status="implemented", output=output, summary=summary, fn=fn,
+                          families=families, recipes=recipes, kinds=kinds, milestone=milestone)
 
 
 _METHODS = [
     AnalysisMethod(
-        name="quality_report", status="implemented", output="quality_report", fn=_quality_report,
+        name="quality_report", status="implemented", output="quality_report", fn=_quality_report, families=_TABLES,
         summary="Status-letter counts, trust fractions, noise and SNR per measured column; verdict ok|limited|"
                 "untrusted.",
     ),
     AnalysisMethod(
         name="vth_linear_extrapolation", status="implemented", output="extraction", fn=vth_linear_extrapolation,
-        recipes=_TRANSFER, kinds=_STAIRCASE,
+        families=_SMU_NVM, recipes=_TRANSFER, kinds=_STAIRCASE,
         summary="Vth = Vg-axis intercept of the tangent at max gm (or a given window) minus Vd/2.",
     ),
     _method("vth_constant_current", "extraction", vth_constant_current,
-            "Vth where |Id| first reaches i_crit_a (x w_over_l when given).", _TRANSFER),
+            "Vth where |Id| first reaches i_crit_a (x w_over_l when given).", _TRANSFER, families=_SMU_NVM),
     _method("vth_max_gm", "extraction", vth_max_gm,
-            "Vth at the maximum of dgm/dVg (transconductance change) minus Vd/2.", _TRANSFER),
+            "Vth at the maximum of dgm/dVg (transconductance change) minus Vd/2.", _TRANSFER, families=_SMU_NVM),
     _method("subthreshold_swing", "extraction", subthreshold_swing,
-            "Minimum dVg/dlog10|Id| in mV/dec over fit_points points (or `decades` decades).", _TRANSFER),
-    _method("gm_max", "extraction", gm_max, "Maximum transconductance and its gate voltage.", _TRANSFER),
+            "Minimum dVg/dlog10|Id| in mV/dec over fit_points points (or `decades` decades).", _TRANSFER,
+            families=_SMU_NVM),
+    _method("gm_max", "extraction", gm_max, "Maximum transconductance and its gate voltage.", _TRANSFER,
+            families=_SMU_NVM),
     _method("ion_ioff", "extraction", ion_ioff, "Ion at v_on, Ioff at v_off (default: sweep ends) and their ratio.",
-            _TRANSFER),
+            _TRANSFER, families=_SMU_NVM),
     _method("output_metrics", "extraction", output_metrics,
             "Output family per step: Ron at the lowest |Vd|, gds in saturation, saturation onset Vd_sat.",
-            ("mosfet.idvd", "generic.*"), _SWEEPS),
+            ("mosfet.idvd", "generic.*"), _SWEEPS, families=_SMU),
     _method("resistance", "extraction", resistance,
             "Resistance, linearity and offset of an I-V line; classification open|short|in_range.",
-            ("basic.contact_resistor", "generic.*")),
+            ("basic.contact_resistor", "generic.*"), families=_SMU),
     _method("diode_fit", "extraction", diode_fit,
             "Diode ideality n, saturation current Is and series resistance Rs from the forward branch.",
-            ("basic.diode_iv", "generic.*")),
+            ("basic.diode_iv", "generic.*"), families=_SMU),
     _method("leakage_at", "extraction", leakage_at, "|I| at bias v against limit_a; classification pass|fail.",
-            ("mosfet.gate_leakage", "basic.diode_iv", "generic.*")),
+            ("mosfet.gate_leakage", "basic.diode_iv", "generic.*"), families=_SMU),
     _method("memory_window", "extraction", memory_window,
             "FeFET memory window Vth(fwd) - Vth(rev) of a double sweep, per-branch Vth, Ion and Ioff.",
-            ("fefet.dual_sweep_mw", "generic.*")),
+            ("fefet.dual_sweep_mw", "generic.*"), families=_SMU_NVM),
     _method("plot_iv", "plots", plot_iv_method,
             "I-V plots (linear and/or log scale) stored as PNG files under the run folder's plots/.", ("*",),
-            ("*",)),
+            ("*",), families=("smu", "spgu", "wgfmu", "nvm", "reliability")),
+    _method("plot_timeseries", "plots", plot_timeseries_method,
+            "Measured values against time t_s (else cycle or step), per phase, linear/log; PNGs under plots/.",
+            ("*",), ("*",), families=_TABLES, milestone="M5"),
 ]
 
 ANALYSIS_METHODS: Mapping[str, AnalysisMethod] = MappingProxyType({m.name: m for m in _METHODS})
 """All analysis methods by name (implemented and declared)."""
+
+
+def methods_for(family: RecipeFamily) -> list[AnalysisMethod]:
+    """The registered methods tagged with ``family``, in registry order."""
+    if family not in FAMILIES:
+        raise InvalidInputError(f"Unknown recipe family {family!r}; families: {list(FAMILIES)}.")
+    return [m for m in ANALYSIS_METHODS.values() if family in m.families]
 
 
 def run_method(

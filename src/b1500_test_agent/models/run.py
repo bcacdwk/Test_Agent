@@ -1,15 +1,16 @@
-"""Run lifecycle models: cleanup report, fault latch and lock records, run manifest and run summary (blueprint 2.4,
-2.6, 2.7, 5.1).
+"""Run lifecycle models: cleanup report, fault latch and lock records, run manifest, run program and run summary
+(blueprint 2.4, 2.6, 2.7, 5.1; v2 2.10).
 
-``RunManifest`` is written once to ``<run>/manifest.json`` at finalize; ``RunSummary`` is what ``run_plan`` and
-``run_confirmed_plan`` return. WP1.6/WP1.7 may extend these with the fields their implementations need.
+``RunManifest`` is written once to ``<run>/manifest.json`` at finalize; ``RunProgram`` is ``<run>/program.json``
+(the pulse/waveform program a run executed); ``RunSummary`` is what ``run_plan`` and ``run_confirmed_plan`` return.
+WP1.6/WP1.7 may extend these with the fields their implementations need.
 """
 
 from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, Field, JsonValue, model_validator
 
 from b1500_test_agent.models.analysis import ExtractionResult, RunId, TrustLevel
 from b1500_test_agent.models.common import (
@@ -23,7 +24,7 @@ from b1500_test_agent.models.common import (
     Tier,
     ValidationStatus,
 )
-from b1500_test_agent.models.plan import PlanId, PlanRecord, RuleFinding, RulesReport
+from b1500_test_agent.models.plan import ParamFile, PlanId, PlanRecord, RuleFinding, RulesReport
 from b1500_test_agent.models.recipe import RecipeId
 from b1500_test_agent.models.station import Identity, InstrumentError, ModuleInventory
 
@@ -80,6 +81,32 @@ class FaultRecord(StrictModel):
     reason: str = Field(min_length=1)
     run_id: RunId | None = None
     set_at: AwareDatetime
+
+
+ProgramSource = Literal["spgu", "smu", "wgfmu"]
+"""Module family that executes a pulse/waveform program: HV-SPGU pulses, SMU pulses, WGFMU waveforms."""
+
+
+class ProgramEntry(StrictModel):
+    """One pulse or waveform program of a run: the ``source`` family, the channels it drives, ``spec`` = the kind's
+    program object as JSON (e.g. a ``WaveformProgram`` or an SPGU pulse setup, ``model_dump(mode="json")``) and
+    ``preview`` = human-readable lines (e.g. ``WaveformProgram.preview()``)."""
+
+    source: ProgramSource
+    channels: list[int] = Field(min_length=1)
+    spec: dict[str, JsonValue]
+    preview: list[str] = Field(default_factory=list)
+
+
+class RunProgram(StrictModel):
+    """``<run>/program.json`` (blueprint v2 2.10): the pulse/waveform programs a run executed, by name (e.g.
+    ``program``, ``erase``, ``read``, ``stress``), and the ``file`` parameters they were built from (the plan's
+    ``ParamFile`` records: path, origin, sha256). Written once by the kind before the source starts; covered by the
+    manifest's sha256 list."""
+
+    kind: str = Field(min_length=1)
+    programs: dict[str, ProgramEntry] = Field(min_length=1)
+    files: dict[str, ParamFile] = Field(default_factory=dict)
 
 
 class RunManifest(StrictModel):

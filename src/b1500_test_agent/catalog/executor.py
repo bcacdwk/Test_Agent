@@ -14,8 +14,8 @@ blueprint 2.6 docstring:
 4. ``Session.transaction`` (fault-latch check, lock, inflight marker, recovery, baseline drain), a live snapshot and
    the ``pre_execute`` rules under the lock (``blocked`` → refuse; no source command is ever sent);
 5. ``kind.acquire`` through the guarded driver; every raw read lands in ``raw/block-NNN.txt`` before parsing;
-6. after the transaction's cleanup: table (``data.csv``), ``quality.json``, the recipe's default analyses
-   (``analysis/<method>-<n>.json``), then the manifest (written once) and the index line.
+6. after the transaction's cleanup: table (``data.csv`` or ``data.npz``), ``quality.json``, the recipe's default
+   analyses (``analysis/<method>-<n>.json``), then the manifest (written once) and the index line.
 
 ``run`` never raises to adapters (except a ``KeyboardInterrupt``/``SystemExit``, re-raised after the run folder is
 finalized as ``aborted``); every outcome is a ``RunSummary``. The run folder is created right before the
@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from b1500_test_agent.analysis.dataset import DATA_FILE, MANIFEST_FILE, RunData, with_trust
+from b1500_test_agent.analysis.dataset import MANIFEST_FILE, PREVIEW_FILE, RunData, with_trust
 from b1500_test_agent.analysis.plots import PlotSet
 from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.registry import run_method
@@ -493,10 +493,12 @@ class Executor:
 
     def _analyse(self, folder: RunFolder, table: Any, manifest: RunManifest, recipe: Recipe,
                  artifacts: dict[str, str]) -> tuple[QualityReport, list[ExtractionResult], list[str]]:
-        """Write ``data.csv`` and ``quality.json`` and run the recipe's default analyses."""
+        """Write the run table (``data.csv``, or ``data.npz`` + ``preview.csv``) and ``quality.json`` and run the
+        recipe's default analyses."""
         tidy = with_trust(table, recipe.quality)
-        folder.write_table(tidy)
-        artifacts["data"] = DATA_FILE
+        artifacts["data"] = folder.write_table(tidy).name
+        if (folder.path / PREVIEW_FILE).is_file():
+            artifacts["preview"] = PREVIEW_FILE
         data = RunData(manifest=manifest, table=tidy, path=folder.path)
         quality = assess_quality(data, recipe.quality)
         folder.write_quality(quality)

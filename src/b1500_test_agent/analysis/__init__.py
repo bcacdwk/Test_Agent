@@ -7,12 +7,15 @@ Ad-hoc use from agent scripts in ``work/``::
     report = assess_quality(d)
     vth = vth_linear_extrapolation(d)          # value=None with outcome "refused"/"failed" and an error message
     pngs = plot_iv(d, scale="log")             # PNGs under work/<run_id>/plots/
+    pngs = plot_timeseries(d, log_time=True)   # time-series runs (t_s, cycle or step on x)
     out_dir = work_dir_for(d.run_id)           # never write into the run folder
 
-Methods (registry ``ANALYSIS_METHODS``; definitions in the ``mosfet.py``, ``resistor.py``, ``diode.py``,
-``leakage.py``, ``fefet.py`` and ``plots.py`` docstrings): ``quality_report``, ``vth_linear_extrapolation``,
-``vth_constant_current``, ``vth_max_gm``, ``subthreshold_swing``, ``gm_max``, ``ion_ioff``, ``output_metrics``,
-``resistance``, ``diode_fit``, ``leakage_at``, ``memory_window``, ``plot_iv``.
+Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_for(family)``; definitions in the
+``mosfet.py``, ``resistor.py``, ``diode.py``, ``leakage.py``, ``fefet.py``, ``plots.py`` and ``reliability.py``
+docstrings): ``quality_report``, ``vth_linear_extrapolation``, ``vth_constant_current``, ``vth_max_gm``,
+``subthreshold_swing``, ``gm_max``, ``ion_ioff``, ``output_metrics``, ``resistance``, ``diode_fit``, ``leakage_at``,
+``memory_window``, ``plot_iv``, ``plot_timeseries``. The run-table contract (``data.csv`` or ``data.npz`` +
+``preview.csv``, columns) is defined in ``dataset.py``.
 
 Errors: exceptions mean the call cannot be served (``RunNotFoundError``, ``RunFormatError``, ``InvalidInputError``,
 ``MethodNotImplementedError``); data that do not allow a trustworthy value give an ``ExtractionResult`` with
@@ -20,9 +23,12 @@ Errors: exceptions mean the call cannot be served (``RunNotFoundError``, ``RunFo
 """
 
 from b1500_test_agent.analysis.dataset import (
+    CSV_MAX_ROWS,
     DATA_FILE,
     INDEX_FILE,
     MANIFEST_FILE,
+    NPZ_FILE,
+    PREVIEW_FILE,
     SEGMENT,
     SEGMENTS,
     STATUS_SUFFIX,
@@ -36,7 +42,9 @@ from b1500_test_agent.analysis.dataset import (
     load_run,
     measured_columns,
     read_table,
+    read_table_excerpt,
     run_relpath,
+    run_table_path,
     source_columns,
     status_column,
     trust_levels,
@@ -44,6 +52,7 @@ from b1500_test_agent.analysis.dataset import (
     value_column,
     with_trust,
     work_dir_for,
+    write_run_table,
     write_table,
 )
 from b1500_test_agent.analysis.diode import diode_fit
@@ -63,15 +72,19 @@ from b1500_test_agent.analysis.mosfet import (
 )
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv, render_iv
 from b1500_test_agent.analysis.quality import MIN_SNR, assess_quality, noise_sigma, signal_to_noise
-from b1500_test_agent.analysis.registry import ANALYSIS_METHODS, AnalysisMethod, run_method
+from b1500_test_agent.analysis.registry import ANALYSIS_METHODS, AnalysisMethod, methods_for, run_method
+from b1500_test_agent.analysis.reliability import plot_timeseries, render_timeseries
 from b1500_test_agent.analysis.resistor import resistance
 
 __all__ = [
     "ANALYSIS_METHODS",
+    "CSV_MAX_ROWS",
     "DATA_FILE",
     "INDEX_FILE",
     "MANIFEST_FILE",
     "MIN_SNR",
+    "NPZ_FILE",
+    "PREVIEW_FILE",
     "SEGMENT",
     "SEGMENTS",
     "STATUS_SUFFIX",
@@ -97,14 +110,19 @@ __all__ = [
     "local_derivative",
     "measured_columns",
     "memory_window",
+    "methods_for",
     "noise_sigma",
     "output_metrics",
     "plot_iv",
+    "plot_timeseries",
     "read_table",
+    "read_table_excerpt",
     "render_iv",
+    "render_timeseries",
     "resistance",
     "run_method",
     "run_relpath",
+    "run_table_path",
     "signal_to_noise",
     "source_columns",
     "status_column",
@@ -117,5 +135,6 @@ __all__ = [
     "vth_max_gm",
     "with_trust",
     "work_dir_for",
+    "write_run_table",
     "write_table",
 ]

@@ -15,15 +15,21 @@ last_reviewed: null
 # Analysis and extraction (knowledge domain 6)
 
 Seeded from deck slide 15. Definitions here are identical to the docstrings of the code in
-`src/b1500_test_agent/analysis/` (`quality.py`, `mosfet.py`, `resistor.py`, `diode.py`, `leakage.py`, `fefet.py`,
-`plots.py`); the code wins on any difference and a change to either must change both. Synced with the M2 code in
-WP2.5. `list_recipes` and `analyze_run` say which methods apply to a run.
+`src/b1500_test_agent/analysis/` (`quality.py`, `dataset.py`, `mosfet.py`, `resistor.py`, `diode.py`, `leakage.py`,
+`fefet.py`, `plots.py`, `reliability.py`); the code wins on any difference and a change to either must change both.
+Synced with the M2 code in WP2.5 and the v2 run table in WP5.7. `list_recipes` and `analyze_run` say which methods
+apply to a run.
 
 ## Run table and trust classes
 
-- Each run folder has `data.csv`: `step` (acquisition index), optional `segment` (`fwd`/`rev` for double sweeps),
-  value columns `<role>_<V|I>` with a `<role>_<V|I>_status` letter when measured (a value column without status is
-  the programmed source value), and `trust`.
+- Each run folder has `data.csv` (up to 200,000 rows) or, for larger runs (WGFMU records), `data.npz` plus
+  `preview.csv` (2,000 evenly spaced rows); `get_run` shows at most 200 rows of an npz run, `analyze_run` and
+  `load_run` read the whole table. Columns: `step` (acquisition index), value columns `<role>_<qty>` with a
+  `<role>_<qty>_status` letter when measured (a `V`/`I` column without status is the programmed source value) and
+  `trust`. Quantities: `V` (V), `I` (A); MFCMU `Cp`, `Cs` (F), `G` (S), `Rs`, `Z` (Ohm), `D` (1), `theta` (rad).
+  Optional context columns: `t_s` (s since the run's time origin), `cycle`, `segment` (`fwd`/`rev` of a double
+  sweep), `phase` (`stress`, `read`, `program`, `erase`, `recovery`, `correction`), `event` (WGFMU measure event),
+  `range`/`<role>_range` (range label), `freq_hz`, `ac_vrms`, `dc_v` (MFCMU conditions).
 - Trust per value from the recipe's `quality` block: `N` ok; `C`, `T` limited; `V X F D G S U` and any unknown
   letter untrusted (letters: [02](02-b1500-instrument.md#data-status-codes)). A row's trust is the worst of its
   measured values.
@@ -224,6 +230,16 @@ Implemented (`plot_iv`, M2; never refuses, never extracts).
 - `analyze_run` stores the PNG files in the run folder (`plots/<name>-<n>.png`); agent scripts call `plot_iv` with
   `out_dir` (default `work/<run_id>/plots/`), because run folders are written only by the server. Rendering uses a
   non-interactive backend (no display needed).
+
+Implemented (`plot_timeseries`, WP5.7; never refuses, never extracts).
+
+- One figure per scale (`linear`, the default; `log`: absolute values on a log axis; `both`), one panel per value
+  column (`y`, default all measured columns) against `x` = `t_s` (default when present), else `cycle`, else `step`
+  (the figure then says the run has no time base); `log_time=true` puts time on a log axis (log-time stress and
+  retention schedules). One curve per `phase` (else per `segment`, else per WGFMU `event`). Trust markers and
+  left-out points as in `plot_iv` (on log axes also times <= 0). Curves longer than `max_points` (default 5,000)
+  keep the min and max of each of `max_points/2` index buckets, so spikes and steps stay visible (noted on the
+  figure).
 
 ## Reporting rules measured versus derived
 

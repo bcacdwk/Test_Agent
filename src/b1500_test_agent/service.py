@@ -16,8 +16,9 @@ Calls are serialized per service object (a re-entrant lock), so a FastMCP worker
 in one process; other processes are kept apart by the instrument lock.
 
 Responses stay at or below ``RESPONSE_TOKEN_BUDGET`` (2k) tokens (blueprint 5.1): ``get_run`` downsamples data rows
-(at most ``max_points``) and trims audit lines, ``list_runs`` trims entries, both measured with the conservative
-``approx_tokens`` estimate (no tokenizer download at run time).
+(at most ``max_points``; at most ``NPZ_MAX_POINTS`` for runs archived as ``data.npz``, v2 2.9) and trims audit lines,
+``list_runs`` trims entries, both measured with the conservative ``approx_tokens`` estimate (no tokenizer download at
+run time).
 
 ``B1500Admin`` holds the human-only CLI operations (``b1500 fault clear``, ``b1500 lock status``); they are never
 MCP tools.
@@ -41,7 +42,16 @@ import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from b1500_test_agent.analysis.dataset import DATA_FILE, MANIFEST_FILE, load_manifest, load_run, read_table
+from b1500_test_agent.analysis.dataset import (
+    DATA_FILE,
+    MANIFEST_FILE,
+    NPZ_FILE,
+    PREVIEW_FILE,
+    load_manifest,
+    load_run,
+    read_table_excerpt,
+    run_table_path,
+)
 from b1500_test_agent.analysis.errors import MethodNotImplementedError
 from b1500_test_agent.analysis.plots import PlotSet
 from b1500_test_agent.analysis.registry import ANALYSIS_METHODS, run_method
@@ -97,6 +107,8 @@ RESPONSE_TOKEN_BUDGET: Final = 2000
 TRIM_TARGET: Final = 1900
 """Responses are trimmed until ``approx_tokens`` of their JSON is at most this (5 % below the 2k budget)."""
 DEFAULT_MAX_POINTS: Final = 200
+NPZ_MAX_POINTS: Final = 200
+"""Rows ``get_run`` returns at most for a ``data.npz`` run (> 200,000 points), whatever ``max_points`` asks."""
 MAX_POINTS_LIMIT: Final = 10_000
 DEFAULT_RUN_LIMIT: Final = 20
 MAX_RUN_LIMIT: Final = 200
@@ -710,12 +722,12 @@ class B1500Service:
         return notes
 
     @staticmethod
-    def _excerpt(table: pd.DataFrame, count: int) -> DataExcerpt:
+    def _excerpt(table: pd.DataFrame, count: int, total: int, source: str = DATA_FILE) -> DataExcerpt:
         indices = _sample_indices(len(table), count)
         rows = [[_round(v) for v in table.iloc[i].tolist()] for i in indices]
-        note = "full table: data.csv" + (f" (every ~{len(table) / len(indices):.1f}th row shown, first and last "
-                                          "kept)" if len(indices) < len(table) else "")
-        return DataExcerpt(columns=[str(c) for c in table.columns], rows=rows, rows_total=len(table),
+        note = f"full table: {source}" + (f" (every ~{total / len(indices):.1f}th row shown, first and last "
+                                          "kept)" if len(indices) < total else "")
+        return DataExcerpt(columns=[str(c) for c in table.columns], rows=rows, rows_total=total,
                            rows_returned=len(indices), note=note)
 
     def _get_run(self, bundle: ConfigBundle, run_id: str, include: Sequence[GetRunSection] | None,
@@ -732,7 +744,7 @@ class B1500Service:
         display = bundle.paths.display
         paths = {"run_dir": display(folder.path), "manifest": display(folder.path / MANIFEST_FILE),
                  "audit": display(folder.path / RUN_AUDIT_FILE)}
-        for name in (DATA_FILE, QUALITY_FILE, NOTES_FILE):
+        for name in (DATA_FILE, NPZ_FILE, PREVIEW_FILE, QUALITY_FILE, NOTES_FILE):
             if (folder.path / name).is_file():
                 paths[name.split(".")[0]] = display(folder.path / name)
         fields: dict[str, Any] = {}
@@ -745,8 +757,9 @@ class B1500Service:
             fields["audit"] = self._audit_lines(folder.path)
         if "notes" in sections:
             fields["notes"] = self._notes(folder.path)
-        table = read_table(folder.path / DATA_FILE) if "data" in sections and (folder.path / DATA_FILE).is_file() \
-            else None
+        data_path = run_table_path(folder.path) if "data" in sections else None
+        npz = data_path is not None and data_path.name == NPZ_FILE  # large run: sample <= NPZ_MAX_POINTS rows
+        table, total = read_table_excerpt(data_path, NPZ_MAX_POINTS if npz else None) if data_path else (None, 0)
         backend = manifest.backend
         verdict = f", quality {manifest.quality_verdict}" if manifest.quality_verdict else ""
         message = f"run {run_id} ({manifest.recipe_id}): {manifest.outcome}{verdict}" + \
@@ -759,8 +772,8 @@ class B1500Service:
 
         def build(count: int, audit_count: int, notes_count: int, note_chars: int) -> RunDetail:
             extra = dict(fields)
-            if table is not None:
-                extra["data"] = self._excerpt(table, count)
+            if table is not None and data_path is not None:
+                extra["data"] = self._excerpt(table, count, total, data_path.name)
             if "audit" in extra:
                 extra["audit"] = extra["audit"][-audit_count:] if audit_count else []
             if "notes" in sections:

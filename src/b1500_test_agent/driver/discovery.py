@@ -13,6 +13,11 @@ Formats from the Keysight B1500 Series Programming Guide, Edition 15 ("PG"; PDF 
   the switch is ON (01-03 forcing, 11-13 in compliance, 20 oscillating, 40/51/52 MFCMU states). A module occupying
   two slots (HPSMU, HCSMU, HVSMU) reports ``00`` in its first slot and its status in the second.
 
+- ``*LRN? 31`` (PDF 448, printed 4-130): ``TM trigger mode;AV number[,mode];CM auto calibration mode;FMT format,
+  mode[;MM mode[,chnum...]]`` (``;``-separated items, each a mnemonic followed by its comma-separated parameters).
+  The manual prints the syntax with a blank after each mnemonic but no example; the parser accepts the item with
+  or without the blank. TODO(verify) the exact response text with a raw capture at bring-up L1.
+
 ATV-1 (``LOP?`` usable for cleanup verification) holds per the manual for SMU and MFCMU slots: after ``CL`` every
 slot must read ``00``. Table 4-26 has no SPGU/WGFMU codes and reports per slot, not per subchannel, so those modules
 (never sourced in v1) would need the ``*LRN? 0`` fallback (output-switch list). Hardware confirmation: M4 L1.
@@ -23,7 +28,7 @@ from __future__ import annotations
 import re
 
 from b1500_test_agent.driver.errors import FlexParseError
-from b1500_test_agent.driver.flex import LOP_RESPONSE_PREFIX
+from b1500_test_agent.driver.flex import LOP_RESPONSE_PREFIX, LRN_AUTO_CALIBRATION, LRN_SETTINGS, lrn_q
 from b1500_test_agent.models.station import ChannelOutput, Identity, InstalledModule, ModuleInventory
 
 SLOTS = 10
@@ -52,6 +57,7 @@ LOP_STATUS_CODES: dict[str, str] = {
 OUTPUT_OFF_CODE = "00"
 
 _LOP_RE = re.compile(rf"^{LOP_RESPONSE_PREFIX}\s?(?P<codes>\d{{2}}(?:,\d{{2}}){{{SLOTS - 1}}})$")
+_LRN_ITEM_RE = re.compile(r"^(?P<mnemonic>\*?[A-Z]+)\s?(?P<params>[-+0-9.,Ee\s]*)$")
 
 
 def parse_idn(text: str) -> Identity:
@@ -115,3 +121,40 @@ def parse_lop(text: str) -> dict[int, ChannelOutput]:
 def all_outputs_off(outputs: dict[int, ChannelOutput]) -> bool:
     """True when every reported slot is ``00`` (no module, or output switch OFF)."""
     return bool(outputs) and not any(output.output_on for output in outputs.values())
+
+
+def parse_lrn_settings(text: str) -> dict[str, list[str]]:
+    """Parse a ``*LRN?`` settings answer (type 31: ``TM...;AV...;CM...;FMT...[;MM...]``) into ``{mnemonic:
+    [parameter, ...]}`` (parameters as text, blanks removed).
+
+    Raises:
+        FlexParseError: If an item is not a mnemonic followed by numeric parameters, or a mnemonic repeats.
+    """
+    stripped = text.strip()
+    items = [item.strip() for item in stripped.split(";")]
+    settings: dict[str, list[str]] = {}
+    for item in items:
+        match = _LRN_ITEM_RE.match(item)
+        if match is None:
+            raise FlexParseError(f"*LRN? item {item!r} is not a mnemonic with numeric parameters: {text!r}", raw=text)
+        mnemonic = match.group("mnemonic")
+        if mnemonic in settings:
+            raise FlexParseError(f"*LRN? answer repeats {mnemonic}: {text!r}", raw=text)
+        params = match.group("params").replace(" ", "")
+        settings[mnemonic] = [p for p in params.split(",")] if params else []
+    return settings
+
+
+def parse_auto_calibration(text: str) -> bool:
+    """The auto-calibration switch from a ``*LRN? 31`` answer: ``CM 1`` → ``True``, ``CM 0`` → ``False`` (PG PDF 379,
+    448).
+
+    Raises:
+        FlexParseError: If the answer has no ``CM`` item or its mode is not 0 or 1.
+    """
+    settings = parse_lrn_settings(text)
+    params = settings.get(LRN_AUTO_CALIBRATION)
+    if params is None or len(params) != 1 or params[0].lstrip("+") not in ("0", "1"):
+        raise FlexParseError(f"{lrn_q(LRN_SETTINGS)} answer has no '{LRN_AUTO_CALIBRATION} 0|1' item: {text!r}",
+                             raw=text)
+    return params[0].lstrip("+") == "1"

@@ -14,7 +14,7 @@ from b1500_test_agent.transport.sim.units.core import CoreUnit
 from b1500_test_agent.transport.sim.units.smu import SmuUnit
 
 CORE = {"*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "*RST", "LOP?", "*TST?", "*CAL?", "NUB?", "FMT", "BC", "TSC",
-        "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV"}
+        "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "CM", "*LRN?"}
 SMU = {"RI", "RV", "MM", "CMM", "DV", "WV", "WT", "WM", "XE"}
 
 

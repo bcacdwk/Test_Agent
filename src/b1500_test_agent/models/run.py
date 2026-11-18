@@ -1,9 +1,10 @@
-"""Run lifecycle models: cleanup report, fault latch and lock records, run manifest, run program and run summary
-(blueprint 2.4, 2.6, 2.7, 5.1; v2 2.10).
+"""Run lifecycle models: cleanup report, fault latch and lock records, abort request, run manifest, run program and
+run summary (blueprint 2.4, 2.6, 2.7, 5.1; v2 2.6, 2.10).
 
 ``RunManifest`` is written once to ``<run>/manifest.json`` at finalize; ``RunProgram`` is ``<run>/program.json``
-(the pulse/waveform program a run executed); ``RunSummary`` is what ``run_plan`` and ``run_confirmed_plan`` return.
-WP1.6/WP1.7 may extend these with the fields their implementations need.
+(the pulse/waveform program a run executed); ``RunSummary`` is what ``run_plan`` and ``run_confirmed_plan`` return;
+``AbortRequest`` is ``<state_dir>/abort.json``, written by ``safe_shutdown`` (any process) and consumed by the run it
+cancels (v2 2.6, ``session/abort.py``).
 """
 
 from __future__ import annotations
@@ -31,8 +32,12 @@ from b1500_test_agent.models.station import Identity, InstrumentError, ModuleInv
 Adapter = Literal["mcp", "cli"]
 RunOutcome = Literal[
     "completed", "completed_with_flags", "failed", "aborted", "refused", "confirmation_required", "not_implemented",
+    "running", "cancelled",
 ]  # fmt: skip
-"""Outcome of a run request (blueprint 5.1; ``aborted`` for runs interrupted by a fault or interrupt, 8.1)."""
+"""Outcome of a run request (blueprint 5.1; ``aborted`` for runs interrupted by a fault or interrupt, 8.1). v2 2.6:
+``running`` = an asynchronous run started and is still going (``run_plan`` returns at once; ``get_run`` follows it);
+``cancelled`` = ``safe_shutdown`` stopped it at a checkpoint (verified cleanup; the rows acquired so far stay in
+``partial.csv``)."""
 
 CleanupVerification = Literal["lop", "sim_state", "unverified"]
 
@@ -55,9 +60,11 @@ class LockHolder(StrictModel):
 
 
 class CleanupStep(StrictModel):
-    """One step of the transaction cleanup ``AB → DZ → CL → ERRX drain → verify`` (blueprint 2.4)."""
+    """One step of the transaction cleanup ``AB → DZ → CL → ERRX drain → verify`` (blueprint 2.4); ``restore`` comes
+    after the verification and puts back a setting the run changed (v2 2.6, R-CAL-02: the auto-calibration state of
+    an asynchronous run), never touching an output."""
 
-    step: Literal["abort", "zero", "disconnect", "drain_errors", "verify", "device_clear"]
+    step: Literal["abort", "zero", "disconnect", "drain_errors", "verify", "device_clear", "restore"]
     ok: bool
     attempt: int = Field(default=1, ge=1)
     detail: str = ""
@@ -81,6 +88,22 @@ class FaultRecord(StrictModel):
     reason: str = Field(min_length=1)
     run_id: RunId | None = None
     set_at: AwareDatetime
+
+
+class AbortRequest(StrictModel):
+    """``<state_dir>/abort.json`` (blueprint v2 2.6): a request to cancel the running run, written by ``safe_shutdown``
+    of any process (MCP server, CLI), by the MCP server's shutdown hook or by the CLI's Ctrl-C. ``run_id`` names the
+    run it targets (``None`` = whichever run is running); a run ignores requests made before it started and requests
+    for another run. The run that honours it removes it after its verified cleanup (``consume``); the writer removes
+    it when no run took it (``withdraw``)."""
+
+    id: str = Field(pattern=r"^[0-9a-f]{8,32}$")
+    requested_at: AwareDatetime
+    reason: str = Field(min_length=1, max_length=300)
+    adapter: Adapter | None = None
+    pid: int = Field(default=0, ge=0)
+    host: str = "unknown"
+    run_id: RunId | None = None
 
 
 ProgramSource = Literal["spgu", "smu", "wgfmu"]
@@ -168,7 +191,9 @@ class RunManifest(StrictModel):
 
 class RunSummary(ResultEnvelope):
     """Result of ``run_plan``/``run_confirmed_plan`` (blueprint 5.1). ``run_id`` is ``None`` when the request was
-    refused before a run folder existed; on ``summary_mismatch`` ``summary`` carries the current plan summary."""
+    refused before a run folder existed; on ``summary_mismatch`` ``summary`` carries the current plan summary. An
+    asynchronous run (v2 2.6) returns ``outcome: running`` with its ``run_id`` and ``eta_s`` (estimated seconds
+    until it ends) as soon as it has started; ``get_run`` follows it."""
 
     run_id: RunId | None = None
     plan_id: PlanId | None = None
@@ -179,3 +204,4 @@ class RunSummary(ResultEnvelope):
     cleanup_verified: CleanupVerification | None = None
     artifacts: dict[str, str] = Field(default_factory=dict)
     summary: str | None = None
+    eta_s: float | None = Field(default=None, ge=0)

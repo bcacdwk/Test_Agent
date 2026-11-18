@@ -75,14 +75,15 @@ ERROR_QUEUE_SIZE = 30
 
 # -- The v1 subset (blueprint 3) -------------------------------------------------------------------------------------
 
-QUERIES = frozenset({"*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "LOP?", "*TST?", "*CAL?", "NUB?"})
+QUERIES = frozenset({"*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "LOP?", "*TST?", "*CAL?", "NUB?", "*LRN?"})
 """Commands that put a response into the query buffer."""
 
 SUPPORTED = QUERIES | frozenset({
     "*RST", "FMT", "BC", "TSC", "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "RI", "RV",
-    "MM", "CMM", "DV", "WV", "WT", "WM", "XE",
+    "MM", "CMM", "DV", "WV", "WT", "WM", "XE", "CM",
 })  # fmt: skip
-"""Every mnemonic the v1 simulator executes; anything else is error 100 and logged ``unsupported``."""
+"""Every mnemonic the simulator executes (the v1 subset plus ``CM`` and ``*LRN?`` types 0 and 31, v2 2.6); anything
+else is error 100 and logged ``unsupported``."""
 
 ALONE_ONLY = frozenset({"AB", "*RST", "FMT", "BC"})
 """Mnemonics that must be sent alone: the simulator rejects the whole line (error 103) otherwise (PDF 44, 364,

@@ -53,7 +53,7 @@ from b1500_test_agent.session.lock import resource_slug
 from b1500_test_agent.transport.base import TransportTimeout
 from b1500_test_agent.transport.sim import SimInstrument
 from b1500_test_agent.transport.sim import flex as simflex
-from b1500_test_agent.transport.sim.instrument import SCALED_TIME_FACTOR
+from b1500_test_agent.transport.sim.instrument import SimulatedInterrupt
 from b1500_test_agent.transport.sim.state import load_state_file, save_state_file
 from b1500_test_agent.transport.visa import visa_status_codes
 
@@ -128,7 +128,7 @@ class LoopBus:
         self.state_file = self.directory / f"{slug}.state.json"
         self.lock_file = self.directory / f"{slug}.visa-lock"
         self.stats = LoopStats()
-        self.time_scale = SCALED_TIME_FACTOR if scenario.timing == "scaled" else 0.0
+        self.time_scale = scenario.time_scale
         self.sessions: list[LoopResource] = []
         self._stamp: tuple[int, int, int] | None = None
         self._dirty = False
@@ -313,6 +313,8 @@ class LoopResource:
         instrument = self.bus.instrument
         timeout_s = float(self.timeout) / 1000.0
         start = instrument.clock
+        if not self._pending and instrument.take_interrupt():
+            raise SimulatedInterrupt("host interrupted while reading a measurement (simulated run_interrupt)")
         try:
             if not self._pending:
                 if instrument.faults.read_times_out():

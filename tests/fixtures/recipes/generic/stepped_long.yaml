@@ -1,0 +1,37 @@
+# Test-only recipe (never in recipes/): a stepped drain sweep whose step values and per-point delay are parameters,
+# so the asynchronous-run tests (WP5.6) can build plans of any length inside the policy limits: up to 1001 steps
+# (smu_stepped MAX_STEP_VALUES) with each sweep (one segment) under run_limits.segment_max_s (30 s) and the points
+# under max_points.smu (10001), e.g. a 20 min plan (46 steps x ~27 s) or a 4 h plan (504 steps x ~30 s).
+# Tests copy recipes/ to a temporary folder and add this file as recipes/generic/stepped_long.yaml.
+id: generic.stepped_long
+version: 1
+title: Test-only long stepped sweep (asynchronous-run tests)
+family: smu
+kind: smu_stepped
+status: sim_validated
+card: null
+device_types: [nmos]
+roles:
+  drain:
+    function: sweep_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: 0.0, stop: $vd_stop, points: $vd_points, icomp: 1.0e-3, delay: $delay}
+  gate:
+    function: step_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {values: $vg_values, icomp: 1.0e-6}
+  source: {function: ground, allow_gndu: true}
+params:
+  vd_stop: {unit: V, default: 1.0, range: [0, 3], doc: Drain sweep stop.}
+  vd_points: {type: int, default: 10, range: [2, 1001], doc: Drain sweep points.}
+  delay: {unit: s, default: 0.0, range: [0, 60], doc: WT delay per sweep point.}
+  vg_values: {type: float_list, unit: V, default: [0.5, 1.0, 1.5], range: [-2, 2], doc: Gate step levels.}
+  integration: {type: enum, choices: [short, medium, long], default: medium, doc: ADC preset.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults: []
+provenance:
+  sources:
+    - tests (WP5.6 asynchronous runs)
+  validation_runs: []

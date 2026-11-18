@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from b1500_test_agent.driver import flex
-from b1500_test_agent.driver.discovery import parse_idn, parse_lop, parse_unt
+from b1500_test_agent.driver.discovery import parse_auto_calibration, parse_idn, parse_lop, parse_unt
 from b1500_test_agent.driver.errors import (
     ERRX_QUEUE_SIZE,
     DriverError,
@@ -157,6 +157,19 @@ class CoreOps(DriverBase):
     def output_state(self) -> dict[int, ChannelOutput]:
         """``LOP?`` -> ``{slot: ChannelOutput}`` (PG PDF 446-447; ATV-1, see ``driver/discovery.py``)."""
         return parse_lop(self._query(flex.LOP_Q))
+
+    def auto_calibration(self) -> bool:
+        """Auto-calibration switch from ``*LRN? 31`` (``CM 0|1``; PG PDF 379, 448): ``True`` when ON. A query.
+
+        Raises:
+            FlexParseError: If the answer holds no ``CM 0|1`` item.
+        """
+        return parse_auto_calibration(self._query(flex.lrn_q(flex.LRN_SETTINGS)))
+
+    def set_auto_calibration(self, on: bool) -> None:
+        """``CM 1|0``: auto-calibration ON/OFF (PG PDF 379). Not a source command (no guard); asynchronous runs turn
+        it off for their duration and restore it afterwards (blueprint v2 2.6, R-CAL-02)."""
+        self._write(flex.cm(1 if on else 0))
 
     def wait_complete(self, *, timeout_s: float | None = None) -> None:
         """``*OPC?``: block until all pending operations are complete (PG PDF 479-480; the answer is ``1``)."""

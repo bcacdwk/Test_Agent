@@ -8,11 +8,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from b1500_test_agent import service as service_module
 from b1500_test_agent.analysis import dataset, load_run, read_table, validate_table, with_trust
 from b1500_test_agent.analysis.dataset import load_manifest
 from b1500_test_agent.archive import RunStore
 from b1500_test_agent.service import NPZ_MAX_POINTS
+from b1500_test_agent.service import runs as service_module
 from tests.integration.helpers import IDVG, World
 from tests.integration.test_data_goldens import fixture_path
 

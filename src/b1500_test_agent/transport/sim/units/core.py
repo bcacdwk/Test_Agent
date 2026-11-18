@@ -1,4 +1,5 @@
-"""Core unit of the simulator: identity and status, buffer and format, output switches, ``AB``, A/D converters.
+"""Core unit of the simulator: identity and status, buffer and format, output switches, ``AB``, A/D converters,
+auto-calibration (``CM``) and the learn query (``*LRN?``).
 
 ``CoreUnit`` is a mixin of ``SimInstrument`` (``transport/sim/instrument.py``): its ``@handles`` methods are the FLEX
 handlers of the family-independent v1 subset, registered by mnemonic; it uses the dispatcher's shared state and
@@ -6,7 +7,9 @@ helpers (``state``, ``faults``, ``_channel``, ``_smu``, ``_queue_error``, ``_sta
 measurement lifecycle). Manual references (Programming Guide Ed. 15, physical PDF pages): ``*IDN?`` 440; ``UNT?``
 545; ``ERRX?`` 431-432; ``*STB?`` 523; ``*OPC?`` 480; ``*RST`` 502 (initialise like power-on, PDF 175); ``LOP?``
 446-447 (Table 4-26); ``*TST?`` 540-541; ``*CAL?`` 377; ``NUB?`` 478; ``FMT`` 436-438; ``BC`` 364; ``TSC`` 538-539;
-``CN`` 380-381; ``CL`` 378; ``DZ`` 397; ``AB`` 351-352; ``AAD`` 351; ``AIT`` 356-359; ``AV`` 362-363.
+``CN`` 380-381; ``CL`` 378; ``DZ`` 397; ``AB`` 351-352; ``AAD`` 351; ``AIT`` 356-359; ``AV`` 362-363; ``CM`` 379
+(printed 4-61); ``*LRN?`` 447-450 (printed 4-129 to 4-132; types 0 and 31 are simulated, other types are logged
+``unsupported``). The simulator does not run the auto-calibration itself (it only keeps the ``CM`` switch).
 """
 
 from __future__ import annotations
@@ -223,8 +226,10 @@ class CoreUnit:
     @handles("AB")
     def _cmd_ab(self, cmd: flex.Command) -> None:
         """``AB``: abort a running measurement; data measured so far stays, sweep sources go to the start value
-        (PDF 351-352). Without a running measurement nothing changes."""
+        (PDF 351-352). Without a running measurement nothing changes; the ``abort_ignored`` fault makes it a no-op."""
         flex.arity(cmd, 0, 0)
+        if self.faults.abort_ignored():
+            return
         measurement = self._measurement
         if measurement is None:
             return
@@ -238,6 +243,49 @@ class CoreUnit:
         self._rollback_devices(measurement)
         self._apply_end(measurement, aborted=True, at=self.clock)
         self._busy_until = self.clock
+
+    # -- auto-calibration and learn query ------------------------------------------------------------------------------
+
+    @handles("CM")
+    def _cmd_cm(self, cmd: flex.Command) -> None:
+        """``CM mode``: auto-calibration 0 OFF (initial setting) or 1 ON (PG p379 (4-61)); persistent state."""
+        flex.arity(cmd, 1, 1)
+        mode = flex.integer(cmd.args[0])
+        if mode not in (0, 1):
+            raise flex.FlexError(flex.ERR_PARAMETER, f"CM {mode}")
+        self.state.auto_calibration = mode == 1
+
+    def _lrn_settings(self) -> str:
+        """``*LRN? 31``: ``TM...;AV...;CM...;FMT...[;MM...]`` (PG p448 (4-130)). The trigger mode is not simulated
+        and reads its initial setting 1; ``AV`` mirrors the high-speed ADC setup (``AV -n`` for PLC mode)."""
+        mode, n = self._ait[0]
+        if mode == 2:
+            av = f"AV{-int(n)}"
+        elif mode in (0, 1):
+            av = f"AV{int(n)},{mode}"
+        else:
+            av = "AV1,0"  # time mode has no AV form
+        parts = ["TM1", av, f"CM{1 if self.state.auto_calibration else 0}", f"FMT{self._fmt},{self._fmt_mode}"]
+        mm = getattr(self, "_mm", None)
+        if mm is not None:
+            mm_mode, channels = mm
+            parts.append("MM" + ",".join(str(v) for v in (mm_mode, *channels)))
+        return ";".join(parts)
+
+    @handles("*LRN?")
+    def _cmd_lrn(self, cmd: flex.Command) -> str:
+        """``*LRN? type`` (PG p447-450 (4-129 to 4-132)): type 0 = output switches (``CN ch,...`` or ``CL``), type 31
+        = ``TM``/``AV``/``CM``/``FMT``/``MM`` settings; any other type is not simulated (error 100, unsupported)."""
+        flex.arity(cmd, 1, 1)
+        kind = flex.integer(cmd.args[0])
+        if not 0 <= kind <= 110:
+            raise flex.FlexError(flex.ERR_PARAMETER, f"*LRN? {kind}")
+        if kind == 0:
+            on = [ch for ch, state in sorted(self.state.channels.items()) if state.output_on]
+            return "CN" + ",".join(str(ch) for ch in on) if on else "CL"
+        if kind == 31:
+            return self._lrn_settings()
+        raise Unsupported(f"*LRN? {kind} is not simulated (types 0 and 31 are)")
 
     # -- A/D converters ------------------------------------------------------------------------------------------------
 

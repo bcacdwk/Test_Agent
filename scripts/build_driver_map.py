@@ -57,10 +57,10 @@ PRIORITY_SCALE = {
 DRIVER_METHODS = (
     "identify", "modules", "errors", "status_byte", "output_state", "abort", "zero", "disconnect", "reset",
     "self_test", "self_calibrate", "set_format", "set_integration", "set_range", "enable", "force_v",
-    "staircase_v", "execute_and_read", "wait_complete",
+    "staircase_v", "execute_and_read", "wait_complete", "auto_calibration", "set_auto_calibration",
 )  # fmt: skip
 COMMAND_BUILDERS = (
-    "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv",
+    "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
     "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q",
 )  # fmt: skip
 DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
@@ -113,6 +113,10 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "WM": CommandTarget("staircase_v", "wm"),
     "XE": CommandTarget("execute_and_read", "XE"),
     "*OPC?": CommandTarget("wait_complete", "OPC_Q"),
+    "CM": CommandTarget("set_auto_calibration", "cm", "R-CAL-02 (WP5.6): asynchronous runs send CM 0 and the "
+                        "cleanup restores the state read by *LRN? 31"),
+    "*LRN?": CommandTarget("auto_calibration", "lrn_q", "type 31 (CM state) before every run's pre-execute rules "
+                           "(R-CAL-01/02); type 0 stays the ATV-1 fallback for SPGU/WGFMU outputs"),
 }
 # Mapped commands are all m1; these unmapped ones are m2; everything else is `later`.
 M2_COMMANDS = frozenset({"AV", "BC", "NUB?", "TSC", "DI", "WI"})
@@ -128,6 +132,7 @@ EXTRA_COMMANDS: dict[str, dict[str, Any]] = {
 # Programming Guide (Ed. 15) by WP1.3: mnemonic -> (PDF pages, printed pages). Chapter 4: PDF = printed 4-N + 318.
 GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "AAD": ([351], ["4-33"]),
+    "CM": ([379], ["4-61"]),
     "AIT": ([356, 357, 358, 359], ["4-38 to 4-41"]),
     "CMM": ([380], ["4-62"]),
     "LOP?": ([446, 447], ["4-128 to 4-129"]),
@@ -191,7 +196,8 @@ ATOM_OVERRIDES: dict[str, dict[str, str]] = {
     },
     "A_atom_flex_get_status": {
         "priority": "m1",
-        "note": "successor: Session.snapshot (IDN, UNT, ERRX, STB, outputs); *LRN? not used",
+        "note": "successor: Session.snapshot (IDN, UNT, ERRX, STB, outputs); *LRN? 31 read by the executor "
+        "(auto-calibration, R-CAL-01/02)",
     },
     "A_atom_flex_query_settings": {"note": "*LRN? is the ATV-1 fallback for output verification (M4 L1)"},
     "A_atom_flex_query_compliance_status": {

@@ -91,6 +91,15 @@ FORMATS = frozenset({1, 5})
 MEASUREMENT_MODES = frozenset({1, 2})
 """``MM`` modes this driver sends: 1 spot, 2 staircase sweep (Table 4-28, PDF 471)."""
 
+LRN_TYPES = range(111)
+"""``*LRN?`` type parameter: 0 to 110 (some numbers unused; PG PDF 447, printed 4-129)."""
+
+LRN_SETTINGS = 31
+"""``*LRN? 31``: ``TM``, ``AV``, ``CM``, ``FMT`` and ``MM`` settings (PG PDF 448, printed 4-130)."""
+
+LRN_AUTO_CALIBRATION = "CM"
+"""The ``*LRN? 31`` response item that holds the auto-calibration mode (``CM 0|1``, PG PDF 448)."""
+
 
 def _num(value: float) -> str:
     """Format a numeric expression: shortest round-trip decimal, upper-case exponent, no trailing ``.0``."""
@@ -163,6 +172,22 @@ def dz(chs: Sequence[int] = ()) -> str:
     Without channels every SMU, SPGU and CMU whose output switch is ON is set to 0 V. At most 15 channels.
     """
     return _with_channels("DZ", _channels(chs, limit=MAX_CHANNELS_CN_CL_DZ, required=False))
+
+
+def cm(mode: int) -> str:
+    """``CM mode``: SMU auto-calibration OFF (0, initial setting) or ON (1) (PG PDF 379, printed 4-61). With it ON
+    the B1500 calibrates all modules every 30 minutes once every SMU output switch has been OFF for 30 minutes, so an
+    asynchronous run turns it off for its duration and restores it afterwards (blueprint v2 2.6, R-CAL-02)."""
+    return f"CM {_choice(mode, (0, 1), 'CM mode')}"
+
+
+def lrn_q(kind: int) -> str:
+    """``*LRN? type``: the command parameter settings of one group (PG PDF 447-453, printed 4-129 to 4-135); type 0
+    = output switch states, 1-10 = source state of the module in that slot, ``LRN_SETTINGS`` (31) = ``TM``, ``AV``,
+    ``CM``, ``FMT`` and ``MM`` (PDF 448). A query: it changes no setting."""
+    if _int(kind, "*LRN? type") not in LRN_TYPES:
+        raise ValueError(f"*LRN? type must be {LRN_TYPES.start} to {LRN_TYPES.stop - 1}, got {kind}")
+    return f"*LRN? {kind}"
 
 
 def fmt(fmt: int = 1, mode: int = 1) -> str:

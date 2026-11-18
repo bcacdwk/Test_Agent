@@ -11,7 +11,7 @@ from tests.sim.helpers import errx_all, run
 @pytest.mark.parametrize(
     "command",
     ["DI 1,0,1E-6,1", "WI 1,1,0,0,1E-6,5,1", "ERR?", "EMG? 100", "TSR", "PV 1,0,0,1", "SSP 1,4", "WSV 2,0,0,1",
-     "ACV 7,0.03", "*LRN? 0", "INTLKVTH 0", "IN", "RZ 1", "FOO", "*SRE 32"],
+     "ACV 7,0.03", "*LRN? 33", "INTLKVTH 0", "IN", "RZ 1", "FOO", "*SRE 32"],
 )  # fmt: skip
 def test_unsupported_command_queues_error_100_and_is_logged(make_sim, command: str) -> None:
     sim = make_sim()
@@ -33,13 +33,15 @@ def test_unsupported_command_stops_the_rest_of_its_line(make_sim) -> None:
 
 
 def test_supported_commands_are_exactly_the_v1_subset() -> None:
-    """Blueprint 3 table: identity/status, buffer/format, channel, ADC/range, mode/source rows."""
+    """Blueprint 3 table: identity/status, buffer/format, channel, ADC/range, mode/source rows; v2 2.6 adds the
+    auto-calibration switch ``CM`` and its read-back ``*LRN?`` (types 0 and 31)."""
     assert flex.SUPPORTED == {
         "*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "*RST", "LOP?", "*TST?", "*CAL?",
         "FMT", "BC", "NUB?", "TSC",
         "CN", "CL", "DZ", "AB",
         "AAD", "AIT", "AV", "RI", "RV",
         "MM", "CMM", "DV", "WV", "WT", "WM", "XE",
+        "CM", "*LRN?",
     }  # fmt: skip
 
 

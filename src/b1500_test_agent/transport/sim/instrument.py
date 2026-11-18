@@ -12,9 +12,9 @@ Time is virtual: ``clock`` (s) advances only when the host waits (a read, a seri
 ``XE`` at ``t0`` ends at ``t0 + duration``, where the duration comes from ``WT`` and the ADC settings (times the
 ``slow`` fault factor). Commands other than a lone ``AB`` that arrive while a measurement runs are executed after
 it (the B1500 executes commands sequentially, PG PDF 352), so their responses become readable only at its end. A
-read whose data is not ready within its timeout raises ``TransportTimeout``. ``timing: scaled`` additionally
-sleeps ``SCALED_TIME_FACTOR`` times every virtual wait; ``instant`` never sleeps. Status byte: PDF 76-77; device
-clear initialises like power-on (PDF 175).
+read whose data is not ready within its timeout raises ``TransportTimeout``. ``timing: scaled(f)`` additionally
+sleeps ``f`` real seconds per virtual second waited (``scaled`` = ``SCALED_TIME_FACTOR``); ``instant`` never sleeps
+(blueprint v2 4.1). Status byte: PDF 76-77; device clear initialises like power-on (PDF 175).
 
 Simulator conventions (not from the manual): STB bit 3 tracks the interlock state continuously (the blueprint's
 reading, verified on hardware as ATV-10; the PG describes a latched bit, PDF 76); compliance is symmetric
@@ -38,7 +38,14 @@ from typing import Literal
 
 from b1500_test_agent.models.measurement import CHANNEL_NUMBERS
 from b1500_test_agent.models.sim import SimFault
-from b1500_test_agent.models.station import MODULE_TYPE_BY_MODEL, SMU_TYPES, TWO_CHANNEL_TYPES, SimScenario, SimSlot
+from b1500_test_agent.models.station import (
+    MODULE_TYPE_BY_MODEL,
+    SIM_SCALED_DEFAULT,
+    SMU_TYPES,
+    TWO_CHANNEL_TYPES,
+    SimScenario,
+    SimSlot,
+)
 from b1500_test_agent.transport.base import BusLocked, TransportClosed, TransportError, TransportTimeout
 from b1500_test_agent.transport.sim import flex
 from b1500_test_agent.transport.sim.devices import Circuit, canonical_channel
@@ -57,8 +64,8 @@ from b1500_test_agent.transport.sim.units.base import DEFAULT_ICOMP, FOREVER, Me
 from b1500_test_agent.transport.sim.units.core import CoreUnit
 from b1500_test_agent.transport.sim.units.smu import SmuUnit
 
-SCALED_TIME_FACTOR = 0.01
-"""Real seconds slept per virtual second with ``timing: scaled``."""
+SCALED_TIME_FACTOR = SIM_SCALED_DEFAULT
+"""Real seconds slept per virtual second with ``timing: scaled`` (no factor); ``scaled(f)`` sleeps ``f``."""
 
 POLL_ADVANCE_S = 0.01
 """Virtual time a serial poll takes (so polling loops see measurements finish)."""
@@ -69,6 +76,11 @@ DC_COMMIT_COMMANDS = frozenset({"CN", "CL", "DZ", "DV", "*RST", "*TST?", "*CAL?"
 
 class SimSafetyError(AssertionError):
     """``assert_safe()`` failed: an output is on or non-zero, or a measurement is still pending."""
+
+
+class SimulatedInterrupt(KeyboardInterrupt):
+    """The ``run_interrupt`` fault: the host process is interrupted (Ctrl-C, a signal stopping the server) while a
+    measurement runs (blueprint v2 4.3)."""
 
 
 @dataclass
@@ -99,8 +111,10 @@ class SimInstrument(CoreUnit, SmuUnit):
         self.scenario = scenario
         self.faults = FaultEngine(faults)
         self.circuit = Circuit(scenario)
-        self.state = SimPersistentState(scenario=scenario.name)
+        self.state = SimPersistentState(scenario=scenario.name, auto_calibration=scenario.auto_calibration)
         self.state.devices = self.circuit.export_state()
+        self.interrupt_pending = False
+        """Set by ``XE`` when a ``run_interrupt`` fault fires for that measurement; the link raises at its read."""
         self.clock = 0.0
         self._busy_until = 0.0
         self._timer_zero = 0.0
@@ -405,6 +419,8 @@ class SimInstrument(CoreUnit, SmuUnit):
         self._busy_until = self.clock
         self._timer_zero = self.clock
         self._reset_settings()
+        self.state.auto_calibration = False  # CM initial setting OFF (PG p379 (4-61), PDF 180)
+        self.interrupt_pending = False
         for channel in list(self.state.channels):
             if not self.faults.stuck(channel):
                 self.state.channels[channel] = ChannelState()
@@ -483,6 +499,12 @@ class SimInstrument(CoreUnit, SmuUnit):
         """Deactivate all faults; the interlock returns to the scenario state."""
         self.faults.clear()
         self._interlock_open = not self.scenario.interlock_closed
+        self.interrupt_pending = False
+
+    def take_interrupt(self) -> bool:
+        """True once when the measurement being read was marked by a ``run_interrupt`` fault (link side)."""
+        pending, self.interrupt_pending = self.interrupt_pending, False
+        return pending
 
     def outputs(self) -> dict[int, ChannelState]:
         """A copy of every channel's output state (canonical channel numbers)."""
@@ -542,7 +564,7 @@ class SimTransport:
         self.state_file = None if state_file is None else Path(state_file)
         self.timeout_s = timeout_s
         self.instrument = SimInstrument(scenario, faults=faults)
-        self.time_scale = SCALED_TIME_FACTOR if scenario.timing == "scaled" else 0.0
+        self.time_scale = scenario.time_scale
         self._open = False
         self.locked = False
         """True between a successful ``lock()`` and the next ``unlock()``/``close()`` (tests read it)."""
@@ -605,6 +627,9 @@ class SimTransport:
         self._check_link("read")
         timeout = self.timeout_s if timeout_s is None else timeout_s
         start = self.instrument.clock
+        if self.instrument.take_interrupt():
+            raise SimulatedInterrupt(f"host interrupted while reading a measurement from {self.resource} "
+                                     "(simulated run_interrupt)")
         try:
             if self.instrument.faults.read_times_out():
                 self.instrument.clock += timeout

@@ -25,7 +25,7 @@ The eight layers of the owner's design deck and where they live:
 ```text
 L8 Agent           Codex CLI / Claude Code          AGENTS.md, CLAUDE.md, harness config      (M1–M3)
 L7 Skills + rules  b1500-test, b1500-debug          .agents/skills/  rules/  config/*.example  (M1–M2)
-L6 MCP + CLI       10 tools, `b1500` CLI            service.py  adapters/{mcp_server,cli}.py   (M1)
+L6 MCP + CLI       10 tools, `b1500` CLI            service/    adapters/{mcp_server,cli}.py   (M1)
 L5 Analysis        quality, Vth/SS/gm, plots        analysis/  archive/                        (M1–M2)
 L4 Transaction     recipes, plans, lock, cleanup    catalog/  recipes/  session/               (M1)
 L3 Driver          FLEX builders, guard, parser     driver/                                    (M1)

@@ -22,6 +22,14 @@ Audit: every event of the transaction carries its ``tx`` id and intent; with a `
 the lifecycle events go to the run's sink (``audit.jsonl`` of the run folder) and every measurement read is handed to
 ``RunHandle.save_raw`` before it is parsed, so raw data survives parser errors and later failures. Without a run
 they go to the session's sink (``<state_dir>/audit/YYYY-MM-DD.jsonl``).
+
+Runs (blueprint v2 2.6): kinds call ``checkpoint(done, total, phase, rows)`` between segments and long readback
+loops call ``check_abort()``; with a ``RunControl`` (``session/runner.py``) this records the progress of an
+asynchronous run and raises ``RunCancelled`` when ``safe_shutdown`` asked (any process, abort file), which the exit
+path handles like any other exception: full cleanup, verified. ``suspend_auto_calibration`` (R-CAL-02) sends
+``CM 0`` and makes the cleanup restore the state read before the run (``restore`` step after the verification;
+skipped when the cleanup could not verify the outputs). A recovery cleanup of a stale in-flight marker is reported
+to ``Session.on_recovery`` (the executor finalizes the orphaned run folder).
 """
 
 from __future__ import annotations
@@ -29,6 +37,7 @@ from __future__ import annotations
 import math
 import os
 import secrets
+import time
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
@@ -39,6 +48,7 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol, Self, runtime_checkabl
 
 from pydantic import AwareDatetime, ValidationError
 
+from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.b1500 import B1500Driver
 from b1500_test_agent.driver.discovery import all_outputs_off
 from b1500_test_agent.driver.guard import EnvelopeViolation, OutputGuard
@@ -53,9 +63,14 @@ from b1500_test_agent.transport.audit import AuditingTransport, AuditSink
 from b1500_test_agent.transport.base import Transport, TransportTimeout, state_hooks, unwrap
 
 if TYPE_CHECKING:
+    from b1500_test_agent.session.runner import RowsSource, RunControl
     from b1500_test_agent.session.session import Session
 
-CleanupStepName = Literal["abort", "zero", "disconnect", "drain_errors", "verify", "device_clear"]
+CleanupStepName = Literal["abort", "zero", "disconnect", "drain_errors", "verify", "device_clear", "restore"]
+
+STATE_SAVE_INTERVAL_S = 1.0
+"""Least wall time between two saves of the simulator state at checkpoints (the persisted state then shows what a
+killed run left on, as the real instrument would, without a save per segment of a fast simulated run)."""
 Emit = Callable[..., None]
 
 _DETAIL_LIMIT = 500
@@ -338,11 +353,14 @@ class Transaction:
 
     def __init__(self, session: Session, *, intent: str, envelope: CompiledEnvelope | None, run: RunHandle | None,
                  lock_timeout_s: float = 5.0, plan_id: str | None = None,
-                 mode: Literal["transaction", "shutdown"] = "transaction", abort: bool = True) -> None:
+                 mode: Literal["transaction", "shutdown"] = "transaction", abort: bool = True,
+                 control: RunControl | None = None) -> None:
         self._session = session
         self.intent = intent
         self.envelope = envelope
         self.run = run
+        self.control = control
+        """Checkpoint state of the run (progress, abort watch); ``None`` = checkpoints only audit."""
         self.lock_timeout_s = lock_timeout_s
         self.plan_id = plan_id
         self.mode = mode
@@ -364,6 +382,10 @@ class Transaction:
         """Why ``FaultLatch.set`` failed, if it did (raised after release unless the body already raised)."""
         self.audit_failures: list[str] = []
         """Lifecycle events that could not be recorded (an audit failure never stops cleanup or release)."""
+        self.auto_calibration_before: bool | None = None
+        """Auto-calibration state read before ``suspend_auto_calibration`` (``None`` = unknown)."""
+        self._auto_calibration_suspended = False
+        self._state_saved_at: float | None = None
 
     # -- audit ------------------------------------------------------------------------------------------------------
 
@@ -464,10 +486,23 @@ class Transaction:
             self.recovery = report
             self.cleanup = report
             self._cleanup_done = True
+            self._notify_recovery(previous, report)
             raise CleanupUnverified(report, "inflight recovery could not verify the safe state; fault latched")
         self.recovery = report
+        self._notify_recovery(previous, report)
         if outcome.deferred is not None:
             raise outcome.deferred
+
+    def _notify_recovery(self, previous: InflightMarker, report: CleanupReport) -> None:
+        """Hand a recovery to ``Session.on_recovery`` (the executor finalizes the orphaned run); never raises."""
+        hook = self._session.on_recovery
+        if hook is None or previous.run is None:
+            return
+        try:
+            hook(previous, report)
+        except Exception as exc:  # noqa: BLE001 - archiving an orphan must never stop a recovery
+            self._emit("checkpoint", {"label": "orphan_finalize_failed", "previous_run": previous.run},
+                       error=f"{type(exc).__name__}: {exc}")
 
     def _latch(self, report: CleanupReport, reason: str) -> CleanupReport:
         report = report.model_copy(update={"latched_fault": True})
@@ -480,6 +515,72 @@ class Transaction:
         return report
 
     # -- body helpers -----------------------------------------------------------------------------------------------
+
+    def checkpoint(self, done: int, total: int, phase: str = "", rows: RowsSource = None) -> None:
+        """A segment of the run ended (``done`` of ``total`` checkpoint units, e.g. steps of a stepped sweep): audit
+        it and, with a ``RunControl``, record progress and the segment's ``rows`` (asynchronous runs), then raise
+        ``RunCancelled`` when an abort was requested. ``rows`` may be a callable (built only when recorded)."""
+        self._emit("checkpoint", {"label": "progress", "done": done, "total": total, "phase": phase})
+        if self.control is not None:
+            self._save_state_now()
+            self.control.checkpoint(done, total, phase, rows, warn=self._warn)
+
+    def _save_state_now(self) -> None:
+        """Persist the simulator state mid-run (throttled; no-op on hardware) so that other processes see the outputs
+        a killed run leaves on until the in-flight recovery (blueprint v2 2.6 residual); never raises."""
+        hooks = state_hooks(self._transport) if self._transport is not None else None
+        if hooks is None:
+            return
+        now = time.monotonic()
+        if self._state_saved_at is not None and now - self._state_saved_at < STATE_SAVE_INTERVAL_S:
+            return
+        self._state_saved_at = now
+        try:
+            hooks.save_state()
+        except Exception as exc:  # noqa: BLE001 - recorded; the run goes on
+            self._emit("checkpoint", {"label": "save_state_failed"}, error=f"{type(exc).__name__}: {exc}")
+
+    def check_abort(self) -> None:
+        """Raise ``RunCancelled`` when an abort was requested (readback loops call this at least once a second)."""
+        if self.control is not None:
+            self.control.check_abort()
+
+    def _warn(self, what: str, exc: BaseException) -> None:
+        self._emit("checkpoint", {"label": what}, error=f"{type(exc).__name__}: {exc}")
+
+    def suspend_auto_calibration(self, before: bool | None) -> None:
+        """R-CAL-02 (asynchronous runs): send ``CM 0`` now and restore ``before`` (the state read before the run;
+        ``None`` = unknown, left off) in the cleanup, after the outputs are verified off."""
+        self.driver.set_auto_calibration(False)
+        self.auto_calibration_before = before
+        self._auto_calibration_suspended = True
+        state = "unknown" if before is None else ("on" if before else "off")
+        self._emit("checkpoint", {"label": "auto_calibration_off", "before": state})
+
+    def _restore_auto_calibration(self, report: CleanupReport) -> CleanupReport:
+        """The ``restore`` step: put the auto-calibration switch back as it was before the run (only after a verified
+        cleanup; an unverified one leaves it off, the safer state while a human investigates)."""
+        before = self.auto_calibration_before
+        attempt = max((s.attempt for s in report.steps), default=1)
+        error: str | None = None
+        if report.verified == "unverified":
+            ok, detail = False, "skipped: cleanup unverified; auto-calibration stays off (CM 0)"
+        elif before is None:
+            ok, detail = True, "auto-calibration state before the run unknown; left off (CM 0, initial setting)"
+        elif not before:
+            ok, detail = True, "auto-calibration stays off (it was off before the run)"
+        else:
+            command = flex.cm(1)
+            try:
+                self.driver.set_auto_calibration(True)
+                ok, detail = True, f"{command}: auto-calibration restored to on"
+            except Exception as exc:  # noqa: BLE001 - recorded; the outputs are already verified off
+                ok, detail = False, f"{command} failed ({type(exc).__name__}: {exc}); auto-calibration stays off"
+                error = detail
+        step = CleanupStep(step="restore", ok=ok, attempt=attempt, detail=detail[:_DETAIL_LIMIT])
+        self._emit("cleanup_step", {"step": "restore", "ok": ok, "attempt": attempt, "detail": step.detail},
+                   error=error)
+        return report.model_copy(update={"steps": [*report.steps, step]})
 
     def snapshot(self) -> LiveState:
         """Read-only live state under this transaction's lock (for pre-execute rules); its ``errors`` start with
@@ -517,6 +618,8 @@ class Transaction:
                     report = self._latch(report, reason)
                 else:
                     self._emit("cleanup_verified", {"method": report.verified, "errors": len(report.errors)})
+                if self._auto_calibration_suspended:
+                    report = self._restore_auto_calibration(report)
                 self.cleanup = report
                 if self.mode == "shutdown" and self.previous_marker is not None:
                     self._emit("recovery_cleanup", {"previous_tx": self.previous_marker.tx,
@@ -524,6 +627,7 @@ class Transaction:
                                                     "previous_pid": self.previous_marker.pid,
                                                     "previous_intent": self.previous_marker.intent,
                                                     "verified": report.verified})
+                    self._notify_recovery(self.previous_marker, report)
         finally:
             self._release(save_state=True)
         if self.latch_error is not None:

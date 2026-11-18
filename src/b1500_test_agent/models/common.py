@@ -26,9 +26,10 @@ ResultStatus = Literal["ok", "refused", "needs_confirmation", "blocked", "not_im
 ErrorCode = Literal[
     "invalid_input", "invalid_config", "unknown_plan", "plan_expired", "plan_stale",
     "blocked_by_rules", "confirmation_required", "summary_mismatch", "not_implemented", "instrument_busy",
-    "fault_latched", "transport_error", "instrument_error", "cleanup_unverified", "internal",
+    "fault_latched", "transport_error", "instrument_error", "cleanup_unverified", "internal", "run_cancelled",
 ]  # fmt: skip
-"""Machine-readable error codes of ``ResultEnvelope.error_code``."""
+"""Machine-readable error codes of ``ResultEnvelope.error_code`` (``run_cancelled``: a run stopped at a checkpoint
+because ``safe_shutdown`` asked for it, v2 2.6)."""
 
 ConfirmReason = Literal[
     "soft_limit", "dut_envelope", "unverified_pin_map", "draft_recipe", "first_hw_run",

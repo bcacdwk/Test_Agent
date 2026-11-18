@@ -65,11 +65,13 @@ class ChannelState(_Mutable):
 
 
 class SimPersistentState(_Mutable):
-    """Contents of the state file."""
+    """Contents of the state file. ``auto_calibration`` is the ``CM`` switch: instrument state that survives host
+    sessions until ``*RST``/device clear (PG p379 (4-61))."""
 
     version: int = STATE_VERSION
     scenario: str
     saved_at: str | None = None
+    auto_calibration: bool = False
     channels: dict[int, ChannelState] = Field(default_factory=dict)
     devices: dict[str, dict[str, float | int | bool | str]] = Field(default_factory=dict)
     measurement_count: int = 0

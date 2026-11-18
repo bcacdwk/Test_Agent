@@ -3,10 +3,11 @@
 Schemas live in ``models/sim.py`` (``SimFault``, ``SimFaultProfile``). Faults come from the scenario's fault
 profile or from ``SimInstrument.inject()``; counters start when a fault becomes active. Instrument-side faults
 (``compliance_at``, ``errx``, ``timeout`` on ``XE``/queries, ``garbage_data``, ``interlock_open``, ``oscillation``,
-overrides, ``ignore_dz``, ``slow``) are consulted by ``SimInstrument``; link faults (``timeout`` on ``read``,
-``disconnect``, ``cleanup_failure``, ``bus_locked``) by ``SimTransport`` (and by the visa-loop test resource, which
-puts the real ``VisaTransport`` on the same instrument). Host-side faults (parser exception, ``KeyboardInterrupt``
-between ``XE`` and read, ``EnvelopeViolation``) are injected by monkeypatching in the tests, not here.
+overrides, ``ignore_dz``, ``slow``, ``abort_ignored``) are consulted by ``SimInstrument``; link faults (``timeout``
+on ``read``, ``disconnect``, ``cleanup_failure``, ``bus_locked``, ``run_interrupt``) by ``SimTransport`` (and by the
+visa-loop test resource, which puts the real ``VisaTransport`` on the same instrument). ``run_interrupt`` is counted
+by the instrument (one ``XE`` = one measurement) and raised by the link at the read of that measurement. Other
+host-side faults (parser exception, ``EnvelopeViolation``) are injected by monkeypatching in the tests, not here.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from b1500_test_agent.models.sim import (
+    AbortIgnored,
     BusLockedFault,
     CleanupFailure,
     ComplianceAt,
@@ -26,6 +28,7 @@ from b1500_test_agent.models.sim import (
     InterlockOpen,
     ModulesOverride,
     Oscillation,
+    RunInterrupt,
     SimFault,
     Slow,
     TimeoutFault,
@@ -144,6 +147,34 @@ class FaultEngine:
             if channels is None or channel in channels:
                 return True
         return False
+
+    def abort_ignored(self) -> bool:
+        """Count one ``AB`` execution; True if it has no effect (``abort_ignored``: executions ``nth`` ..
+        ``nth + count - 1``, or every one from ``nth`` on when ``count`` is null)."""
+        ignored = False
+        for item in self._of(AbortIgnored):
+            fault = item.fault
+            assert isinstance(fault, AbortIgnored)
+            item.count += 1
+            if item.count < fault.nth:
+                continue
+            ignored = True
+            if fault.count is not None and item.count >= fault.nth + fault.count - 1:
+                item.spent = True
+        return ignored
+
+    def interrupts_measurement(self) -> bool:
+        """Count one ``XE`` trigger; True if the host is interrupted while this measurement runs (``run_interrupt``
+        whose ``segment`` is this 0-based trigger index; one-shot)."""
+        fired = False
+        for item in self._of(RunInterrupt):
+            fault = item.fault
+            assert isinstance(fault, RunInterrupt)
+            if item.count == fault.segment:
+                item.spent = True
+                fired = True
+            item.count += 1
+        return fired
 
     def slow_factor(self) -> float:
         """Product of the active ``slow`` factors (1.0 without one)."""

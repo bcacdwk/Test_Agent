@@ -13,7 +13,9 @@ Steps of ``Planner.plan`` (no instrument I/O):
 3. **Compile** through the recipe's kind (pure): envelope (incl. allowed routes), estimate, FLEX preview, program
    and the routes per phase. When parameters have the wrong type compilation is skipped (empty envelope); a kind's
    ``CompileError`` is reported as ``invalid_input`` unless R-PARAM-01 already blocks the plan (then the blocked
-   plan explains it).
+   plan explains it). The execution ``mode`` follows the estimate (blueprint v2 2.6, R-RUN-02): ``async`` above
+   ``policy.run_limits.max_sync_run_s``, else ``sync``; R-RUN-02 then confirms long runs, blocks over-long ones and
+   checks the kind's checkpoint spacing (``estimate.max_segment_s``).
 4. **Hash**: ``plan_hash`` = sha256 of the canonical JSON of everything except the label, rule reports, tier,
    summary and timestamps; ``plan_id`` = ``"P-" + base32(sha256 digest)[:10]``. Identical requests give the same
    plan id whatever their label, so one plan serves a die batch.
@@ -33,7 +35,7 @@ import math
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 from pydantic import ValidationError
 
@@ -53,7 +55,7 @@ from b1500_test_agent.models.plan import (
     PlanRequest,
     RulesReport,
 )
-from b1500_test_agent.models.policy import DutProfile
+from b1500_test_agent.models.policy import DutProfile, Policy
 from b1500_test_agent.models.recipe import FILE_PARAM_PATTERN, FUNCTION_INPUT, ParamSpec, Recipe
 from b1500_test_agent.models.routing import Route
 from b1500_test_agent.models.run import FaultRecord
@@ -266,6 +268,11 @@ def config_hashes(bundle: ConfigBundle, pin_map: str, dut_profile: str | None) -
     return hashes
 
 
+def execution_mode(estimate: Estimate, policy: Policy) -> Literal["sync", "async"]:
+    """``async`` when the estimated duration exceeds ``policy.run_limits.max_sync_run_s`` (R-RUN-02), else ``sync``."""
+    return "async" if estimate.duration_s > policy.run_limits.max_sync_run_s else "sync"
+
+
 def lookup(bundle: ConfigBundle, req: PlanRequest) -> tuple[PinMap | None, DutProfile | None]:
     """The request's pin map and DUT profile from the loaded config (``None`` when absent)."""
     pin_map = bundle.pin_maps.get(req.pin_map)
@@ -328,6 +335,7 @@ class Planner:
             "estimate": compiled.estimate, "flex_preview": list(compiled.flex_preview),
             "hashes": config_hashes(bundle, req.pin_map, req.dut_profile), "backend": bundle.backend,
             "program": dict(compiled.program), "routes_by_phase": dict(compiled.routes_by_phase), "files": files,
+            "mode": execution_mode(compiled.estimate, bundle.policy),
             "rules": report, "tier": report.tier, "summary": PLACEHOLDER_SUMMARY,
             "created_at": now, "expires_at": now + timedelta(hours=bundle.policy.plans.ttl_h),
         }

@@ -32,7 +32,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from b1500_test_agent.driver.b1500 import B1500Driver, StaircaseSetup
-from b1500_test_agent.driver.discovery import parse_idn, parse_lop, parse_unt
+from b1500_test_agent.driver.discovery import parse_auto_calibration, parse_idn, parse_lop, parse_unt
 from b1500_test_agent.driver.errors import parse_errx, parse_self_test_result, parse_status_byte
 from b1500_test_agent.driver.guard import OutputGuard
 from b1500_test_agent.driver.parser import INVALID_DATA_VALUE, parse_data
@@ -178,6 +178,9 @@ def test_simulated_queries_parse_with_the_driver() -> None:
     transport.write("CL")
     assert parse_self_test_result(transport.query("*TST?")) == 0
     assert parse_self_test_result(transport.query("*CAL?")) == 0
+    assert parse_auto_calibration(transport.query("*LRN? 31")) is False
+    transport.write("CM 1")
+    assert parse_auto_calibration(transport.query("*LRN? 31")) is True
 
 
 # -- 3. formatter fixtures -> driver parser --------------------------------------------------------------------------
@@ -248,4 +251,9 @@ def test_parser_query_fixtures_match_the_simulator() -> None:
     assert parse_status_byte(transport.query("*STB?")).value & 8 == parse_status_byte(
         fixtures["stb_interlock_error.txt"].body).value & 8
     assert parse_self_test_result(fixtures["tst_slot3_and_mainframe_failed.txt"].body) == 1028
+    lrn = all_fixtures("lrn")[0]
+    transport.write("CM 1")
+    transport.write("FMT 1,1")
+    transport.write("MM 2,3,4")
+    assert transport.query("*LRN? 31") == lrn.body  # the simulator answers in the fixture's form
     assert re.fullmatch(r"\d+", transport.query("*TST?"))

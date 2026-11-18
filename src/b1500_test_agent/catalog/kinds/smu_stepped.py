@@ -11,8 +11,9 @@ step column of the table.
 
 Compile (pure): the staircase compiled with the step role as a bias at the first value, then the step channel's
 envelope widened to every step value (``function: step_v``, ``v_start``/``v_stop`` = first/last value), the
-estimate ``points`` = steps x sweep steps and ``duration`` = 1 s + steps x (sweep time + 0.2 s), and the FLEX
-preview = the staircase setup followed by ``DV <step>`` and ``XE`` per step value.
+estimate ``points`` = steps x sweep steps, ``duration`` = 1 s + steps x (sweep time + 0.2 s) and ``max_segment_s`` =
+one sweep with its setup allowance + 0.2 s (each step is one segment between checkpoints, blueprint v2 2.6), and the
+FLEX preview = the staircase setup followed by ``DV <step>`` and ``XE`` per step value.
 
 Acquire (inside ONE transaction, through the guarded driver): the staircase setup (``configure_staircase``: FMT,
 ADC, CN, ``ERRX?`` drain, bias DVs, MM/CMM/WV/WT/WM, ``ERRX?`` drain), then for each step value: ``DV`` on the step
@@ -20,7 +21,10 @@ channel, ``ERRX?`` drain (any error aborts before ``XE``), ``XE`` and one read (
 10 s``). Each sweep runs with ``WM 2,1`` as in ``smu_staircase`` (automatic abort on compliance, overflow or
 oscillation); in addition the host loop stops after a sweep that reported any of ``STOP_STATUSES`` (the later steps
 usually drive harder), and ``kind_result`` records it: ``steps_planned``, ``steps_done``, ``stopped_early``,
-``stop_reason``. Cleanup is the transaction's (``AB → DZ → CL → verify``).
+``stop_reason``. After every step ``tx.checkpoint(step, steps, "sweep", rows)`` hands over the curve's table rows:
+an asynchronous run (longer than ``max_sync_run_s``, e.g. many gate steps at long integration) records them in
+``progress.json``/``partial.csv``, and any run stops there when ``safe_shutdown`` asked (``RunCancelled``).
+Cleanup is the transaction's (``AB → DZ → CL → verify``).
 
 Table (``data.csv`` contract of ``analysis/dataset.py``): the rows of each sweep in acquisition order with
 ``step`` running over the whole run (0-based, strictly increasing across curves), ``segment`` for double sweeps
@@ -185,7 +189,8 @@ class SmuSteppedKind:
         program = SteppedProgram(staircase=staircase, step_role=step_name, step_channel=step_channel,
                                  step_icomp=icomp, step_values=values, sweep_estimate_s=sweep_estimate)
         duration = SETUP_OVERHEAD_S + len(values) * (sweep_estimate - SETUP_OVERHEAD_S + STEP_OVERHEAD_S)
-        estimate = Estimate(points=program.points, duration_s=round(duration, 6))
+        estimate = Estimate(points=program.points, duration_s=round(duration, 6),
+                            max_segment_s=round(sweep_estimate + STEP_OVERHEAD_S, 6))
         return CompiledKindPlan(envelope=envelope, estimate=estimate, flex_preview=self.preview(program),
                                 program=program.model_dump(mode="json"))
 
@@ -198,6 +203,11 @@ class SmuSteppedKind:
             lines.append(flex.dv(program.step_channel, 0, value, program.step_icomp))
             lines.append(flex.XE)
         return lines
+
+    @staticmethod
+    def checkpoint_total(plan: PlanRecord) -> int:
+        """Checkpoints ``acquire`` reports: one per step value (fewer when the loop stops early)."""
+        return len(SteppedProgram.model_validate(plan.program).step_values) if plan.program else 0
 
     # acquire -----------------------------------------------------------------------------------------------------
 
@@ -212,12 +222,15 @@ class SmuSteppedKind:
         blocks: list[RawBlock] = []
         stop_reason = ""
         last = len(program.step_values) - 1
+        total = len(program.step_values)
         for index, value in enumerate(program.step_values):
             tx.driver.force_v(program.step_channel, value, icomp=program.step_icomp)
             drain_or_raise(tx, f"setting {program.step_role} to step {index}")
             tx.mark(f"step {index}: {program.step_role} = {value:g} V")
             block = tx.driver.execute_and_read(expected_points=sweep.steps * sweep.width, timeout_s=timeout)
             blocks.append(block)
+            tx.checkpoint(index + 1, total, "sweep",
+                          rows=lambda i=index, v=value, b=block: self.curve_rows(program, i, v, b))
             flagged = sorted({str(p.status.value) for p in block.points if str(p.status.value) in STOP_STATUSES})
             if flagged and index < last:
                 stop_reason = (f"step {index} ({program.step_role} = {value:g} V) reported status "
@@ -242,18 +255,25 @@ class SmuSteppedKind:
         if not raw.blocks or len(raw.blocks) > len(program.step_values):
             raise ValueError(f"{self.kind_id} expects 1..{len(program.step_values)} data blocks, got "
                              f"{len(raw.blocks)}")
-        sweep = program.staircase
         rows: list[dict[str, object]] = []
         for index, (block, value) in enumerate(zip(raw.blocks, program.step_values, strict=False)):
-            curve = staircase_rows(sweep, block, first_step=index * sweep.steps)
-            sweep_source = f"{sweep.sweep_role}_V"
-            for row in curve:
-                ordered: dict[str, object] = {}
-                for key, cell in row.items():
-                    ordered[key] = cell
-                    if key == sweep_source:
-                        ordered[program.step_column] = value
-                if program.step_column not in ordered:
-                    ordered[program.step_column] = value
-                rows.append(ordered)
+            rows += self.curve_rows(program, index, value, block)
         return pd.DataFrame(rows)
+
+    @staticmethod
+    def curve_rows(program: SteppedProgram, index: int, value: float, block: RawBlock) -> list[dict[str, object]]:
+        """Table rows of curve ``index`` (step level ``value``): ``staircase_rows`` with ``step`` continuing over the
+        run and the step source column right after the sweep source column (also the ``partial.csv`` rows)."""
+        sweep = program.staircase
+        sweep_source = f"{sweep.sweep_role}_V"
+        rows: list[dict[str, object]] = []
+        for row in staircase_rows(sweep, block, first_step=index * sweep.steps):
+            ordered: dict[str, object] = {}
+            for key, cell in row.items():
+                ordered[key] = cell
+                if key == sweep_source:
+                    ordered[program.step_column] = value
+            if program.step_column not in ordered:
+                ordered[program.step_column] = value
+            rows.append(ordered)
+        return rows

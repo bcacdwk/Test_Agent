@@ -23,4 +23,6 @@ faults:
   - {kind: ignore_dz, channels: [1]}                  # stuck output: zeroing accepted, voltage stays
   - {kind: cleanup_failure, count: 1}                 # DZ/CL writes time out (count: null = always)
   - {kind: slow, factor: 100.0}                       # measurements take 100 x their nominal time
+  - {kind: run_interrupt, segment: 2}                 # the host is interrupted (Ctrl-C/signal) reading measurement 2
   - {kind: bus_locked, nth: 1, count: 2}              # another VISA client holds the bus: 2 lock requests refused
+  - {kind: abort_ignored, nth: 1, count: null}        # AB has no effect: a running measurement keeps running

@@ -23,10 +23,10 @@ counts:
     D: 42
     total: 282
   atoms_by_priority:
-    m1: 44
+    m1: 47
     m2: 14
-    later: 224
-  atoms_unmapped: 239
+    later: 221
+  atoms_unmapped: 236
   flows:
     A: 20
     B: 16
@@ -36,16 +36,16 @@ counts:
     CD: 4
     total: 97
   commands: 280
-  commands_mapped: 25
-driver_targets: [B1500Driver.identify, B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte, B1500Driver.output_state, B1500Driver.abort, B1500Driver.zero, B1500Driver.disconnect, B1500Driver.reset, B1500Driver.self_test, B1500Driver.self_calibrate, B1500Driver.set_format, B1500Driver.set_integration, B1500Driver.set_range, B1500Driver.enable, B1500Driver.force_v, B1500Driver.staircase_v, B1500Driver.execute_and_read, B1500Driver.wait_complete, flex.cn, flex.cl, flex.dz, flex.fmt, flex.mm, flex.cmm, flex.aad, flex.ait, flex.ri, flex.rv, flex.wt, flex.wm, flex.dv, flex.wv, flex.XE, flex.AB, flex.IDN_Q, flex.UNT_Q, flex.ERRX_Q, flex.STB_Q, flex.OPC_Q, flex.LOP_Q, flex.RST, flex.TST_Q, flex.CAL_Q]
+  commands_mapped: 27
+driver_targets: [B1500Driver.identify, B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte, B1500Driver.output_state, B1500Driver.abort, B1500Driver.zero, B1500Driver.disconnect, B1500Driver.reset, B1500Driver.self_test, B1500Driver.self_calibrate, B1500Driver.set_format, B1500Driver.set_integration, B1500Driver.set_range, B1500Driver.enable, B1500Driver.force_v, B1500Driver.staircase_v, B1500Driver.execute_and_read, B1500Driver.wait_complete, B1500Driver.auto_calibration, B1500Driver.set_auto_calibration, flex.cn, flex.cl, flex.dz, flex.fmt, flex.mm, flex.cmm, flex.aad, flex.ait, flex.ri, flex.rv, flex.wt, flex.wm, flex.dv, flex.wv, flex.cm, flex.lrn_q, flex.XE, flex.AB, flex.IDN_Q, flex.UNT_Q, flex.ERRX_Q, flex.STB_Q, flex.OPC_Q, flex.LOP_Q, flex.RST, flex.TST_Q, flex.CAL_Q]
 atoms:
 - {id: A_atom_flex_connect, class: A, basis: ['*IDN?', 'UNT?'], flex: ['*IDN?', 'UNT?'], target: [B1500Driver.identify, B1500Driver.modules], priority: m1}
 - {id: A_atom_flex_disconnect, class: A, basis: [session.close], flex: [], target: unmapped, priority: m1, note: 'successor: Transport.close via Session (sections 2.2, 2.4); B1500Driver.disconnect is CL'}
 - {id: A_atom_flex_identify, class: A, basis: ['*IDN?'], flex: ['*IDN?'], target: [B1500Driver.identify], priority: m1}
 - {id: A_atom_flex_list_modules, class: A, basis: ['UNT?'], flex: ['UNT?'], target: [B1500Driver.modules], priority: m1}
-- {id: A_atom_flex_get_status, class: A, basis: ['UNT?', 'ERRX?', '*STB?', '*LRN?'], flex: ['UNT?', 'ERRX?', '*STB?', '*LRN?'], target: [B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte], unmapped_flex: ['*LRN?'], priority: m1, note: 'successor: Session.snapshot (IDN, UNT, ERRX, STB, outputs); *LRN? not used'}
-- {id: A_atom_flex_query_settings, class: A, basis: ['*LRN?'], flex: ['*LRN?'], target: unmapped, priority: later, note: '*LRN? is the ATV-1 fallback for output verification (M4 L1)'}
-- {id: A_atom_flex_query_smu_settings, class: A, basis: ['*LRN?'], flex: ['*LRN?'], target: unmapped, priority: later}
+- {id: A_atom_flex_get_status, class: A, basis: ['UNT?', 'ERRX?', '*STB?', '*LRN?'], flex: ['UNT?', 'ERRX?', '*STB?', '*LRN?'], target: [B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte, B1500Driver.auto_calibration], priority: m1, note: 'successor: Session.snapshot (IDN, UNT, ERRX, STB, outputs); *LRN? 31 read by the executor (auto-calibration, R-CAL-01/02)'}
+- {id: A_atom_flex_query_settings, class: A, basis: ['*LRN?'], flex: ['*LRN?'], target: [B1500Driver.auto_calibration], priority: m1, note: '*LRN? is the ATV-1 fallback for output verification (M4 L1)'}
+- {id: A_atom_flex_query_smu_settings, class: A, basis: ['*LRN?'], flex: ['*LRN?'], target: [B1500Driver.auto_calibration], priority: m1}
 - {id: A_atom_flex_query_compliance_status, class: A, basis: ['LIM?', 'LOP?'], flex: ['LIM?', 'LOP?'], target: [B1500Driver.output_state], unmapped_flex: ['LIM?'], priority: m1, note: 'per-point compliance comes from FMT status codes C/T; LIM? not planned'}
 - {id: A_atom_flex_read_error_queue, class: A, basis: ['ERR?', 'ERRX?'], flex: ['ERR?', 'ERRX?'], target: [B1500Driver.errors], unmapped_flex: ['ERR?'], priority: m1, note: 'ERRX? only'}
 - {id: A_atom_flex_lookup_error, class: A, basis: ['EMG?'], flex: ['EMG?'], target: unmapped, priority: later}
@@ -127,7 +127,7 @@ atoms:
 - {id: B_atom_diagnostic_b1500_self_test, class: B, basis: ['*TST?'], flex: ['*TST?'], target: [B1500Driver.self_test], priority: m1}
 - {id: B_atom_calibration_b1500_self_calibration, class: B, basis: ['*CAL?'], flex: ['*CAL?'], target: [B1500Driver.self_calibrate], priority: m1}
 - {id: B_atom_diagnostic_b1500_diagnostics, class: B, basis: ['DIAG?'], flex: ['DIAG?'], target: unmapped, priority: later}
-- {id: B_atom_policy_b1500_set_auto_calibration, class: B, basis: [CM], flex: [CM], target: unmapped, priority: later}
+- {id: B_atom_policy_b1500_set_auto_calibration, class: B, basis: [CM], flex: [CM], target: [B1500Driver.set_auto_calibration], priority: m1}
 - {id: B_atom_output_b1500_enable_channels, class: B, basis: [CN], flex: [CN], target: [B1500Driver.enable], priority: m1}
 - {id: B_atom_output_b1500_disable_channels, class: B, basis: [CL], flex: [CL], target: [B1500Driver.disconnect], priority: m1}
 - {id: B_atom_output_b1500_zero_outputs, class: B, basis: [DZ], flex: [DZ], target: [B1500Driver.zero], priority: m1}
@@ -135,7 +135,7 @@ atoms:
 - {id: B_atom_output_b1500_confirm_zero, class: B, basis: ['WZ?'], flex: ['WZ?'], target: unmapped, priority: later, note: 'output-off verification uses LOP? (output_state, ATV-1)'}
 - {id: B_atom_safety_b1500_check_interlock, class: B, basis: ['INTLKVTH?'], flex: ['INTLKVTH?'], target: unmapped, priority: later, note: 'interlock state is read from STB bit 3 (status_byte, ATV-10)'}
 - {id: B_atom_safety_b1500_set_interlock_threshold, class: B, basis: [INTLKVTH], flex: [INTLKVTH], target: unmapped, priority: later}
-- {id: B_atom_safety_b1500_preflight, class: B, basis: ['UNT?', 'ERRX?', '*STB?', '*LRN?', 'INTLKVTH?'], flex: ['UNT?', 'ERRX?', '*STB?', '*LRN?', 'INTLKVTH?'], target: [B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte], unmapped_flex: ['*LRN?', 'INTLKVTH?'], priority: m1, note: 'successor: rules pre_execute phase + Session.snapshot; interlock from STB bit 3 (ATV-10)'}
+- {id: B_atom_safety_b1500_preflight, class: B, basis: ['UNT?', 'ERRX?', '*STB?', '*LRN?', 'INTLKVTH?'], flex: ['UNT?', 'ERRX?', '*STB?', '*LRN?', 'INTLKVTH?'], target: [B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte, B1500Driver.auto_calibration], unmapped_flex: ['INTLKVTH?'], priority: m1, note: 'successor: rules pre_execute phase + Session.snapshot; interlock from STB bit 3 (ATV-10)'}
 - {id: B_atom_output_b1500_recover_zeroed, class: B, basis: [RZ], flex: [RZ], target: unmapped, priority: later}
 - {id: B_atom_output_spgu_enable_channels, class: B, basis: [CNX], flex: [CNX], target: unmapped, priority: later}
 - {id: B_atom_output_smu_set_filter, class: B, basis: [FL], flex: [FL], target: unmapped, priority: later}
@@ -430,7 +430,7 @@ commands:
 - {command: 'ERRX?', source: detailed, pdf_pages: [431], printed_pages: [4-113], target: B1500Driver.errors, builder: flex.ERRX_Q, priority: m1, atoms: [A_atom_flex_get_status, A_atom_flex_read_error_queue, B_atom_safety_b1500_preflight]}
 - {command: 'ERR?', source: detailed, pdf_pages: [430], printed_pages: [4-112], target: unmapped, priority: later, atoms: [A_atom_flex_read_error_queue]}
 - {command: 'EMG?', source: detailed, pdf_pages: [398], printed_pages: [4-80], target: unmapped, priority: later, atoms: [A_atom_flex_lookup_error]}
-- {command: '*LRN?', source: detailed, pdf_pages: [447, 448, 449, 450, 451, 452, 453], printed_pages: [4-129 to 4-135], target: unmapped, priority: later, atoms: [A_atom_flex_get_status, A_atom_flex_query_settings, A_atom_flex_query_smu_settings, B_atom_safety_b1500_preflight]}
+- {command: '*LRN?', source: detailed, pdf_pages: [447, 448, 449, 450, 451, 452, 453], printed_pages: [4-129 to 4-135], target: B1500Driver.auto_calibration, builder: flex.lrn_q, priority: m1, atoms: [A_atom_flex_get_status, A_atom_flex_query_settings, A_atom_flex_query_smu_settings, B_atom_safety_b1500_preflight], note: type 31 (CM state) before every run's pre-execute rules (R-CAL-01/02); type 0 stays the ATV-1 fallback for SPGU/WGFMU outputs}
 - {command: '*OPC?', source: detailed, pdf_pages: [479], printed_pages: [4-161], target: B1500Driver.wait_complete, builder: flex.OPC_Q, priority: m1, atoms: [A_atom_flex_wait_opc]}
 - {command: AB, source: detailed, pdf_pages: [351, 352], printed_pages: [4-33 to 4-34], target: B1500Driver.abort, builder: flex.AB, priority: m1, atoms: [B_atom_safety_b1500_abort], note: sent alone}
 - {command: CN, source: detailed, pdf_pages: [380], printed_pages: [4-62], target: B1500Driver.enable, builder: flex.cn, priority: m1, atoms: [B_atom_output_b1500_enable_channels]}
@@ -463,7 +463,7 @@ commands:
 - {command: 'DIAG?', source: detailed, pdf_pages: [392], printed_pages: [4-74], target: unmapped, priority: later, atoms: [B_atom_diagnostic_b1500_diagnostics]}
 - {command: PA, source: detailed, pdf_pages: [481], printed_pages: [4-163], target: unmapped, priority: later, atoms: []}
 - {command: RCV, source: grouped, target: unmapped, priority: later, atoms: []}
-- {command: CM, source: grouped, target: unmapped, priority: later, atoms: [B_atom_policy_b1500_set_auto_calibration]}
+- {command: CM, source: grouped, pdf_pages: [379], printed_pages: [4-61], target: B1500Driver.set_auto_calibration, builder: flex.cm, priority: m1, atoms: [B_atom_policy_b1500_set_auto_calibration], note: 'R-CAL-02 (WP5.6): asynchronous runs send CM 0 and the cleanup restores the state read by *LRN? 31'}
 - {command: CLCORR, source: grouped, target: unmapped, priority: later, atoms: [B_atom_correction_cmu_clear]}
 - {command: CORRL, source: grouped, target: unmapped, priority: later, atoms: [B_atom_correction_cmu_add_frequency]}
 - {command: 'CORRL?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_cmu_correction_freq_list]}

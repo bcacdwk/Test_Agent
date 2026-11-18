@@ -18,6 +18,11 @@ usage errors.
 a TTY it exits non-zero and runs nothing (UX only: the harness tool confirmation is the approval, blueprint 4.3).
 The run manifest records ``confirmed_via: cli --confirm``. Tests replace ``make_service``/``is_interactive`` on this
 module.
+
+An asynchronous plan (blueprint v2 2.6) stays in the foreground: ``run`` prints a progress line (stderr) at every
+checkpoint until the run ends and then the final result; Ctrl-C asks the run to stop (abort file) and keeps waiting
+for its verified cleanup (a second Ctrl-C only repeats that the cleanup is running). ``b1500 shutdown`` from another
+terminal cancels a run of any process (CLI or MCP server).
 """
 
 from __future__ import annotations
@@ -37,6 +42,7 @@ from b1500_test_agent.devtools import (
     harness,
 )
 from b1500_test_agent.models.common import ConfigReport, ResultEnvelope
+from b1500_test_agent.models.plan import RunProgress
 from b1500_test_agent.models.results import (
     AnalysisResult,
     FaultClearResult,
@@ -199,7 +205,16 @@ def status_lines(result: StationStatus) -> list[str]:
         lines.append(f"limits: hard {lim.hard_max_abs_voltage_v:g} V / {lim.hard_max_abs_compliance_a:g} A; soft "
                      f"{lim.soft_voltage_v:g} V / {lim.soft_compliance_a:g} A; max points "
                      f"{', '.join(f'{k} {v}' for k, v in lim.max_points.items())}; sync runs <= "
-                     f"{lim.max_sync_run_s:g} s; plans expire after {lim.plan_ttl_h:g} h")
+                     f"{lim.max_sync_run_s:g} s"
+                     + (f", async above (confirm above {lim.long_run_confirm_s:g} s, at most {lim.max_async_run_s:g} "
+                        f"s, checkpoints <= {lim.segment_max_s:g} s)" if lim.long_run_confirm_s is not None else "")
+                     + f"; plans expire after {lim.plan_ttl_h:g} h")
+    if result.active_run is not None:
+        run = result.active_run
+        done = f" {run.done}/{run.total}" if run.done is not None and run.total is not None else ""
+        eta = f", eta {run.eta_s:.0f} s" if run.eta_s is not None else ""
+        lines.append(f"active run: {run.run_id} ({run.mode}) {run.recipe_id or '-'}{done} {run.phase}{eta}; "
+                     f"started by {run.adapter or '-'}" + (f" pid {run.pid}" if run.pid else ""))
     if result.pin_maps:
         lines.append("pin maps: " + ", ".join(f"{k} ({v})" for k, v in result.pin_maps.items()))
     if result.dut_profiles:
@@ -259,7 +274,8 @@ def plan_lines(result: PlanValidation) -> list[str]:
     if result.resolved is not None:
         res = result.resolved
         lines.append("channels: " + ", ".join(f"{k}={v}" for k, v in res.channels.items())
-                     + f"; max |V| {res.max_v:g} V, max |I| {res.max_i:g} A; {res.points} points, ~{res.est_s:g} s")
+                     + f"; max |V| {res.max_v:g} V, max |I| {res.max_i:g} A; {res.points} points, ~{res.est_s:g} s"
+                     + (" (asynchronous)" if res.mode == "async" else ""))
     for finding in result.findings:
         extra = f" (observed {finding.observed}, limit {finding.limit})" if finding.limit is not None else ""
         lines.append(f"  {finding.severity:<7} {finding.rule_id} {finding.message}{extra} [{finding.source}]")
@@ -315,7 +331,9 @@ def plan_command(
 def run_lines(result: RunSummary) -> list[str]:
     lines = []
     if result.run_id:
-        lines.append(f"run_id: {result.run_id}  plan: {result.plan_id}  outcome: {result.outcome}")
+        lines.append(f"run_id: {result.run_id}  plan: {result.plan_id}  outcome: {result.outcome}"
+                     + (f"  eta: {result.eta_s:.0f} s" if result.outcome == "running" and result.eta_s is not None
+                        else ""))
     elif result.plan_id:
         lines.append(f"plan: {result.plan_id}  outcome: {result.outcome}")
     if result.status_counts:
@@ -330,7 +348,39 @@ def run_lines(result: RunSummary) -> list[str]:
         lines.append(f"summary: {result.summary}")
     if "data" in result.artifacts:
         lines.append(f"data: {result.artifacts['data']}")
+    elif "partial" in result.artifacts:
+        lines.append(f"partial data: {result.artifacts['partial']}")
     return lines
+
+
+def progress_line(progress: RunProgress) -> str:
+    """One progress line of a foreground asynchronous run."""
+    eta = f", eta {progress.eta_s:.0f} s" if progress.eta_s is not None else ""
+    values = ", ".join(f"{k}={v:.4g}" for k, v in list(progress.last_values.items())[:3])
+    return (f"  {progress.state} {progress.done}/{progress.total} {progress.phase} elapsed {progress.elapsed_s:.0f} "
+            f"s{eta}" + (f"; {values}" if values else ""))
+
+
+def follow_run(service: B1500Service, started: RunSummary) -> RunSummary:
+    """Keep an asynchronous run in the foreground: progress lines on stderr until it ends, Ctrl-C = cancel (the
+    verified cleanup still runs to the end); returns the run's final result."""
+    run_id = started.run_id or ""
+    say = (lambda text: typer.echo(text, err=True))
+    eta = f" (~{started.eta_s:.0f} s)" if started.eta_s is not None else ""
+    say(f"{_flag(started)}run {run_id} runs asynchronously{eta}; progress follows; Ctrl-C cancels it (the cleanup "
+        "is always completed)")
+    cancelling = False
+    while True:
+        try:
+            final = service.follow_run(run_id, on_progress=lambda p: say(progress_line(p)))
+            return final if final is not None else started
+        except KeyboardInterrupt:
+            if not cancelling:
+                cancelling = True
+                say("Ctrl-C: cancelling the run; waiting for its verified cleanup (this can take one segment)")
+                service.stop_runs("operator Ctrl-C (cli)", wait_s=0)
+            else:
+                say("the cleanup is still running; please wait")
 
 
 def _confirm_and_run(service: B1500Service, plan_id: str, dut_instance: str | None, as_json: bool) -> None:
@@ -362,6 +412,8 @@ def _confirm_and_run(service: B1500Service, plan_id: str, dut_instance: str | No
         emit(aborted, as_json, [])
         return
     result = service.run_confirmed_plan(plan_id=plan_id, summary=checked.summary, dut_instance=dut_instance)
+    if result.outcome == "running" and result.run_id:
+        result = follow_run(service, result)
     emit(result, as_json, run_lines(result))
 
 
@@ -379,6 +431,8 @@ def run_command(
         _confirm_and_run(service, plan_id, dut_instance, as_json)
         return
     result = service.run_plan(plan_id=plan_id, dut_instance=dut_instance)
+    if result.outcome == "running" and result.run_id:
+        result = follow_run(service, result)
     emit(result, as_json, run_lines(result))
 
 
@@ -416,6 +470,8 @@ def show_lines(result: RunDetail) -> list[str]:
         lines.append(f"quality: {q.verdict}; counts {q.counts}; fractions "
                      + ", ".join(f"{k}={v:.3g}" for k, v in q.fractions.items()))
         lines += [f"  warning: {w}" for w in q.warnings]
+    if result.progress is not None:
+        lines.append("progress:" + progress_line(result.progress).removeprefix(" "))
     if result.data is not None:
         d = result.data
         lines.append(f"data ({d.rows_returned} of {d.rows_total} rows; {d.note}):")
@@ -434,8 +490,8 @@ def show_lines(result: RunDetail) -> list[str]:
 @app.command("show")
 def show_command(
     run_id: Annotated[str, typer.Argument(help="Run id, e.g. S20261117T063012Z-7f3a.")],
-    include: Annotated[list[str] | None, typer.Option("--include", help="summary, quality, data, audit, notes "
-                                                                         "(repeatable).")] = None,
+    include: Annotated[list[str] | None, typer.Option("--include", help="summary, quality, data, audit, notes, "
+                                                                         "progress (repeatable).")] = None,
     max_points: Annotated[int, typer.Option("--max-points", help="At most this many data rows.")] =
     DEFAULT_MAX_POINTS,
     as_json: JsonOption = False,
@@ -503,6 +559,8 @@ def shutdown_lines(result: ShutdownResult | FaultClearResult) -> list[str]:
     lines.append(f"fault latch: {'SET: ' + result.fault.reason if result.fault else 'clear'}")
     if isinstance(result, FaultClearResult):
         lines += [f"refused because: {r}" for r in result.reasons]
+    elif result.cancelled_run:
+        lines.append(f"cancelled run: {result.cancelled_run}")
     return lines
 
 
@@ -511,7 +569,8 @@ def shutdown_command(
     reason: Annotated[str, typer.Option("--reason", help="Why (audited).")] = "operator request (cli)",
     as_json: JsonOption = False,
 ) -> None:
-    """Safe shutdown: abort, zero, disconnect, verify (MCP safe_shutdown; never gated)."""
+    """Safe shutdown: cancel the running run (any process), then abort, zero, disconnect, verify (MCP
+    safe_shutdown; never gated)."""
     result = make_service().safe_shutdown(reason=reason)
     emit(result, as_json, shutdown_lines(result))
 

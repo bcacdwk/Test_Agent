@@ -22,11 +22,25 @@ blueprint 2.6 docstring:
 finalized as ``aborted``); every outcome is a ``RunSummary``. The run folder is created right before the
 transaction so that the lock, the snapshot and the cleanup I/O are in the run's ``audit.jsonl``; when the
 transaction is refused before anything was recorded (instrument busy, fault latched) the empty folder is removed.
+
+Asynchronous runs (blueprint v2 2.6; ``plan.mode == "async"``, set by the planner above
+``policy.run_limits.max_sync_run_s``): steps 4-6 run on a non-daemon worker thread (``session.Runner``) and ``run``
+returns ``outcome: running`` with the run id and ``eta_s`` as soon as the transaction holds the instrument and the
+pre-execute rules passed (a refusal before that is returned as for a synchronous run). The run sends ``CM 0`` before
+the kind (R-CAL-02; the cleanup restores the state read by ``*LRN? 31``), records ``progress.json``/``partial.csv`` at
+the kind's checkpoints and stops at the next checkpoint when an abort is requested (``safe_shutdown`` from any
+process, the MCP server's shutdown hook, the CLI's Ctrl-C): outcome ``cancelled`` after the verified cleanup, the
+rows acquired so far in ``partial.csv``. Every run, synchronous too, polls the abort file at its checkpoints. One
+run at a time per process (a second request is ``busy`` at once) and per instrument (the lock). A run whose process
+died is finalized as ``aborted`` by the transaction that recovers its in-flight marker (``Session.on_recovery``).
+The auto-calibration state is read (``*LRN? 31``) before the pre-execute rules of every run (R-CAL-01, R-CAL-02).
 """
 
 from __future__ import annotations
 
+import functools
 import json
+import logging
 import re
 import time
 from collections.abc import Callable
@@ -39,6 +53,8 @@ from b1500_test_agent.analysis.plots import PlotSet
 from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.registry import run_method
 from b1500_test_agent.archive.audit import RUN_AUDIT_FILE
+from b1500_test_agent.archive.corrections import records_for
+from b1500_test_agent.archive.runfiles import PARTIAL_FILE, PROGRESS_FILE
 from b1500_test_agent.archive.store import QUALITY_FILE, RunFolder, RunStore, analysis_payload, software_version
 from b1500_test_agent.catalog.files import FileRoots, changed_param_files
 from b1500_test_agent.catalog.kinds import MeasurementKind
@@ -51,21 +67,37 @@ from b1500_test_agent.catalog.planner import (
     config_hashes,
 )
 from b1500_test_agent.catalog.registry import RecipeRegistry
+from b1500_test_agent.catalog.running import ActiveRun, RunningRuns
 from b1500_test_agent.catalog.schema import RawAcquisition
 from b1500_test_agent.config import ConfigBundle, ConfigLoader
+from b1500_test_agent.driver.errors import DriverError
 from b1500_test_agent.errors import B1500Error, InvalidConfigError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport
 from b1500_test_agent.models.audit import AuditEvent, AuditEventName
 from b1500_test_agent.models.common import Backend, ErrorCode, ResultStatus
 from b1500_test_agent.models.plan import PlanRecord, PlanRequest, RuleFinding, RulesReport
 from b1500_test_agent.models.recipe import Recipe
-from b1500_test_agent.models.run import Adapter, CleanupReport, ClientInfo, RunManifest, RunOutcome, RunSummary
+from b1500_test_agent.models.run import (
+    AbortRequest,
+    Adapter,
+    CleanupReport,
+    ClientInfo,
+    RunManifest,
+    RunOutcome,
+    RunSummary,
+)
 from b1500_test_agent.models.station import LiveState
 from b1500_test_agent.rules import CalibrationState, RulesEngine, with_rules
 from b1500_test_agent.session import (
+    AbortWatch,
     CleanupUnverified,
     FaultLatched,
     InstrumentBusy,
+    RunCancelled,
+    RunControl,
+    RunJob,
+    Runner,
+    RunnerBusy,
     Session,
     Transaction,
     state_audit_sink,
@@ -78,7 +110,11 @@ BusFactory = Callable[[ConfigBundle, AuditSink], Bus | Transport]
 """Builds the instrument bus of a config bundle (default ``make_bus``; tests inject e.g. the visa-loop)."""
 SELF_CAL_RECIPE = "system.self_cal"
 DUT_INSTANCE_MAX = 200
+START_MARGIN_S = 120.0
+"""How long ``run`` waits, beyond the lock timeout, for an asynchronous run to start (recovery, snapshot, rules)."""
 _PLAN_ID = re.compile(r"^P-[A-Z2-7]{10}$")
+
+log = logging.getLogger("b1500.executor")
 
 
 @dataclass
@@ -112,16 +148,31 @@ class _RunState:
     refused: bool = False
 
 
+@dataclass
+class _RunContext:
+    """Everything one run needs on its (calling or worker) thread."""
+
+    checked: _Checked
+    bundle: ConfigBundle
+    session: Session
+    folder: RunFolder
+    control: RunControl
+    confirmed_summary: str | None
+    dut_instance: str | None
+    client: ClientInfo
+    started: datetime
+
+
 def _flags(findings: list[RuleFinding], severity: str) -> str:
     return "; ".join(f"{f.rule_id} {f.message}" for f in findings if f.severity == severity)
 
 
-class Executor:
+class Executor(RunningRuns):
     """Plans and runs recipes for one process (blueprint 2.6). ``config`` is re-read on every call (digest cache).
 
     ``registry`` defaults to ``recipes/`` of the configured repository and is reloaded when a recipe file changes;
     ``bus_factory`` replaces ``make_bus`` (tests: the visa-loop resource manager); ``clock`` stamps plans and run
-    ids.
+    ids. ``runner`` holds this process's asynchronous run (one at a time).
     """
 
     def __init__(self, config: ConfigLoader, *, registry: RecipeRegistry | None = None, adapter: Adapter = "cli",
@@ -135,6 +186,7 @@ class Executor:
         self._bus_factory = bus_factory
         self._session: Session | None = None
         self._session_key: str | None = None
+        self.runner = Runner()
 
     # -- plumbing ---------------------------------------------------------------------------------------------------
 
@@ -157,8 +209,8 @@ class Executor:
             state_dir.as_posix(),
         ], sort_keys=True)
         if self._session is None or key != self._session_key:
-            if self._session is not None:
-                self._session.close()
+            if self._session is not None and self.runner.active() is None:
+                self._session.close()  # a running asynchronous run keeps its own session (and bus) to the end
             sink = state_audit_sink(state_dir)
             custom = self._bus_factory
 
@@ -169,13 +221,25 @@ class Executor:
                                 state_dir=state_dir)
 
             self._session = Session(bundle.settings, factory, sink, state_dir=state_dir, adapter=self.adapter)
+            self._session.on_recovery = functools.partial(self._finalize_orphan, bundle)
             self._session_key = key
         return self._session
 
-    def close(self) -> None:
-        """Close the session's bus if it is still open (a later call opens it again)."""
+    def close(self, *, wait_s: float | None = None) -> None:
+        """Stop this process's asynchronous run, if any (abort request, wait ``wait_s``, default one segment plus
+        cleanup), then close the session's bus if it is still open (a later call opens it again)."""
+        job = self.runner.active()
+        if job is not None:
+            self.stop_runs("executor closing", wait_s=wait_s)
+            if not job.done:
+                return  # the worker still owns the session; it releases the bus at the end of its transaction
         if self._session is not None:
             self._session.close()
+
+    def _planner(self, bundle: ConfigBundle) -> Planner:
+        """A planner over the registry with the server-written MFCMU correction store (R-CORR-01)."""
+        return Planner(self.registry(bundle), clock=self._clock,
+                       corrections=functools.partial(records_for, state_dir=bundle.paths.state_dir))
 
     def _engine(self, bundle: ConfigBundle) -> RulesEngine:
         return RulesEngine(bundle, clock=self._clock)
@@ -199,11 +263,10 @@ class Executor:
         """Resolve, bind, compile, evaluate the plan-phase rules (with ``live`` if given; no I/O here) and store
         the frozen plan. Raises ``InvalidConfigError``, ``UnknownRecipeError`` or ``InvalidInputError``."""
         bundle = self.config.get()
-        registry = self.registry(bundle)
         session = self.session(bundle)
         fault, unrecovered = self._fault_state(session)
-        plan = Planner(registry, clock=self._clock).plan(req, bundle, self._engine(bundle), live=live, fault=fault,
-                                                         inflight_unrecovered=unrecovered)
+        plan = self._planner(bundle).plan(req, bundle, self._engine(bundle), live=live, fault=fault,
+                                          inflight_unrecovered=unrecovered)
         PlanStore(bundle.paths.state_dir).save(plan)
         return plan
 
@@ -252,8 +315,7 @@ class Executor:
         """Step 3: the plan-phase rules again (never the stored tier), with the current fault/inflight state."""
         session = self.session(bundle)
         fault, unrecovered = self._fault_state(session)
-        planner = Planner(self.registry(bundle), clock=self._clock)
-        ctx = planner.context(plan, bundle, fault=fault, inflight_unrecovered=unrecovered)
+        ctx = self._planner(bundle).context(plan, bundle, fault=fault, inflight_unrecovered=unrecovered)
         report = self._engine(bundle).evaluate(ctx, "plan")
         return with_rules(plan, report), report
 
@@ -322,6 +384,9 @@ class Executor:
         except Exception as exc:  # noqa: BLE001 - never raise to adapters
             return self._summary(bundle, plan_id, ok=False, status="error", outcome="failed", error_code="internal",
                                  message=f"internal error while checking plan {plan_id}: {type(exc).__name__}: {exc}")
+        busy = self.active_run(bundle, include_foreign=False)
+        if busy is not None:
+            return self._busy_summary(bundle, checked.plan.plan_id, busy)
         try:
             return self._execute(checked, bundle, confirmed_summary=confirmed_summary, dut_instance=dut_instance,
                                  client=client, started=started)
@@ -343,25 +408,94 @@ class Executor:
         except OSError:
             pass  # auditing a refusal must not turn it into an error
 
+    def _busy_summary(self, bundle: ConfigBundle, plan_id: str | None, active: ActiveRun) -> RunSummary:
+        """``busy: run <id> (<done>/<total>)``: a run holds the instrument; nothing was sent."""
+        return self._summary(bundle, plan_id, ok=False, status="busy", outcome="refused", error_code="instrument_busy",
+                             message=f"busy: {active.describe()} holds the instrument; nothing was sent",
+                             next_steps=[(f"get_run({active.run_id}, include=[progress]) follows it; safe_shutdown "
+                                         "cancels it; retry after it ends")])
+
     def _execute(self, checked: _Checked, bundle: ConfigBundle, *, confirmed_summary: str | None,
                  dut_instance: str | None, client: ClientInfo, started: datetime) -> RunSummary:
-        plan, kind = checked.plan, checked.kind
+        plan = checked.plan
         session = self.session(bundle)
-        store = RunStore(bundle.paths.runs_dir)
-        folder = store.create(bundle.backend, now=self._clock())
+        folder = RunStore(bundle.paths.runs_dir).create(bundle.backend, now=self._clock())
+        asynchronous = plan.mode == "async"
+        watch = AbortWatch(session.abort_file, run_id=folder.run_id, since=datetime.now(UTC))
+        quality = checked.recipe.quality
+        control = RunControl(run_id=folder.run_id, mode=plan.mode, abort=watch,
+                             progress_sink=folder.write_progress if asynchronous else None,
+                             partial_sink=lambda rows: folder.append_partial(rows, quality),
+                             estimate_s=plan.estimate.duration_s)
+        run = _RunContext(checked=checked, bundle=bundle, session=session, folder=folder, control=control,
+                          confirmed_summary=confirmed_summary, dut_instance=dut_instance, client=client,
+                          started=started)
+        if not asynchronous:
+            return self._transact(run, on_started=None)
+        job = RunJob(run_id=folder.run_id, plan_id=plan.plan_id, recipe_id=plan.recipe_id, control=control,
+                     adapter=client.adapter + (f":{client.session_tag}" if client.session_tag else ""),
+                     started_at=started, dut_instance=dut_instance,
+                     confirmed_via=None if confirmed_summary is None else (
+                         "run_confirmed_plan" if client.adapter == "mcp" else "cli --confirm"))
+        try:
+            self.runner.start(job, lambda on_started: self._transact(run, on_started=on_started))
+        except RunnerBusy as exc:
+            folder.discard()
+            return self._busy_summary(bundle, plan.plan_id, self._job_run(exc.job, bundle))
+        job.wait_started(self.lock_timeout_s + START_MARGIN_S)
+        if not job.started.is_set() and job.done:  # refused, busy or failed before the run started
+            if isinstance(job.result, RunSummary):
+                return job.result
+            error = job.error
+            if error is not None and not isinstance(error, Exception):
+                raise error
+            return self._summary(bundle, plan.plan_id, ok=False, status="error", outcome="failed",
+                                 error_code="internal", run_id=folder.run_id,
+                                 message=f"run {folder.run_id} ended before it started: "
+                                         f"{type(error).__name__ if error else 'no result'}: {error}")
+        paths = bundle.paths
+        return RunSummary(
+            ok=True, status="ok", backend=bundle.backend, simulated=bundle.backend == "sim", run_id=folder.run_id,
+            plan_id=plan.plan_id, outcome="running", eta_s=round(plan.estimate.duration_s, 3),
+            message=(f"run {folder.run_id} is running asynchronously (estimated {plan.estimate.duration_s:.0f} s"
+                     + (", SIMULATED" if bundle.backend == "sim" else "") + ")"),
+            next_steps=[(f"get_run({folder.run_id}, include=[progress]) follows it (rows so far with data); "
+                        "safe_shutdown cancels it with a verified cleanup; station_status answers busy until it ends")],
+            artifacts={"run_dir": paths.display(folder.path), "progress": paths.display(folder.path / PROGRESS_FILE),
+                       "partial": paths.display(folder.path / PARTIAL_FILE)},
+            summary=plan.summary if confirmed_summary is not None else None,
+        )
+
+    def _read_auto_calibration(self, folder: RunFolder, tx: Transaction) -> bool | None:
+        """The auto-calibration switch (``*LRN? 31``) for R-CAL-01/02; ``None`` (audited) when the answer does not
+        parse. Link errors propagate (the run fails with its cleanup)."""
+        try:
+            return tx.driver.auto_calibration()
+        except DriverError as exc:
+            self._emit(folder, tx, "checkpoint", {"label": "auto_calibration_unread", "error": str(exc)[:300]})
+            return None
+
+    def _transact(self, run: _RunContext, *, on_started: Callable[[], None] | None) -> RunSummary:
+        """Steps 4-6 of one run on the calling (synchronous) or worker (asynchronous) thread; ``on_started`` is
+        called once the pre-execute rules passed (and, asynchronously, auto-calibration is off)."""
+        checked, bundle, session, folder = run.checked, run.bundle, run.session, run.folder
+        plan, kind = checked.plan, checked.kind
         calibration = self._calibration(bundle)
-        planner = Planner(self.registry(bundle), clock=self._clock)
+        planner = self._planner(bundle)
         state = _RunState()
         tx = session.transaction(intent=f"run {plan.recipe_id} ({plan.plan_id})", envelope=plan.envelope,
-                                 run=folder, lock_timeout_s=self.lock_timeout_s, plan_id=plan.plan_id)
+                                 run=folder, lock_timeout_s=self.lock_timeout_s, plan_id=plan.plan_id,
+                                 control=run.control)
         t0 = time.monotonic()
         try:
             with tx:
                 self._emit(folder, tx, "tier_check", {
                     "plan_id": plan.plan_id, "tier": checked.report.tier,
                     "confirm_reasons": ", ".join(checked.report.confirm_reasons),
-                    "confirmed": confirmed_summary is not None})
+                    "confirmed": run.confirmed_summary is not None, "mode": plan.mode})
                 state.live = tx.snapshot()
+                auto = self._read_auto_calibration(folder, tx)
+                calibration = calibration.model_copy(update={"auto_calibration": auto})
                 ctx = planner.context(plan, bundle, live=state.live, fault=session.fault_latch.get(),
                                       calibration=calibration)
                 state.pre_report = self._engine(bundle).evaluate(ctx, "pre_execute")
@@ -372,15 +506,26 @@ class Executor:
                 if state.pre_report.tier == "blocked":
                     state.refused = True
                 else:
+                    if plan.mode == "async":
+                        tx.suspend_auto_calibration(auto)
+                        run.control.begin(total=_checkpoint_total(kind, plan))
+                    if on_started is not None:
+                        on_started()
                     state.raw = kind.acquire(tx, plan)
         except (InstrumentBusy, FaultLatched) as exc:
             if folder.is_empty():
                 folder.discard()
                 status: ResultStatus = "busy" if isinstance(exc, InstrumentBusy) else "fault"
-                next_steps = (["retry later; another process holds the instrument"] if status == "busy"
+                message = str(exc)
+                if isinstance(exc, InstrumentBusy):
+                    holder = self.active_run(bundle, include_local=False)
+                    if holder is not None:
+                        message = f"busy: {holder.describe()} holds the instrument; {message}"
+                next_steps = ([("retry later; another process holds the instrument (get_run follows its run; "
+                               "safe_shutdown cancels it)")] if status == "busy"
                               else ["call safe_shutdown and load skill b1500-debug; only a human clears the fault"])
                 return self._summary(bundle, plan.plan_id, ok=False, status=status, outcome="refused",
-                                     error_code=exc.code, message=str(exc), next_steps=next_steps)
+                                     error_code=exc.code, message=message, next_steps=next_steps)
             state.error = exc
         except BaseException as exc:  # noqa: BLE001 - recorded in the run; interrupts re-raised after finalize
             state.error = exc
@@ -388,11 +533,27 @@ class Executor:
         cleanup = tx.cleanup
         if isinstance(state.error, CleanupUnverified):
             cleanup = state.error.report
-        summary = self._finish(checked, bundle, folder, state, cleanup, confirmed_summary=confirmed_summary,
-                               dut_instance=dut_instance, client=client, started=started, transaction_s=transaction_s)
-        if state.error is not None and not isinstance(state.error, Exception):
-            raise state.error
+        if isinstance(state.error, RunCancelled):
+            self._cancelled(run, state.error, cleanup)
+        summary = self._finish(checked, bundle, folder, state, cleanup, confirmed_summary=run.confirmed_summary,
+                               dut_instance=run.dut_instance, client=run.client, started=run.started,
+                               transaction_s=transaction_s, control=run.control)
+        if state.error is not None and not isinstance(state.error, Exception) and on_started is None:
+            raise state.error  # a synchronous run re-raises the interrupt; a worker records it (outcome aborted)
         return summary
+
+    def _cancelled(self, run: _RunContext, exc: RunCancelled, cleanup: CleanupReport | None) -> None:
+        """After the verified cleanup of a cancelled run: remove the abort request and audit the cancel."""
+        try:
+            consumed = run.control.abort.consume()
+        except OSError:
+            consumed = False
+        request: AbortRequest = exc.request
+        progress = run.control.latest
+        run.folder.audit.emit(AuditEvent.now("run_cancelled", run.bundle.backend, run=run.folder.run_id, data={
+            "request": request.id, "reason": request.reason, "by": request.adapter, "pid": request.pid,
+            "done": progress.done if progress else None, "total": progress.total if progress else None,
+            "cleanup": cleanup.verified if cleanup else None, "consumed": consumed}))
 
     @staticmethod
     def _emit(folder: RunFolder, tx: Transaction, ev: AuditEventName, data: dict[str, Any]) -> None:
@@ -403,7 +564,8 @@ class Executor:
 
     def _finish(self, checked: _Checked, bundle: ConfigBundle, folder: RunFolder, state: _RunState,
                 cleanup: CleanupReport | None, *, confirmed_summary: str | None, dut_instance: str | None,
-                client: ClientInfo, started: datetime, transaction_s: float) -> RunSummary:
+                client: ClientInfo, started: datetime, transaction_s: float,
+                control: RunControl | None = None) -> RunSummary:
         plan, recipe, kind = checked.plan, checked.recipe, checked.kind
         backend = bundle.backend
         reports = [checked.report] + ([state.pre_report] if state.pre_report is not None else [])
@@ -428,7 +590,14 @@ class Executor:
         flags: list[str] = []
         artifacts: dict[str, str] = {}
         outcome: RunOutcome
-        if state.error is not None:
+        if isinstance(state.error, RunCancelled):
+            outcome, error_code = "cancelled", "run_cancelled"
+            progress = control.latest if control is not None else None
+            at = f" at {progress.done}/{progress.total}" if progress is not None else ""
+            verified = cleanup.verified if cleanup is not None else "not run"
+            message = (f"cancelled{at} by an abort request ({state.error.request.reason}); cleanup {verified}; the "
+                       "rows acquired before the cancel are in partial.csv (partial data, no data.csv)")
+        elif state.error is not None:
             exc = state.error
             outcome = "aborted" if not isinstance(exc, Exception) else (
                 "refused" if isinstance(exc, FaultLatched | BusLocked) else "failed")
@@ -463,6 +632,13 @@ class Executor:
         quality_findings = (self._engine(bundle).quality(counts, recipe=recipe,
                                                          recipe_source=self.registry(bundle).source(recipe.id))
                             if quality is not None else [])
+        if control is not None:
+            final = {"completed": "completed", "completed_with_flags": "completed", "cancelled": "cancelled"}
+            try:
+                control.finish(final.get(outcome, "failed"),  # type: ignore[arg-type]
+                               warn=lambda what, exc: log.warning("run %s: %s: %s", folder.run_id, what, exc))
+            except Exception as exc:  # noqa: BLE001 - the manifest still records the outcome
+                log.warning("run %s: final progress not written: %s", folder.run_id, exc)
         folder.audit.emit(AuditEvent.now("run_status", backend, run=folder.run_id, data={
             "outcome": outcome, "error_code": error_code, "verdict": quality.verdict if quality else None,
             "cleanup": cleanup.verified if cleanup else None}))
@@ -481,6 +657,10 @@ class Executor:
                      "audit": paths.display(folder.path / RUN_AUDIT_FILE),
                      **{name: paths.display(folder.path / rel) for name, rel in artifacts.items()},
                      **{rel: paths.display(folder.path / rel) for rel in folder.raw_files}}
+        if (folder.path / PARTIAL_FILE).is_file() and "data" not in artifacts:
+            artifacts["partial"] = paths.display(folder.path / PARTIAL_FILE)
+        if (folder.path / PROGRESS_FILE).is_file():
+            artifacts["progress"] = paths.display(folder.path / PROGRESS_FILE)
         ok = outcome in ("completed", "completed_with_flags")
         latched = cleanup is not None and cleanup.latched_fault
         status: ResultStatus = "ok" if ok else (
@@ -542,6 +722,9 @@ class Executor:
         if plan.kind == "smu_stepped":
             out.append("host loop: one sweep per step value in one transaction; the loop stops after a sweep that "
                        "reported compliance/overflow/oscillation (see kind_result)")
+        if plan.mode == "async":
+            out.append("asynchronous run: progress.json and partial.csv written at the checkpoints; auto-calibration "
+                       "off (CM 0) during the run and restored by the cleanup (R-CAL-02)")
         return out
 
     @staticmethod
@@ -561,11 +744,23 @@ class Executor:
             return steps
         if outcome == "refused":
             return ["read the blocking findings; only a human changes config/local/"]
+        if outcome == "cancelled":
+            return [("get_run(run_id, include=[progress, data]) shows the rows acquired before the cancel (partial "
+                    "data); report them as partial")]
         return ["get_run for the audit excerpt; load skill b1500-debug"]
 
 
 def _is_plan_id(value: str | None) -> bool:
     return isinstance(value, str) and _PLAN_ID.match(value) is not None
+
+
+def _checkpoint_total(kind: Any, plan: PlanRecord) -> int:
+    """The number of checkpoints the kind will report for ``plan`` (``kind.checkpoint_total(plan)``; 0 = unknown)."""
+    counter = getattr(kind, "checkpoint_total", None)
+    try:
+        return int(counter(plan)) if callable(counter) else 0
+    except (TypeError, ValueError):
+        return 0
 
 
 def _error_code(exc: BaseException) -> ErrorCode:

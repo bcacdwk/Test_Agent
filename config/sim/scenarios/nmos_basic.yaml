@@ -6,7 +6,8 @@
 # against. `noise`: current noise sigma = multiplier x sqrt(floor_a[module]^2 + (rel x |I|)^2), multiplier 3 / 1 /
 # 0.3 for short (< 0.25 PLC) / medium / long (>= 4 PLC) integration; seeded per measurement. `faults` names a fault
 # profile in config/sim/faults/ (schema reference: config/sim/faults/reference.yaml). `timing: instant` never
-# sleeps (time is virtual); `scaled` sleeps 1/100 of the virtual time.
+# sleeps (time is virtual); `scaled(f)` sleeps f real seconds per virtual second (`scaled` = scaled(0.01)), so a
+# running asynchronous run can be watched. `auto_calibration` (default false): the CM switch at simulator start.
 
 description: Healthy n-channel MOSFET wired like pin map mosfet-4t; interlock open; instant timing.
 idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101

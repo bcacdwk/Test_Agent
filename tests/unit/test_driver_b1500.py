@@ -265,3 +265,17 @@ def test_every_write_is_a_single_command() -> None:
     driver.errors()
     assert all(";" not in cmd for cmd in spy.sent)
     assert spy.sent.count("AB") == 1
+
+
+def test_auto_calibration_is_read_with_lrn_31_and_set_with_cm() -> None:
+    driver, spy = _driver(answers={"*LRN? 31": "TM1;AV1,0;CM1;FMT1,0"})
+    assert driver.auto_calibration() is True
+    driver.set_auto_calibration(False)
+    driver.set_auto_calibration(True)
+    assert spy.sent == ["*LRN? 31", "CM 0", "CM 1"]
+
+
+def test_auto_calibration_answer_without_cm_raises() -> None:
+    driver, _ = _driver(answers={"*LRN? 31": "TM1;AV1,0;FMT1,0"})
+    with pytest.raises(FlexParseError):
+        driver.auto_calibration()

@@ -45,7 +45,7 @@ def test_every_tool_has_exactly_one_command() -> None:
     assert list(TOOL_COMMANDS) == list(TOOL_NAMES)
     assert all(hasattr(B1500Service, name) for name in TOOL_NAMES)
     public = {n for n in vars(B1500Service) if not n.startswith("_") and callable(getattr(B1500Service, n))}
-    assert public == set(TOOL_NAMES) | {"close", "session_tag"}
+    assert public == set(TOOL_NAMES) | {"close", "session_tag", "follow_run", "stop_runs"}  # lifecycle, not tools
 
 
 def prepared(world: World) -> dict[str, str]:

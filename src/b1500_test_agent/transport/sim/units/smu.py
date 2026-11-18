@@ -256,6 +256,7 @@ class SmuUnit:
                 raise flex.FlexError(flex.ERR_OUTPUT_OFF, f"channel {channel}")
         self._measurement = self._measure(channels, sweep, self._now())
         self._busy_until = self._measurement.end
+        self.interrupt_pending = self.faults.interrupts_measurement()
 
     def _measure(self, channels: list[int], sweep: Sweep | None, t0: float) -> Measurement:
         factor = self.faults.slow_factor()

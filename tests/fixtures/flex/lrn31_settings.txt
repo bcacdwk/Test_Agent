@@ -1,0 +1,6 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 448 (printed 4-130, *LRN? type 31 response: TM trigger mode;AV number[,mode];CM auto calibration mode;FMT output data format,output data mode[;MM measurement mode[,chnum...]]), PDF 379 (printed 4-61, CM 0 = OFF, 1 = ON)
+# kind: lrn
+# command: *LRN? 31
+# expect: {"settings": {"TM": ["1"], "AV": ["1", "0"], "CM": ["1"], "FMT": ["1", "1"], "MM": ["2", "3", "4"]}, "auto_calibration": true}
+# note: the manual prints the syntax without an example; items written without a blank after the mnemonic as in the LOP? example (PDF 447). TODO(verify) with a raw capture at bring-up L1; the parser accepts a blank too.
+TM1;AV1,0;CM1;FMT1,1;MM2,3,4

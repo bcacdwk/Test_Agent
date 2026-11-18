@@ -299,8 +299,14 @@ class RunStore:
             return folder
         raise FileExistsError(f"could not allocate a unique run id under {self.runs_dir.as_posix()}")
 
-    def open(self, run_id: str) -> RunFolder:
-        """An existing run folder (``RunNotFoundError`` when there is none)."""
+    def open(self, run_id: str, *, unfinished: bool = False) -> RunFolder:
+        """An existing run folder (``RunNotFoundError`` when there is none). Only finalized runs (with a manifest)
+        are found unless ``unfinished``: then the folder of a run that is still running (or whose process died
+        before finalizing it) is returned too."""
+        if unfinished:
+            folder = RunFolder(self.runs_dir, run_id)
+            if folder.path.is_dir() and not (folder.path / MANIFEST_FILE).is_file():
+                return folder
         path = find_run(run_id, data_root=self.data_root)
         folder = RunFolder(self.runs_dir, run_id)
         if path != folder.path:

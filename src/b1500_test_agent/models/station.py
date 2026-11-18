@@ -15,6 +15,7 @@ recipes) and only the static reference values of the load standard stay in ``sta
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Annotated, Final, Literal
 
@@ -547,6 +548,27 @@ class SimNoise(StrictModel):
     seed: int = 0
 
 
+SIM_SCALED_DEFAULT: Final = 0.01
+"""Real seconds slept per virtual second for ``timing: scaled`` without a factor."""
+
+_TIMING_RE = re.compile(r"^(instant|scaled(\((?P<f>[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\))?)$")
+
+
+def timing_scale(timing: str) -> float:
+    """Real seconds slept per virtual second for a scenario ``timing``: ``instant`` 0 (time is virtual only),
+    ``scaled`` ``SIM_SCALED_DEFAULT``, ``scaled(f)`` ``f``. Raises ``ValueError`` for anything else."""
+    match = _TIMING_RE.match(timing.strip()) if isinstance(timing, str) else None
+    if match is None:
+        raise ValueError(f"timing must be 'instant', 'scaled' or 'scaled(f)' with 0 < f <= 10, got {timing!r}")
+    if match.group(1) == "instant":
+        return 0.0
+    factor = match.group("f")
+    value = SIM_SCALED_DEFAULT if factor is None else float(factor)
+    if not 0.0 < value <= 10.0:
+        raise ValueError(f"timing scaled(f) needs 0 < f <= 10, got {value:g}")
+    return value
+
+
 class SimScenario(StrictModel):
     """A simulated station and DUT (blueprint 3); consumed by the simulator from WP1.2 on.
 
@@ -554,6 +576,12 @@ class SimScenario(StrictModel):
     independent of the agent's pin map, so a wrong pin map behaves like mis-wiring. ``models`` maps the same device
     names to device models. ``faults`` names a file in ``config/sim/faults/`` (schema
     ``models.sim.SimFaultProfile``).
+
+    ``timing`` (blueprint v2 4.1): time is virtual and advances only when the host waits; ``instant`` never sleeps
+    (tests: a 4 h run takes seconds), ``scaled(f)`` additionally sleeps ``f`` real seconds per virtual second
+    (``scaled`` = ``scaled(0.01)``) so that polling a running run is observable (harness acceptance, smoke tests).
+    ``auto_calibration`` is the instrument's auto-calibration switch (``CM``) when the simulator starts, as a human
+    may have left it; ``*RST`` and a device clear turn it off (its initial setting, PG p379 (4-61)).
     """
 
     name: ConfigName
@@ -565,7 +593,19 @@ class SimScenario(StrictModel):
     models: dict[str, SimDeviceModel]
     noise: SimNoise = Field(default_factory=SimNoise)
     faults: ConfigName | None = None
-    timing: Literal["instant", "scaled"] = "instant"
+    timing: str = "instant"
+    auto_calibration: bool = False
+
+    @field_validator("timing")
+    @classmethod
+    def _timing(cls, value: str) -> str:
+        timing_scale(value)
+        return value.strip()
+
+    @property
+    def time_scale(self) -> float:
+        """Real seconds slept per virtual second (``timing_scale(timing)``)."""
+        return timing_scale(self.timing)
 
     @model_validator(mode="after")
     def _consistent(self) -> SimScenario:

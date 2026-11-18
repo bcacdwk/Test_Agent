@@ -311,6 +311,26 @@ class Slow(StrictModel):
     factor: float = Field(gt=0.0, le=1.0e6)
 
 
+class RunInterrupt(StrictModel):
+    """The host is interrupted while measurement ``segment`` runs (0-based count of ``XE`` triggers since the fault
+    became active; one per segment of a stepped run): the read of that measurement raises ``SimulatedInterrupt`` (a
+    ``KeyboardInterrupt``, as a Ctrl-C or a signal stopping the server would) with the measurement still pending, so
+    the transaction cleanup must abort it, zero, disconnect and verify (blueprint v2 4.3). One-shot."""
+
+    kind: Literal["run_interrupt"] = "run_interrupt"
+    segment: int = Field(ge=0, le=100_000)
+
+
+class AbortIgnored(StrictModel):
+    """``AB`` has no effect from its ``nth`` execution on (``count`` executions; null = every later one): a running
+    measurement keeps running, so commands sent after the ``AB`` wait behind it (blueprint v2 4.3). The cleanup must
+    still verify the safe state (device clear and retry) or latch the fault."""
+
+    kind: Literal["abort_ignored"] = "abort_ignored"
+    nth: int = Field(default=1, ge=1)
+    count: int | None = Field(default=None, ge=1)
+
+
 class BusLockedFault(StrictModel):
     """Another client (EasyEXPERT, a second VISA program) holds the instrument's exclusive bus lock (blueprint v2
     4.3): starting with the ``nth`` bus-lock request, ``count`` requests (null = every later one) are refused
@@ -326,14 +346,15 @@ class BusLockedFault(StrictModel):
 
 SimFault = Annotated[
     ComplianceAt | ErrxFault | TimeoutFault | GarbageData | InterlockOpen | Disconnect | Oscillation | IdnOverride
-    | ModulesOverride | IgnoreDz | CleanupFailure | Slow | BusLockedFault,
+    | ModulesOverride | IgnoreDz | CleanupFailure | Slow | RunInterrupt | BusLockedFault | AbortIgnored,
     Field(discriminator="kind"),
 ]
 """One simulator fault (blueprint 3, v2 4.3); the ``kind`` key selects the type."""
 
 FAULT_KINDS: tuple[str, ...] = (
     "compliance_at", "errx", "timeout", "garbage_data", "interlock_open", "disconnect", "oscillation",
-    "idn_override", "modules_override", "ignore_dz", "cleanup_failure", "slow", "bus_locked",
+    "idn_override", "modules_override", "ignore_dz", "cleanup_failure", "slow", "run_interrupt", "bus_locked",
+    "abort_ignored",
 )  # fmt: skip
 """Every ``SimFault`` kind, in blueprint order (v1 kinds, then the v2 additions of blueprint 4.3)."""
 

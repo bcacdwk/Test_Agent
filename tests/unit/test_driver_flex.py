@@ -89,6 +89,10 @@ def _cited_pages(text: str) -> set[int]:
         (flex.wv(2, 1, 0, 0, 20, 101, 0.01), "WV 2,1,0,0,20,101,0.01"),  # PDF 570 example + Icomp
         (flex.wv(1, 2, 12, 1e-6, 10, 100, 0.1), "WV 1,2,12,1E-06,10,100,0.1"),  # PDF 570 example w/o Pcomp
         (flex.wv(1, 3, 0, -1.0, 3.0, 101, 1e-6), "WV 1,3,0,-1,3,101,1E-06"),
+        (flex.cm(0), "CM 0"),  # PDF 379 example
+        (flex.cm(1), "CM 1"),  # PDF 379 example
+        (flex.lrn_q(1), "*LRN? 1"),  # PDF 447 example
+        (flex.lrn_q(flex.LRN_SETTINGS), "*LRN? 31"),
     ],
 )
 def test_builder_output(built: str, expected: str) -> None:
@@ -183,6 +187,10 @@ def test_numbers_are_round_trip_exact() -> None:
         lambda: flex.wv(1, 2, 0, 0, 1, 11, 1e-3),  # log sweep through 0
         lambda: flex.wv(1, 4, 0, -1, 1, 11, 1e-3),  # log sweep across polarity
         lambda: flex.wv(1, 1, 0, 0, 1, 11, 0),
+        lambda: flex.cm(2),
+        lambda: flex.cm(-1),
+        lambda: flex.lrn_q(111),
+        lambda: flex.lrn_q(-1),
     ],
 )
 def test_builders_reject_values_outside_the_manual_domain(call) -> None:
@@ -197,6 +205,8 @@ def test_builders_reject_values_outside_the_manual_domain(call) -> None:
         lambda: flex.mm(2.0, [1]),
         lambda: flex.wv(1, 1, 0, 0, 1, 11.0, 1e-3),
         lambda: flex.dv(1, 0, True, 1e-3),
+        lambda: flex.cm(True),
+        lambda: flex.lrn_q(31.0),
     ],
 )
 def test_builders_reject_wrong_types(call) -> None:
@@ -284,5 +294,5 @@ def test_the_package_re_exports_every_family_builder_and_constant() -> None:
 
 def test_family_modules_hold_disjoint_builders() -> None:
     assert not set(_own_functions(flex_core)) & set(_own_functions(flex_smu))
-    assert {"cn", "cl", "dz", "fmt", "mm"} == set(_own_functions(flex_core))
+    assert {"cn", "cl", "dz", "fmt", "mm", "cm", "lrn_q"} == set(_own_functions(flex_core))
     assert {"cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv"} == set(_own_functions(flex_smu))

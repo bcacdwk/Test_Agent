@@ -1,5 +1,6 @@
 """Developer commands under ``b1500 dev`` (never needed for lab operation): ``tool-budget``, ``recipe-check``,
-``mcp-smoke --config F`` (start the server as a harness config says and check it), ``sync-harness [--check]``
+``mcp-smoke [--config F] [--async]`` (start the server as a harness config says and check it; ``--async`` also
+runs an asynchronous simulator run through it), ``sync-harness [--check]``
 (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``lint-skills`` (skill schema, budgets, links; package
 ``devtools/skills/``), ``sim-console`` (raw FLEX, simulator only) and ``acceptance`` (M3 harness acceptance runner,
 ``devtools/acceptance/cli.py``).
@@ -8,6 +9,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import warnings
 from pathlib import Path
 from typing import Annotated
@@ -16,7 +18,7 @@ import typer
 
 from b1500_test_agent.adapters.cli import core
 from b1500_test_agent.adapters.cli.core import DEFAULT_MCP_APP_SPEC, JsonOption
-from b1500_test_agent.devtools import budget, mcp_smoke, recipe_check, sim_console, sync_harness
+from b1500_test_agent.devtools import budget, harness, mcp_smoke, recipe_check, sim_console, sync_harness
 from b1500_test_agent.devtools.acceptance.cli import acceptance_app
 from b1500_test_agent.devtools.skills import lint as lint_skills
 from b1500_test_agent.paths import find_repo_root
@@ -61,22 +63,36 @@ def recipe_check_command(as_json: JsonOption = False) -> None:
 
 @dev_app.command("mcp-smoke")
 def mcp_smoke_command(
-    config: Annotated[Path, typer.Option("--config", help="Harness config: .mcp.json or .codex/config.toml.")],
+    config: Annotated[Path | None, typer.Option("--config", help="Harness config: .mcp.json or "
+                                                                 ".codex/config.toml (default: the Claude Code "
+                                                                 "config rendered for this clone).")] = None,
     server: Annotated[str, typer.Option("--server", help="Server name in the config.")] = mcp_smoke.DEFAULT_SERVER,
     data_dir: Annotated[Path | None, typer.Option("--data-dir", help="B1500_DATA_DIR for the server (default: a "
                                                                      "temporary folder, removed afterwards).")] = None,
     expect_backend: Annotated[str, typer.Option("--expect-backend", help="Backend station_status must report.")] =
     "sim",
+    async_check: Annotated[bool, typer.Option("--async", help="Also run an asynchronous simulator run through the "
+                                                              "server: running, busy, progress, list, "
+                                                              "safe_shutdown cancels it.")] = False,
     as_json: JsonOption = False,
 ) -> None:
     """Start the MCP server exactly as a harness config says, list its tools (exactly ten) and call
-    station_status without instrument I/O (backend must match). Exit 1 on any problem."""
-    try:
-        launch = mcp_smoke.load_launch(config, server)
-    except mcp_smoke.SmokeConfigError as exc:
-        typer.echo(f"error: {exc}", err=True)
-        raise typer.Exit(code=2) from exc
-    report = mcp_smoke.run_smoke(launch, data_dir=data_dir, expect_backend=expect_backend)
+    station_status without instrument I/O (backend must match); with --async also check an asynchronous run
+    end to end over stdio. Exit 1 on any problem."""
+    repo_root = find_repo_root()
+    with tempfile.TemporaryDirectory(prefix="b1500-smoke-config-") as scratch:
+        try:
+            if config is None:
+                target = harness.TARGETS["claude"]
+                config = Path(scratch) / Path(target.output).name
+                config.write_text(harness.render(target, (repo_root / target.template).read_text(encoding="utf-8"),
+                                                 repo_root), encoding="utf-8")
+            launch = mcp_smoke.load_launch(config, server)
+        except mcp_smoke.SmokeConfigError as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=2) from exc
+        report = mcp_smoke.run_smoke(launch, data_dir=data_dir, expect_backend=expect_backend,
+                                     async_check=async_check, repo_root=repo_root)
     typer.echo(report.model_dump_json(indent=2) if as_json else mcp_smoke.format_report(report))
     if not report.ok:
         raise typer.Exit(code=1)

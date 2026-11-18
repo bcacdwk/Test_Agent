@@ -9,6 +9,8 @@ executor (WP1.7), the service, MCP tools and CLI that call them (WP1.8) and the 
 WP5.4): the guard's pulse, AC, route and waveform checks, the v2 rules, the confirm reasons `soft_pulse`, `soft_cmu`,
 `long_run`, `physical_setup`, `unverified_topology` and the v2 plan summary are implemented and tested on synthetic
 plans; the module work packages (M7–M10) make them live by compiling such plans and filling the live fields.
+Asynchronous runs (blueprint v2 §2.6; WP5.6): R-RUN-02 and R-CAL-02 are live, runs report progress and stop at a
+checkpoint when any process calls `safe_shutdown` (section "Async runs and their residuals").
 
 ## Principles
 
@@ -27,7 +29,8 @@ plans; the module work packages (M7–M10) make them live by compiling such plan
    ranges, pin map and DUT profile, module specs, hard and soft limits, compliance, run size. If a live snapshot
    is available at validation, the live-state rules run too and report problems early.
 2. **Pre-execute rules** under the instrument lock with fresh live state: no latched fault, instrument identity and
-   module inventory match the station profile, interlock state, pre-existing instrument errors, calibration state.
+   module inventory match the station profile, interlock state, pre-existing instrument errors, calibration state
+   (the auto-calibration switch is read with `*LRN? 31` before every run).
 3. **`OutputGuard`** on every single source command: the channel must be in the plan's allowlist, the level and
    compliance inside the compiled envelope, the compliance non-zero. v2 adds a check per source family, each
    refusing before anything reaches a transport (FLEX bus or WGFMU library): `check_pulse` (SPGU and SMU pulse
@@ -48,7 +51,7 @@ Configuration is re-read (by digest) on every service call, so a rule change app
 | `hard_limits` | 42 V, 100 mA compliance | Above → `blocked`. Code ceiling `HARD_CEILING_V = 42.0`, `HARD_CEILING_A = 0.1`; a policy above it is invalid config |
 | `soft_limits` | 10 V, 10 mA compliance | Above → `needs_confirmation` (reason `soft_limit`) |
 | `interlock.required_above_v` | 42 V | Above → the interlock must be recorded as working and be closed |
-| `run_limits` | points per run: SMU 10,001, CMU 10,001, WGFMU 4,000,000 per channel (a v1 integer applies to all); 300 s per synchronous run; async above 300 s, confirmation above 600 s (`long_run`), block above 24 h; segments ≤ 30 s | Points above → `blocked` (R-RUN-01, R-WG-02); a synchronous plan above 300 s, an async plan above 24 h or with segments above 30 s → `blocked`; above 600 s → `needs_confirmation` (`long_run`, R-RUN-02; the planner sets `mode: async` from WP5.6) |
+| `run_limits` | points per run: SMU 10,001, CMU 10,001, WGFMU 4,000,000 per channel (a v1 integer applies to all); 300 s per synchronous run; async above 300 s, confirmation above 600 s (`long_run`), block above 24 h; segments ≤ 30 s | Points above → `blocked` (R-RUN-01, R-WG-02); a synchronous plan above 300 s, an async plan above 24 h or with segments above 30 s → `blocked`; above 600 s → `needs_confirmation` (`long_run`, R-RUN-02; the planner sets `mode: async` above 300 s, WP5.6) |
 | `pulse` | 5 V at the DUT, 10,000 pulses, 60 s on-time, duty 0.5 | Above → `needs_confirmation` (`soft_pulse`, R-PULSE-03) |
 | `cmu` | 10 V DC bias, 50 mVrms AC | Above → `needs_confirmation` (`soft_cmu`, R-CMU-01) |
 | `corrections` | phase + open + short, at most 8 h old (a policy may add `load`, never drop one) | C-V without them → `blocked` (R-CORR-01) |
@@ -92,11 +95,11 @@ plan (`plan:...`) or a state file (`data/state/fault.json`). "pre" = `pre_execut
 | R-IL-01 | plan, pre | When the envelope's max \|V\| exceeds `interlock.required_above_v`: the station records `interlock.available: true`; with live state, status-byte bit 3 is clear **and** no `ERRX?` 202/203 is pending (ATV-10 fallback); at pre a missing status byte blocks | block | `station.yaml#interlock.available`, `live:status_byte.bit3`, `live:errors` |
 | R-GNDU-01 | plan | When a role uses the GNDU: the compliances of the SMU channels plus the expected currents of the sources without compliance (a pulse channel's short-circuit bound; an HV-SPGU without one 40 V / 50 Ω, a WGFMU 100 mA) ≤ 4.2 A | block | `code:…MODULE_SPECS[GNDU] (UG GNDU, PDF 58)` |
 | R-RUN-01 | plan | Points ≤ `run_limits.max_points.<family>` (the smallest over the measuring families of the bound channels: `smu`, `cmu`; WGFMU points count per channel in R-WG-02; a v1 integer applies to every family) | block | `policy.yaml#run_limits.max_points.*` |
-| R-RUN-02 | plan | Estimate above `max_sync_run_s`: an `async` plan (info) or a blocked `sync` one; above `long_run_confirm_s` → confirm; above `max_async_run_s` → block; an async plan has checkpoints (`estimate.max_segment_s`) at most `segment_max_s` apart | info / confirm `long_run` / block | `policy.yaml#run_limits.*`, `plan:estimate.max_segment_s` |
+| R-RUN-02 | plan | Estimate above `max_sync_run_s`: an `async` plan (info; the planner sets `mode: async` there) or a blocked `sync` one; above `long_run_confirm_s` → confirm; above `max_async_run_s` → block; an async plan has checkpoints (`estimate.max_segment_s`, e.g. one sweep of a stepped run) at most `segment_max_s` apart, a kind without checkpoints cannot run asynchronously | info / confirm `long_run` / block | `policy.yaml#run_limits.*`, `plan:estimate.max_segment_s` |
 | R-ALWAYS-01 | plan | Recipe `always_confirm` reasons (`destructive`, `system_self_test`, `system_self_cal`, `physical_setup` ...); kind `cmu_correction` always `physical_setup` (declared or not); a `file` parameter from `work/waveforms/` (ad-hoc waveform) | confirm (that reason; `adhoc_recipe` for the file) | recipe `#always_confirm`, `code:…run.PHYSICAL_SETUP_KINDS`, `plan:files.<name>` |
 | R-ERRX-01 | pre (plan with a snapshot) | Pre-existing `ERRX?` entries drained by the snapshot are recorded | warn | `live:errors` |
 | R-CAL-01 | pre | Auto-calibration state and the last completed self-calibration (archive) are recorded | warn if unknown, else info | `live:auto_calibration`, `data/runs/index.jsonl` |
-| R-CAL-02 | pre | An async run records the auto-calibration state; the run turns auto-calibration off for its duration and restores it (WP5.6) | info | `live:auto_calibration` |
+| R-CAL-02 | pre | An async run records the auto-calibration state (`*LRN? 31`); the run sends `CM 0` before the kind and the cleanup's `restore` step puts the state back after a verified cleanup (an unverified cleanup leaves it off) | info | `live:auto_calibration` |
 | R-PULSE-01 | plan | Every pulse channel (`pulse_v`, `pgu`, or a pulse envelope) has a pulse envelope and compiled trains; each train inside its module spec (HV-SPGU: levels ±40 V at 1 mV, period 20 ns–10 s, width 10 ns–period−10 ns, delay, transitions 8 ns–0.4 s, resolutions, width ≥ leading/0.8, period ≥ delay + width + trailing/0.8, count 1–10⁶ or duration 1 µs–1 year, `SER` 0.1 Ω–1 MΩ; SMU: the `PT` table, 500 µs–2 s on HR/MP, period ≥ width + 2/10 ms; WGFMU: 10 ns grid) and inside the channel's pulse envelope; free run cannot be expressed; trains on a non-pulse channel and an invalid source plan block | block | `code:…SPGU_SPEC`, `…SMU_PULSE_SPECS[<type>]`, `…WGFMU_SPEC`, `plan:envelope.channels.<ch>.pulse.*`, `plan:program.sources` |
 | R-PULSE-02 | plan | The pulse channel's DUT terminal declares a `pulse` envelope (missing → block, never invented); open-load level, width, duty, pulses per run outside it → confirm | block / confirm `dut_envelope` | `duts/<name>.yaml#terminals.<t>.pulse.*` |
 | R-PULSE-03 | plan | Above `policy.pulse` (level at the DUT, pulses per run, time at the pulse level, duty) | confirm `soft_pulse` | `policy.yaml#pulse.*` |
@@ -215,11 +218,25 @@ accepted residual (OD-3), shown in every summary as `Isc<=X A residual` so the h
 plans need fresh phase/open/short corrections for the same mainframe, station and pin map, still active on the
 instrument (`CORRST?`) when the run starts; correction recipes always need `physical_setup` confirmation.
 
-**Async runs and their residuals.** Above 300 s a plan runs asynchronously (from WP5.6): checkpoints at most 30 s
-apart poll the abort file, so `safe_shutdown` from any process stops it within one segment; auto-calibration is off
-during the run and restored after. Residuals: a cancel waits up to one segment; a hard kill of the server leaves the
-outputs on until the next transaction's in-flight recovery runs the cleanup (or a human runs `safe_shutdown`); a run
-longer than 10 min needs confirmation, longer than 24 h is blocked.
+**Async runs and their residuals.** Above 300 s a plan runs asynchronously: `run_plan`/`run_confirmed_plan` return
+`running` once the transaction holds the instrument and the pre-execute rules passed, and a worker thread of the
+server (or of the CLI, which stays in the foreground) runs the kind. The kind's checkpoints, at most 30 s apart
+(R-RUN-02), write `progress.json` and the rows so far (`partial.csv`) and poll the abort file
+`data/state/abort.json`: `safe_shutdown` from any process (MCP tool, `b1500 shutdown` in another terminal) writes it,
+the run stops at its next checkpoint (`RunCancelled`, outcome `cancelled`), runs the full verified cleanup and removes
+the file; then `safe_shutdown` runs its own cleanup as for any shutdown. Every run, synchronous ones too, honours the
+abort file at its checkpoints; a run ignores requests older than itself or addressed to another run, and an
+unreadable abort file counts as a request. Readback loops of later kinds (WGFMU, sampling) poll it at least once a
+second. One run at a time per instrument (the lock); while it runs, `station_status` answers `busy` from the cached
+snapshot without waiting for the lock, and a second run request is `busy` at once. Auto-calibration is off (`CM 0`)
+during an asynchronous run and restored by the cleanup (R-CAL-02), because it fires after 30 min with every output
+switch off and would calibrate with the DUT connected. The MCP server's shutdown hook (stdin closed, SIGTERM,
+interpreter exit) requests the abort and waits up to 10 s; the worker is a non-daemon thread, so the process stays
+until a longer segment has ended and the cleanup is verified; the CLI's Ctrl-C does the same. Residuals: a cancel
+waits up to one segment (≤ 30 s); a hard kill (SIGKILL, power loss, Task Manager) of the server or CLI leaves the
+outputs on until the next transaction: new runs are refused (R-FAULT-01, an unrecovered in-flight marker) until
+`safe_shutdown` runs the in-flight recovery cleanup, which also archives the dead run as `aborted` with the rows it
+had written; a run longer than 10 min needs confirmation, longer than 24 h is blocked.
 
 ## Cleanup and fault latch
 
@@ -229,7 +246,15 @@ verifies that all outputs are off. A failed step triggers a device clear and one
 cannot be verified, a persistent **fault latch** is set: every sourcing path then refuses (R-FAULT-01) until a human
 runs `b1500 fault clear`, which succeeds only after a verified safe shutdown. `safe_shutdown` itself is never gated.
 A crash mid-run leaves an in-flight marker; the next transaction runs the recovery cleanup first. The instrument
-lock is an OS file lock, released automatically when its process dies.
+lock is an OS file lock, released automatically when its process dies. After the verification an asynchronous run's
+cleanup adds a `restore` step (the auto-calibration switch, R-CAL-02); it never touches an output and is skipped when
+the cleanup could not verify the safe state.
+
+**Locked bus (residual, WP5.5).** Each transaction takes the VISA exclusive lock of the instrument. When another
+client holds it (EasyEXPERT, a second VISA program), a run is refused before anything is sent (`busy`), and so is a
+status snapshot; `safe_shutdown`, however, cannot reach the instrument at all: its report is unverified and the fault
+latch is set, while the outputs stay as the other client left them. Only the human can then close that client, check
+the station and run `b1500 fault clear`.
 
 The simulator test suite checks one global invariant across every injected fault and position: if any source
 command reached the transport, zero and disconnect follow the last one and the simulated instrument is safe, or the

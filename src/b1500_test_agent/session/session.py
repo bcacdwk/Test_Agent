@@ -16,8 +16,12 @@ the lock is taken and released per transaction. ``session_open`` is audited once
 ``bus_*`` events of every open/lock/unlock/close go to the transaction's sink.
 
 ``state_dir`` layout (blueprint 2.7): ``locks/`` (``InstrumentLock``), ``fault.json`` (``FaultLatch``),
-``inflight.json`` (``Transaction``), ``sim/<scenario>.state.json`` (simulator), ``audit/YYYY-MM-DD.jsonl``
-(``DailyAuditSink``: non-run actions and lifecycle events; runs log to their own ``audit.jsonl``).
+``inflight.json`` (``Transaction``), ``abort.json`` (``session/abort.py``, v2 2.6), ``sim/<scenario>.state.json``
+(simulator), ``audit/YYYY-MM-DD.jsonl`` (``DailyAuditSink``: non-run actions and lifecycle events; runs log to their
+own ``audit.jsonl``).
+
+A run is *running* while its transaction's in-flight marker names it and the instrument lock is held
+(``running_marker``): any process can see it (``station_status``, ``list_runs``) without touching the instrument.
 """
 
 from __future__ import annotations
@@ -36,8 +40,10 @@ from b1500_test_agent.models.plan import CompiledEnvelope
 from b1500_test_agent.models.run import Adapter, CleanupReport, CleanupStep, LockHolder
 from b1500_test_agent.models.station import LiveState, Settings
 from b1500_test_agent.paths import Paths
+from b1500_test_agent.session.abort import AbortFile
 from b1500_test_agent.session.fault import FaultLatch
 from b1500_test_agent.session.lock import InstrumentLock, host_name
+from b1500_test_agent.session.runner import RunControl
 from b1500_test_agent.session.transaction import (
     InflightMarker,
     RunHandle,
@@ -51,6 +57,7 @@ from b1500_test_agent.transport.base import Bus, BusLocked, Transport, Transport
 
 BusMode = Literal["transaction", "process"]
 BusFactory = Callable[[], Bus | Transport]
+RecoveryHook = Callable[[InflightMarker, CleanupReport], None]
 
 
 class DailyAuditSink(JsonlAuditSink):
@@ -92,6 +99,11 @@ class Session:
         self.fault_latch = FaultLatch(self.state_dir, audit=audit, backend=settings.backend)
         self.last_live: LiveState | None = None
         """The most recent snapshot (``snapshot(refresh=False)`` returns it)."""
+        self.on_recovery: RecoveryHook | None = None
+        """Called after a recovery cleanup of a stale in-flight marker that names a run (the executor finalizes the
+        orphaned run folder); exceptions are audited, never raised."""
+        self.abort_file = AbortFile(self.state_dir)
+        """``<state_dir>/abort.json``: cancel requests to the running run (v2 2.6)."""
         self._factory = bus_factory
         self._bus: Bus | None = None
         self._lock: InstrumentLock | None = None
@@ -144,6 +156,14 @@ class Session:
     def inflight(self) -> InflightMarker | None:
         """The inflight marker, if one is present (a transaction is running or a process died inside one)."""
         return read_inflight(self.inflight_path)
+
+    def running_marker(self) -> InflightMarker | None:
+        """The in-flight marker of a run that is running now (in this or another process): the marker names a run
+        and the instrument lock is held. File reads only, no instrument I/O."""
+        marker = self.inflight()
+        if marker is None or marker.run is None or not self.lock.is_held():
+            return None
+        return marker
 
     def _bus_begin(self) -> None:
         """Open (if needed) and lock the FLEX link for one transaction or snapshot; called under the instrument lock
@@ -242,11 +262,13 @@ class Session:
         return live
 
     def transaction(self, *, intent: str, envelope: CompiledEnvelope | None, run: RunHandle | None,
-                    lock_timeout_s: float = 5.0, plan_id: str | None = None) -> Transaction:
+                    lock_timeout_s: float = 5.0, plan_id: str | None = None,
+                    control: RunControl | None = None) -> Transaction:
         """A transaction context manager (see ``Transaction``); ``envelope=None`` means no source operation is
-        allowed (no ``OutputGuard``), and such a transaction also runs while the fault latch is set."""
+        allowed (no ``OutputGuard``), and such a transaction also runs while the fault latch is set. ``control``
+        carries a run's checkpoint state (progress, abort watch; ``session/runner.py``)."""
         return Transaction(self, intent=intent, envelope=envelope, run=run, lock_timeout_s=lock_timeout_s,
-                           plan_id=plan_id)
+                           plan_id=plan_id, control=control)
 
     def safe_shutdown(self, *, reason: str, abort: bool = True, lock_timeout_s: float = 5.0) -> CleanupReport:
         """``AB`` (when ``abort``) -> ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify, with device clear and one retry;

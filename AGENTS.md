@@ -3,7 +3,7 @@
 Safety-gated measurement kernel for a Keysight B1500A: typed Python core (`src/b1500_test_agent/`) behind a
 10-tool MCP server and the `b1500` CLI. Backend `sim` by default; `visa` only on the lab PC. Deck layers:
 L1 physical safety (interlock, shield box) · L2 GPIB → `transport/` · L3 driver → `driver/` · L4 transaction →
-`session/`, `catalog/`, `recipes/`, `archive/` · L5 analysis → `analysis/` · L6 MCP → `service.py`, `adapters/` ·
+`session/`, `catalog/`, `recipes/`, `archive/` · L5 analysis → `analysis/` · L6 MCP → `service/`, `adapters/` ·
 L7 skills + rules → `.agents/skills/`, `rules/`, `config/` · L8 agent → you.
 
 ## Hard rules (measurement and analysis work)

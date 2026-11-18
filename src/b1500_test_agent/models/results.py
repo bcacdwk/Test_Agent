@@ -24,7 +24,7 @@ from b1500_test_agent.models.common import (
     Tier,
     ValidationStatus,
 )
-from b1500_test_agent.models.plan import PlanId, RuleFinding
+from b1500_test_agent.models.plan import PlanId, RuleFinding, RunProgress
 from b1500_test_agent.models.recipe import AnalysisSpec, ParamSpec, RecipeSummary, RoleSpec
 from b1500_test_agent.models.run import CleanupReport, CleanupVerification, FaultRecord, LockHolder, RunOutcome
 from b1500_test_agent.models.station import InstrumentError
@@ -32,8 +32,9 @@ from b1500_test_agent.models.station import InstrumentError
 ShortDigest = Annotated[str, Field(pattern=r"^[0-9a-f]{12}$")]
 """First 12 hex digits of a sha256 (enough to spot a change; the full digest is in plans and manifests)."""
 
-GetRunSection = Literal["summary", "quality", "data", "audit", "notes"]
-"""Sections ``get_run`` can include (``include``)."""
+GetRunSection = Literal["summary", "quality", "data", "audit", "notes", "progress"]
+"""Sections ``get_run`` can include (``include``); ``progress`` (v2 2.6) is the ``progress.json`` of an asynchronous
+run, also while it is running."""
 
 LiveSource = Literal["fresh", "cached", "not_read", "unavailable"]
 """Where ``station_status`` live fields come from: a snapshot just taken, the process's last snapshot, none
@@ -86,8 +87,31 @@ class LimitsStatus(StrictModel):
     max_points: dict[str, int]
     """Largest points per run by measuring family (``smu``, ``cmu``, ``wgfmu``)."""
     max_sync_run_s: float
+    long_run_confirm_s: float | None = None
+    max_async_run_s: float | None = None
+    segment_max_s: float | None = None
+    """Run-duration limits (R-RUN-02): synchronous up to ``max_sync_run_s``, asynchronous above, confirmation above
+    ``long_run_confirm_s``, blocked above ``max_async_run_s``; checkpoints at most ``segment_max_s`` apart."""
     plan_ttl_h: float
     tiers: str
+
+
+class ActiveRunStatus(StrictModel):
+    """The run holding the instrument right now (``station_status``, v2 2.9): who started it and, for an asynchronous
+    run, its progress (``done``/``total`` checkpoint units, ``phase``, ``eta_s``); ``None`` fields are unknown."""
+
+    run_id: RunId
+    plan_id: str | None = None
+    recipe_id: str | None = None
+    mode: Literal["sync", "async"] = "sync"
+    adapter: str | None = None
+    pid: int | None = None
+    started_at: AwareDatetime | None = None
+    state: str = "running"
+    done: int | None = None
+    total: int | None = None
+    phase: str = ""
+    eta_s: float | None = None
 
 
 class StationStatus(ResultEnvelope):
@@ -111,6 +135,9 @@ class StationStatus(ResultEnvelope):
     """Pin-map name → certainty (``verified``/``unverified``)."""
     dut_profiles: dict[str, str] = Field(default_factory=dict)
     """DUT-profile name → device type."""
+    active_run: ActiveRunStatus | None = None
+    """The run holding the instrument (this or another process); while it runs ``status`` is ``busy`` and the live
+    fields come from the last snapshot (``live: cached``)."""
 
 
 # -- list_recipes ----------------------------------------------------------------------------------------------------
@@ -154,6 +181,8 @@ class ResolvedPlan(StrictModel):
     max_i: float = 0.0
     points: int = 0
     est_s: float = 0.0
+    mode: Literal["sync", "async"] = "sync"
+    """``async``: ``run_plan`` returns ``running`` at once; follow with ``get_run`` (v2 2.6, R-RUN-02)."""
     params: dict[str, JsonValue] = Field(default_factory=dict)
 
 
@@ -265,6 +294,8 @@ class RunDetail(ResultEnvelope):
     notes: list[NoteRecord] | None = None
     notes_total: int | None = None
     """Number of notes of the run; ``notes`` shows the newest ones that fit the response budget."""
+    progress: RunProgress | None = None
+    """``progress.json`` of an asynchronous run (section ``progress``): live while it runs, final afterwards."""
     paths: dict[str, str] = Field(default_factory=dict)
 
 
@@ -291,10 +322,12 @@ class NoteResult(ResultEnvelope):
 
 
 class ShutdownResult(ResultEnvelope):
-    """Result of ``safe_shutdown``: the cleanup report and the fault latch afterwards."""
+    """Result of ``safe_shutdown``: the cleanup report and the fault latch afterwards; ``cancelled_run`` names the run
+    it stopped first (v2 2.6; ``get_run`` shows its outcome and partial data)."""
 
     cleanup: CleanupReport | None = None
     fault: FaultRecord | None = None
+    cancelled_run: RunId | None = None
 
 
 # -- human-only CLI operations (never MCP tools) ---------------------------------------------------------------------

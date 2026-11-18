@@ -1,10 +1,18 @@
-"""Query-response parsers: *IDN?, UNT?, LOP?, ERRX?, *STB?, *TST?/*CAL? against the golden fixtures and the manual."""
+"""Query-response parsers: *IDN?, UNT?, LOP?, ERRX?, *STB?, *TST?/*CAL?, *LRN? 31 against the golden fixtures and the
+manual."""
 
 from __future__ import annotations
 
 import pytest
 
-from b1500_test_agent.driver.discovery import all_outputs_off, parse_idn, parse_lop, parse_unt
+from b1500_test_agent.driver.discovery import (
+    all_outputs_off,
+    parse_auto_calibration,
+    parse_idn,
+    parse_lop,
+    parse_lrn_settings,
+    parse_unt,
+)
 from b1500_test_agent.driver.errors import (
     FlexParseError,
     failed_units,
@@ -16,7 +24,7 @@ from b1500_test_agent.driver.errors import (
 from b1500_test_agent.models.station import StatusByte
 from tests.unit.flex_fixtures import FIXTURE_DIR, FlexFixture, all_fixtures, load_fixture
 
-QUERY_FIXTURES = all_fixtures("idn", "unt", "errx", "lop", "stb", "tst")
+QUERY_FIXTURES = all_fixtures("idn", "unt", "errx", "lop", "stb", "tst", "lrn")
 
 
 def test_fixture_convention_holds_for_every_file() -> None:
@@ -24,7 +32,7 @@ def test_fixture_convention_holds_for_every_file() -> None:
     assert names and [f.name for f in all_fixtures()] == names
     for fixture in all_fixtures():
         assert "PDF " in fixture.source and fixture.command
-    assert {f.kind for f in QUERY_FIXTURES} == {"idn", "unt", "errx", "lop", "stb", "tst"}
+    assert {f.kind for f in QUERY_FIXTURES} == {"idn", "unt", "errx", "lop", "stb", "tst", "lrn"}
 
 
 def test_fixture_loader_rejects_a_file_without_a_page_citation(tmp_path) -> None:
@@ -60,6 +68,9 @@ def test_query_fixture(fixture: FlexFixture) -> None:
     elif fixture.kind == "tst":
         result = parse_self_test_result(text)
         assert result == expect["value"] and failed_units(result) == expect["failed"]
+    elif fixture.kind == "lrn":
+        assert parse_lrn_settings(text) == expect["settings"]
+        assert parse_auto_calibration(text) is expect["auto_calibration"]
     else:  # pragma: no cover - the loader rejects unknown kinds
         raise AssertionError(fixture.kind)
 
@@ -143,3 +154,15 @@ def test_self_test_results() -> None:
         failed_units(2048)
     with pytest.raises(FlexParseError):
         parse_self_test_result("2048")
+
+
+@pytest.mark.parametrize(("text", "on"), [("TM1;AV1,0;CM0;FMT1,0", False), ("TM 1;AV 1,0;CM 1;FMT 1,0;MM 2,1,3", True),
+                                          ("CM+1", True), ("TM3;AV-16;CM0;FMT5,1", False)])
+def test_lrn_31_auto_calibration_forms(text: str, on: bool) -> None:
+    assert parse_auto_calibration(text + "\r\n") is on
+
+
+@pytest.mark.parametrize("text", ["TM1;AV1,0;FMT1,0", "CM2", "CM", "TM1;CM0;CM1", "garbage;CM0", ""])
+def test_lrn_31_without_a_valid_cm_item_is_refused(text: str) -> None:
+    with pytest.raises(FlexParseError):
+        parse_auto_calibration(text)

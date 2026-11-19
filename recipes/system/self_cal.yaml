@@ -1,9 +1,10 @@
 # Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe).
 # Instrument self-calibration: *CAL? (all modules and the mainframe; Programming Guide Ed. 15 PDF 376-377). The
 # modules end in the CL state. Open the measurement terminals first, so every run needs a human confirmation
-# (always_confirm). Rule R-CAL-01 reports the newest completed run of this recipe. Kind `system` runs on the
-# simulator only in v1 (hardware: M4 bring-up).
-# status: sim_validated by the WP1.7 integration test (tests/integration/test_executor_recipes.py).
+# (always_confirm). Rule R-CAL-01 reports the newest completed run of this recipe. Kind `system` runs on sim and
+# visa (WP6.2); on hardware every run also needs first_hw_run until a reviewed validation record exists.
+# status: sim_validated by the WP1.7 integration test (tests/integration/test_executor_recipes.py); the visa path
+# by tests/visa_loop/test_recipes.py (WP6.2).
 id: system.self_cal
 version: 1
 title: Instrument self-calibration (*CAL?) of all modules and the mainframe

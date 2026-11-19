@@ -45,8 +45,8 @@ ambient temperature change, or when the human asks for it. No device is measured
 - `station_status` clean: no fault, no lock holder, no active run, no pending errors.
 - Ask the human to open the measurement terminals and to say so in chat; put that in the same message as the
   plan summary you show for confirmation.
-- Hardware: kind `system` runs on the simulator only until bring-up stage L1 enables it on visa (`list_recipes`
-  then shows `not_implemented` on visa: say so; never emulate it with other recipes or raw commands).
+- Hardware: both recipes run on visa too; until a reviewed validation record exists every hardware run is also
+  `first_hw_run`. Never emulate a self-test with other recipes or raw commands.
 - Auto-calibration state: `station_status` (rule R-CAL-01 warns when it is on).
 
 ## 4. Recipe and parameters
@@ -72,7 +72,8 @@ sim_scenario: resistor_100k
 - Always `needs_confirmation`: `system_self_test` or `system_self_cal` (rule R-ALWAYS-01). Show the summary
   verbatim, ask the human to confirm with open terminals, stop the turn; one consent, one run.
 - No source command: the compiled envelope is empty, so the output guard refuses any output. No DUT limits apply.
-  Destructive: no, but a connected DUT would see the relay switching and calibration signals.
+  Destructive: no, but a connected DUT would see the relay switching and calibration signals. No output switch is
+  turned on, so the cleanup's `LOP?` check has no positive control in these runs (`cleanup.positive_control` null).
 - Duration estimates: self-test about 120 s, self-calibration about 60 s (TODO(verify) at bring-up stage L1).
 - On hardware also `first_hw_run` until the recipe is `hw_validated`.
 

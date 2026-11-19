@@ -33,9 +33,14 @@ from tests.visa_loop.loop import DEFAULT_RESOURCE, LoopBus
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-MEASUREMENT_CASES: list[dict[str, Any]] = [c for c in CASES if not c["recipe_id"].startswith("system.")]
-"""The seven v1 measurement recipes with their card example requests and v1 scenarios (``system.*`` on visa is
-WP6.2)."""
+MEASUREMENT_CASES: list[dict[str, Any]] = list(CASES)
+"""The nine v1 runnable recipes with their card example requests (or recipe defaults) and v1 scenarios: the seven
+measurement recipes (WP5.5) and ``system.self_test``/``system.self_cal`` (kind ``system`` on visa, WP6.2)."""
+
+DATA_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES if not c["recipe_id"].startswith("system.")]
+"""The cases that write a run table (every recipe but ``system.*``)."""
+
+SYSTEM_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES if c["recipe_id"].startswith("system.")]
 
 
 def bus_factory(bus: LoopBus) -> BusFactory:

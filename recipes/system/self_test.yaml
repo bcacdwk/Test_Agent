@@ -1,9 +1,11 @@
 # Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe).
 # Instrument self-test: *TST? (self-test and self-calibration of all modules and the mainframe; Programming Guide
 # Ed. 15 PDF 540-541). The modules end in the CL state. Open the measurement terminals first, so every run needs a
-# human confirmation (always_confirm). Kind `system` runs on the simulator only in v1 (hardware: M4 bring-up).
+# human confirmation (always_confirm). Kind `system` runs on sim and visa (WP6.2); on hardware every run also
+# needs first_hw_run until a reviewed validation record exists.
 # Any existing pin map may be named in the request; no DUT profile is needed (no DUT roles).
-# status: sim_validated by the WP1.7 integration test (tests/integration/test_executor_recipes.py).
+# status: sim_validated by the WP1.7 integration test (tests/integration/test_executor_recipes.py); the visa path
+# by tests/visa_loop/test_recipes.py (WP6.2).
 id: system.self_test
 version: 1
 title: Instrument self-test (*TST?) of all modules and the mainframe

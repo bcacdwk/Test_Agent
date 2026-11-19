@@ -30,7 +30,10 @@ What the wire does here:
   several processes share one instrument as they share the real one;
 - ``signed_errx`` (default on): ``ERRX?`` answers carry a ``+`` sign (``+0,"No Error."``), as the lab's firmware
   does according to the lab code (``lwp/matlab_B1500/lib/*.m`` tests ``startsWith(response, '+0,')``); the simulator
-  itself answers the Programming Guide form ``0,"No Error."`` (PG PDF 432).
+  itself answers the Programming Guide form ``0,"No Error."`` (PG PDF 432);
+- ``lop_reads_off`` (default off, test switch): every ``LOP?`` answer reports all slots ``00`` whatever the output
+  switches do, i.e. an instrument whose ``LOP?`` cannot verify the cleanup (the v1 ATV-1 failure that the
+  transaction's ``LOP?`` positive control must catch).
 """
 
 from __future__ import annotations
@@ -67,6 +70,8 @@ ENV_CHUNK = "B1500_VISA_LOOP_CHUNK"
 """Environment of the child processes of the two-process tests (``serve.py``); test-only names."""
 
 _ERRX_ANSWER = re.compile(r'^\d+,"')
+_LOP_ANSWER = re.compile(r"^LOP ?\d\d(,\d\d){9}\r?\n?$")
+LOP_ALL_OFF = "LOP" + ",".join(["00"] * 10)
 
 
 @cache
@@ -123,6 +128,7 @@ class LoopBus:
         self.resource = resource
         self.chunk_size = chunk_size
         self.signed_errx = signed_errx
+        self.lop_reads_off = False
         self.instrument = SimInstrument(scenario, faults=faults)
         slug = resource_slug(resource)
         self.state_file = self.directory / f"{slug}.state.json"
@@ -225,10 +231,13 @@ class LoopBus:
             lock.release()
 
     def quirks(self, message: str) -> str:
-        """The answer as the lab firmware sends it (``signed_errx``: ``+`` before an ``ERRX?`` code)."""
+        """The answer as the lab firmware sends it (``signed_errx``: ``+`` before an ``ERRX?`` code; ``lop_reads_off``:
+        an all-``00`` ``LOP?`` answer)."""
         if self.signed_errx and _ERRX_ANSWER.match(message):
             self.stats.signed_errx += 1
             return "+" + message
+        if self.lop_reads_off and _LOP_ANSWER.match(message):
+            return LOP_ALL_OFF + message[len(message.rstrip("\r\n")):]
         return message
 
 

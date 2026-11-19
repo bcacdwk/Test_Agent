@@ -36,10 +36,12 @@ def test_system_recipes_on_the_simulator(world: World, recipe_id: str, reason: s
     assert not [r for r in world.sim_log() if r.source]
 
 
-def test_system_recipes_are_not_implemented_on_hardware(world: World) -> None:
+def test_system_recipes_are_implemented_on_hardware_too(world: World) -> None:
+    """WP6.2: kind ``system`` has a visa code path (run end to end in ``tests/visa_loop/test_recipes.py``)."""
     registry = world.executor().registry()
-    assert registry.effective_status("system.self_test", "visa") == "not_implemented"
-    assert registry.effective_status("system.self_test", "sim") == registry.get("system.self_test").status
+    for recipe_id in ("system.self_test", "system.self_cal"):
+        assert registry.effective_status(recipe_id, "visa") == registry.get(recipe_id).status == "sim_validated"
+        assert registry.effective_status(recipe_id, "sim") == "sim_validated"
 
 
 def test_last_self_calibration_reaches_rule_r_cal_01(world: World) -> None:

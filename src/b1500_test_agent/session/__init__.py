@@ -15,6 +15,7 @@ from b1500_test_agent.session.fault import (
     FaultClearRefused,
     FaultLatch,
     FaultLatched,
+    PositiveControlFailed,
     clear_refusals,
     outputs_zero,
 )
@@ -43,6 +44,7 @@ __all__ = [
     "InflightMarker",
     "InstrumentBusy",
     "InstrumentLock",
+    "PositiveControlFailed",
     "RunCancelled",
     "RunControl",
     "RunHandle",

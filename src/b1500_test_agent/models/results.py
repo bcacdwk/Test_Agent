@@ -122,6 +122,9 @@ class StationStatus(ResultEnvelope):
     identity: str | None = None
     modules: list[ModuleCheck] = Field(default_factory=list)
     interlock_open: bool | None = None
+    interlock: str | None = None
+    """What the interlock reading means on this backend (``service.status.interlock_label``): on hardware status-byte
+    bit 3 only flags a refused >42 V request, and the station never uses the interlock (v2 WP6.2 label)."""
     instrument_errors: list[InstrumentError] = Field(default_factory=list)
     outputs_on: list[int] = Field(default_factory=list)
     live: LiveSource = "not_read"

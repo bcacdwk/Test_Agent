@@ -61,7 +61,7 @@ def test_committed_statuses() -> None:
     status = {r: (registry.effective_status(r, "sim"), registry.effective_status(r, "visa")) for r in registry.ids()}
     assert status["mosfet.idvg"] == ("sim_validated", "sim_validated")
     assert status["generic.smu_staircase"] == ("sim_validated", "sim_validated")
-    assert status["system.self_test"] == status["system.self_cal"] == ("sim_validated", "not_implemented")
+    assert status["system.self_test"] == status["system.self_cal"] == ("sim_validated", "sim_validated")  # WP6.2
     # validated on the simulator by WP2.2 (tests/integration/test_recipes_*.py); smu_stepped has both code paths
     for recipe_id in ("mosfet.idvd", "mosfet.gate_leakage", "basic.contact_resistor", "basic.diode_iv",
                       "fefet.dual_sweep_mw"):
@@ -83,7 +83,7 @@ def test_kinds() -> None:
     kinds = default_kinds()
     assert kinds["smu_staircase"].implemented_on == {"sim", "visa"}
     assert kinds["smu_stepped"].implemented_on == {"sim", "visa"} and "smu_stepped" not in UNIMPLEMENTED_KINDS
-    assert kinds["system"].implemented_on == {"sim"}
+    assert kinds["system"].implemented_on == {"sim", "visa"}  # WP6.2: self-test/cal on hardware
     for kind_id in ("smu_spot", "smu_sampling", "smu_pulsed", "wgfmu_pulsed_iv", "spgu_program_read", "cmu_cv"):
         assert kind_id in UNIMPLEMENTED_KINDS and kinds[kind_id].implemented_on == frozenset()
 

@@ -45,6 +45,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Channel numbering and UNT](02-b1500-instrument.md#channel-numbering-and-unt)
 - [Measurement modes](02-b1500-instrument.md#measurement-modes)
 - [Measurement sequence and cleanup](02-b1500-instrument.md#measurement-sequence-and-cleanup)
+- [Lab scripts vs the kernel](02-b1500-instrument.md#lab-scripts-vs-the-kernel)
 - [FLEX glossary for reading plans and audit logs](02-b1500-instrument.md#flex-glossary-for-reading-plans-and-audit-logs)
 - [Data status codes](02-b1500-instrument.md#data-status-codes)
 - [Integration time and ranging](02-b1500-instrument.md#integration-time-and-ranging)

@@ -22,7 +22,7 @@ from pydantic import ValidationError
 from b1500_test_agent.errors import B1500Error
 from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.common import Backend, ErrorCode
-from b1500_test_agent.models.run import CleanupReport, FaultRecord
+from b1500_test_agent.models.run import CleanupReport, FaultRecord, PositiveControl
 from b1500_test_agent.session.lock import atomic_write_json, remove_file
 from b1500_test_agent.transport.audit import AuditSink
 
@@ -49,6 +49,20 @@ class CleanupUnverified(B1500Error):
     def __init__(self, report: CleanupReport, message: str | None = None) -> None:
         self.report = report
         super().__init__(message or "cleanup could not verify the safe state; the fault latch is set")
+
+
+class PositiveControlFailed(B1500Error):
+    """The hardware ``LOP?`` positive control failed: a slot whose output switch the run had just turned on read
+    ``00`` (result code ``cleanup_unverified``, because ``LOP?`` then cannot prove the outputs off). Raised before
+    any source level is applied; the transaction's cleanup stays unverified and latches the fault (v1 ATV-1)."""
+
+    code: ClassVar[ErrorCode] = "cleanup_unverified"
+
+    def __init__(self, control: PositiveControl) -> None:
+        self.control = control
+        super().__init__(f"LOP? positive control failed: {control.detail}; LOP? cannot prove that the outputs are "
+                         "off on this instrument (v1 ATV-1), so the run stopped before applying any level and its "
+                         "cleanup stays unverified (fault latched)")
 
 
 class FaultClearRefused(B1500Error):

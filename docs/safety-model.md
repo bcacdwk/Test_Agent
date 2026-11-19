@@ -131,7 +131,11 @@ event rather than showing the interlock's level. The ATV-10 fallback therefore a
 blocks on `ERRX?` errors 202 ("Interlock circuit must be closed") and 203 ("Cannot enable channel", PDF 577), and
 measurement kinds call `rules.builtin.interlock_errors()` after `CN` and abort on a hit. With the default policy the
 rule is unreachable (R-LIM-02 caps \|V\| at 42 V), but an owner who lowers `interlock.required_above_v` makes it
-active. The real bit behavior is verified at M4 L0.
+active. The real bit behavior is verified at M4 L0. Because the station never uses the interlock and a clear bit says
+nothing about the circuit on hardware, `station_status` carries an `interlock` label (WP6.2): `SIMULATED open|closed`
+on the simulator (whose bit mirrors the scenario), on hardware "not used at this station: kept open, the B1500A limits
+outputs to 42 V" plus what bit 3 means (set: a >42 V request was refused; clear: no such request). The CLI prints the
+label instead of `closed`. It is a label only: no rule, limit or tier reads it.
 
 ## Tiers and confirmation
 
@@ -249,6 +253,18 @@ A crash mid-run leaves an in-flight marker; the next transaction runs the recove
 lock is an OS file lock, released automatically when its process dies. After the verification an asynchronous run's
 cleanup adds a `restore` step (the auto-calibration switch, R-CAL-02); it never touches an output and is skipped when
 the cleanup could not verify the safe state.
+
+**`LOP?` positive control (hardware, WP6.2; v1 ATV-1, ATV-23).** On hardware the verification is `LOP?` reading `00`
+for every slot. An all-`00` answer proves the outputs off only if `LOP?` reports this instrument's output switches at
+all, so every run that switches outputs on reads `LOP?` once right after `CN`, before any level is applied (the
+outputs force 0 V): each switched-on SMU must report a non-`00` code. The reading is audited (`checkpoint`
+`lop_positive_control`) and stored in the manifest (`cleanup.positive_control`) next to the cleanup's all-`00`
+answer; together they are the evidence behind `verified: lop`. A slot that reads `00` there stops the run before any
+level (`PositiveControlFailed`, result `cleanup_unverified`), and the cleanup then refuses to call its own all-`00`
+answer verified: the fault latches with the reason, and every later run stays refused until a human checks the
+front panel and clears the fault (the v1 ATV-1 fallback, `*LRN? 0`, is a code change at M12 if the bring-up shows
+`LOP?` blind). `system.*` and `safe_shutdown` switch nothing on and have no control; the simulator verifies its own
+state instead (`verified: sim_state`).
 
 **Locked bus (residual, WP5.5).** Each transaction takes the VISA exclusive lock of the instrument. When another
 client holds it (EasyEXPERT, a second VISA program), a run is refused before anything is sent (`busy`), and so is a

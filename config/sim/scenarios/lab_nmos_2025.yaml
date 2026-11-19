@@ -1,0 +1,61 @@
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario. Name = file name.
+# The lab's own n-channel transistor (blueprint v2 1.1, 4.4): the device of the anonymized lab Id-Vg curve
+# tests/fixtures/lab/idvg_real.csv (lwp test_IdVg.m: Vd 0.1 V, gate -2..2 V in 61 steps) on the lab mainframe
+# (lab_station identity and slots), wired as pin map mosfet-3t-lab: gate SMU3, drain SMU4 (both HRSMU), source SMU5
+# (MPSMU at 0 V); the bulk is not probed (floating, follows the source).
+#
+# Calibration (truth fitted to the lab data; tests/integration/test_lab_calibration.py asserts the tolerances):
+# - mosfet_ekv: least squares of log10 Id over the 37 points of the lab curve above 5 pA (Vg >= -0.4 V); residual
+#   0.022 decade rms, 0.08 decade max. theta went to its bound 0: the on-current roll-off is the 77 kOhm series
+#   resistance (a thin-film-like device: SS about 212 mV/dec, gm max 0.36 uS at Vd 0.1 V). Vth by the v1 methods on
+#   the lab curve: 0.349 V linear extrapolation, 0.382 V max gm change, 0.296 V constant current at 10 nA; on this
+#   scenario +24, +36 and +5 mV, SS -7 %, gm max +8 %: the model's weak inversion is one exponential, the lab
+#   device's swing runs from 212 to about 270 mV/dec within a decade (trap-limited turn-on), which a refit of these
+#   parameters cannot follow (a fit weighted to the extracted values costs 0.04-0.12 decade of curve error).
+# - off state: the lab readings below Vg = -0.9 V scatter around zero (about +-2e-13 A, plus a start transient of
+#   +2.4 pA at -2 V and a displacement current of about -0.4 pA while the gate ramps); the model drain current there is
+#   below 1e-14 A, so the simulated off state is the noise floor alone. No gate leak: the lab gate current is a
+#   displacement current at the pA level and an exponential rise above 1 V (0.24 nA at 2 V), neither modelled.
+# - noise: the HRSMU floor is the standard deviation of the lab's four open-circuit Id-Vg runs (6.2e-14 to 7.4e-14 A
+#   at 1 PLC, the lwp AIT 0,2,1; 99 % of their readings within +-2e-13 A). The lab readings also carry a negative
+#   offset of about -6e-14 A and the 50 fA steps of the 1 nA range; neither is modelled.
+# Noise model, faults and timing as documented in nmos_basic.yaml.
+
+description: >-
+  The lab n-channel transistor of the lwp Id-Vg data (Vth about 0.35 V, SS about 212 mV/dec, 77 kOhm series
+  resistance) on the lab mainframe, wired as pin map mosfet-3t-lab; instant timing.
+idn: Agilent Technologies,B1500A,0,A.06.02.2023.0401
+slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
+  - {slot: 7, model: B1520A}
+interlock_closed: false
+wiring:
+  dut:
+    gate: 3
+    drain: 4
+    source: 5
+    bulk: null                  # not probed (substrate on the chuck or tied to the source on the die)
+models:
+  dut:
+    model: mosfet_ekv
+    params:
+      polarity: n
+      vth0: 0.350               # V (fit)
+      slope_factor: 3.45        # fit; SS = n ln10 kT/q = 205 mV/dec ideal, 212 mV/dec extracted from the lab curve
+      beta: 7.22e-6             # A/V^2 (fit)
+      theta: 0.0                # fit (bound): the roll-off is the series resistance
+      lambda: 0.0               # Vd 0.1 V only: not identifiable from the lab curve
+      rs_ohm: 77300.0           # Ohm at source and at drain each (fit)
+      gate_leak_s: 0.0          # see the off-state note above
+      temperature_k: 300.0
+noise:
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 7.0e-14}
+  rel: 1.0e-3
+  seed: 2025
+faults: null
+timing: instant

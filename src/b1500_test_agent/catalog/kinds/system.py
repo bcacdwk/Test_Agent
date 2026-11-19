@@ -3,12 +3,21 @@
 The recipe selects the operation through its single-choice enum parameter ``operation`` (``self_test`` or
 ``self_cal``), so the agent cannot switch it. No DUT roles, no source commands: the envelope is empty, so the
 transaction's ``OutputGuard`` refuses every source operation, and the fault latch still gates the run. Both
-operations end with the modules in the ``CL`` state (PG PDF 540, 377); the human confirms each run
-(``always_confirm``: the measurement terminals should be open). ``implemented_on = {"sim"}`` in v1: on hardware the
-recipes stay ``not_implemented`` until the M4 bring-up has checked their duration and terminal requirements.
+operations end with the modules in the ``CL`` state (PG p540 (4-222), PG p376 (4-58)); the human confirms each run
+(``always_confirm``: the measurement terminals must be open, PG p377 (4-59)).
+
+Backends (blueprint v2 2.7, WP6.2): ``implemented_on = {"sim", "visa"}``. The same code path serves both: one query
+through the transaction's driver with a read timeout of ``2 x estimate + 10 s``, then the transaction's verified
+cleanup (``DZ``, ``CL``, ``ERRX?`` drain, ``LOP?`` all ``00`` on hardware). On hardware every run is also
+``needs_confirmation (first_hw_run)`` until a reviewed validation record exists (blueprint v2 7.2). No output switch
+is turned on, so there is no ``LOP?`` positive control in these transactions. ``*RST`` is not sent: the self-test
+already leaves every module in the ``CL`` state, and ``*RST`` would also drop the MFCMU corrections, set the SPGU to
+free-run and reset the switch paths (PG p179-180 (2-91), Tables 2-12 and 2-13); the ``*RST`` lint
+(``tests/unit/test_lint_rst.py``) still keeps that command inside this kind.
 
 No measurement data is read, so there is no ``data.csv``; the result code and the failed units are recorded in the
-manifest's ``kind_result`` and the audit log keeps the exact query and response.
+manifest's ``kind_result`` and the audit log keeps the exact query and response. A failed module is disabled by the
+instrument until ``RCV`` (PG p541 (4-223)): the run fails and names the slots; the human decides about service.
 """
 
 from __future__ import annotations
@@ -33,15 +42,16 @@ OPERATIONS: dict[str, tuple[str, float]] = {
     "self_test": (flex.TST_Q, 120.0),
     "self_cal": (flex.CAL_Q, 60.0),
 }
-"""Operation -> (query, estimated duration in s). The durations are conservative placeholders (TODO(verify) at
-M4 bring-up); the read timeout is ``2 x estimate + 10 s``."""
+"""Operation -> (query, estimated duration in s). The durations are conservative placeholders, TODO(verify) at
+bring-up stage L1 (blueprint v2 7.6 item 10: self-test/cal durations); the read timeout is ``2 x estimate + 10 s``
+(250 s for ``*TST?``, 130 s for ``*CAL?``)."""
 
 
 class SystemKind:
     """Self-test / self-calibration (no DUT, no source commands)."""
 
     kind_id = "system"
-    implemented_on: frozenset[Backend] = frozenset({"sim"})
+    implemented_on: frozenset[Backend] = frozenset({"sim", "visa"})
 
     @staticmethod
     def _operation(params: dict[str, Quantity]) -> str:

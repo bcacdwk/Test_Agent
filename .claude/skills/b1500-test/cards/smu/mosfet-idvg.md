@@ -41,6 +41,9 @@ Vd 50 mV). This is the card for "measure the Vth".
 
 - Example pin map `mosfet-4t` (gate SMU4, drain SMU3, source and bulk GNDU) with DUT profile `nmos-generic`.
 - IGZO/oxide TFT: three terminals, no body; the human's pin map leaves bulk unconnected.
+- Lab wiring of the MATLAB Id-Vg script: pin map `mosfet-3t-lab` (gate SMU3, drain SMU4, source SMU5 at 0 V;
+  simulator scenario `lab_nmos_2025`). The kernel's sequence differs from the script on purpose (no `*RST`, 1 mA
+  instead of 100 mA drain compliance, status letters kept): [02](../../knowledge/02-b1500-instrument.md#lab-scripts-vs-the-kernel).
 - pMOS: same wiring, sweep from off to on (for example `vg_start: 1`, `vg_stop: -3`, `vd: -0.05`) with a pMOS DUT
   profile written by the human (none is committed).
 - Routes: none in every phase (direct SMU and GNDU wiring; no selector, SCUU, ASU or RSU in the path).

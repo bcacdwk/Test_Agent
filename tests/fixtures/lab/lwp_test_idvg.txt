@@ -1,0 +1,32 @@
+# source: lwp/matlab_B1500/test_IdVg.m (main script; configuration at lines 16-48) calling lwp/matlab_B1500/lib/IV_sweep.m (read-only lab code)
+# kind: lwp_sequence
+# configuration: drain SMU4 CONST V 0.1 V Icomp 0.1 A measure I; gate SMU3 SCAN V Icomp 0.01 A measure I; source SMU5 COMMON V 0 V Icomp 0.1 A measure NONE; sweep -2..2 V, 61 steps, delay 0.01 s, range 12
+# note: code-derived command list, reconstructed by reading the MATLAB code (what it writes, queries and reads on the bus, in order, for this configuration); not instrument data
+# note: numbers as MATLAB renders them (sprintf %d/%g, num2str, string()); '<read>' is a data read with no command; each line names the lwp file:line that sends it
+# note: IV_sweep.m:33 'ERMOD 1' is commented out, so the four ERSSP lines go out without the selector control mode; their comment says "to SMU" but state 0 is "open" (PG p433 (4-115)), and the *RST two lines later resets the paths anyway
+# note: the data read (IV_sweep.m:112) is one line of 61 x 3 FMT 21 elements (Id, Ig, gate source value); the lab parser (IV_sweep.m:125-126) keeps each value from its first sign on and drops the 3-digit status
+*IDN?  # test_IdVg.m:59
+FMT 21,1  # test_IdVg.m:61
+ERSSP 0,0  # lib/IV_sweep.m:35
+ERSSP 1,0  # lib/IV_sweep.m:36
+ERSSP 2,0  # lib/IV_sweep.m:37
+ERSSP 3,0  # lib/IV_sweep.m:38
+*RST  # lib/IV_sweep.m:55
+FMT 21,1  # lib/IV_sweep.m:56
+AIT 0,2,1  # lib/IV_sweep.m:57
+CN 4,3,5  # lib/IV_sweep.m:60
+DV 4,0,0.1,0.1  # lib/IV_sweep.m:65 (drain, CONST)
+DV 5,0,0,0.1  # lib/IV_sweep.m:65 (source, COMMON)
+MM 2,4,3  # lib/IV_sweep.m:74
+CMM 4,1  # lib/IV_sweep.m:77
+RI 4,11  # lib/IV_sweep.m:78
+CMM 3,1  # lib/IV_sweep.m:77
+RI 3,11  # lib/IV_sweep.m:78
+WT 0,0.01  # lib/IV_sweep.m:90
+WV 3,1,12,-2,2,61,0.01  # lib/IV_sweep.m:92-94,100
+XE  # lib/IV_sweep.m:104
+*OPC?  # lib/IV_sweep.m:105
+ERRX?  # lib/IV_sweep.m:107 (the script fails unless the answer starts with '+0,')
+<read>  # lib/IV_sweep.m:112 (fgetl)
+DZ  # test_IdVg.m:113 (finally block)
+CL  # test_IdVg.m:114 (finally block)

@@ -185,7 +185,7 @@ def status_lines(result: StationStatus) -> list[str]:
         lines += _table(["slot", "expected", "installed", "type", "alias", "match"],
                         [[m.slot, m.expected, m.installed, m.type, m.alias, m.match] for m in result.modules])
     if result.live != "not_read":
-        interlock = {None: "unknown", True: "OPEN", False: "closed"}[result.interlock_open]
+        interlock = result.interlock or {None: "unknown", True: "OPEN", False: "closed"}[result.interlock_open]
         errors = ", ".join(f"{e.code} {e.message}".strip() for e in result.instrument_errors) or "none"
         lines.append(f"live ({result.live}): interlock {interlock}; errors {errors}; outputs on "
                      f"{result.outputs_on or 'none'}")

@@ -21,9 +21,10 @@ read ``199.999E+99`` with status ``V``) and a return to the start value.
 
 Acquisition (through the transaction's guarded driver, nothing else): ``FMT 1,1`` (each step also returns the
 sweep source value), ``AAD``/``AIT``, ``CN``, ``ERRX?`` drain (an interlock error 202/203 or any other error aborts:
-ATV-10 fallback), ``DV`` per bias/ground SMU, ``MM``/``CMM``/``WV``/``WT``/``WM``, ``ERRX?`` drain (any error aborts),
-``XE`` and one read of ``steps × (measured channels + 1)`` elements with a timeout of ``2 × estimate + 10 s``
-(blueprint 7). The FLEX preview lists exactly these writes in this order (queries are not listed).
+ATV-10 fallback), on hardware the ``LOP?`` positive control (v2 WP6.2), ``DV`` per bias/ground SMU,
+``MM``/``CMM``/``WV``/``WT``/``WM``, ``ERRX?`` drain (any error aborts), ``XE`` and one read of
+``steps × (measured channels + 1)`` elements with a timeout of ``2 × estimate + 10 s`` (blueprint 7). The FLEX
+preview lists exactly these writes in this order (queries are not listed).
 
 The same code path serves ``sim`` and ``visa``: the kind only talks to the driver. ``configure_staircase`` (setup
 up to ``XE``) and ``staircase_rows`` (table rows of one block) are shared with ``smu_stepped``.
@@ -182,14 +183,16 @@ def drain_or_raise(tx: Transaction, stage: str) -> None:
 
 
 def configure_staircase(tx: Transaction, program: StaircaseProgram) -> None:
-    """Everything before ``XE`` through the guarded driver: ``FMT``, ``AAD``/``AIT``, ``CN``, ``ERRX?`` drain,
-    ``DV`` per bias/ground SMU, ``MM``/``CMM``/``WV``/``WT``/``WM``, ``ERRX?`` drain (any error aborts)."""
+    """Everything before ``XE`` through the guarded driver: ``FMT``, ``AAD``/``AIT``, ``CN``, ``ERRX?`` drain, on
+    hardware the ``LOP?`` positive control (``Transaction.lop_positive_control``: the switched-on SMUs must not read
+    ``00``), ``DV`` per bias/ground SMU, ``MM``/``CMM``/``WV``/``WT``/``WM``, ``ERRX?`` drain (any error aborts)."""
     driver = tx.driver
     driver.set_format(*program.data_format)
     driver.apply_integration(program.integration, [m.channel for m in program.measure])
     driver.enable(program.enable)
     drain_or_raise(tx, "enabling the outputs")
     tx.mark("outputs enabled")
+    tx.lop_positive_control(program.enable)
     for bias in program.biases:
         driver.force_v(bias.channel, bias.v, icomp=bias.icomp)
     driver.staircase_v(program.sweep)

@@ -94,10 +94,34 @@ sweep source, trigger, wait, read, zero, disconnect. In v1 the recipe kind compi
 - Every run is one transaction: rules re-checked under the instrument lock, output guard on every source command,
   then cleanup abort, zero, disconnect, verify (deck slide 8: zero and disconnect after any error and after every
   measurement), whatever happened. Unverified cleanup latches a fault that only a human clears.
+- On hardware the verification is `LOP?` (PG PDF 446-447: `00` = output off, `01` = forcing voltage, `1x` =
+  compliance). Its positive control: right after `CN` (outputs on at 0 V, before any level) the run reads `LOP?`
+  once and every switched-on SMU must show a non-`00` code; only then does the all-`00` answer after `CL` prove
+  the outputs off (`verified: lop`; evidence in the run's `manifest.json` `cleanup.positive_control` and the
+  `lop_positive_control` line of `get_run` `audit`). A control that reads `00` stops the run before any level and
+  latches the fault (`cleanup_unverified`): report it, `safe_shutdown`, skill `b1500-debug`.
 - Before `XE` the instrument needs channels enabled, a mode and its sources (PG PDF 571-572); missing pieces are
   instrument errors, which v1 drains with `ERRX?` and treats as a reason to abort before triggering.
 - The deck's pre-measurement checklist (slide 9) maps to rules: modules and channel map via `UNT?` (R-INV-01),
   calibration state (R-CAL-01), C-V correction (R-CORR-01), compliance set (R-COMP-01).
+
+## Lab scripts vs the kernel
+
+The lab's MATLAB scripts (`lwp/matlab_B1500`, read-only; transcripts in `tests/fixtures/lab/`) send the same Id-Vg
+measurement as `mosfet.idvg` on pin map `mosfet-3t-lab` with these deliberate differences (full list with reasons:
+`tests/integration/test_lab_idvg_sequence.py`):
+
+- No `*RST`: it drops MFCMU corrections, sets the SPGU to free-run, resets the selector paths and hides the
+  instrument's prior state (PG PDF 179-180); only kind `system` may send it.
+- `FMT 1,1` instead of `FMT 21,1`: one status letter per value, which the kernel keeps; the lab parser keeps only
+  the number, so its compliance and overflow points look like readings.
+- Compliances: drain 1 mA (lab 100 mA for a 0.4 uA device), gate 1 uA (lab 10 mA), source the sum of the two;
+  10 mA gate or 100 mA drain is outside the recipe ranges (blocked).
+- Auto ranging (lab: `RI` 1 nA limited, `WV` 20 V limited), `WT 0,0` (lab 10 ms delay), `WM 2,1` automatic abort
+  (lab off), `AAD` written explicitly.
+- No `ERSSP` (the lab sends `ERSSP p,0` = open without `ERMOD 1`); `ERRX?` drained before the trigger and in the
+  cleanup, both `0,` and `+0,` read as no error; a verified cleanup instead of a bare `DZ`, `CL`. The lab's SPGU
+  script never sends `CL` at all.
 
 ## FLEX glossary for reading plans and audit logs
 
@@ -167,12 +191,16 @@ Measurement status letter `A` of each data element (PG Table 1-10, PDF 53):
 - Interlock: with the Interlock terminal open, SMU output is limited to ±42 V (UG PDF 55); a red LED lights above
   ±42 V (UG PDF 49); the interlock function must be checked daily (UG PDF 142). v1 never exceeds 42 V, so no v1
   workflow needs a closed interlock (deck slide 8 rule kept as R-IL-01 for later).
+- `station_status.interlock` says what the reading means: on the simulator the scenario's state (`SIMULATED
+  open`); on hardware "not used at this station" plus status bit 3, which the B1500A sets only for a refused
+  request above 42 V with the interlock open (PG PDF 76), so a clear bit never means "closed".
 
 ## Self-test self-calibration and auto calibration
 
 - Self-test `*TST?` (PG PDF 540) and self-calibration `*CAL?` (PG PDF 376) are recipes `system.self_test` and
-  `system.self_cal`; they always need confirmation and require open measurement terminals (UG PDF 142): ask the
-  human to lift the probes first.
+  `system.self_cal` (simulator and hardware); they always need confirmation and require open measurement terminals
+  (UG PDF 142): ask the human to lift the probes first. Both leave every module in the `CL` state; a failed module
+  stays disabled until service (PG PDF 541).
 - Auto calibration (`CM`, PG PDF 79): when on, the instrument self-calibrates every 30 minutes after a
   measurement and needs open terminals; with a DUT left connected it may calibrate badly or put unexpected output on
   the terminals. Initial setting after reset: off (PG Table 2-13, PDF 180). Deck slide 9: "may auto-calibrate every

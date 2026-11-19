@@ -25,6 +25,10 @@ off. When that cannot be verified, even after a device clear and one retry, it l
 3. A previous process died mid-run: the inflight marker is recovered automatically by the next transaction or
    `safe_shutdown`.
 4. A `safe_shutdown` without an instrument link (fail safe), or an unreadable latch file (counts as latched).
+5. Hardware only: the `LOP?` positive control failed (reason "LOP? positive control failed", audit line
+   `lop_positive_control`): right after `CN` an output that had just been switched on read `00`, so `LOP?` cannot
+   prove anything off on this instrument (v1 ATV-1). The run stopped before applying any level; every later run
+   ends the same way. A bring-up finding for the human and the developer, not a measurement problem.
 
 ## First safe checks
 

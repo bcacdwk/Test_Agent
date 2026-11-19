@@ -70,16 +70,40 @@ class CleanupStep(StrictModel):
     detail: str = ""
 
 
+class PositiveControl(StrictModel):
+    """The ``LOP?`` positive control of a hardware transaction (blueprint v2 10.2 row 6.2; v1 ATV-1, ATV-23).
+
+    ``LOP?`` is read once while the run's SMU output switches are on (right after ``CN``, before any source level
+    is applied: the outputs force 0 V). ``codes`` holds the two-digit code of each of their slots (PG p446-447
+    (4-128) Table 4-26: ``00`` = off, ``01`` = forcing voltage, ...). ``ok`` = every slot reported a non-``00`` code,
+    which shows that ``LOP?`` sees this instrument's output switches; only then is the cleanup's all-``00`` answer
+    evidence that the outputs are off (``verified: lop``). A failed control aborts the run before any level is set
+    and leaves the cleanup unverified (fault latched). Not used on the simulator, whose cleanup reads the simulated
+    state directly (``verified: sim_state``).
+    """
+
+    channels: list[int] = Field(min_length=1)
+    """The channels the run switched on with ``CN``."""
+    codes: dict[int, str]
+    """Slot -> ``LOP?`` code read after ``CN`` (the slots of ``channels``)."""
+    ok: bool
+    detail: str = ""
+
+
 class CleanupReport(StrictModel):
     """Result of a cleanup: the steps run, how the safe state was verified, per-channel output state afterwards
     and whether the fault latch was set because verification failed. ``errors`` are the ``ERRX?`` entries drained
-    by the cleanup (WP1.6; ``FaultLatch.clear`` requires none)."""
+    by the cleanup (WP1.6; ``FaultLatch.clear`` requires none). ``positive_control`` is the hardware ``LOP?``
+    reading taken while the run's outputs were on (``None`` on the simulator and in transactions that switch no
+    output on, e.g. ``system.*`` and ``safe_shutdown``): with ``verified: lop`` the two readings together are the
+    cleanup-verification evidence (v2 WP6.2)."""
 
     steps: list[CleanupStep]
     verified: CleanupVerification
     outputs_after: dict[int, str]
     latched_fault: bool
     errors: list[InstrumentError] = Field(default_factory=list)
+    positive_control: PositiveControl | None = None
 
 
 class FaultRecord(StrictModel):

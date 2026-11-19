@@ -1,0 +1,27 @@
+# source: lwp/matlab_B1500/test_IVt_sampling.m (main script; configuration at lines 16-49) calling lwp/matlab_B1500/lib/IVt_sampling.m (read-only lab code)
+# kind: lwp_sequence
+# configuration: drain SMU4 V 5 V Icomp 0.1 A measure I; gate SMU3 step 0 V -> 3 V Icomp 0.01 A measure NONE; source SMU5 COMMON (0 V, Icomp 0.1 A); interval 0.004 s, 10001 points, bias hold 0.01 s, base hold 0.1 s
+# note: code-derived command list, reconstructed by reading the MATLAB code (what it writes, queries and reads on the bus, in order, for this configuration); not instrument data
+# note: numbers as MATLAB renders them (sprintf %d/%g, string()); '<read>' is a data read with no command; each line names the lwp file:line that sends it
+# note: the measured channels are those whose Mode is not COMMON and whose Measure is not NONE, sorted by slot (IVt_sampling.m:22-29): only the drain
+# note: the data read (IVt_sampling.m:75) is one line of 10001 x 2 FMT 21 elements (time stamp with TSC 1, drain current); FMT 21,0 returns no sampling index; the lab parser drops the 3-digit status
+*IDN?  # test_IVt_sampling.m:60
+*RST  # lib/IVt_sampling.m:33
+FMT 21,0  # lib/IVt_sampling.m:34
+TSC 1  # lib/IVt_sampling.m:35
+AIT 0,2,1  # lib/IVt_sampling.m:36
+ML 1  # lib/IVt_sampling.m:37
+MT 0.01,0.004,10001,0.1  # lib/IVt_sampling.m:39-40
+CN 4,3,5  # lib/IVt_sampling.m:43
+DV 4,0,5,0.1  # lib/IVt_sampling.m:47 (drain)
+DV 5,0,0,0.1  # lib/IVt_sampling.m:46-47 (source, COMMON -> V 0)
+MV 3,0,0,3,0.01  # lib/IVt_sampling.m:53 (gate step: base 0 V, bias 3 V)
+MM 10,4  # lib/IVt_sampling.m:58
+CMM 4,1  # lib/IVt_sampling.m:60
+RI 4,0  # lib/IVt_sampling.m:60
+XE  # lib/IVt_sampling.m:67
+*OPC?  # lib/IVt_sampling.m:68
+ERRX?  # lib/IVt_sampling.m:70 (the script fails unless the answer starts with '+0,')
+<read>  # lib/IVt_sampling.m:75 (fgetl)
+DZ  # test_IVt_sampling.m:92 (finally block)
+CL  # test_IVt_sampling.m:93 (finally block)

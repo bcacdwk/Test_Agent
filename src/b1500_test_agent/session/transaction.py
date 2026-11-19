@@ -9,7 +9,8 @@ of the plan's envelope (no envelope: no guard, so every source operation refuses
 
 ``__exit__`` runs for ANY exit, ``BaseException`` and ``EnvelopeViolation`` included:
 1 ``AB`` if ``XE`` was issued and its read did not complete (sent alone; on timeout device clear, then ``AB``)
-2 ``DZ`` 3 ``CL`` 4 ``ERRX?`` drain 5 verify outputs off (``LOP?`` on hardware, simulator state on sim)
+2 ``DZ`` 3 ``CL`` 4 ``ERRX?`` drain 5 verify outputs off (``LOP?`` on hardware, simulator state on sim; on hardware
+a failed ``LOP?`` positive control makes the verification fail whatever ``LOP?`` reads)
 6 on any step error: device clear, retry the sequence once
 7 still unverified (``DZ``, ``CL`` or the verification failed in the last attempt) -> ``FaultLatch.set`` + audit
 ``cleanup_unverified`` 8 save the simulator state, remove the inflight marker, unlock and close the bus (``process``
@@ -30,6 +31,14 @@ path handles like any other exception: full cleanup, verified. ``suspend_auto_ca
 ``CM 0`` and makes the cleanup restore the state read before the run (``restore`` step after the verification;
 skipped when the cleanup could not verify the outputs). A recovery cleanup of a stale in-flight marker is reported
 to ``Session.on_recovery`` (the executor finalizes the orphaned run folder).
+
+``LOP?`` positive control (blueprint v2 10.2 row 6.2; v1 ATV-1, ATV-23): on hardware a kind calls
+``lop_positive_control(channels)`` right after ``CN`` (outputs on at 0 V, before any level): ``LOP?`` must report a
+non-``00`` code for every slot it switched on. The reading goes to the audit (``checkpoint``
+``lop_positive_control``) and into ``CleanupReport.positive_control`` (the run manifest), next to the cleanup's
+all-``00`` reading, as the evidence behind ``verified: lop``. A slot reading ``00`` raises ``PositiveControlFailed``
+before any level is applied, and the cleanup then cannot verify (``LOP?`` has shown that it does not see the output
+switches), so the fault latches. The simulator needs no control (its cleanup reads the simulated state).
 """
 
 from __future__ import annotations
@@ -38,7 +47,7 @@ import math
 import os
 import secrets
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -55,9 +64,9 @@ from b1500_test_agent.driver.guard import EnvelopeViolation, OutputGuard
 from b1500_test_agent.models.audit import AuditEvent, AuditEventName
 from b1500_test_agent.models.common import Backend, JsonScalar, StrictModel
 from b1500_test_agent.models.plan import CompiledEnvelope
-from b1500_test_agent.models.run import Adapter, CleanupReport, CleanupStep, LockHolder
-from b1500_test_agent.models.station import InstrumentError, LiveState
-from b1500_test_agent.session.fault import CleanupUnverified, FaultLatched
+from b1500_test_agent.models.run import Adapter, CleanupReport, CleanupStep, LockHolder, PositiveControl
+from b1500_test_agent.models.station import InstrumentError, LiveState, channel_slot
+from b1500_test_agent.session.fault import CleanupUnverified, FaultLatched, PositiveControlFailed
 from b1500_test_agent.session.lock import atomic_write_json, host_name, remove_file
 from b1500_test_agent.transport.audit import AuditingTransport, AuditSink
 from b1500_test_agent.transport.base import Transport, TransportTimeout, state_hooks, unwrap
@@ -183,14 +192,17 @@ class CleanupOutcome:
     deferred: BaseException | None
 
 
-def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit) -> CleanupOutcome:
+def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
+                positive: PositiveControl | None = None) -> CleanupOutcome:
     """``AB`` (when ``always_abort`` or a measurement is pending) -> ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify;
     after any failed step a device clear and one retry of the whole sequence (blueprint 2.4 steps 1-6).
 
     Every step continues after a failure of an earlier one (``CL`` turns outputs off even when ``DZ`` failed) and
     is audited as ``cleanup_step``. The result is verified only when ``DZ``, ``CL`` and the verification all
-    succeeded in the last attempt; the caller latches the fault otherwise. Never raises: exceptions inside steps,
-    ``BaseException`` included, are recorded (interrupts are returned as ``deferred``).
+    succeeded in the last attempt; the caller latches the fault otherwise. ``positive`` is the transaction's
+    hardware ``LOP?`` positive control: it is copied into the report, and a failed one fails the verification
+    (``LOP?`` reading ``00`` proves nothing then). Never raises: exceptions inside steps, ``BaseException``
+    included, are recorded (interrupts are returned as ``deferred``).
     """
     sim = sim_instrument(driver.transport)
     method: Literal["sim_state", "lop"] = "sim_state" if sim is not None else "lop"
@@ -246,7 +258,13 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit) -> Clean
         states = driver.output_state()
         outputs.update({slot: out.state for slot, out in sorted(states.items())})
         on = {slot: code for slot, code in outputs.items() if states[slot].output_on}
-        return all_outputs_off(states), f"outputs on: {on}" if on else "all slots report 00"
+        if on:
+            return False, f"outputs on: {on}"
+        if positive is not None and not positive.ok:
+            return False, (f"all slots report 00, but the LOP? positive control failed ({positive.detail}): 00 does "
+                           "not prove the outputs off")
+        evidence = "" if positive is None else f"; positive control with the outputs on: {positive.detail}"
+        return all_outputs_off(states), "all slots report 00" + evidence
 
     def clear() -> tuple[bool, str]:
         driver.device_clear()
@@ -267,8 +285,13 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit) -> Clean
         if all(results.values()):
             break
     report = CleanupReport(steps=steps, verified=method if verified else "unverified", outputs_after=dict(outputs),
-                           latched_fault=False, errors=errors)
+                           latched_fault=False, errors=errors, positive_control=positive)
     return CleanupOutcome(report=report, deferred=deferred[0] if deferred else None)
+
+
+def _codes_text(codes: dict[int, str]) -> str:
+    """``slot 3 01, slot 4 01`` (``LOP?`` codes by slot) for audit details and messages."""
+    return ", ".join(f"slot {slot} {code}" for slot, code in sorted(codes.items()))
 
 
 # -- Raw-data tap -----------------------------------------------------------------------------------------------------
@@ -384,6 +407,8 @@ class Transaction:
         """Lifecycle events that could not be recorded (an audit failure never stops cleanup or release)."""
         self.auto_calibration_before: bool | None = None
         """Auto-calibration state read before ``suspend_auto_calibration`` (``None`` = unknown)."""
+        self.positive_control: PositiveControl | None = None
+        """The hardware ``LOP?`` positive control of this transaction (``lop_positive_control``), if one ran."""
         self._auto_calibration_suspended = False
         self._state_saved_at: float | None = None
 
@@ -545,6 +570,34 @@ class Transaction:
         if self.control is not None:
             self.control.check_abort()
 
+    def lop_positive_control(self, channels: Sequence[int]) -> PositiveControl | None:
+        """The ``LOP?`` positive control (module docstring): call right after ``CN`` of ``channels`` (SMU or MFCMU
+        channels; Table 4-26 has no code for SPGU/WGFMU slots, ATV-23) and before any source level. Returns ``None``
+        on the simulator (no I/O) and the first result when called again in the same transaction.
+
+        Raises:
+            PositiveControlFailed: If a slot of ``channels`` reads ``00`` (output switch apparently off).
+        """
+        if self.positive_control is not None:
+            return self.positive_control
+        if sim_instrument(self.driver.transport) is not None or not channels:
+            return None
+        states = self.driver.output_state()
+        slots = sorted({channel_slot(int(ch)) for ch in channels})
+        codes = {slot: states[slot].state if slot in states else "missing" for slot in slots}
+        off = [slot for slot in slots if slot not in states or not states[slot].output_on]
+        listed = ", ".join(str(ch) for ch in channels)
+        detail = (f"{_codes_text(codes)} with the output switches of channels {listed} on" if not off else
+                  f"slot(s) {', '.join(str(slot) for slot in off)} read 00 although the run had switched on the "
+                  f"output switches of channels {listed} ({_codes_text(codes)})")
+        control = PositiveControl(channels=[int(ch) for ch in channels], codes=codes, ok=not off, detail=detail)
+        self.positive_control = control
+        self._emit("checkpoint", {"label": "lop_positive_control", "ok": control.ok, "detail": detail},
+                   error=None if control.ok else f"PositiveControlFailed: {detail}")
+        if not control.ok:
+            raise PositiveControlFailed(control)
+        return control
+
     def _warn(self, what: str, exc: BaseException) -> None:
         self._emit("checkpoint", {"label": what}, error=f"{type(exc).__name__}: {exc}")
 
@@ -609,12 +662,15 @@ class Transaction:
                 self._note_exception(exc)
             if not self._cleanup_done:
                 self._cleanup_done = True
-                outcome = run_cleanup(self.driver, always_abort=self._always_abort, emit=self._emit)
+                outcome = run_cleanup(self.driver, always_abort=self._always_abort, emit=self._emit,
+                                      positive=self.positive_control)
                 deferred = outcome.deferred
                 report = outcome.report
                 if report.verified == "unverified":
                     reason = (f"safe shutdown unverified ({self.intent})" if self.mode == "shutdown"
                               else f"cleanup unverified after '{self.intent}' (transaction {self.tx_id})")
+                    if self.positive_control is not None and not self.positive_control.ok:
+                        reason += f"; LOP? positive control failed: {self.positive_control.detail} (v1 ATV-1)"
                     report = self._latch(report, reason)
                 else:
                     self._emit("cleanup_verified", {"method": report.verified, "errors": len(report.errors)})

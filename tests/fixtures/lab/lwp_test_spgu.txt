@@ -1,0 +1,38 @@
+# source: lwp/matlab_B1500/test_SPGU.m (main script; active configuration B at lines 53-99) calling lwp/matlab_B1500/lib/SPGU_pulse.m (read-only lab code)
+# kind: lwp_sequence
+# configuration: SPGU channels 101 and 102, 3-level (source 1: 0 -> +3 V, delay 0, width 2 us; source 2: 0 -> -3 V, delay 3 us, width 2 us), leading/trailing 100 ns, period 10 us, 2 cycles, load 1 MOhm
+# note: code-derived command list, reconstructed by reading the MATLAB code (what it writes, queries and reads on the bus, in order, for this configuration); not instrument data
+# note: numbers as MATLAB renders them (sprintf %d/%g, num2str, string()); each line names the lwp file:line that sends it; configuration A (2-level 0 -> 3 V, lines 19-48) is commented out in the script
+# note: SPST? is polled every 0.1 s while it answers 1 (SPGU_pulse.m:95-98); after Period x CycleCount + 5 s the function sends SPP and raises an error
+# note: no CL follows: test_SPGU.m:122 reads the undefined variable pulse_config (singular), the error is swallowed by try/end, so the SPGU output switches stay on (blueprint v2 1.1 pitfall "no CL after SPGU")
+*IDN?  # test_SPGU.m:110
+ERMOD 1  # lib/SPGU_pulse.m:23
+ERSSP 0,2  # lib/SPGU_pulse.m:26
+ERSSP 1,2  # lib/SPGU_pulse.m:27
+ERSSP 2,2  # lib/SPGU_pulse.m:28
+ERSSP 3,2  # lib/SPGU_pulse.m:29
+SIM 0  # lib/SPGU_pulse.m:32
+SPRM 1,2  # lib/SPGU_pulse.m:39
+SPPER 1e-05  # lib/SPGU_pulse.m:44
+CN 101,102  # lib/SPGU_pulse.m:48-49
+SER 101,1e+06  # lib/SPGU_pulse.m:52
+SPM 101,3  # lib/SPGU_pulse.m:68
+SPT 101,1,0,2e-06,1e-07,1e-07  # lib/SPGU_pulse.m:71-72
+SPV 101,1,0,3  # lib/SPGU_pulse.m:73-74
+SPT 101,2,3e-06,2e-06,1e-07,1e-07  # lib/SPGU_pulse.m:77-78
+SPV 101,2,0,-3  # lib/SPGU_pulse.m:79-80
+SER 102,1e+06  # lib/SPGU_pulse.m:52
+SPM 102,3  # lib/SPGU_pulse.m:68
+SPT 102,1,0,2e-06,1e-07,1e-07  # lib/SPGU_pulse.m:71-72
+SPV 102,1,0,3  # lib/SPGU_pulse.m:73-74
+SPT 102,2,3e-06,2e-06,1e-07,1e-07  # lib/SPGU_pulse.m:77-78
+SPV 102,2,0,-3  # lib/SPGU_pulse.m:79-80
+SPUPD 101,102  # lib/SPGU_pulse.m:88
+SRP  # lib/SPGU_pulse.m:90
+SPST?  # lib/SPGU_pulse.m:95 (polled until it answers 0)
+ERRX?  # lib/SPGU_pulse.m:102 (the function fails unless the answer starts with '+0,')
+ERSSP 0,1  # lib/SPGU_pulse.m:106
+ERSSP 1,1  # lib/SPGU_pulse.m:107
+ERSSP 2,1  # lib/SPGU_pulse.m:108
+ERSSP 3,1  # lib/SPGU_pulse.m:109
+SPP  # test_SPGU.m:121 (finally block)

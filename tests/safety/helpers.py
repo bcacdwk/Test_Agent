@@ -185,11 +185,14 @@ def acquire(tx: Transaction, hook: HookTransport) -> RawBlock:
 
 
 def source_levels(record: CommandRecord) -> tuple[int, list[float], float | None]:
-    """Channel, forced levels and compliance of a ``DV``/``WV`` record (PG PDF 396, 568)."""
+    """Channel, forced levels and compliance of a ``DV``/``WV``/``MV``/``MI`` record (PG PDF 396, 568, 477, 468;
+    ``MI`` levels are currents and its compliance a voltage: ``assert_within_envelope`` swaps the limits)."""
     args = record.args
     channel = int(args[0])
     if record.mnemonic == "DV":
         return channel, [float(args[2])], float(args[3]) if len(args) > 3 else None
+    if record.mnemonic in ("MV", "MI"):
+        return channel, [float(args[2]), float(args[3])], float(args[4]) if len(args) > 4 else None
     return channel, [float(args[3]), float(args[4])], float(args[6]) if len(args) > 6 else None
 
 
@@ -202,8 +205,11 @@ def assert_within_envelope(log: list[CommandRecord], envelope: CompiledEnvelope 
         channel = channel // 100 if channel > 10 else channel
         env = envelope.channels.get(channel)
         assert env is not None, f"source command on a channel outside the allowlist: {record.command}"
-        assert all(abs(level) <= env.max_abs_v for level in levels), f"level outside the envelope: {record.command}"
-        assert compliance is not None and 0 < abs(compliance) <= env.max_abs_i, f"bad compliance: {record.command}"
+        level_limit, comp_limit = (env.max_abs_i, env.max_abs_v) if record.mnemonic == "MI" else (env.max_abs_v,
+                                                                                                     env.max_abs_i)
+        assert level_limit is not None and comp_limit is not None, f"source without compliance: {record.command}"
+        assert all(abs(level) <= level_limit for level in levels), f"level outside the envelope: {record.command}"
+        assert compliance is not None and 0 < abs(compliance) <= comp_limit, f"bad compliance: {record.command}"
 
 
 def cleanup_sequence(events: list[AuditEvent]) -> list[tuple[int, str]]:

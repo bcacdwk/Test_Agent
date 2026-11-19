@@ -31,6 +31,7 @@ M1 = {"quality_report", "vth_linear_extrapolation"}
 M2 = {"vth_constant_current", "vth_max_gm", "subthreshold_swing", "gm_max", "ion_ioff", "output_metrics",
       "resistance", "diode_fit", "leakage_at", "memory_window", "plot_iv"}
 M5 = {"plot_timeseries"}
+M7 = {"sampling_summary", "time_to_breakdown"}
 
 
 def idvg_run(recipe_id: str = "mosfet.idvg", drain_status: list[str] | None = None) -> RunData:
@@ -39,11 +40,11 @@ def idvg_run(recipe_id: str = "mosfet.idvg", drain_status: list[str] | None = No
 
 
 def test_registry_lists_every_method_as_implemented() -> None:
-    assert set(ANALYSIS_METHODS) == M1 | M2 | M5
+    assert set(ANALYSIS_METHODS) == M1 | M2 | M5 | M7
     for name, method in ANALYSIS_METHODS.items():
         assert method.name == name and callable(method.fn) and method.summary
         assert method.status == "implemented"
-        assert method.milestone == ("M1" if name in M1 else "M2" if name in M2 else "M5")
+        assert method.milestone == ("M1" if name in M1 else "M2" if name in M2 else "M5" if name in M5 else "M7")
         assert "criteria" not in method.options and "d" not in method.options and "out_dir" not in method.options
         assert (name == "quality_report") == (not method.options)
     assert ANALYSIS_METHODS["vth_linear_extrapolation"].options == (

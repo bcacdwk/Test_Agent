@@ -1,0 +1,54 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Generic ad-hoc SMU sampling (MM 10): one stepped terminal (base -> bias at the time origin, current measured), an
+# optional constant-bias terminal (current measured) and a ground terminal, sampled at a fixed interval (linear) or
+# log-spaced. Roles bind to pin-map terminals of the same name, so a pin map (and DUT profile) naming the terminals
+# `stress`, `bias` and `ground` is required; a human writes those in config/local/. On hardware every plan needs
+# confirmation (adhoc_recipe, plus first_hw_run until it is hw_validated). Prefer a device-specific recipe
+# (mosfet.id_t_sampling, reliability.tddb_cvs) whenever one exists.
+# Kind smu_sampling: TSC time stamps, automatic abort on compliance/overflow/oscillation (MSC 2), runs longer than 60 s
+# of linear sampling are chains of 25 s MM 10 blocks (checkpoints; asynchronous beyond max_sync_run_s).
+# status: sim_validated by tests/integration/test_recipes_sampling.py (igzo_transient: stretched-exponential tau and
+# beta of the drain current vs the model truth); hw_validated only through a validation record (stage L5).
+id: generic.smu_sampling
+version: 1
+title: Generic SMU sampling (ad-hoc; one stepped terminal, one optional biased terminal, one ground terminal)
+family: smu
+kind: smu_sampling
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/smu-sampling.md
+device_types: []
+roles:
+  stress:
+    function: bias_v
+    measure: [I]
+    settings: {base: $base, v: $bias, icomp: $icomp}
+  bias:
+    function: bias_v
+    measure: [I]
+    optional: true
+    settings: {v: $bias_v, icomp: $bias_icomp}
+  ground: {function: ground, allow_gndu: true}
+params:
+  base: {unit: V, default: 0.0, range: [-42, 42], doc: Level of the stepped terminal before the time origin.}
+  bias: {unit: V, default: 1.0, range: [-42, 42], doc: Level of the stepped terminal from the time origin on.}
+  icomp: {unit: A, default: 1.0e-4, range: [1.0e-12, 0.1], doc: Current compliance of the stepped terminal.}
+  bias_v: {unit: V, default: 0.0, range: [-42, 42], doc: Constant level of the optional bias terminal.}
+  bias_icomp: {unit: A, default: 1.0e-4, range: [1.0e-12, 0.1], doc: Current compliance of the bias terminal.}
+  interval: {unit: s, default: 0.01, recommended: [0.002, 1.0], range: [0.0001, 65.535],
+             doc: "Sampling interval (MT; 1 ms steps from 2 ms, 10 us steps below: linear, single block)."}
+  points: {type: int, default: 1001, recommended: [101, 10001], range: [1, 100001], doc: Number of samples.}
+  hold_bias: {unit: s, default: 0.0, range: [0, 655.35], doc: "Time origin to the first sample (10 ms steps)."}
+  hold_base: {unit: s, default: 0.0, range: [0, 655.35], doc: "Base level held before the step (10 ms steps)."}
+  sampling_mode: {type: enum, choices: [linear, log10, log25, log50, log100, log250, log500], default: linear,
+                  doc: "linear, or log-spaced with that many points per decade (one MM 10 block)."}
+  integration: {type: enum, choices: [short, medium, long], default: medium,
+                doc: ADC preset (the instrument shortens it when it is longer than the interval).}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: sampling_summary, options: {y: stress_I}}
+provenance:
+  sources:
+    - blueprint v2 2.7 kind smu_sampling, 3.1 row generic.smu_sampling
+    - v0.2 C_flow_sampling_smu_iv_time (tag archive/v0.2-fake-mcp)
+    - Programming Guide Ed. 15 sampling (PDF 112-114), MT (PDF 474-476), MV (PDF 477-478), MSC (PDF 472-473)
+  validation_runs: []

@@ -22,7 +22,6 @@ When a request needs one of them:
 | `fecap.pund` | Ferroelectric capacitor PUND (Pr, Ec) | none (FeFET: [fefet-dual-sweep-mw](../nvm/fefet-dual-sweep-mw.md)) |
 | `reliability.bti_sms` | BTI stress-measure-stress with SMUs (destructive) | [mosfet-idvg](../smu/mosfet-idvg.md) before/after a human-run stress |
 | `reliability.hci` | Hot-carrier injection stress with periodic Id-Vg reads (destructive) | as above |
-| `reliability.tddb_cvs` | TDDB constant-voltage stress with leakage sampling (destructive) | [gate-leakage](../smu/gate-leakage.md) inside the DUT envelope |
 | `cmu.correction` | MFCMU phase compensation and open/short/load correction | none |
 | `moscap.cv` | MOS capacitor C-V with the MFCMU | none |
 | `moscap.qscv` | Quasi-static C-V with SMUs | none |
@@ -54,9 +53,6 @@ change, a card from [the template](../_TEMPLATE.md), a passing `b1500 dev lint-s
   and its safety-matrix rows; a stress budget in DUT profiles; knowledge 05 reviewed; sim and hardware validation.
 - `reliability.hci`: the stress-measure-stress kind (`reliability.bti_sms`) implemented and validated; drain-stress
   envelope rules; asynchronous runs; sim and hardware validation.
-- `reliability.tddb_cvs`: an SMU sampling kind (MM 10) with breakdown detection and automatic abort; asynchronous
-  runs; breakdown handling in the cleanup and fault policy; oxide-field limits in DUT profiles; sim and hardware
-  validation.
 - `cmu.correction`: MFCMU correction commands extracted from the manual; SCUU path and correction records in the
   station profile (rule R-CORR-01); a human-guided open/short/load procedure with fixtures and its validation.
 - `moscap.cv`: `cmu.correction` implemented with corrections covering the frequencies (R-CORR-01); SCUU switching

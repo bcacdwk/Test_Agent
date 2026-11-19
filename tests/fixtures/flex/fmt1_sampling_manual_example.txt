@@ -1,0 +1,16 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 237-239 (printed 3-57 to 3-59): Table 3-16 sampling measurement example (FMT 1,1, MM 10 with two channels, MV 0 -> 0.1 V on both, read as Index, I1, I2 per block with Mid(mret, 4 + 48 i, 12), NUB? = 3 x points); sampling data block PDF 49 (printed 1-29); element layout PDF 50-55 (Tables 1-6 to 1-12)
+# kind: fmt1
+# command: FMT 1,1; MT 0.1,0.05,3,0; MV 3,0,0,0.1,0.1; MV 4,0,0,0.1,0.1; MM 10,3,4; XE
+# terminator: crlf
+# note: three blocks (the example takes 30); values are resistor currents chosen for the fixture (1 kOhm on SMU3, 10 kOhm on SMU4 at 0.1 V), the manual prints no data
+# note: the manual prints no status/channel letters for Sampling_no (data type X, Table 1-12); N and the first measured channel (C) are assumed (TODO(verify) at bring-up stage L5, ATV-22)
+# point: N C X +1.00000E+00
+# point: N C I +100.000E-06
+# point: N D I +10.0000E-06
+# point: N C X +2.00000E+00
+# point: N C I +100.012E-06
+# point: N D I +10.0004E-06
+# point: N C X +3.00000E+00
+# point: N C I +99.9930E-06
+# point: N D I +9.99950E-06
+NCX+1.00000E+00,NCI+100.000E-06,NDI+10.0000E-06,NCX+2.00000E+00,NCI+100.012E-06,NDI+10.0004E-06,NCX+3.00000E+00,NCI+99.9930E-06,NDI+9.99950E-06

@@ -7,6 +7,7 @@ sources:
   - deck slide 15 (domain 6 seed; Vth three methods, SS, gm, gds, on/off, C-V extraction)
   - src/b1500_test_agent/analysis/mosfet.py (gm, three Vth methods, SS, gm_max, Ion/Ioff, output metrics)
   - src/b1500_test_agent/analysis/resistor.py, diode.py, leakage.py, fefet.py, plots.py (M2 methods)
+  - src/b1500_test_agent/analysis/reliability.py (plot_timeseries; sampling_summary, time_to_breakdown, weibull_fit)
   - src/b1500_test_agent/analysis/quality.py, dataset.py, registry.py (trust, noise, run table; M1)
   - docs/design/blueprint.md section 2.8 (M2 method names and options)
 last_reviewed: null
@@ -240,6 +241,28 @@ Implemented (`plot_timeseries`, WP5.7; never refuses, never extracts).
   left-out points as in `plot_iv` (on log axes also times <= 0). Curves longer than `max_points` (default 5,000)
   keep the min and max of each of `max_points/2` index buckets, so spikes and steps stay visible (noted on the
   figure).
+
+## Sampling summary and relaxation fit
+
+Implemented (`sampling_summary`, WP7.4; kind `smu_sampling`). Over the trusted points of one column `y` (default the
+only measured current) against `t_s` (seconds since the bias step), inside `t_min`..`t_max`:
+
+- `initial`, `final` = medians of the first and last `edge` (10) points; `mean`, `std`; `drift` = (final - initial)
+  / |initial|.
+- `fit: stretched_exp`: y(t) = y_inf + (y0 - y_inf) exp(-(t/tau)^beta), linear least squares for y_inf, y0 at each
+  (tau, beta), a log grid then Levenberg-Marquardt: `tau` (s), `beta`, `y_inf`; fit `r2`, standard errors. A tau
+  beyond 3x the last time or beta at 0.1/1.5 is flagged (poorly constrained). Untrusted points refuse.
+
+## Time to breakdown and Weibull
+
+Implemented (`time_to_breakdown`, WP7.4; recipe `reliability.tddb_cvs`) and the library helper `weibull_fit`.
+
+- t_bd = `t_s` of the first sample of `y` in compliance (`C`), or jumping `jump_factor` (10) above the median of
+  the previous `window` (5) samples, or reaching `i_bd_a`; resolution one interval (`fit.t_prev_s`). No breakdown:
+  the last time as a lower bound, `classification: no_breakdown` (censored). Breakdown at the first sample is flagged.
+- `weibull_fit(runs)` (agent scripts; not an `analyze_run` method): t_bd per run, then the two-parameter Weibull by
+  maximum likelihood with right censoring (`weibull_beta`, `weibull_eta` = 63 % life; fit `n`, `failures`,
+  `censored`, `beta_se`), or `method: rank` (median ranks, complete data). At least two breakdowns.
 
 ## Reporting rules measured versus derived
 

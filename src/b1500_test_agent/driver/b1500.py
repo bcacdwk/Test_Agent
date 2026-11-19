@@ -9,6 +9,7 @@ and switch work packages add their guarded operations to the same mixins. Every 
 an ``OutputGuard`` and check every channel and value against it before the first byte is written. The driver
 orchestrates nothing else: cleanup order (``AB`` -> ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify) belongs to
 ``session/transaction.py``.
+``SamplingOps`` (WP7.4) adds time stamps, guarded ``MV``/``MI`` and the ``MM 10`` sampling setup.
 
 ``StaircaseSetup``, ``RawBlock`` and the ADC code tables are re-exported here, so callers import the driver API from
 one module.
@@ -18,12 +19,14 @@ from __future__ import annotations
 
 from b1500_test_agent.driver.ops.cmu import CmuOps
 from b1500_test_agent.driver.ops.core import CoreOps, RawBlock
+from b1500_test_agent.driver.ops.sampling import SamplingOps, SamplingSetup, SamplingSource
 from b1500_test_agent.driver.ops.smu import ADC_MODE_CODES, ADC_TYPE_CODES, SmuOps, StaircaseSetup
 from b1500_test_agent.driver.ops.spgu import SpguOps
 from b1500_test_agent.driver.ops.switch import SwitchOps
 
-__all__ = ["ADC_MODE_CODES", "ADC_TYPE_CODES", "B1500Driver", "RawBlock", "StaircaseSetup"]
+__all__ = ["ADC_MODE_CODES", "ADC_TYPE_CODES", "B1500Driver", "RawBlock", "SamplingSetup", "SamplingSource",
+           "StaircaseSetup"]
 
 
-class B1500Driver(CoreOps, SmuOps, CmuOps, SpguOps, SwitchOps):
+class B1500Driver(CoreOps, SmuOps, SamplingOps, CmuOps, SpguOps, SwitchOps):
     """FLEX driver of one B1500A. ``guard`` is required for every source operation (blueprint 2.5)."""

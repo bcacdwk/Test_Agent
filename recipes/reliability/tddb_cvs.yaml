@@ -1,0 +1,50 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Time-dependent dielectric breakdown under constant voltage stress (TDDB CVS): the gate electrode steps from 0 V to
+# v_stress at the time origin (MV) and its leakage current is sampled every `interval` for `duration` seconds (MM 10
+# with time stamps) while the other electrode(s) are grounded. Breakdown drives the stress source into its current
+# compliance (`icomp`, the breakdown current limit), which stops the sampling at once (MSC automatic abort: the
+# source returns to 0 V); time_to_breakdown reports t_bd within one interval. Runs longer than 60 s are chains of
+# 25 s blocks (checkpoints), longer than max_sync_run_s asynchronous (get_run progress, safe_shutdown cancels), and
+# longer than long_run_confirm_s confirmed (long_run). DESTRUCTIVE: every plan needs confirmation (destructive).
+# Weibull statistics over several sites: analysis.weibull_fit in an agent script.
+# status: sim_validated by tests/integration/test_recipes_sampling.py (dielectric_tddb: t_bd within one interval of
+# the model's Weibull life; 4 h asynchronous run); hw_validated only through a validation record (stage L9).
+id: reliability.tddb_cvs
+version: 1
+title: TDDB constant-voltage stress with leakage sampling until breakdown (destructive)
+family: reliability
+kind: smu_sampling
+status: sim_validated
+card: .agents/skills/b1500-test/cards/reliability/tddb-bdv.md
+device_types: [dielectric, moscap, nmos, pmos]
+roles:
+  gate:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {base: 0.0, v: $v_stress, icomp: $icomp}
+  bulk: {function: ground, allow_gndu: true}
+  source: {function: ground, allow_gndu: true, optional: true}
+  drain: {function: ground, allow_gndu: true, optional: true}
+params:
+  v_stress: {unit: V, range: [-40, 40],
+             doc: "Constant stress voltage (required; typically 80-95 % of the breakdown voltage of the film)."}
+  icomp: {unit: A, default: 1.0e-3, recommended: [1.0e-5, 1.0e-2], range: [1.0e-9, 0.1],
+          doc: Breakdown current limit (stress compliance); the post-breakdown current never exceeds it.}
+  interval: {unit: s, default: 1.0, recommended: [0.1, 10.0], range: [0.01, 60.0],
+             doc: "Sampling interval = the t_bd resolution (1 ms steps)."}
+  duration: {unit: s, default: 3600.0, recommended: [60.0, 86400.0], range: [1.0, 86400.0],
+             doc: "Longest stress time; the run ends earlier at breakdown."}
+  hold_bias: {unit: s, default: 0.0, range: [0, 655.35], doc: "Stress start to the first sample (10 ms steps)."}
+  integration: {type: enum, choices: [short, medium, long], default: medium, doc: ADC preset.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: time_to_breakdown}
+always_confirm: [destructive]
+provenance:
+  sources:
+    - blueprint v2 3.1 row reliability.tddb_cvs, 4.2 dielectric, 2.7 kind smu_sampling (MSC abort)
+    - JEDEC JESD92 (TDDB test procedure; constant voltage stress, breakdown detection by current)
+    - McPherson & Mogul, J. Appl. Phys. 84, 1513 (1998) (E model); Weibull statistics of dielectric breakdown
+    - Programming Guide Ed. 15 MSC (PDF 472-473), MT (PDF 474-476), MV (PDF 477-478), TSC/TSR (PDF 538-540)
+  validation_runs: []

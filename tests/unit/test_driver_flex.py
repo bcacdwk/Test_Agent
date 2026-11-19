@@ -16,13 +16,14 @@ import yaml
 from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.flex import cmu as flex_cmu
 from b1500_test_agent.driver.flex import core as flex_core
+from b1500_test_agent.driver.flex import sampling as flex_sampling
 from b1500_test_agent.driver.flex import smu as flex_smu
 from b1500_test_agent.driver.flex import spgu as flex_spgu
 from b1500_test_agent.driver.flex import switch as flex_switch
 
 ROOT = Path(__file__).resolve().parents[2]
 MAP = ROOT / "references" / "driver-map" / "flex-driver-map.yaml"
-FAMILY_MODULES: tuple[ModuleType, ...] = (flex_core, flex_smu, flex_cmu, flex_spgu, flex_switch)
+FAMILY_MODULES: tuple[ModuleType, ...] = (flex_core, flex_smu, flex_sampling, flex_cmu, flex_spgu, flex_switch)
 COMMAND_CONSTANTS = ("XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q",
                      "ERMOD_Q", "SPST_Q")
 """Constants that are whole commands (each cites its manual page and has a driver-map entry)."""
@@ -181,7 +182,7 @@ def test_numbers_are_round_trip_exact() -> None:
         lambda: flex.dz([103]),
         lambda: flex.fmt(2, 0),  # only FMT 1 and 5
         lambda: flex.fmt(1, 11),
-        lambda: flex.mm(3, [1]),  # only MM 1 and 2
+        lambda: flex.mm(3, [1]),  # only MM 1, 2 and 10
         lambda: flex.mm(2, []),
         lambda: flex.mm(2, list(range(1, 11)) + [101]),  # 11 > 10
         lambda: flex.cmm(1, 5),
@@ -332,7 +333,8 @@ def test_the_package_re_exports_every_family_builder_and_constant() -> None:
 
 def test_family_modules_hold_disjoint_builders() -> None:
     assert not set(_own_functions(flex_core)) & set(_own_functions(flex_smu))
-    assert {"cn", "cl", "dz", "fmt", "mm", "cm", "lrn_q"} == set(_own_functions(flex_core))
+    assert {"cn", "cl", "dz", "fmt", "mm", "cm", "lrn_q", "tsc", "tsr"} == set(_own_functions(flex_core))
+    assert {"mcc", "ml", "mt", "msc", "mv", "mi"} == set(_own_functions(flex_sampling))  # WP7.4
     assert {"cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv"} == set(_own_functions(flex_smu))
     assert {"corrst_q", "adj_q"} == set(_own_functions(flex_cmu))
     assert set() == set(_own_functions(flex_spgu)) and "SPST_Q" in _own_constants(flex_spgu)

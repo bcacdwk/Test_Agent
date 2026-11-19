@@ -26,3 +26,4 @@ faults:
   - {kind: run_interrupt, segment: 2}                 # the host is interrupted (Ctrl-C/signal) reading measurement 2
   - {kind: bus_locked, nth: 1, count: 2}              # another VISA client holds the bus: 2 lock requests refused
   - {kind: abort_ignored, nth: 1, count: null}        # AB has no effect: a running measurement keeps running
+  - {kind: breakdown_at, t_s: 600.0, device: null}    # dielectrics break 600 s after the first sampled point (MM 10)

@@ -16,7 +16,7 @@ from tests.unit.helpers import REPO_ROOT
 
 RECIPES = REPO_ROOT / "recipes"
 RESERVED_SLOTS = {"wgfmu.pulsed_iv", "wgfmu.fast_bti", "spgu.program_smu_read", "fefet.pulse_write_read",
-                  "fecap.pund", "reliability.bti_sms", "reliability.hci", "reliability.tddb_cvs", "cmu.correction",
+                  "fecap.pund", "reliability.bti_sms", "reliability.hci", "cmu.correction",
                   "moscap.cv", "moscap.qscv", "hspice.compare", "mosfet.cgd_cv"}
 
 
@@ -66,11 +66,17 @@ def test_committed_statuses() -> None:
     for recipe_id in ("mosfet.idvd", "mosfet.gate_leakage", "basic.contact_resistor", "basic.diode_iv",
                       "fefet.dual_sweep_mw"):
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+    # WP7.4: sampling recipes validated on the simulator (tests/integration/test_recipes_sampling.py)
+    for recipe_id in ("generic.smu_sampling", "mosfet.id_t_sampling", "reliability.tddb_cvs"):
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+    assert registry.get("reliability.tddb_cvs").always_confirm == ["destructive"]
     assert registry.get("mosfet.idvd").kind == "smu_stepped"
     cards = {"mosfet.idvg": "smu/mosfet-idvg", "mosfet.idvd": "smu/mosfet-idvd",
              "mosfet.gate_leakage": "smu/gate-leakage", "basic.contact_resistor": "smu/contact-resistor-check",
              "basic.diode_iv": "smu/diode-iv", "fefet.dual_sweep_mw": "nvm/fefet-dual-sweep-mw",
-             "system.self_test": "system/self-test-cal", "system.self_cal": "system/self-test-cal"}
+             "system.self_test": "system/self-test-cal", "system.self_cal": "system/self-test-cal",
+             "generic.smu_sampling": "smu/smu-sampling", "mosfet.id_t_sampling": "smu/smu-sampling",
+             "reliability.tddb_cvs": "reliability/tddb-bdv"}  # WP7.4
     # WP2.5: the six first test cards; WP5.10: family folders + the system card
     for recipe_id in registry.ids():
         expected = f".agents/skills/b1500-test/cards/{cards[recipe_id]}.md" if recipe_id in cards else None
@@ -84,7 +90,8 @@ def test_kinds() -> None:
     assert kinds["smu_staircase"].implemented_on == {"sim", "visa"}
     assert kinds["smu_stepped"].implemented_on == {"sim", "visa"} and "smu_stepped" not in UNIMPLEMENTED_KINDS
     assert kinds["system"].implemented_on == {"sim", "visa"}  # WP6.2: self-test/cal on hardware
-    for kind_id in ("smu_spot", "smu_sampling", "smu_pulsed", "wgfmu_pulsed_iv", "spgu_program_read", "cmu_cv"):
+    assert kinds["smu_sampling"].implemented_on == {"sim", "visa"} and "smu_sampling" not in UNIMPLEMENTED_KINDS
+    for kind_id in ("smu_spot", "smu_pulsed", "wgfmu_pulsed_iv", "spgu_program_read", "cmu_cv"):
         assert kind_id in UNIMPLEMENTED_KINDS and kinds[kind_id].implemented_on == frozenset()
 
 

@@ -44,7 +44,8 @@ def test_committed_examples_validate(repo_paths: Paths) -> None:
     assert set(bundle.pin_maps) == {"mosfet-4t", "diode-2t", "resistor-2t", "mosfet-3t-lab", "fefet-sel",
                                     "fecap-wgfmu", "moscap-cmu"}
     assert set(bundle.dut_profiles) == {"nmos-generic", "fefet-generic", "diode-generic", "resistor-generic",
-                                        "fefet-lab", "fecap-generic", "moscap-generic", "capacitor-100p"}
+                                        "fefet-lab", "fecap-generic", "moscap-generic", "capacitor-100p",
+                                        "dielectric-generic"}
     assert bundle.sim_scenario is not None and bundle.sim_scenario.name == "nmos_basic"
     assert {f.source for f in bundle.files.values()} == {"example"}
     assert bundle.warnings == []

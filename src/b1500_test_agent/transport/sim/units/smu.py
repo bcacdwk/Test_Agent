@@ -9,6 +9,7 @@ settings of ``CoreUnit`` (``integration_time``, ``noise_multiplier``). A second 
 modes takes over ``MM``/``XE`` dispatch by mode. Manual references (Programming Guide Ed. 15, physical PDF pages):
 ``RI`` 501; ``RV`` 503; ``MM`` 470-471; ``CMM`` 380; ``DV`` 396; ``WV`` 568-569; ``WT`` 564-565; ``WM`` 552-553;
 ``XE`` 570; interlock in the high-voltage state 577.
+``MM 10`` (sampling) triggers are handed to ``SamplingUnit._start_sampling`` (``units/sampling.py``, WP7.4).
 """
 
 from __future__ import annotations
@@ -88,13 +89,14 @@ class SmuUnit:
 
     @handles("MM")
     def _cmd_mm(self, cmd: flex.Command) -> None:
-        """``MM 1|2,ch...``: spot or staircase sweep; other modes are unsupported in v1 (PDF 470-471)."""
+        """``MM 1|2|10,ch...``: spot, staircase sweep or sampling (``units/sampling.py``); other modes are
+        unsupported (PDF 470-471)."""
         if not cmd.args:
             raise flex.FlexError(flex.ERR_TERMINATOR)
         mode = flex.integer(cmd.args[0])
         if not 1 <= mode <= 28:
             raise flex.FlexError(flex.ERR_PARAMETER)
-        if mode not in (1, 2):
+        if mode not in (1, 2, 10):
             raise Unsupported(f"MM {mode}")
         channels = [self._smu(a) for a in cmd.args[1:]]
         if not 1 <= len(channels) <= 10 or len(set(channels)) != len(channels):
@@ -248,6 +250,9 @@ class SmuUnit:
         if self._mm is None:
             raise flex.FlexError(flex.ERR_NO_MM)
         mode, channels = self._mm
+        if mode == 10:
+            self._start_sampling(channels)
+            return
         sweep = self._sweep if mode == 2 else None
         if mode == 2 and sweep is None:
             raise flex.FlexError(flex.ERR_NO_SWEEP)

@@ -81,20 +81,23 @@ QUERIES = frozenset({
 })  # fmt: skip
 """Commands that put a response into the query buffer."""
 
-SUPPORTED = QUERIES | frozenset({
+SAMPLING_COMMANDS = frozenset({"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"})
+"""The SMU sampling setup (``MM 10``) and the timer reset (``units/sampling.py``, v2 kind ``smu_sampling``)."""
+
+SUPPORTED = QUERIES | SAMPLING_COMMANDS | frozenset({
     "*RST", "FMT", "BC", "TSC", "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "RI", "RV",
     "MM", "CMM", "DV", "WV", "WT", "WM", "XE", "CM",
 })  # fmt: skip
 """Every mnemonic the simulator executes (the v1 subset plus ``CM`` and ``*LRN?`` types 0 and 31, v2 2.6, and the
 family state queries of the bring-up probe, v2 7.1: ``ERMOD?``, ``ERSSP?``, ``SPST?``, ``CORRST?``, ``ADJ?`` mode
-0); anything else is error 100 and logged ``unsupported``."""
+0; the sampling commands, WP7.4); anything else is error 100 and logged ``unsupported``."""
 
 ALONE_ONLY = frozenset({"AB", "*RST", "FMT", "BC"})
 """Mnemonics that must be sent alone: the simulator rejects the whole line (error 103) otherwise (PDF 44, 364,
 437). The real instrument executes ``AB``/``*RST`` and silently drops the rest; the simulator is stricter so a
 driver bug is loud."""
 
-SOURCE_COMMANDS = frozenset({"DV", "WV"})
+SOURCE_COMMANDS = frozenset({"DV", "WV", "MV", "MI"})
 """Commands that set an output level (the safety spy watches these)."""
 
 ZEROING_COMMANDS = frozenset({"DZ", "CL"})

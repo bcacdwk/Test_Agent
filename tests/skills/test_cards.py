@@ -32,9 +32,12 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "smu/gate-leakage": ["mosfet.gate_leakage"],
     "nvm/fefet-dual-sweep-mw": ["fefet.dual_sweep_mw"],
     "system/self-test-cal": ["system.self_test", "system.self_cal"],
+    "smu/smu-sampling": ["mosfet.id_t_sampling", "generic.smu_sampling"],  # WP7.4
+    "reliability/tddb-bdv": ["reliability.tddb_cvs"],  # WP7.4 (CVS part; WP7.5 adds the BDV recipes)
 }
 STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfet-idvg": "L4", "smu/mosfet-idvd": "L4",
-            "smu/gate-leakage": "L4", "nvm/fefet-dual-sweep-mw": "L7", "system/self-test-cal": "L1"}
+            "smu/gate-leakage": "L4", "nvm/fefet-dual-sweep-mw": "L7", "system/self-test-cal": "L1",
+            "smu/smu-sampling": "L5", "reliability/tddb-bdv": "L9"}
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault"}

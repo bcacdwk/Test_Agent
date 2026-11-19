@@ -1,0 +1,59 @@
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario. Name = file name.
+# An n-channel IGZO thin-film transistor with bias-stress drift (blueprint v2 4.2 `igzo` transient, 3.1 rows
+# generic.smu_sampling and mosfet.id_t_sampling) on the lab mainframe, wired like pin map mosfet-4t (gate SMU4, drain
+# SMU3, both HRSMU, source on the GNDU; the lab's own Id(t) script, lwp lib/IVt_sampling.m, uses gate SMU3, drain SMU4
+# and source SMU5: pin map mosfet-3t-lab, whose FLEX sequence tests/integration/test_lab_ivt_sequence.py compares).
+#
+# Truth (tests/integration/test_recipes_sampling.py asserts the analyses against it): model `mosfet` (EKV + the
+# stretched-exponential IGZO drift of models/sim_devices.py): under gate bias V the threshold rises towards
+# igzo_dvth_per_v x V as dV_inf x (1 - exp(-(t/tau)^beta)); tau 4 s and beta 0.5 put most of the relaxation inside
+# the lab's 40 s sampling window (4 ms x 10001 points), dV_inf 0.15 V at the lab's 3 V gate step. The drain current
+# relaxes accordingly (about -11 % at Vd 5 V, -7 % at 0.1 V); sampling_summary's stretched-exponential fit recovers
+# tau +-15 % and beta +-0.1 (blueprint 4.2 fidelity target). Device values are typical of oxide TFTs (Vth about 0.8 V,
+# SS about 180 mV/dec, beta = mu Cox W/L 2 uA/V^2), not a measured device; the drift time constant is chosen so a
+# short sampling shows it (real IGZO tau spans seconds to hours with temperature and bias). No IGZO DUT profile is
+# committed (acceptance S8: an unknown IGZO sample needs the human's pins and limits); the examples use nmos-generic.
+# Noise: lab HRSMU floor (7e-14 A at 1 PLC, see lab_nmos_2025.yaml) and 0.1 % relative noise; the 4 ms interval
+# shortens the 1 PLC integration (MT, PG p475 (4-157)), so the short-integration multiplier (3x) applies.
+
+description: >-
+  n-channel IGZO TFT with bias-stress Vth drift (tau 4 s, beta 0.5, 0.05 V/V) on the lab mainframe, wired as pin map
+  mosfet-4t (gate SMU4, drain SMU3, source GNDU); instant timing.
+idn: Agilent Technologies,B1500A,0,A.06.02.2023.0401
+slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
+  - {slot: 7, model: B1520A}
+interlock_closed: false
+wiring:
+  dut:
+    gate: 4
+    drain: 3
+    source: GNDU
+    bulk: null                  # thin-film transistor: no body contact
+models:
+  dut:
+    model: mosfet
+    params:
+      polarity: n
+      vth0: 0.8                 # V
+      slope_factor: 3.0         # SS = n ln10 kT/q, about 180 mV/dec
+      beta: 2.0e-6              # A/V^2
+      theta: 0.1                # 1/V
+      lambda: 0.02              # 1/V
+      rs_ohm: 1000.0
+      gate_leak_s: 1.0e-13
+      temperature_k: 300.0
+      igzo_dvth_per_v: 0.05     # dVth_inf = 0.05 V per volt of gate bias
+      igzo_tau_s: 4.0           # s
+      igzo_beta: 0.5
+noise:
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 7.0e-14}
+  rel: 1.0e-3
+  seed: 74
+faults: null
+timing: instant

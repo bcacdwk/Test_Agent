@@ -1,0 +1,57 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOSFET / TFT drain-current transient Id(t) after a gate step (bias-stress drift of IGZO TFTs; charge trapping):
+# the drain is biased (DV) before the trigger, the gate steps from vg_base to vg at the time origin (MV, after
+# hold_base) and the drain current is sampled every `interval` (MM 10 with time stamps). Defaults reproduce the lab's
+# own script (lwp lib/IVt_sampling.m + test_IVt_sampling.m: gate 0 -> 3 V, Vd 5 V, 4 ms x 10001 points, bias hold
+# 10 ms, base hold 0.1 s, 1 PLC; pin map mosfet-3t-lab) with the kernel's safer compliances (1 uA gate, 1 mA drain
+# instead of the lab's 10 mA / 100 mA) and automatic abort; the remaining differences are documented in
+# tests/integration/test_lab_ivt_sequence.py. Analysis: sampling_summary with the stretched-exponential relaxation
+# (tau, beta) of the drain current.
+# status: sim_validated by tests/integration/test_recipes_sampling.py (igzo_transient: tau +-15 %, beta +-0.1 vs the
+# model truth); hw_validated only through a validation record (stage L5).
+id: mosfet.id_t_sampling
+version: 1
+title: MOSFET/TFT drain-current transient Id(t) after a gate step (bias-stress drift, stretched exponential)
+family: smu
+kind: smu_sampling
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/smu-sampling.md
+device_types: [nmos, pmos, igzo_tft]
+roles:
+  gate:
+    function: bias_v
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {base: $vg_base, v: $vg, icomp: $icomp_gate}
+  drain:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {v: $vd, icomp: $icomp_drain}
+  source: {function: ground, allow_gndu: true}
+params:
+  vg_base: {unit: V, default: 0.0, range: [-20, 20], doc: Gate level before the step (off state).}
+  vg: {unit: V, default: 3.0, recommended: [1.0, 10.0], range: [-20, 20], doc: Gate level from the step on (stress).}
+  vd: {unit: V, default: 5.0, recommended: [0.05, 5.0], range: [-20, 20],
+       doc: "Drain bias (constant; 0.05-0.1 V reads the linear region)."}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance.}
+  icomp_drain: {unit: A, default: 1.0e-3, recommended: [1.0e-6, 1.0e-2], range: [1.0e-12, 1.0e-2],
+                doc: Drain current compliance.}
+  interval: {unit: s, default: 0.004, recommended: [0.002, 1.0], range: [0.002, 65.535],
+             doc: "Sampling interval (1 ms steps)."}
+  points: {type: int, default: 10001, recommended: [1001, 10001], range: [11, 10001], doc: Number of samples.}
+  hold_bias: {unit: s, default: 0.01, range: [0, 655.35], doc: "Gate step to the first sample (10 ms steps)."}
+  hold_base: {unit: s, default: 0.1, range: [0, 655.35], doc: "Gate held at vg_base before the step (10 ms steps)."}
+  sampling_mode: {type: enum, choices: [linear, log10, log25, log50, log100, log250, log500], default: linear,
+                  doc: "linear, or log-spaced with that many points per decade (one MM 10 block)."}
+  integration: {type: enum, choices: [short, medium, long], default: medium,
+                doc: ADC preset (shortened by the instrument when longer than the interval).}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: sampling_summary, options: {y: drain_I, fit: stretched_exp}}
+provenance:
+  sources:
+    - lwp lib/IVt_sampling.m and test_IVt_sampling.m (read-only; tests/fixtures/lab/lwp_test_ivt_sampling.txt)
+    - blueprint v2 1.1 (IVt sampling facts), 3.1 row mosfet.id_t_sampling, 4.2 igzo transient
+    - knowledge 05 (IGZO bias stress); Libsch & Kanicki, APL 62, 1286 (1993)
+    - Programming Guide Ed. 15 sampling (PDF 112-114), MT (PDF 474-476), MV (PDF 477-478), TSC (PDF 538)
+  validation_runs: []

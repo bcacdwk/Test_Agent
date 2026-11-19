@@ -66,7 +66,7 @@ Deck slide 11, corrected against the User's Guide. DC values; v1 sources DC only
 ## Measurement modes
 
 Folded from the former mode-map stub and checked against PG Chapter 2 (PDF 91-132) and the `XE` required-command
-table (PDF 571-572). Only modes 1 and 2 have an implemented path in v1.
+table (PDF 571-572). Implemented: modes 2 and 10.
 
 | MM | Mode | Modules | v1 |
 |---|---|---|---|
@@ -75,7 +75,7 @@ table (PDF 571-572). Only modes 1 and 2 have an implemented path in v1.
 | 2 | staircase sweep | SMU | `smu_staircase`, `smu_stepped` (host loop over a stepped bias) |
 | 3, 4, 5 | pulsed spot, pulsed sweep, staircase with pulsed bias | SMU | reserved |
 | 9 | quasi-pulsed spot | SMU | reserved |
-| 10 | sampling | SMU | reserved (TDDB constant-voltage stress) |
+| 10 | sampling | SMU | `smu_sampling` (I(t) transients, TDDB; section below) |
 | 13 | quasi-static C-V | SMU | reserved |
 | 14, 15 | linear / binary search | SMU | reserved |
 | 16 | multi-channel sweep | SMU | reserved |
@@ -84,6 +84,21 @@ table (PDF 571-572). Only modes 1 and 2 have an implemented path in v1.
 
 WGFMU waveforms run through the B1530A instrument library and SPGU pulses through their own commands, not through
 `MM` (the old stub listed them under sampling and pulsed sweep) `TODO(verify)` against the B1530A guide.
+
+## Sampling measurement MM 10
+
+Kind `smu_sampling` (recipes `mosfet.id_t_sampling`, `generic.smu_sampling`, `reliability.tddb_cvs`); PG sampling
+measurements PG p112-114 (2-24), `MT` PG p474-476 (4-156).
+
+- On the trigger the synchronous sources (`MV`/`MI`) force their base value, `hold_base` later their bias value
+  (the time origin, `t_s = 0`), `hold_bias` later the first sample; then one sample per `interval` (2 ms to 65 s
+  in 1 ms steps; below 2 ms linear only). DC sources (`DV`) are set before the trigger and keep their level.
+- Each sample carries its sampling index (`FMT 1,1`) and, with `TSC 1`, a time stamp per channel (time since `TSR`);
+  `t_s` comes from the stamps. A sample that would start while the channels are busy is skipped (index gap).
+- `MSC 2,2`: compliance of any channel, overflow or oscillation stops the sampling at once (later data read
+  `199.999E+99`, dropped from the table) and the sources go to their base value; a normal end keeps the bias.
+- Runs with more than 60 s of linear sampling are chains of 25 s blocks: continuation blocks hold the stress
+  (base = bias) and the time stamps run on, so `t_s` stays exact; each block is a checkpoint (progress, cancel).
 
 ## Measurement sequence and cleanup
 
@@ -122,6 +137,10 @@ measurement as `mosfet.idvg` on pin map `mosfet-3t-lab` with these deliberate di
 - No `ERSSP` (the lab sends `ERSSP p,0` = open without `ERMOD 1`); `ERRX?` drained before the trigger and in the
   cleanup, both `0,` and `+0,` read as no error; a verified cleanup instead of a bare `DZ`, `CL`. The lab's SPGU
   script never sends `CL` at all.
+- Id(t) sampling (`lib/IVt_sampling.m` vs `mosfet.id_t_sampling` on `mosfet-3t-lab`; reasons in
+  `tests/integration/test_lab_ivt_sequence.py`): same `ML 1`, `MT`, `MV` step and `MM 10` drain; `FMT 1,1` (status
+  letters and the sampling index) instead of `FMT 21,0`, `MSC 2,2` automatic abort (lab off), `MCC` and `TSR`
+  (the lab relies on `*RST`), compliances 1 uA gate / 1 mA drain (lab 10 mA / 100 mA).
 
 ## FLEX glossary for reading plans and audit logs
 

@@ -1,0 +1,22 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 472-473 (printed 4-154 to 4-155, MSC: data measured before the abort condition, dummy 199.999E+99 after it), PDF 49 (printed 1-29, sampling block [Sampling_no,] Data), PDF 46 (printed 1-26, Time before each datum with TSC 1), PDF 53 (Table 1-10 status C and V), PDF 55 (Table 1-12 data types X and T)
+# kind: fmt1
+# command: FMT 1,1; TSC 1; TSR; MT 0.5,1,5,0; MSC 2,2; MV 4,0,0,5.5,0.001; MM 10,4; CMM 4,1; XE
+# terminator: crlf
+# note: assembled from the tables (TDDB-like): samples 1-2 normal leakage, sample 3 in compliance (breakdown) aborts, samples 4-5 are dummy data; times are 0.5 s + (index - 1) x 1 s after the TSR
+# note: the order Sampling_no, Time, Data and the letters of the index and dummy-sample elements are assumed (the manual prints none; TODO(verify) at bring-up stage L5, ATV-22)
+# point: N D X +1.00000E+00
+# point: N D T +500.000E-03
+# point: N D I +2.03500E-06
+# point: N D X +2.00000E+00
+# point: N D T +1.50000E+00
+# point: N D I +2.04100E-06
+# point: N D X +3.00000E+00
+# point: N D T +2.50000E+00
+# point: C D I +1.00000E-03
+# point: N D X +4.00000E+00
+# point: N D T +3.50000E+00
+# point: V D I +199.999E+99
+# point: N D X +5.00000E+00
+# point: N D T +4.50000E+00
+# point: V D I +199.999E+99
+NDX+1.00000E+00,NDT+500.000E-03,NDI+2.03500E-06,NDX+2.00000E+00,NDT+1.50000E+00,NDI+2.04100E-06,NDX+3.00000E+00,NDT+2.50000E+00,CDI+1.00000E-03,NDX+4.00000E+00,NDT+3.50000E+00,VDI+199.999E+99,NDX+5.00000E+00,NDT+4.50000E+00,VDI+199.999E+99

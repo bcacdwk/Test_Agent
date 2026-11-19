@@ -344,9 +344,21 @@ class BusLockedFault(StrictModel):
     count: int | None = Field(default=None, ge=1)
 
 
+class BreakdownAt(StrictModel):
+    """Forced dielectric breakdown (blueprint v2 4.3): every ``dielectric`` device of the scenario (or only
+    ``device``) breaks down at the first sampled point (``MM 10``) taken ``t_s`` seconds or more after the first
+    sampled point since the fault became active, whatever its accumulated damage; afterwards its ohmic breakdown path
+    conducts (``r_bd_ohm``), so the stress source runs into compliance. One-shot."""
+
+    kind: Literal["breakdown_at"] = "breakdown_at"
+    t_s: float = Field(ge=0.0, le=1.0e7)
+    device: str | None = None
+
+
 SimFault = Annotated[
     ComplianceAt | ErrxFault | TimeoutFault | GarbageData | InterlockOpen | Disconnect | Oscillation | IdnOverride
-    | ModulesOverride | IgnoreDz | CleanupFailure | Slow | RunInterrupt | BusLockedFault | AbortIgnored,
+    | ModulesOverride | IgnoreDz | CleanupFailure | Slow | RunInterrupt | BusLockedFault | AbortIgnored
+    | BreakdownAt,
     Field(discriminator="kind"),
 ]
 """One simulator fault (blueprint 3, v2 4.3); the ``kind`` key selects the type."""
@@ -354,7 +366,7 @@ SimFault = Annotated[
 FAULT_KINDS: tuple[str, ...] = (
     "compliance_at", "errx", "timeout", "garbage_data", "interlock_open", "disconnect", "oscillation",
     "idn_override", "modules_override", "ignore_dz", "cleanup_failure", "slow", "run_interrupt", "bus_locked",
-    "abort_ignored",
+    "abort_ignored", "breakdown_at",
 )  # fmt: skip
 """Every ``SimFault`` kind, in blueprint order (v1 kinds, then the v2 additions of blueprint 4.3)."""
 

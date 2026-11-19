@@ -143,6 +143,10 @@ class DielectricDevice:
     def capacitance(self, v: float, f: float) -> float:
         return parallel_capacitance(self.admittance(v, f), f)
 
+    def break_down(self) -> None:
+        """Break down now, whatever the accumulated damage (the ``breakdown_at`` fault of the simulator)."""
+        self.broken, self.damage = True, 1.0
+
     def next_site(self) -> None:
         """Move to a fresh device of the same population: new Weibull draw, no damage, not broken."""
         self.site += 1

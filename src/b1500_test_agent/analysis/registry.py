@@ -41,7 +41,7 @@ from b1500_test_agent.analysis.mosfet import (
 )
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv_method
 from b1500_test_agent.analysis.quality import assess_quality
-from b1500_test_agent.analysis.reliability import plot_timeseries_method
+from b1500_test_agent.analysis.reliability import plot_timeseries_method, sampling_summary, time_to_breakdown
 from b1500_test_agent.analysis.resistor import resistance
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport, TrustPolicy
@@ -60,6 +60,9 @@ _STAIRCASE = ("smu_staircase",)
 _SWEEPS = ("smu_staircase", "smu_stepped")
 _SMU: tuple[RecipeFamily, ...] = ("smu",)
 _SMU_NVM: tuple[RecipeFamily, ...] = ("smu", "nvm")
+_SMU_RELIABILITY: tuple[RecipeFamily, ...] = ("smu", "reliability")
+_SAMPLING = ("generic.smu_sampling", "mosfet.id_t_sampling", "reliability.tddb_cvs", "generic.*")
+_SAMPLING_KINDS = ("smu_sampling",)
 _TABLES: tuple[RecipeFamily, ...] = ("smu", "cmu", "spgu", "wgfmu", "nvm", "reliability")
 """Families whose runs archive a measurement table (``system`` runs archive none)."""
 
@@ -189,6 +192,12 @@ _METHODS = [
     _method("plot_timeseries", "plots", plot_timeseries_method,
             "Measured values against time t_s (else cycle or step), per phase, linear/log; PNGs under plots/.",
             ("*",), ("*",), families=_TABLES, milestone="M5"),
+    _method("sampling_summary", "extraction", sampling_summary,
+            "Initial/final/mean/std/drift of a sampled column vs t_s; optional stretched-exponential tau, beta.",
+            _SAMPLING, _SAMPLING_KINDS, families=_SMU_RELIABILITY, milestone="M7"),
+    _method("time_to_breakdown", "extraction", time_to_breakdown,
+            "Time to breakdown under constant stress (compliance, current jump or threshold); censored if none.",
+            _SAMPLING, _SAMPLING_KINDS, families=_SMU_RELIABILITY, milestone="M7"),
 ]
 
 ANALYSIS_METHODS: Mapping[str, AnalysisMethod] = MappingProxyType({m.name: m for m in _METHODS})

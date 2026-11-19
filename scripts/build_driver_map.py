@@ -47,7 +47,8 @@ PRIORITIES = ("m1", "m2", "later")
 PRIORITY_SCALE = {
     "m1": "M1 vertical path (status -> validate -> staircase Id-Vg -> archive -> Vth), safe_shutdown cleanup "
     "and system.* self-test/self-cal; the B1500Driver methods of blueprint section 2.3; v2 additions mapped since "
-    "(CM and *LRN? by WP5.6, the read-only probe queries ERMOD?, ERSSP?, SPST?, CORRST?, ADJ? by WP6.1)",
+    "(CM and *LRN? by WP5.6, the read-only probe queries ERMOD?, ERSSP?, SPST?, CORRST?, ADJ? by WP6.1, the SMU "
+    "sampling MM 10 with MCC, ML, MT, MSC, MV, MI and the time stamps TSC/TSR by WP7.4)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
     "simulator's FLEX subset v1 (AV, BC, NUB?, TSC); DI/WI only if a card needs them",
     "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
@@ -61,10 +62,11 @@ DRIVER_METHODS = (
     "staircase_v", "execute_and_read", "wait_complete", "auto_calibration", "set_auto_calibration",
     "selector_control_mode", "selector_state", "pulse_output_active", "correction_enabled",
     "phase_compensation_result",
+    "set_time_stamp", "reset_timer", "sampling_setup", "sampling_update",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
-    "erssp_q", "corrst_q", "adj_q",
+    "erssp_q", "corrst_q", "adj_q", "tsc", "tsr", "mcc", "ml", "mt", "msc", "mv", "mi",
     "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q", "ERMOD_Q", "SPST_Q",
 )  # fmt: skip
 DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
@@ -110,7 +112,8 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "RV": CommandTarget("set_range", "rv"),
     "CN": CommandTarget("enable", "cn"),
     "DV": CommandTarget("force_v", "dv", "OutputGuard-checked"),
-    "MM": CommandTarget("staircase_v", "mm", "staircase_v sends MM 2 only; every other mode is unmapped"),
+    "MM": CommandTarget("staircase_v", "mm", "staircase_v sends MM 2, sampling_setup MM 10 (MM_MODE_TARGETS); every "
+                        "other mode is unmapped"),
     "CMM": CommandTarget("staircase_v", "cmm", "sent inside the staircase setup"),
     "WV": CommandTarget("staircase_v", "wv", "OutputGuard-checked"),
     "WT": CommandTarget("staircase_v", "wt"),
@@ -130,10 +133,20 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
                              "R-CORR-01 pre-execute: M8"),
     "ADJ?": CommandTarget("phase_compensation_result", "adj_q", "mode 0 only (last result, no measurement; WP6.1); "
                           "mode 1 phase compensation: M8"),
+    "TSC": CommandTarget("set_time_stamp", "tsc", "kind smu_sampling (WP7.4): time stamps before every datum"),
+    "TSR": CommandTarget("reset_timer", "tsr", "once before the first sampling trigger (immediate form only)"),
+    "MCC": CommandTarget("sampling_setup", "mcc", "clears sampling sources left by an earlier program"),
+    "ML": CommandTarget("sampling_setup", "ml"),
+    "MT": CommandTarget("sampling_setup", "mt", "also sampling_update between the blocks of a long run"),
+    "MSC": CommandTarget("sampling_setup", "msc",
+                         "always MSC 2,2: automatic abort (breakdown), bias after a normal end"),
+    "MV": CommandTarget("sampling_setup", "mv", "OutputGuard-checked (base and bias)"),
+    "MI": CommandTarget("sampling_setup", "mi", "OutputGuard-checked (base and bias)"),
 }
+MM_MODE_TARGETS: dict[int, str] = {2: "B1500Driver.staircase_v", 10: "B1500Driver.sampling_setup"}
+"""``MM <mode>`` entries of the legacy atoms: the driver method that sends each mapped mode (others unmapped)."""
 # Mapped commands are all m1; these unmapped ones are m2; everything else is `later`.
 M2_COMMANDS = frozenset({"AV", "BC", "NUB?", "TSC", "DI", "WI"})
-MM_MAPPED_MODE = 2
 
 # FLEX commands named in the legacy basis but absent from the command summary YAML (never edit
 # references/manuals/**; the citation is recorded here instead).
@@ -158,6 +171,12 @@ GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "WM": ([552, 553], ["4-234 to 4-235"]),
     "WT": ([564, 565], ["4-246 to 4-247"]),
     "WV": ([568, 569], ["4-250 to 4-251"]),
+    "MCC": ([461], ["4-143"]),
+    "MI": ([468, 469], ["4-150 to 4-151"]),
+    "ML": ([469, 470], ["4-151 to 4-152"]),
+    "MSC": ([472, 473], ["4-154 to 4-155"]),
+    "MT": ([474, 475, 476], ["4-156 to 4-158"]),
+    "MV": ([477, 478], ["4-159 to 4-160"]),
 }
 CHAPTER_4_PDF_OFFSET = 318
 
@@ -502,14 +521,14 @@ def _mnemonic(entry: str) -> str:
 def _flex_target(entry: str) -> str | None:
     """New driver target of one normalized FLEX entry, or None if unmapped."""
     mnemonic = _mnemonic(entry)
-    if mnemonic == "MM" and " " in entry and int(entry.split(" ", 1)[1]) != MM_MAPPED_MODE:
-        return None
+    if mnemonic == "MM" and " " in entry:
+        return MM_MODE_TARGETS.get(int(entry.split(" ", 1)[1]))
     target = COMMAND_TARGETS.get(mnemonic)
     return target.primary if target else None
 
 
 def _flex_priority(entry: str) -> str:
-    """m1 if mapped, m2 for the M2_COMMANDS, else later (`MM <n>` with n != 2 is later)."""
+    """m1 if mapped, m2 for the M2_COMMANDS, else later (`MM <n>` of an unmapped mode is later)."""
     if _flex_target(entry):
         return "m1"
     return "m2" if _mnemonic(entry) in M2_COMMANDS else "later"

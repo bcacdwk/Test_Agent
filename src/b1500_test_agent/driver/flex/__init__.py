@@ -6,6 +6,8 @@ One module per instrument family: ``core`` (system queries, output switches, ``F
 work packages (M8, M9) add their setting commands to the same modules. This package re-exports every public
 builder and constant, so callers import the package (``from b1500_test_agent.driver import flex``) and write
 ``flex.dv(...)``. Builders are pure (syntax and domain checks only, never policy) and return one command per string.
+WP7.4: ``core`` also builds the time stamps ``TSC``/``TSR``; ``sampling`` holds the SMU sampling (``MM 10``) setup
+``MCC``, ``ML``, ``MT``, ``MSC``, ``MV``, ``MI``.
 """
 
 from b1500_test_agent.driver.flex.cmu import ADJ_READ_LAST, ADJ_RESULTS, CORRECTION_CODES, adj_q, corrst_q
@@ -37,6 +39,30 @@ from b1500_test_agent.driver.flex.core import (
     fmt,
     lrn_q,
     mm,
+    tsc,
+    tsr,
+)
+from b1500_test_agent.driver.flex.sampling import (
+    LINEAR_SAMPLING,
+    LOG_SAMPLING_DECADES,
+    LOG_SAMPLING_DENSITY,
+    MAX_CHANNELS_MCC,
+    MT_FAST_INTERVAL_S,
+    MT_HOLD_RESOLUTION_S,
+    MT_MAX_HOLD_S,
+    MT_MAX_INTERVAL_S,
+    MT_MAX_NUMBER,
+    MT_MIN_INTERVAL_S,
+    MT_NEGATIVE_HOLD_S,
+    SAMPLING_ABORT,
+    SAMPLING_MODE,
+    SAMPLING_POST,
+    mcc,
+    mi,
+    ml,
+    msc,
+    mt,
+    mv,
 )
 from b1500_test_agent.driver.flex.smu import I_RANGE_CODES, V_RANGE_CODES, aad, ait, cmm, dv, ri, rv, wm, wt, wv
 from b1500_test_agent.driver.flex.spgu import SPST_Q, SPST_STATES
@@ -56,16 +82,30 @@ __all__ = [
     "FORMATS",
     "IDN_Q",
     "I_RANGE_CODES",
+    "LINEAR_SAMPLING",
+    "LOG_SAMPLING_DECADES",
+    "LOG_SAMPLING_DENSITY",
     "LOP_Q",
     "LOP_RESPONSE_PREFIX",
     "LRN_AUTO_CALIBRATION",
     "LRN_SETTINGS",
     "LRN_TYPES",
     "MAX_CHANNELS_CN_CL_DZ",
+    "MAX_CHANNELS_MCC",
     "MAX_CHANNELS_MM",
     "MEASUREMENT_MODES",
+    "MT_FAST_INTERVAL_S",
+    "MT_HOLD_RESOLUTION_S",
+    "MT_MAX_HOLD_S",
+    "MT_MAX_INTERVAL_S",
+    "MT_MAX_NUMBER",
+    "MT_MIN_INTERVAL_S",
+    "MT_NEGATIVE_HOLD_S",
     "OPC_Q",
     "RST",
+    "SAMPLING_ABORT",
+    "SAMPLING_MODE",
+    "SAMPLING_POST",
     "SER_SETTING",
     "SPST_Q",
     "SPST_STATES",
@@ -87,9 +127,17 @@ __all__ = [
     "erssp_q",
     "fmt",
     "lrn_q",
+    "mcc",
+    "mi",
+    "ml",
     "mm",
+    "msc",
+    "mt",
+    "mv",
     "ri",
     "rv",
+    "tsc",
+    "tsr",
     "wm",
     "wt",
     "wv",

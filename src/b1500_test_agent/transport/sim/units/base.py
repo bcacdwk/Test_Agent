@@ -88,3 +88,9 @@ class Measurement:
     zero_at: float | None
     device_states: list[dict[str, dict[str, float | int | bool | str]]] = field(default_factory=list)
     """Stateful-device state before the first step (index 0) and after each measured step (index k)."""
+    source_levels: dict[int, tuple[float, float]] | None = None
+    """Sampling (``MM 10``): ``{channel: (voltage, compliance)}`` the synchronous sources hold after the measurement
+    ends (``MSC`` post value, or base after an automatic abort)."""
+    abort_source_levels: dict[int, tuple[float, float]] | None = None
+    """Sampling: what the synchronous sources hold after an ``AB`` or device clear ends the measurement early
+    (their base values)."""

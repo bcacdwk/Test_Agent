@@ -68,6 +68,8 @@ naming it), `note`.
 | `*RST` / `*TST?` / `*CAL?` | `reset` / `self_test` / `self_calibrate` | `RST` / `TST_Q` / `CAL_Q` (added by WP1.3) |
 | `FMT` / `AAD`, `AIT` / `RI`, `RV` / `CN` / `DV` | `set_format` / `set_integration` / `set_range` / `enable` / `force_v` | `fmt` / `aad`, `ait` / `ri`, `rv` / `cn` / `dv` |
 | `MM` (mode 2 only), `CMM`, `WV`, `WT`, `WM` | `staircase_v` | `mm`, `cmm`, `wv`, `wt`, `wm` |
+| `MM 10`, `MCC`, `ML`, `MT`, `MSC`, `MV`, `MI` (sampling; WP7.4) | `sampling_setup` (`MT`, `MV`/`MI` also `sampling_update`) | `mm`, `mcc`, `ml`, `mt`, `msc`, `mv`, `mi` |
+| `TSC` / `TSR` (time stamps; WP7.4) | `set_time_stamp` / `reset_timer` | `tsc` / `tsr` |
 | `XE` + output-buffer read | `execute_and_read` | `XE` |
 | `*OPC?` | `wait_complete` (added by WP1.3) | `OPC_Q` |
 
@@ -85,7 +87,7 @@ as the CMU, pulsed and sampling execute atoms, because their `MM` mode is not su
 
 How a priority is set:
 1. A mapped FLEX entry counts as `m1`. An unmapped one counts as `m2` if it is in `M2_COMMANDS`, else `later`.
-   An `MM <n>` entry with n ≠ 2 is `later`. Host tokens: the output-buffer read and `session.close` are `m1`.
+   An `MM <n>` entry of a mode without a driver method (`MM_MODE_TARGETS`: 2, 10) is `later`. Host tokens: the output-buffer read and `session.close` are `m1`.
    WGFMU and EasyEXPERT tokens are `later`. An atom starts at the latest priority among its entries.
 2. If the atom id names a later-scope unit (`wgfmu`, `easyexpert`, `spgu`, `cmu`, `qscv`, `hvsmu`, `hcsmu`,
    `uhcu`, `hvmcu`, `uhvu`, `asu`, `scuu`, `selector`, `dio`), the atom is `later` even if `XE` maps.

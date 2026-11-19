@@ -6,6 +6,7 @@ FLEX subset (``flex.SUPPORTED``); anything else queues error 100 and is logged `
 keeps the clock, the persistent state, the error queue, the command log, the measurement lifecycle and the dispatch;
 the FLEX handlers live in units registered by mnemonic (``units/core.py``: identity, status, buffer, format,
 output switches, A/D converters; ``units/smu.py``: ranging, modes, sources and the measurement engine;
+``units/sampling.py``: the SMU sampling setup (``MM 10``), timer reset and sampling engine;
 ``units/cmu.py``, ``units/spgu.py``, ``units/switch.py``: the family state queries of the bring-up probe). Each
 supported mnemonic has exactly one handler (``units.base.handler_table``; test ``tests/sim/test_units.py``).
 
@@ -64,6 +65,7 @@ from b1500_test_agent.transport.sim.state import (
 from b1500_test_agent.transport.sim.units.base import DEFAULT_ICOMP, FOREVER, Measurement, Unsupported, handler_table
 from b1500_test_agent.transport.sim.units.cmu import CmuUnit
 from b1500_test_agent.transport.sim.units.core import CoreUnit
+from b1500_test_agent.transport.sim.units.sampling import SamplingUnit
 from b1500_test_agent.transport.sim.units.smu import SmuUnit
 from b1500_test_agent.transport.sim.units.spgu import SpguUnit
 from b1500_test_agent.transport.sim.units.switch import SwitchUnit
@@ -104,7 +106,7 @@ def _quick_mnemonic(part: str) -> str:
         return ""
 
 
-class SimInstrument(CoreUnit, SmuUnit, CmuUnit, SpguUnit, SwitchUnit):
+class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUnit):
     """In-process B1500A: ``handle(line)`` executes one command line and returns the query response, if any.
 
     Query responses and measurement data are buffered as on the instrument and read with ``read_message``.
@@ -141,6 +143,7 @@ class SimInstrument(CoreUnit, SmuUnit, CmuUnit, SpguUnit, SwitchUnit):
         """Measurement setup of every unit to its initial settings (PG Table 2-13, PDF 180)."""
         self._reset_core_settings()
         self._reset_smu_settings()
+        self._reset_sampling_settings()
 
     def _slots(self) -> dict[int, SimSlot]:
         override = self.faults.modules()
@@ -458,6 +461,11 @@ class SimInstrument(CoreUnit, SmuUnit, CmuUnit, SpguUnit, SwitchUnit):
             level = sweep.start if aborted else measurement.post_level
             if state.output_on and level is not None:
                 state.voltage, state.icomp = level, sweep.icomp
+        held = measurement.abort_source_levels if aborted else measurement.source_levels
+        for channel, (voltage, icomp) in (held or {}).items():
+            state = self.state.channels[channel]
+            if state.output_on:
+                state.voltage, state.icomp = voltage, icomp
         if measurement.zero_at is not None and measurement.zero_at <= at:
             for channel, state in self.state.channels.items():
                 if state.output_on and not self.faults.stuck(channel):

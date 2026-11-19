@@ -5,7 +5,7 @@ sources:
   - deck slide 14 (domain 5 seed)
   - deck text PPT_slides_content.md (domain 5 page; BTI log-spaced read times, TDDB Weibull)
   - deck slide 17 (IGZO Vth drift case)
-  - recipes/reserved (reliability.bti_sms, reliability.hci, reliability.tddb_cvs, wgfmu.fast_bti)
+  - recipes/reserved (reliability.bti_sms, reliability.hci, wgfmu.fast_bti); recipes/reliability/tddb_cvs.yaml (WP7.4)
   - "D. K. Schroder, Semiconductor Material and Device Characterization, 3rd ed. (not page-checked)"
   - "JEDEC reliability test methods for BTI, HCI and TDDB (not consulted yet; TODO(verify))"
 last_reviewed: null
@@ -26,7 +26,8 @@ and after a human-run stress, and dual sweeps. Numbers marked `TODO(verify)` are
 | Gate leakage Ig(Vg), non-destructive | yes | `mosfet.gate_leakage` (card `gate-leakage`) |
 | BTI stress-measure-stress | reserved | `reliability.bti_sms`, `wgfmu.fast_bti` |
 | HCI | reserved | `reliability.hci` |
-| TDDB constant-voltage stress | reserved | `reliability.tddb_cvs` |
+| TDDB constant-voltage stress | yes (WP7.4, destructive) | `reliability.tddb_cvs` (card `tddb-bdv`) |
+| IGZO bias-stress transient Id(t) | yes (WP7.4) | `mosfet.id_t_sampling` (card `smu-sampling`) |
 | Dit by C-V or charge pumping | reserved | `moscap.cv`, `moscap.qscv` |
 
 Never imitate a stress with a sweep recipe (for example a long or repeated high-voltage sweep): it bypasses the
@@ -90,14 +91,17 @@ Reserved. Seeded from deck slide 14.
 
 ## TDDB constant-voltage stress
 
-Reserved (`reliability.tddb_cvs`, SMU sampling mode 10). Seeded from deck slide 14 and the deck text.
+Implemented (`reliability.tddb_cvs`, kind `smu_sampling`, card `tddb-bdv`; WP7.4). Seeded from deck slide 14.
 
-- Constant-voltage stress on the gate while sampling the leakage current versus time; breakdown criterion: a sudden
-  current jump or a current threshold (state it). Soft breakdown (noisy, partial) precedes hard breakdown in thin
-  oxides.
-- Statistics over many devices: Weibull plot ln(-ln(1 - F)) versus ln(t); shape factor beta and characteristic
-  time t63 (63.2 % failed). Area scaling and voltage acceleration extrapolate to use conditions.
-- Destructive by definition: one device per stress, explicit human confirmation, abort and cleanup on breakdown.
+- Constant-voltage stress on the gate while sampling the leakage current versus time; breakdown criterion: the
+  stress source reaching its compliance (`icomp`, the breakdown current limit; the sampling then aborts and the
+  source returns to 0 V), a sudden current jump, or a current threshold (state it). Soft breakdown (noisy,
+  partial) precedes hard breakdown in thin oxides; the leakage first rises slowly (SILC, trapping).
+- Statistics over many devices: Weibull F = 1 - exp(-(t/eta)^beta), plot ln(-ln(1 - F)) versus ln(t); shape beta
+  and characteristic life eta = t63 (63.2 % failed); survivors are right-censored. Field acceleration (E model
+  t_bd ∝ exp(-gamma E)) and area scaling extrapolate to use conditions (not automated) `TODO(verify)`.
+- Destructive by definition: one site per stress, explicit human confirmation (`destructive`), never re-stress a
+  broken site.
 
 ## Interface traps Dit
 
@@ -131,7 +135,10 @@ Seeded from deck slide 14 and the deck slide 17 case "IGZO TFT Vth differs every
 - Back-channel adsorption: water and oxygen adsorb and desorb on the exposed back surface, changing its potential
   (deck: moisture sensitivity).
 - Bias stress: positive gate bias stress shifts Vth positive (electron trapping); negative bias under illumination
-  shifts it negative (photo-ionised vacancies). The measurement sweep itself is a short bias stress.
+  shifts it negative (photo-ionised vacancies). The measurement sweep itself is a short bias stress. The shift
+  follows a stretched exponential dV(t) = dV_inf (1 - exp(-(t/tau)^beta)), beta about 0.3-0.7 (Libsch and
+  Kanicki, APL 62, 1286, 1993) `TODO(verify)`; `mosfet.id_t_sampling` samples Id after a gate step and fits tau and
+  beta of the relaxing current (linear region: the same tau and beta as Vth).
 - Deck triage for drifting Vth: control temperature and humidity, then reduce the sweep range, then shorten the
   measurement time. The full runbook is `vth-drift-igzo` in skill `b1500-debug`.
 

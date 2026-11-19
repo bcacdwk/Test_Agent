@@ -722,6 +722,10 @@ class Executor(RunningRuns):
         if plan.kind == "smu_stepped":
             out.append("host loop: one sweep per step value in one transaction; the loop stops after a sweep that "
                        "reported compliance/overflow/oscillation (see kind_result)")
+        if plan.kind == "smu_sampling":
+            out.append("sampling (MM 10) with automatic abort on compliance/overflow/oscillation (MSC 2,2): an "
+                       "aborted block ends the run (see kind_result); t_s from the instrument time stamps since the "
+                       "bias step; runs over 60 s of sampling are chains of 25 s blocks holding the stress")
         if plan.mode == "async":
             out.append("asynchronous run: progress.json and partial.csv written at the checkpoints; auto-calibration "
                        "off (CM 0) during the run and restored by the cleanup (R-CAL-02)")

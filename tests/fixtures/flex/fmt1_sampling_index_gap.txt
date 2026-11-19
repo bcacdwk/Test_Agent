@@ -1,0 +1,10 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 49 (printed 1-29): if the measurement time is longer than the sampling interval and shorter than twice it, Sampling_no is 2 for Block1 and 4 for Block2; element layout PDF 50-55 (Tables 1-6 to 1-12)
+# kind: fmt1
+# command: FMT 1,1; MT 0,0.002,2,0; MM 10,3; XE
+# terminator: crlf
+# note: the manual's example indices 2 and 4, one channel (SMU3, letter C), no time stamps; current values chosen for the fixture; index element letters assumed as in fmt1_sampling_manual_example.txt
+# point: N C X +2.00000E+00
+# point: N C I +1.00000E-06
+# point: N C X +4.00000E+00
+# point: N C I +1.00100E-06
+NCX+2.00000E+00,NCI+1.00000E-06,NCX+4.00000E+00,NCI+1.00100E-06

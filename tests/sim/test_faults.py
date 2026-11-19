@@ -43,6 +43,7 @@ def test_every_kind_has_a_schema_and_parses_from_yaml_data() -> None:
         "modules_override": {"slots": [{"slot": 1, "model": "B1517A"}]}, "ignore_dz": {"channels": [1]},
         "cleanup_failure": {"count": 1}, "slow": {"factor": 10}, "bus_locked": {"nth": 2, "count": 1},
         "run_interrupt": {"segment": 2}, "abort_ignored": {"nth": 1, "count": None},
+        "breakdown_at": {"t_s": 600.0, "device": "dut"},
     }  # fmt: skip
     assert set(examples) == set(FAULT_KINDS)
     for kind, fields in examples.items():

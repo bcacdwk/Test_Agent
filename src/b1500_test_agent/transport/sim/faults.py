@@ -8,6 +8,7 @@ on ``read``, ``disconnect``, ``cleanup_failure``, ``bus_locked``, ``run_interrup
 visa-loop test resource, which puts the real ``VisaTransport`` on the same instrument). ``run_interrupt`` is counted
 by the instrument (one ``XE`` = one measurement) and raised by the link at the read of that measurement. Other
 host-side faults (parser exception, ``EnvelopeViolation``) are injected by monkeypatching in the tests, not here.
+``breakdown_at`` (WP7.4) is consulted by the sampling engine (``units/sampling.py``) at every sampled point.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from dataclasses import dataclass
 
 from b1500_test_agent.models.sim import (
     AbortIgnored,
+    BreakdownAt,
     BusLockedFault,
     CleanupFailure,
     ComplianceAt,
@@ -44,6 +46,8 @@ class _Active:
     fault: SimFault
     count: int = 0
     spent: bool = False
+    origin: float | None = None
+    """Instrument time of the first sampled point after activation (``breakdown_at``)."""
 
 
 class FaultEngine:
@@ -175,6 +179,21 @@ class FaultEngine:
                 fired = True
             item.count += 1
         return fired
+
+    def breakdowns_due(self, t: float) -> list[str | None]:
+        """Devices a ``breakdown_at`` fault breaks down at sampled time ``t`` (instrument clock, s): the ``device`` of
+        every fault whose delay has elapsed since its first sampled point (``None`` = every dielectric device).
+        One-shot; the first call after activation starts the fault's clock."""
+        due: list[str | None] = []
+        for item in self._of(BreakdownAt):
+            fault = item.fault
+            assert isinstance(fault, BreakdownAt)
+            if item.origin is None:
+                item.origin = t
+            if t - item.origin >= fault.t_s - 1e-12:
+                item.spent = True
+                due.append(fault.device)
+        return due
 
     def slow_factor(self) -> float:
         """Product of the active ``slow`` factors (1.0 without one)."""

@@ -20,6 +20,7 @@ SMU I-V with HRSMU/MPSMU and the GNDU: contact and resistance, diode, MOSFET DC,
 | smu | gate leakage, Ig, oxide, Ig-Vg | [gate-leakage](smu/gate-leakage.md) | `mosfet.gate_leakage` | sim_validated | HRSMU, MPSMU, GNDU | L4 |
 | smu | output curves, Id-Vd, Ron, gds, saturation | [mosfet-idvd](smu/mosfet-idvd.md) | `mosfet.idvd` | sim_validated | HRSMU, MPSMU, GNDU | L4 |
 | smu | Vth, gm, SS, Ion/Ioff, Id-Vg, transfer curve | [mosfet-idvg](smu/mosfet-idvg.md) | `mosfet.idvg` | sim_validated | HRSMU, MPSMU, GNDU | L4 |
+| smu | sampling, I(t), Id(t), transient, time dependence, bias-stress drift, IGZO, relaxation, tau | [smu-sampling](smu/smu-sampling.md) | `mosfet.id_t_sampling`, `generic.smu_sampling` | sim_validated | HRSMU, MPSMU, GNDU | L5 |
 | smu | Generic SMU staircase sweep (ad-hoc; one swept, one optional biased, one ground terminal) | no card by design: ask the human first | `generic.smu_staircase` | sim_validated | - | - |
 | smu | reserved: Compare a measured run with an HSPICE simulation | [reserved](reserved/README.md) | `hspice.compare` | not_implemented | - | - |
 
@@ -65,9 +66,9 @@ Stress-measure: BTI, HCI, SILC, TDDB, breakdown voltage, IGZO bias stress (destr
 
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
+| reliability | TDDB, time to breakdown, t_bd, dielectric breakdown, gate oxide reliability, Weibull, constant voltage stress | [tddb-bdv](reliability/tddb-bdv.md) | `reliability.tddb_cvs` | sim_validated | HRSMU, MPSMU, GNDU | L9 |
 | reliability | reserved: BTI stress-measure-stress with SMUs | [reserved](reserved/README.md) | `reliability.bti_sms` | not_implemented | - | - |
 | reliability | reserved: Hot-carrier injection stress with periodic Id-Vg reads | [reserved](reserved/README.md) | `reliability.hci` | not_implemented | - | - |
-| reliability | reserved: TDDB constant-voltage stress with leakage sampling | [reserved](reserved/README.md) | `reliability.tddb_cvs` | not_implemented | - | - |
 | reliability | reserved: WGFMU fast BTI (stress with on-the-fly Vth monitoring) | [reserved](reserved/README.md) | `wgfmu.fast_bti` | not_implemented | - | - |
 
 ## system

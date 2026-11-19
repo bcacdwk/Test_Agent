@@ -230,8 +230,9 @@ server (or of the CLI, which stays in the foreground) runs the kind. The kind's 
 the run stops at its next checkpoint (`RunCancelled`, outcome `cancelled`), runs the full verified cleanup and removes
 the file; then `safe_shutdown` runs its own cleanup as for any shutdown. Every run, synchronous ones too, honours the
 abort file at its checkpoints; a run ignores requests older than itself or addressed to another run, and an
-unreadable abort file counts as a request. Readback loops of later kinds (WGFMU, sampling) poll it at least once a
-second. One run at a time per instrument (the lock); while it runs, `station_status` answers `busy` from the cached
+unreadable abort file counts as a request. Readback loops of later kinds (WGFMU) poll it at least once a second; the
+SMU sampling kind reads each `MM 10` block in one blocking read (blocks ≤ 25 s, the ATV-30 fallback), so its cancel
+waits for the end of the block. One run at a time per instrument (the lock); while it runs, `station_status` answers `busy` from the cached
 snapshot without waiting for the lock, and a second run request is `busy` at once. Auto-calibration is off (`CM 0`)
 during an asynchronous run and restored by the cleanup (R-CAL-02), because it fires after 30 min with every output
 switch off and would calibrate with the DUT connected. The MCP server's shutdown hook (stdin closed, SIGTERM,
@@ -241,6 +242,15 @@ waits up to one segment (≤ 30 s); a hard kill (SIGKILL, power loss, Task Manag
 outputs on until the next transaction: new runs are refused (R-FAULT-01, an unrecovered in-flight marker) until
 `safe_shutdown` runs the in-flight recovery cleanup, which also archives the dead run as `aborted` with the rows it
 had written; a run longer than 10 min needs confirmation, longer than 24 h is blocked.
+
+**Sampling and stress (`smu_sampling`, WP7.4).** The synchronous sources (`MV`/`MI`) are source commands: the guard
+checks their base and bias level and compliance before anything is written, again for every continuation block of a
+long run. Every sampling runs with `MSC 2,2`: a compliance on any channel, an A/D overflow or an oscillation stops the
+measurement inside the instrument and the sources return to their base value, so a dielectric breakdown under TDDB
+stress is limited by the stress compliance (`icomp`, the breakdown current limit) and ends the run; later blocks are
+never triggered and the transaction's cleanup zeroes and verifies as for any run. TDDB is destructive and always
+confirmed. Residual: a continuation block holds the stress as its base value (no drop to 0 V between blocks), so after
+an automatic abort in such a block the stress stays on, current-limited, until the cleanup's `DZ` milliseconds later.
 
 ## Cleanup and fault latch
 

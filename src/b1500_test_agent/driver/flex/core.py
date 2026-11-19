@@ -6,8 +6,8 @@
 ``*RST`` always travel alone. They check only what the command syntax allows (parameter domains from the manual);
 module capabilities, station inventory, envelopes and policy limits are checked by ``driver/modules.py``,
 ``driver/guard.py`` and ``rules/``. A few builders accept less than the manual allows, on purpose: ``FMT`` 1 and 5
-only (the parser handles nothing else), ``MM`` 1 and 2 only (spot and staircase sweep, the v1 kinds), ``CN`` with an
-explicit channel list only (a bare ``CN`` enables every module). The ``*RST`` constant is sent only by
+only (the parser handles nothing else), ``MM`` only in the modes a kind implements (``MEASUREMENT_MODES``), ``CN``
+with an explicit channel list only (a bare ``CN`` enables every module). The ``*RST`` constant is sent only by
 ``B1500Driver.reset``, which only kind ``system`` calls (lint ``tests/unit/test_lint_rst.py``).
 
 The syntax helpers below (``_num``, ``_int``, ``_channel``, ``_channels``, ``_choice``, ``_with_channels``) are
@@ -88,8 +88,8 @@ MAX_CHANNELS_MM = 10
 FORMATS = frozenset({1, 5})
 """``FMT`` formats this driver sends: ASCII with header, CR/LF (1) or comma (5) terminated (Table 4-24, PDF 437)."""
 
-MEASUREMENT_MODES = frozenset({1, 2})
-"""``MM`` modes this driver sends: 1 spot, 2 staircase sweep (Table 4-28, PDF 471)."""
+MEASUREMENT_MODES = frozenset({1, 2, 10})
+"""``MM`` modes this driver sends: 1 spot, 2 staircase sweep, 10 sampling (Table 4-28, PDF 471-472)."""
 
 LRN_TYPES = range(111)
 """``*LRN?`` type parameter: 0 to 110 (some numbers unused; PG PDF 447, printed 4-129)."""
@@ -207,9 +207,34 @@ def mm(mode: int, chs: Sequence[int]) -> str:
     """``MM mode,chnum[,chnum...]``: measurement mode and measurement channels (PG PDF 470-471, printed 4-152 to
     4-153; Table 4-28).
 
-    ``mode`` 1 (spot) or 2 (staircase sweep) with one to ten channels; with several channels they measure in the
-    given order. Other modes are refused until a measurement kind implements them.
+    ``mode`` 1 (spot), 2 (staircase sweep) or 10 (sampling) with one to ten channels; with several channels they
+    measure in the given order. Other modes are refused until a measurement kind implements them.
     """
     _choice(mode, MEASUREMENT_MODES, "MM mode")
     return f"MM {mode},{','.join(str(ch) for ch in _channels(chs, limit=MAX_CHANNELS_MM, required=True))}"
 
+
+
+def tsc(on: bool) -> str:
+    """``TSC mode``: time stamp function OFF (0, initial setting) or ON (1) (PG PDF 538-539, printed 4-220 to 4-221).
+
+    With it ON every measurement datum is preceded by a ``Time`` element (data type ``T``): the time from the last
+    timer reset (``TSR``) to the start of that measurement (PG PDF 46, printed 1-26). Not available for MM 9, 14 and
+    15 (quasi-pulsed spot, linear and binary search) and the 4-byte binary formats; best resolution 100 us when the
+    timer is cleared at least every 100 s in FMT 1/5 (the 12-digit field keeps six significant digits).
+    """
+    if not isinstance(on, bool):
+        raise TypeError(f"TSC takes a bool, got {on!r}")
+    return f"TSC {1 if on else 0}"
+
+
+def tsr(ch: int | None = None) -> str:
+    """``TSR [chnum]``: clear the timer count (Time = 0) (PG PDF 539-540, printed 4-221 to 4-222), effective for all
+    measurement modes whatever the ``TSC`` setting. Without ``chnum`` immediately; with an SMU or MFCMU channel
+    (1-10) once, at that channel's next source output start by ``DV``, ``DI`` or ``DCV`` (its output switch must be
+    ON; ``CL`` cancels it)."""
+    if ch is None:
+        return "TSR"
+    if _int(ch, "TSR channel") not in range(1, 11):
+        raise ValueError(f"TSR takes an SMU or MFCMU channel 1-10 (PG PDF 540), got {ch}")
+    return f"TSR {ch}"

@@ -1,0 +1,7 @@
+description: Stage checks that do not match the file - a check id missing from Expected values, a check of a recipe the stage does not run.
+edits:
+  - file: .agents/skills/b1500-bringup/stages/l4-mosfet.md
+    old: "| `vth` | EasyEXPERT value"
+    new: "| Vth | EasyEXPERT value"
+expect:
+  - {code: stage, file: .agents/skills/b1500-bringup/stages/l4-mosfet.md, contains: "check vth is not named in the Expected values section"}

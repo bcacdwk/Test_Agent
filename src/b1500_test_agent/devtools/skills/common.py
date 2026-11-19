@@ -1,6 +1,7 @@
-"""Shared pieces of the skill lint: layout names, the schema of skill/card/knowledge/stage frontmatter and example
-plans, the bring-up stage list, the report models, the per-run ``Lint`` context (problems, notes, parsed-document
-cache) and frontmatter helpers."""
+"""Shared pieces of the skill lint: layout names, the schema of skill/card/knowledge frontmatter and example plans,
+the report models, the per-run ``Lint`` context (problems, notes, parsed-document cache) and frontmatter helpers. The
+bring-up stage list, the stage-file frontmatter and the record keys live in ``models/validation.py`` (shared with
+``b1500 bringup``) and are re-exported here."""
 
 
 from __future__ import annotations
@@ -16,6 +17,12 @@ from b1500_test_agent.devtools.skills.markdown import MarkdownDoc, parse_markdow
 from b1500_test_agent.models.analysis import Identifier
 from b1500_test_agent.models.common import ConfigName, StrictModel
 from b1500_test_agent.models.recipe import RecipeFamily, RecipeId
+from b1500_test_agent.models.validation import (  # noqa: F401 - re-exported: the stage schema lives in models
+    RECORD_KEYS,
+    STAGES,
+    StageFrontmatter,
+    StageId,
+)
 
 ENTRY_SKILL = "b1500-test"
 DEBUG_SKILL = "b1500-debug"
@@ -53,26 +60,6 @@ RouteToken = Annotated[str, Field(pattern=r"^(selector_16440a|scuu|asu|rsu):(smu
 """A route a card's measurement needs: ``<switch kind>:<state>``, e.g. ``selector_16440a:pgu`` (``open`` is every
 switch's rest state, never a need)."""
 
-StageId = Literal["S0", "L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10"]
-"""Bring-up stage ids (blueprint v2 7.4); hardware tests, records and cards share them."""
-
-STAGES: Final[dict[str, tuple[str, str]]] = {
-    "S0": ("s0-physical", "prerequisites: EasyEXPERT exited, GPIB 17, shield box, DUT set at hand"),
-    "L0": ("l0-probe-config", "bus, identity, inventory, errors, WGFMU library; configuration adopted"),
-    "L1": ("l1-smu-zero", "outputs safe at 0 V; cleanup verified; mid-run safe_shutdown once"),
-    "L2": ("l2-resistors", "DC accuracy on known resistors; Kelvin"),
-    "L3": ("l3-diode", "voltage and current forcing, compliance"),
-    "L4": ("l4-mosfet", "MOSFET DC set against EasyEXPERT"),
-    "L5": ("l5-smu-advanced", "pulsed, sampling, search, QSCV leakage"),
-    "L6": ("l6-cmu", "phase compensation, open/short, known capacitor, MOS-C"),
-    "L7": ("l7-spgu-selector", "selector map, pulses into 1 MOhm, FeFET program/read"),
-    "L8": ("l8-wgfmu", "library session, self-test/cal, DC via RSU, fast vs DC, lwp waveform"),
-    "L9": ("l9-long-runs", "async run, cancel, recovery; auto-calibration restored"),
-    "L10": ("l10-harness-handoff", "acceptance prompts on hardware; records reviewed and transferred"),
-}
-"""Stage id -> (stage file stem under ``b1500-bringup/stages/``, goal); blueprint v2 6.1 and 7.4 (same order as
-``StageId``)."""
-
 STAGE_SECTIONS: tuple[str, ...] = (
     "Preconditions",
     "Physical steps (human)",
@@ -82,12 +69,6 @@ STAGE_SECTIONS: tuple[str, ...] = (
     "Record",
 )
 """The six H2 sections of a bring-up stage file, numbered ``## 1. ...`` to ``## 6. ...`` (blueprint v2 6.1)."""
-
-RECORD_KEYS: tuple[str, ...] = (
-    "stage", "recipe_id", "recipe_version", "recipe_sha256", "backend", "station", "dut", "runs", "measurements",
-    "result", "operator", "date", "reviewer", "reviewed_on", "notes",
-)  # fmt: skip
-"""Top-level keys of ``b1500-bringup/records/_TEMPLATE.yaml``, the draft hardware validation record."""
 
 CARD_SECTIONS: tuple[str, ...] = (
     "Purpose and applicable devices",
@@ -160,16 +141,6 @@ class CardFrontmatter(StrictModel):
             if len(set(values)) != len(values):
                 raise ValueError(f"{name} lists an entry twice")
         return self
-
-
-class StageFrontmatter(StrictModel):
-    """Bring-up stage-file frontmatter (``b1500-bringup/stages/<stem>.md``): the stage id (its file stem is fixed
-    by ``STAGES``), a title, the recipes the stage runs (registered ids) and a version."""
-
-    stage: StageId
-    title: NonEmptyStr
-    recipes: list[RecipeId]
-    version: Annotated[int, Field(ge=1)]
 
 
 class KnowledgeFrontmatter(StrictModel):

@@ -79,7 +79,8 @@ iteration until safety scenarios pass 3/3 and functional scenarios pass on both 
 
 - [`docs/hardware-bringup.md`](hardware-bringup.md) (written, WP4.1): staged bring-up with sign-off lines: physical
   checks, read-only probing, 0 V open circuit, known resistors, known diode, known-good MOSFET compared with
-  EasyEXPERT; recipes are promoted to `hw_validated` only with a validation record.
+  EasyEXPERT; recipes are promoted to `hw_validated` only with a validation record. Since WP6.3 a one-page
+  overview: the stage files of skill `b1500-bringup` hold the procedure.
 - [`docs/deployment-windows.md`](deployment-windows.md) (written, WP4.2): lab PC setup (Python + uv, VISA + GPIB
   adapter, `git clone`, `uv sync --frozen`, `config/local/`, `b1500 doctor --probe`, `b1500 harness init`),
   residual risks in plain words, facts to collect.
@@ -120,3 +121,4 @@ Gate at the end of M5: 3,157 tests (`-n auto`), 10 MCP tools / 1,584 schema toke
 | WP | Result |
 |---|---|
 | 6.1 Probe + bootstrap | `b1500 doctor --probe` (read-only FLEX probe: VISA library and resources, identity, inventory vs station, errors, status byte, outputs, selectors, SPGU, MFCMU corrections; raw answers to `work/bringup/`), `b1500 bringup propose-station`, the human-only `b1500 config init` and `b1500 config adopt`; guard hook and the owner-authorized OD-5 harness permission change set |
+| 6.3 Bring-up skill | Stage files S0, L0-L4, L10 of skill `b1500-bringup` (machine-readable checks), `b1500 bringup status\|capture\|record` (drafts only from hardware runs; simulator runs refused), `validation/hw/` with the review flow and the `hw_validated` promotion rule in `b1500 dev recipe-check`, `docs/hardware-bringup.md` as a one-page overview, acceptance S17 graders with ideal/violating fixtures |

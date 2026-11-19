@@ -2,6 +2,8 @@
 stage: L4
 title: MOSFET DC set against EasyEXPERT (fixture)
 recipes: [mosfet.idvg]
+checks:
+  - {id: vth, recipe: mosfet.idvg, quantity: vth, method: vth_linear_extrapolation, unit: V, reference: EasyEXPERT file, tolerance: {absolute: 0.01}, text: '+-10 mV'}
 version: 1
 ---
 
@@ -23,7 +25,7 @@ version: 1
 
 | check | expected | tolerance | source |
 |---|---|---|---|
-| Vth | EasyEXPERT value | ±10 mV | EasyEXPERT file |
+| `vth` | EasyEXPERT value | ±10 mV | EasyEXPERT file |
 
 ## 5. Abort criteria
 

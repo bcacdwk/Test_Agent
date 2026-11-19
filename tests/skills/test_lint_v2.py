@@ -103,6 +103,11 @@ def test_repository_lint_notes_stages_without_files() -> None:
     assert report.ok, lint_skills.format_report(report)
     stage_notes = [n for n in report.notes if n.startswith("bring-up stage ")]
     assert stage_notes and all("has no stage file yet" in n for n in stage_notes)
-    assert any(n.startswith("bring-up stage L4 ") and "mosfet-idvg" in n for n in stage_notes)
+    assert any(n.startswith("bring-up stage L7 ") and "fefet-dual-sweep-mw" in n for n in stage_notes)
+    assert not any(n.startswith(("bring-up stage S0 ", "bring-up stage L1 ", "bring-up stage L4 "))
+                   for n in stage_notes)  # WP6.3 wrote S0, L0-L4 and L10
+    assert report.stages == [f".agents/skills/b1500-bringup/stages/{stem}.md" for stem in sorted(
+        ("s0-physical", "l0-probe-config", "l1-smu-zero", "l2-resistors", "l3-diode", "l4-mosfet",
+         "l10-harness-handoff"))]
     assert "recipes without a card by design: generic.smu_staircase" in report.notes
     assert report.skills == ["b1500-bringup", "b1500-debug", "b1500-test"]

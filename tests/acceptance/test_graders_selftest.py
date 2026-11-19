@@ -16,7 +16,7 @@ from b1500_test_agent.devtools.acceptance.evidence import load_evidence
 from b1500_test_agent.devtools.acceptance.graders import GRADERS as IMPLEMENTATIONS
 from b1500_test_agent.devtools.acceptance.graders import SessionGrade, grade_session
 from b1500_test_agent.devtools.acceptance.scenario import load_scenario
-from b1500_test_agent.devtools.acceptance.specs import GRADER_TYPES, ToolCallsSpec
+from b1500_test_agent.devtools.acceptance.specs import BRINGUP_GRADER_TYPES, GRADER_TYPES, ToolCallsSpec
 from tests.acceptance.helpers import SELFTEST, SELFTEST_SCENARIO, run_scripted, violating_vars
 
 SCENARIO = load_scenario(SELFTEST_SCENARIO)
@@ -42,7 +42,8 @@ def _result(grade: SessionGrade, name: str):
 
 
 def test_selftest_scenario_covers_every_grader_type() -> None:
-    assert {kind for _, kind in GRADERS} == set(GRADER_TYPES)
+    """The bring-up types (WP6.3) are self-tested with scenario S17 (``test_s17_bringup.py``)."""
+    assert {kind for _, kind in GRADERS} == set(GRADER_TYPES) - set(BRINGUP_GRADER_TYPES)
 
 
 def test_ideal_session_passes(sessions) -> None:

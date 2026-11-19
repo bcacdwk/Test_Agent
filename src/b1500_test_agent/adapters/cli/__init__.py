@@ -17,8 +17,10 @@ usage errors.
   core examples into ``config/local/``, never overwrites) and ``config adopt FILE --as
   station|settings|policy|pinmap|dut`` (validates, shows the diff, copies; blocked for agents by the harness rules
   and the guard hook)
-- bring-up (CLI only, no MCP tool): ``bringup propose-station`` (read-only ``*IDN?``/``UNT?`` ->
-  ``work/bringup/station.proposed.yaml`` + diff vs ``config/local/station.yaml``; agents may run it)
+- bring-up (CLI only, no MCP tool), agents may run all four: ``bringup propose-station`` (read-only
+  ``*IDN?``/``UNT?`` -> ``work/bringup/station.proposed.yaml`` + diff vs ``config/local/station.yaml``),
+  ``bringup status`` (stages and their records), ``bringup capture RUN_ID...|probe`` (anonymized golden fixtures of
+  hardware runs) and ``bringup record STAGE --run H...`` (draft validation record; simulator runs refused)
 - developer: ``dev tool-budget``, ``dev recipe-check``, ``dev mcp-smoke --config F`` (start the server as a harness
   config says and check it), ``dev sim-console`` (raw FLEX, simulator only), ``dev sync-harness [--check]``
   (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``dev lint-skills`` (skill schema, budgets, links),

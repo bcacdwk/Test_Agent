@@ -31,9 +31,10 @@ applies in full to every measurement (validate first, consent per plan, report r
 
 ## 2. Stages
 
-Work in this order. A stage starts only after the human signed off the previous one (a reviewed record or an
-explicit "go on" in chat). Read the stage file before acting; a stage without a file is not ready: say so and
-stop there.
+Work in this order; `uv run b1500 bringup status` shows where the bring-up stands (each stage's records,
+reviewed or drafted) and names the next stage. A stage starts only after the human signed off the previous one (a
+reviewed record or an explicit "go on" in chat). Read the stage file before acting; a stage without a file (status
+`no_stage_file`: L5 to L9 arrive with their module work) is not ready: say so and stop there.
 
 | Stage | Goal | Stage file |
 |---|---|---|
@@ -54,36 +55,44 @@ Each test card names its stage (`bringup_stage`, shown in the card index of skil
 
 ## 3. Working a stage
 
-1. Read the stage file; check its preconditions (previous stage signed off, `station_status` clean,
-   `uv run b1500 doctor` without FAIL).
-2. Physical steps: give the human the block of steps; wait for their confirmation in chat.
-3. Agent steps in the file's order: read-only checks first (`uv run b1500 doctor --probe`), then
-   validated plans through skill `b1500-test` (summary, consent, run, quality gate, analysis).
+1. `uv run b1500 bringup status`, then read the stage file; check its preconditions (previous stage signed off,
+   `station_status` clean, `uv run b1500 doctor` without FAIL).
+2. Physical steps: give the human the block of steps; wait for their confirmation in chat. Configuration files
+   you prepare go to `work/bringup/` as proposals; the human adopts them.
+3. Agent steps in the file's order: read-only checks first (`uv run b1500 doctor --probe`), then validated plans
+   through skill `b1500-test` (summary, consent, run, quality gate, analysis).
 4. Compare with the expected values; any abort criterion: rule 3.
-5. Record: copy `records/_TEMPLATE.yaml` to `work/bringup/records/<stage>-<recipe_id>-<UTC date>.yaml`, fill the
-   measured values, references, tolerances, `H...` run ids and recipe sha256 from the run manifests; leave
-   `reviewer` empty. Tell the human what to review.
+5. Record (hardware only): `uv run b1500 bringup record STAGE --run H... --operator NAME` drafts the record into
+   `work/bringup/records/` (values copied from the runs, tolerances from the stage file, run ids and recipe
+   digests; `--reference CHECK=VALUE` carries a reference value the human gave in chat). Fixtures:
+   `uv run b1500 bringup capture H...` or `uv run b1500 bringup capture probe`. Tell the human what to review;
+   `reviewer` stays empty.
 
 ## 4. Simulator rehearsal
 
 Allowed for practice and for the acceptance suite: same order and rules, every value SIMULATED. Physical steps
-stay the human's (in a rehearsal they may simply answer "done"). Write no record, fixture or `validation/hw/`
-file from `S...` runs; say which records the stage would draft on hardware.
+stay the human's (in a rehearsal they may simply answer "done"); the configuration commands stay the human's too.
+`bringup record` and `bringup capture` refuse `S...` runs and a simulator station: accept the refusal, never work
+around it (no hand-written record or fixture, no edited run, no invented `H...` id, nothing in `validation/hw/`);
+say which records the stage would draft on hardware.
 
 ## 5. Stage files
 
 Each `stages/<id>-<name>.md` (names in part 2) follows the [stage template](stages/_TEMPLATE.md): frontmatter
-`stage`, `title`, `recipes`, `version`; sections Preconditions, Physical steps (human), Agent steps, Expected
-values, Abort criteria, Record. `uv run b1500 dev lint-skills` checks names, sections, recipes and that a stage
-runs the recipes of the cards that name it.
+`stage`, `title`, `recipes`, `checks` (the rows of Expected values that `bringup record` copies), `version`;
+sections Preconditions, Physical steps (human), Agent steps, Expected values, Abort criteria, Record.
+`uv run b1500 dev lint-skills` checks names, sections, recipes, checks and that a stage runs the recipes of the
+cards that name it.
 
 ## 6. Where things live
 
 - `work/bringup/`: probe output, proposals, fixture captures and draft records (you may write here).
 - `config/local/`: live configuration, written only by the human.
-- `validation/hw/<recipe_id>.yaml`: reviewed records, committed by the human.
+- `validation/hw/<recipe_id>.yaml` and `validation/hw/stage-<stage>.yaml`: reviewed records, moved there and
+  committed by the human (`validation/hw/README.md`).
 - Recipe promotion to `hw_validated`: a reviewed developer change after the session, never during bring-up.
 
-Commands named here: `uv run b1500 doctor`, `uv run b1500 doctor --probe` (read-only; on the simulator it reads
-the simulator), `uv run b1500 bringup propose-station` (writes `work/bringup/station.proposed.yaml` + diff),
-`uv run b1500 config check`, `uv run b1500 status`, `uv run b1500 shutdown`. Each stage file names the rest.
+Commands you may run: `uv run b1500 bringup status|propose-station|capture|record` (read-only on the instrument;
+they write only under `work/bringup/`), `uv run b1500 doctor`, `uv run b1500 doctor --probe` (read-only; on the
+simulator it reads the simulator), `uv run b1500 config check`, `uv run b1500 status`, `uv run b1500 shutdown`.
+Each stage file names the rest, including the commands only the human runs.

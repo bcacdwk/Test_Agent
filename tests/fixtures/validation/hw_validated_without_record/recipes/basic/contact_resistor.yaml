@@ -1,0 +1,42 @@
+# TEST FIXTURE (WP6.3), never a real recipe: a copy of recipes/basic/contact_resistor.yaml with a FAKE
+# `status: hw_validated` and no reviewed record anywhere. `b1500 dev recipe-check` must fail on it (blueprint v2
+# 7.2: hw_validated only with a reviewed record in validation/hw/). No hardware run ever produced it.
+id: basic.contact_resistor
+version: 1
+title: Contact / resistor check (+-0.1 V staircase) - R, linearity, offset; open/short/in-range
+family: smu
+kind: smu_staircase
+status: hw_validated
+card: null
+device_types: [resistor, nmos, pmos, igzo_tft, fefet, diode]
+roles:
+  a:
+    function: sweep_v
+    measure: [I]
+    module_types: [HRSMU, MPSMU, HPSMU]
+    prefer: HRSMU
+    settings: {start: $v_start, stop: $v_stop, points: $points, icomp: $icomp}
+  b: {function: ground, allow_gndu: true}
+params:
+  v_start: {unit: V, default: -0.1, recommended: [-0.1, -0.01], range: [-1.0, 0.0], doc: Sweep start (keep small).}
+  v_stop: {unit: V, default: 0.1, recommended: [0.01, 0.1], range: [0.0, 1.0], doc: Sweep stop (keep small).}
+  points: {type: int, default: 21, recommended: [11, 41], range: [5, 201], doc: Sweep points (equal steps).}
+  icomp:
+    unit: A
+    default: 1.0e-3
+    recommended: [1.0e-4, 1.0e-3]
+    range: [1.0e-9, 1.0e-2]
+    doc: Current compliance; at +-0.1 V, 1 mA flags anything below 100 Ohm as short.
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset (short = fastest/noisiest, long = 16 power-line cycles).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: resistance, options: {r_short_ohm: 100.0, r_open_ohm: 1.0e+9}}
+provenance:
+  sources:
+    - blueprint 6.4 (contact-resistor-check card)
+    - Programming Guide Ed. 15 WV (PDF 568-569), WM (PDF 552-553), FMT (PDF 436-438)
+  validation_runs: []

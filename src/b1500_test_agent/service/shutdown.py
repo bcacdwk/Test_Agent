@@ -9,12 +9,14 @@ the request stays for it). The result names the cancelled run and its outcome.
 
 ``B1500Admin`` holds the CLI operations that are never MCP tools: the human-only ``b1500 fault clear``, and the
 read-only ``b1500 lock status``, ``b1500 doctor --probe`` and the inventory reading of ``b1500 bringup
-propose-station`` (``service/probe.py``, blueprint v2 7.1).
+propose-station`` (``service/probe.py``, blueprint v2 7.1); ``call`` runs the other bring-up helpers (``b1500
+bringup status | capture | record``, ``bringup.py``) through the same plumbing.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from b1500_test_agent.analysis.dataset import MANIFEST_FILE, load_manifest
 from b1500_test_agent.archive.store import RunStore
@@ -23,7 +25,7 @@ from b1500_test_agent.config import ConfigBundle
 from b1500_test_agent.errors import B1500Error, InvalidConfigError
 from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.bringup import InventoryReading, ProbeReport
-from b1500_test_agent.models.common import Backend
+from b1500_test_agent.models.common import Backend, ResultEnvelope
 from b1500_test_agent.models.results import FaultClearResult, LockStatus, ShutdownResult
 from b1500_test_agent.service import probe as probing
 from b1500_test_agent.service.common import REASON_MAX, clip
@@ -31,6 +33,8 @@ from b1500_test_agent.session import FaultClearRefused, Session
 
 if TYPE_CHECKING:
     from b1500_test_agent.service.core import B1500Service
+
+R = TypeVar("R", bound=ResultEnvelope)
 
 
 def clean_reason(reason: str) -> str:
@@ -185,6 +189,12 @@ class B1500Admin:
         """The read-only bring-up probe (``service/probe.py``): PASS/INFO/WARN/FAIL lines, raw exchanges, record
         ``work/bringup/probe-<UTC>.json``; queries only, never a setting command."""
         return self.service._call("probe", {}, ProbeReport, lambda bundle: probing.probe(self.service, bundle))
+
+    def call(self, tool: str, args: Mapping[str, Any], result_type: type[R], body: Callable[[ConfigBundle], R]) -> R:
+        """Run a CLI-only operation ``body`` like a tool call: configuration reload, error mapping (never raises)
+        and one ``tool_call`` audit event named ``tool`` (the ``b1500 bringup`` helpers: ``bringup_status``,
+        ``bringup_capture``, ``bringup_record``)."""
+        return self.service._call(tool, dict(args), result_type, body)
 
     def read_inventory(self) -> InventoryReading:
         """``*IDN?`` and ``UNT?`` through a read-only session (input of ``b1500 bringup propose-station``)."""

@@ -3,6 +3,9 @@ edits:
   - file: .agents/skills/b1500-bringup/stages/l4-mosfet.md
     old: "recipes: [mosfet.idvg]"
     new: "recipes: [mosfet.idvg_pulsed]"
+  - file: .agents/skills/b1500-bringup/stages/l4-mosfet.md
+    old: "{id: vth, recipe: mosfet.idvg,"
+    new: "{id: vth, recipe: mosfet.idvg_pulsed,"
 expect:
   - {code: stage, file: .agents/skills/b1500-bringup/stages/l4-mosfet.md, contains: "recipes lists mosfet.idvg_pulsed, which is not a registered recipe"}
   - {code: card_stage, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "bring-up stage L4 does not run ['mosfet.idvg']"}

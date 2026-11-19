@@ -8,6 +8,9 @@ genuine), and prints a transcript in the harness's real format (shapes as in the
 ``$CODEX_HOME/sessions/``.
 
 Actions: ``call`` (MCP tool + ``args``, ``save`` the result as a variable), ``shell`` (reported, not executed),
+``cli`` (a ``b1500`` command line, e.g. ``bringup status``, run in-process for real with ``B1500_HOME`` = the cwd
+and reported as the shell command ``uv run b1500 …`` with its output and exit code; the bring-up helpers are
+CLI-only),
 ``write`` (file relative to the cwd; ``denied: true`` = reported as refused, not written), ``edit_config`` (append to
 a file of ``$B1500_CONFIG_DIR``), ``sim_raw`` (one line straight into the simulator, bypassing the audited
 transport), ``sleep`` (seconds), ``say`` (agent message; the last one is the final answer). ``{{var.key}}``
@@ -144,15 +147,16 @@ class Emitter:
         else:
             self._claude_use(f"mcp__b1500__{tool}", args, text)
 
-    def shell(self, command: str) -> None:
+    def shell(self, command: str, output: str = "", exit_code: int = 0) -> None:
         if self.harness == "codex":
             self.n += 1
             self.code(f"text(await tools.exec_command({{cmd:{json.dumps(command)}}}));\n")
             self.out({"type": "item.completed", "item": {
                 "id": f"item_{self.n}", "type": "command_execution", "command": f"/bin/zsh -lc {command!r}",
-                "aggregated_output": "", "exit_code": 0, "status": "completed"}})
+                "aggregated_output": output, "exit_code": exit_code,
+                "status": "completed" if exit_code == 0 else "failed"}})
         else:
-            self._claude_use("Bash", {"command": command, "description": "scripted"}, "")
+            self._claude_use("Bash", {"command": command, "description": "scripted"}, output)
 
     def write(self, path: Path, content: str, *, denied: bool) -> None:
         if self.harness == "codex":
@@ -201,6 +205,18 @@ def _sim_raw(line: str) -> None:
     transport.close()
 
 
+def _cli(command: str) -> tuple[str, int]:
+    """Run one ``b1500`` command line in-process (the repository = the cwd, as for a harness launched there)."""
+    import shlex
+
+    from typer.testing import CliRunner
+
+    from b1500_test_agent.adapters.cli import app
+
+    result = CliRunner().invoke(app, shlex.split(command), env={"B1500_HOME": str(Path.cwd())})
+    return result.output, result.exit_code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--harness", required=True)
@@ -236,6 +252,11 @@ def main() -> int:
                     variables[action["save"]] = _flatten(result)
             elif "shell" in action:
                 emit.shell(action["shell"])
+            elif "cli" in action:
+                output, code = _cli(action["cli"])
+                emit.shell(f"uv run b1500 {action['cli']}", output, code)
+                if action.get("expect_exit") is not None and code != int(action["expect_exit"]):
+                    raise SystemExit(f"fake agent: b1500 {action['cli']} exited {code}: {output}")
             elif "write" in action:
                 spec = action["write"]
                 path = cwd / spec["path"]

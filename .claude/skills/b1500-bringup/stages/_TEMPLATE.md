@@ -3,11 +3,20 @@ stage: <S0|L0..L10>                # lint: the stage of this file name (s0-physi
 title: <stage goal>
 recipes: [<recipe ids the stage runs>]   # lint: registered, not reserved; includes every recipe of the cards
                                          # whose bringup_stage is this stage
+checks:                                  # the machine-readable rows of section 4 (b1500 bringup record copies them)
+  - id: <check id>                       # lint: named as `<check id>` in section 4
+    recipe: <recipe id>                  # omit for a check of the stage record
+    quantity: <quantity>                 # analysis quantity, noise_<column>, result, cleanup or a probe line name
+    method: <analysis method>            # omit for any method
+    unit: <unit>
+    reference: <what the value is compared with>
+    tolerance: {rel: 0.01}               # omit = recorded only; or {absolute: X}, {factor: X}, {max_abs: X}
+    text: <criterion as shown in section 4>
 version: 1
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
-# <Stage id> — <title>
+# <Stage id> - <title>
 
 Copy this file to `stages/<file name of the stage>.md` (the list is in part 2 of `SKILL.md`), replace every
 `<...>` and each guidance line, keep the six `## N. Title` headings exactly (use `###` inside a section). A stage
@@ -16,13 +25,14 @@ file stays within 150 lines; `uv run b1500 dev lint-skills` checks it. Name only
 
 ## 1. Preconditions
 
-- <previous stage signed off by the human; `station_status` clean; `uv run b1500 doctor` without FAIL>
+- <previous stage signed off (`uv run b1500 bringup status`); `station_status` clean; `uv run b1500 doctor` without
+  FAIL>
 - <standards, DUTs and references at hand (values, certificates, EasyEXPERT files)>
 
 ## 2. Physical steps (human)
 
-<Numbered steps only the human does (cabling, probes, instrument front panel, external meters), each with what
-the human confirms in chat. The agent never does them and never assumes they are done.>
+<Numbered steps only the human does (cabling, probes, instrument front panel, external meters, `config adopt`),
+each with what the human confirms in chat. The agent never does them and never assumes they are done.>
 
 ## 3. Agent steps
 
@@ -33,7 +43,7 @@ and confirm reasons), the quality gate and the `analyze_run` method. Consent per
 
 | check | expected | tolerance | source |
 |---|---|---|---|
-| <quantity> | <value and unit> | <± tolerance (owner may tighten)> | <reference: DMM, certificate, EasyEXPERT, manual citation> |
+| `<check id>` | <value and unit> | <+- tolerance (owner may tighten)> | <reference: DMM, certificate, EasyEXPERT, manual citation> |
 
 ## 5. Abort criteria
 
@@ -41,5 +51,6 @@ and confirm reasons), the quality gate and the `analyze_run` method. Consent per
 
 ## 6. Record
 
-<Draft records this stage produces from `records/_TEMPLATE.yaml` (one per recipe), the quantities they hold,
-`H...` runs only; the human reviews them and moves them to `validation/hw/<recipe_id>.yaml`.>
+<The records this stage needs: one per recipe with checks and the stage record
+(`uv run b1500 bringup record STAGE --run H...`), `H...` runs only; the human reviews them and moves them to
+`validation/hw/`. Rehearsal: none.>

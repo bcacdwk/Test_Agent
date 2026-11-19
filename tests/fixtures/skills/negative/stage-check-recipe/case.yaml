@@ -1,0 +1,7 @@
+description: A stage check names a recipe the stage does not run (frontmatter rejected).
+edits:
+  - file: .agents/skills/b1500-bringup/stages/l4-mosfet.md
+    old: "{id: vth, recipe: mosfet.idvg,"
+    new: "{id: vth, recipe: mosfet.idvd,"
+expect:
+  - {code: frontmatter, file: .agents/skills/b1500-bringup/stages/l4-mosfet.md, contains: "checks name recipes the stage does not run: ['mosfet.idvd']"}

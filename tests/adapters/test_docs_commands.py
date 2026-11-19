@@ -1,5 +1,6 @@
-"""The M4 checklist docs (blueprint 9.5, WP4.1/4.2) name only ``b1500`` commands and options that exist in the CLI
-("every command named exists in `b1500 --help` output") and keep the structure their acceptance criteria require.
+"""The lab docs (blueprint 9.5, WP4.1/4.2; v2 7.1: ``hardware-bringup.md`` is a one-page overview of the bring-up
+stage files since WP6.3) name only ``b1500`` commands and options that exist in the CLI ("every command named exists
+in `b1500 --help` output") and keep the structure their acceptance criteria require.
 
 Commands are taken from fenced code blocks and inline code spans: every ``b1500`` token (also after ``uv run``) starts
 a command whose following words are walked down the Typer command tree; options must belong to the command reached.
@@ -16,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from b1500_test_agent.devtools.skills.commands import help_problem, named_commands, resolve
+from b1500_test_agent.models.validation import STAGE_FILES_DIR, STAGES, stage_file_name
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BRINGUP = REPO_ROOT / "docs" / "hardware-bringup.md"
@@ -81,52 +83,46 @@ def test_every_named_command_exists(doc: Path) -> None:
     assert not problems, f"{doc.name}:\n" + "\n".join(problems)
 
 
-# -- hardware-bringup.md (WP4.1) ------------------------------------------------------------------------------------
+# -- hardware-bringup.md (WP4.1; one-page overview since WP6.3) ----------------------------------------------------
 
-STAGES = ("Stage 0", "L0", "L1", "L2", "L3", "L4")
-STAGE_FIELDS = ("Preconditions", "Commands", "Expected values", "Abort criteria", "Sign-off")
-STAGE_ATVS = {"Stage 0": ("ATV-3",), "L0": ("ATV-2", "ATV-10", "ATV-4"), "L1": ("ATV-1",), "L4": ("ATV-11", "ATV-7")}
-STAGE_COMMANDS = {
-    "L0": ("doctor --probe", "bringup propose-station", "config adopt", "config check", "status"),
-    "L1": ("plan basic.contact_resistor", "run --confirm", "shutdown", "analyze"),
-    "L2": ("plan basic.contact_resistor", "run --confirm"),
-    "L3": ("plan basic.diode_iv", "run --confirm"),
-    "L4": ("plan mosfet.idvg", "plan mosfet.idvd", "plan mosfet.gate_leakage", "dev recipe-check"),
-}
+STAGE_DIR = REPO_ROOT.joinpath(*STAGE_FILES_DIR)
+OVERVIEW_MAX_LINES = 80
+OVERVIEW_COMMANDS = ("bringup status", "bringup propose-station", "bringup capture", "bringup record",
+                     "doctor --probe", "con" + "fig init", "con" + "fig adopt", "lock status", "shutdown",
+                     "dev recipe-check")
+STAGE_ATVS = {"S0": ("ATV-3",), "L0": ("ATV-2", "ATV-10", "ATV-13"), "L1": ("ATV-1",), "L4": ("ATV-11", "ATV-7")}
+"""v1 ATVs of the M4 checklist, now attached (with their fallback) to the stage files, the single source."""
 
 
-def stage_sections() -> dict[str, str]:
-    found: dict[str, str] = {}
-    for heading, body in sections(BRINGUP.read_text(encoding="utf-8"), 2).items():
-        stage = next((s for s in STAGES if heading == s or heading.startswith(f"{s} ")), None)
-        if stage is not None:
-            found[stage] = body
-    return found
+def test_bringup_overview_is_one_page_pointing_to_the_stage_files() -> None:
+    text = BRINGUP.read_text(encoding="utf-8")
+    assert len(text.splitlines()) <= OVERVIEW_MAX_LINES
+    assert "the procedure itself lives in one place, the stage files of skill `b1500-bringup`" in " ".join(text.split())
+    rows = [line for line in text.splitlines() if line.startswith("| ") and not line.startswith("| Stage")]
+    ids = [row.split("|")[1].strip() for row in rows]
+    expected = [s for s in STAGES if s not in ("L5", "L6", "L7", "L8", "L9")]
+    assert [i for i in ids if i != "L5-L9"] == expected and "L5-L9" in ids
+    for stage in expected:
+        link = f"../.agents/skills/b1500-bringup/stages/{stage_file_name(stage)}"
+        assert f"]({link})" in text, stage
+        assert (BRINGUP.parent / link).resolve().is_file(), stage
+    assert "](../validation/hw/README.md)" in text and (REPO_ROOT / "validation" / "hw" / "README.md").is_file()
 
 
-def test_bringup_has_every_stage_with_every_field() -> None:
-    stages = stage_sections()
-    assert list(stages) == list(STAGES)
-    for stage, body in stages.items():
-        fields = list(sections(body, 3))
-        for field in STAGE_FIELDS:
-            assert any(f == field or f.startswith(f"{field} ") for f in fields), f"{stage}: no '### {field}'"
-        sign_off = sections(body, 3)[next(f for f in fields if f.startswith("Sign-off"))]
-        assert "name ________ date ________" in sign_off, f"{stage}: sign-off line needs name and date"
+def test_bringup_overview_names_the_commands_and_keeps_its_anchors() -> None:
+    text = BRINGUP.read_text(encoding="utf-8")
+    named = [" ".join(tokens) for tokens in named_commands(text)]
+    for command in OVERVIEW_COMMANDS:
+        assert any(n.startswith(command) for n in named), f"`b1500 {command}` not named"
+    headings = list(sections(text, 2))
+    for heading in ("Stages", "Who does what", "CLI and harness coexist", "If cleanup fails",
+                    "Rehearsal on the simulator"):
+        assert heading in headings, heading  # deployment-windows.md links to these sections
 
 
-def test_bringup_stages_name_their_commands() -> None:
-    stages = stage_sections()
-    for stage, needed in STAGE_COMMANDS.items():
-        named = [" ".join(tokens) for tokens in named_commands(stages[stage])]
-        for command in needed:
-            assert any(n.startswith(command) for n in named), f"{stage}: `b1500 {command}` not named"
-
-
-def test_bringup_attaches_each_atv_with_its_fallback() -> None:
-    stages = stage_sections()
+def test_stage_files_attach_each_atv_with_its_fallback() -> None:
     for stage, atvs in STAGE_ATVS.items():
-        body = stages[stage]
+        body = (STAGE_DIR / stage_file_name(stage)).read_text(encoding="utf-8")
         for atv in atvs:
             assert re.search(rf"{atv}(?!\d)", body), f"{stage}: {atv} missing"
             assert "allback" in body[body.index(atv):], f"{stage}: no fallback after {atv}"

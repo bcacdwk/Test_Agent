@@ -88,7 +88,8 @@ allow/ask/deny rules and the `scripts/hooks/b1500_guard.py` hook). `run_confirme
 
 The real station is a Windows PC wired to the B1500A over GPIB that runs the same clone (`git clone`/`git pull`,
 `uv sync --frozen`, local config in `config/local/`). Step-by-step instructions will be in
-`docs/deployment-windows.md` and the staged hardware bring-up in `docs/hardware-bringup.md` (both M4).
+`docs/deployment-windows.md` and the staged hardware bring-up in `docs/hardware-bringup.md` (an overview of the
+stage files of skill `b1500-bringup`).
 
 ## Documentation
 

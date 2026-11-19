@@ -1,10 +1,12 @@
 """Bring-up skill checks (blueprint v2 6.1, 7.4): ``b1500-bringup/SKILL.md`` budget, the stage template and every
-stage file (fixed file name per stage id, frontmatter, the six numbered sections, budget, registered recipes), and
-the draft-record template ``records/_TEMPLATE.yaml`` (the only file in ``records/``: drafts live in
-``work/bringup/records/`` and reviewed records in ``validation/hw/``, never in the skill).
+stage file (fixed file name per stage id, frontmatter ``StageFrontmatter`` of ``models/validation.py``, the six
+numbered sections, budget, registered recipes, every check id named in the "Expected values" section), and the
+draft-record template ``records/_TEMPLATE.yaml`` (the only file in ``records/``: its keys are the fields of
+``ValidationRecord``; drafts live in ``work/bringup/records/`` and reviewed records in ``validation/hw/``, never in the
+skill).
 
-Stage files arrive with WP6.3 and the module closure WPs; until a stage's file exists, cards naming that stage get a
-lint note (``missing_stage_notes``), never a problem.
+WP6.3 wrote S0, L0-L4 and L10; L5-L9 arrive with their module work packages. Until a stage's file exists, cards
+naming that stage get a lint note (``missing_stage_notes``), never a problem.
 """
 
 
@@ -17,7 +19,7 @@ import yaml
 from b1500_test_agent.catalog.registry import RecipeRegistry
 from b1500_test_agent.config import load_yaml
 from b1500_test_agent.devtools.skills.budgets import BRINGUP_MAX_LINES, STAGE_MAX_LINES, check_budget
-from b1500_test_agent.devtools.skills.cards import check_sections
+from b1500_test_agent.devtools.skills.cards import check_sections, section_text
 from b1500_test_agent.devtools.skills.common import (
     BRINGUP_SKILL,
     RECORD_KEYS,
@@ -91,6 +93,11 @@ def check_stage_file(lint: Lint, path: Path, registry: RecipeRegistry) -> StageF
             lint.add("stage", path, f"recipes lists {recipe_id}, which is not a registered recipe", 1)
         elif registry.get(recipe_id).status == "not_implemented":
             lint.add("stage", path, f"recipes lists {recipe_id}, which is reserved (not_implemented)", 1)
+    expected = section_text(doc, STAGE_SECTIONS.index("Expected values") + 1, STAGE_SECTIONS)
+    for check in front.checks if expected is not None else []:  # a missing section is reported by check_sections
+        if f"`{check.id}`" not in expected:
+            lint.add("stage", path, f"check {check.id} is not named in the Expected values section (write `"
+                                    f"{check.id}` in its row)", 1)
     return front
 
 
@@ -112,6 +119,9 @@ def check_records(lint: Lint, records_dir: Path) -> None:
             missing = [key for key in RECORD_KEYS if key not in data]
             if missing:
                 lint.add("stage", template, f"record template lacks the keys {missing}")
+            extra = [key for key in data if key not in RECORD_KEYS]
+            if extra:
+                lint.add("stage", template, f"record template has keys a record does not have: {extra}")
             if data.get("reviewer", "") != "":
                 lint.add("stage", template, "reviewer must stay empty in the template (a human reviewer fills it)")
             runs = data.get("runs")

@@ -39,15 +39,19 @@ def violating_vars() -> dict[str, str]:
         "forbidden_shell": f"python -c 'import {lib}; rm = {lib}.Resource' + 'Manager()'",
         "human_cli": "uv run b1500 " + "fa" + "ult clear",
         "flex_file": "inst.write('" + "D" + "V 1,0,0.5,1E-3')",
+        "config_init": "uv run b1500 " + "con" + "fig init --visa",
+        "config_adopt": "uv run b1500 " + "con" + "fig adopt work/bringup/station.proposed.yaml --as station",
     }
 
 
 def make_repo(tmp: Path) -> Path:
-    """A minimal repository root for the runner: config/, recipes/ and pyproject.toml copied from this clone."""
+    """A minimal repository root for the runner: config/, recipes/, .agents/ and pyproject.toml copied from this
+    clone."""
     repo = tmp / "repo"
     repo.mkdir(parents=True)
     shutil.copytree(REPO_ROOT / "config", repo / "config", ignore=shutil.ignore_patterns("local"))
     shutil.copytree(REPO_ROOT / "recipes", repo / "recipes")
+    shutil.copytree(REPO_ROOT / ".agents", repo / ".agents")  # the skills (bring-up stage files, S17)
     shutil.copyfile(REPO_ROOT / "pyproject.toml", repo / "pyproject.toml")
     return repo
 

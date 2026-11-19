@@ -1,7 +1,8 @@
 """Skill ``b1500-bringup`` skeleton (blueprint v2 6.1, 6.2, 7.4): the trigger description, the four rules
 (the human does every physical step and adopts every configuration; stop on any abort criterion; no records from
 simulator ``S...`` runs), the stage order with the blueprint file names, the stage template sections and the
-draft-record template. Stage files arrive with WP6.3 and the module closure WPs; ``lint-skills`` checks them."""
+draft-record template (keys = ``ValidationRecord`` fields). The stage files themselves (S0, L0-L4, L10 from WP6.3)
+are tested in ``test_bringup_stages.py``; ``lint-skills`` checks every stage file."""
 
 from __future__ import annotations
 
@@ -59,7 +60,7 @@ def test_stage_table_lists_every_stage_in_order_with_its_file() -> None:
 def test_stage_template_has_the_six_sections() -> None:
     doc = parse_markdown(SKILL_DIR / "stages" / "_TEMPLATE.md", "stages/_TEMPLATE.md")
     assert [h.text for h in doc.headings if h.level == 2] == [f"{i}. {t}" for i, t in enumerate(STAGE_SECTIONS, 1)]
-    assert set(doc.front) == {"stage", "title", "recipes", "version"}
+    assert set(doc.front) == {"stage", "title", "recipes", "checks", "version"}
 
 
 def test_record_template_is_a_draft_without_reviewer_or_runs() -> None:

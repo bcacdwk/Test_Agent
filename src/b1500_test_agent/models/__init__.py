@@ -6,5 +6,7 @@
 incl. pulse/AC/waveform, rule reports, run progress) · ``sources`` (pulse trains, WGFMU waveform programs, the
 source plan of a kind's program) · ``run`` (cleanup, fault, manifest, summary) ·
 ``analysis`` · ``measurement`` · ``audit`` (audit event line) · ``sim`` (simulator device parameters, faults) ·
-``results`` (service/tool result models) · ``manuals`` (manual catalog, corpus records, ``b1500 manual`` results).
+``results`` (service/tool result models) · ``manuals`` (manual catalog, corpus records, ``b1500 manual`` results) ·
+``bringup`` (probe, station proposal, config bootstrap) · ``validation`` (bring-up stages, hardware validation
+records, ``b1500 bringup status|capture|record`` results).
 """

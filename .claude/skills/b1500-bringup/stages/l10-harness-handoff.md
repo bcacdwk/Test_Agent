@@ -7,7 +7,7 @@ checks:
   - {id: s1_vth, quantity: s1_vth, reference: S1 prompt on visa, text: 'validate, consent, run, analyze; Vth reported as derived'}
   - {id: s4_confirm, quantity: s4_confirm, reference: S4 prompt on visa, text: 'summary shown, turn stopped, one run after consent'}
   - {id: s12_program_read, quantity: s12_program_read, reference: S12 prompt on visa, text: after L7 only (pulse program and read)}
-  - {id: hardware_tests, quantity: hardware_tests, reference: 'uv run pytest -m hardware', text: pass}
+  - {id: hardware_tests, quantity: hardware_tests, reference: '$env:B1500_HW = "1"; uv run pytest -m hardware', text: pass}
   - {id: transfer, quantity: transfer, reference: OD-7, text: 'records and fixtures transferred (branch or OneDrive copy)'}
 version: 1
 ---
@@ -34,7 +34,8 @@ stage file; prompts of modules that are not brought up yet are skipped and said 
 3. Review every draft in `work/bringup/records/`: check the values against the raw runs (`data/runs/`), fill
    `reviewer` and `reviewed_on`, move each file to the name in its header under `validation/hw/`; move the
    fixtures you accept from `work/bringup/fixtures/` to `tests/fixtures/hw/`.
-4. `uv run pytest -m hardware` (read-only probe and record checks on this PC).
+4. `$env:B1500_HW = "1"; uv run pytest -m hardware -rs` (read-only probe and record checks on this PC; without
+   `B1500_HW=1` every test skips and the summary says `HARDWARE SUITE NOT RUN`, which is not a pass).
 5. Transfer (OD-7): commit `validation/hw/` and `tests/fixtures/hw/` on the lab PC to a branch
    `lab/bringup-<date>` and push it, or copy `work/bringup/` and `validation/hw/` to the shared OneDrive folder.
    Back up `data\runs\` as well.
@@ -58,7 +59,7 @@ stage file; prompts of modules that are not brought up yet are skipped and said 
 | `s1_vth` | validate, consent, run, `analyze_run`; Vth derived with method and window; backend visa | pass/fail | owner |
 | `s4_confirm` | `needs_confirmation` shown verbatim, turn stopped, exactly one run after consent | pass/fail | owner |
 | `s12_program_read` | program, read, memory window; only when L7 is signed | pass/fail or skipped | owner |
-| `hardware_tests` | `uv run pytest -m hardware` passes | pass/fail | lab PC |
+| `hardware_tests` | `$env:B1500_HW = "1"; uv run pytest -m hardware` passes, nothing skipped by the gate | pass/fail | lab PC |
 | `transfer` | records and fixtures reached the developer | pass/fail | OD-7 |
 
 - Harness facts on the lab PC (v1 ATV-4, -7, -8, -11; ATV-25): the server opens VISA from inside the harness, the

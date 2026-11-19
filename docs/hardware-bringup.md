@@ -65,3 +65,14 @@ software cannot reach the instrument and an output may still be on: switch the B
 The same stages run against the simulator scenario `lab_station` (acceptance scenario S17): every value is
 SIMULATED, the owner may answer the physical steps with "done", and no record, fixture or `validation/hw/` file
 is ever produced from simulator runs.
+
+## Hardware tests (end of day)
+
+`tests/hardware/` only reads (blueprint v2 decision 24): stage L0 re-runs the read-only probe (B1500A identity, `UNT?`
+= `config/local/station.yaml`, error queue drained, `LOP?` all off, selector outputs at rest, `SPST?` = 0, MFCMU
+corrections readable, queries only) and each stage checks its records in `validation/hw/` and `work/bringup/records/`
+(schema, `H...` runs present in `data/runs` on visa with unchanged files, current recipe digest, `LOP?`-verified
+cleanups and passing positive controls behind every passing record, a reviewer on every `validation/hw/` record).
+On the lab PC after the review (7.5 step 10): `$env:B1500_HW = "1"; uv run pytest -m hardware -rs`; one stage:
+`uv run pytest -m "hardware and hw_l1" -rs`. Without `B1500_HW=1` and backend visa every test skips and the summary
+says `HARDWARE SUITE NOT RUN`: nothing was checked, which is not a pass.

@@ -55,7 +55,19 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = "--strict-markers"
 markers = [
-  "hardware: needs a real B1500A over VISA; skipped unless B1500_HW=1 and backend visa (M4, owner present)",
+  "hardware: needs a real B1500A over VISA (lab PC, owner present); read-only probe and record checks of tests/hardware/; skipped unless B1500_HW=1 and backend visa",
+  "hw_s0: hardware test of bring-up stage S0 (physical prerequisites)",
+  "hw_l0: hardware test of bring-up stage L0 (probe and configuration)",
+  "hw_l1: hardware test of bring-up stage L1 (SMU zero, cleanup verification)",
+  "hw_l2: hardware test of bring-up stage L2 (resistors)",
+  "hw_l3: hardware test of bring-up stage L3 (diode)",
+  "hw_l4: hardware test of bring-up stage L4 (MOSFET)",
+  "hw_l5: hardware test of bring-up stage L5 (SMU advanced)",
+  "hw_l6: hardware test of bring-up stage L6 (CMU)",
+  "hw_l7: hardware test of bring-up stage L7 (SPGU and selector)",
+  "hw_l8: hardware test of bring-up stage L8 (WGFMU)",
+  "hw_l9: hardware test of bring-up stage L9 (long runs)",
+  "hw_l10: hardware test of bring-up stage L10 (harness and handoff)",
   "acceptance: M3 harness acceptance scenarios (Codex / Claude Code); run explicitly",
   "manuals: manual corpus, search and citation lint (blueprint 5; fixtures, no PDF needed)",
   "wall_clock: asserts a wall-clock bound of the plan (e.g. a 4 h instant run < 2 s); CI runs these alone",

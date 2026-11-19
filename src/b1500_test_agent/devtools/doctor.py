@@ -98,7 +98,8 @@ def check_uv_lock(repo_root: Path) -> DoctorCheck:
         return _check("uv.lock", "WARN", "uv not found on PATH; cannot check that uv.lock matches pyproject.toml")
     try:
         result = subprocess.run([uv, "lock", "--check", "--offline", "--project", str(repo_root)],
-                                capture_output=True, text=True, timeout=60, check=False)
+                                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+                                check=False)
     except (OSError, subprocess.SubprocessError) as exc:
         return _check("uv.lock", "WARN", f"uv lock --check could not run: {exc}")
     lines = [line.strip() for line in f"{result.stderr}\n{result.stdout}".splitlines() if line.strip()]
@@ -292,10 +293,12 @@ def check_long_paths(*, windows: bool) -> DoctorCheck:
     if not windows:
         return _check("LongPathsEnabled", "PASS", "not applicable on this OS")
     try:
-        import winreg  # Windows-only standard library module
+        import winreg  # Windows-only standard library module (absent elsewhere: platform-injected tests)
 
         key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\FileSystem")
         value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")
+    except ImportError:
+        return _check("LongPathsEnabled", "WARN", "cannot read the registry value: winreg is not available here")
     except OSError as exc:
         return _check("LongPathsEnabled", "WARN", f"cannot read the registry value: {exc}")
     if value == 1:

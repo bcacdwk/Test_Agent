@@ -44,6 +44,7 @@ def test_bad_timing_is_refused(timing: str) -> None:
         SimScenario.model_validate({**data, "timing": timing})
 
 
+@pytest.mark.wall_clock
 def test_scaled_timing_sleeps_f_per_virtual_second_and_instant_never(tmp_path: Path) -> None:
     for timing, low, high in (("instant", 0.0, 0.2), ("scaled(0.03)", 0.3, 1.5)):
         sim = SimTransport(scenario(timing=timing), state_file=None)

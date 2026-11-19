@@ -80,6 +80,7 @@ from b1500_test_agent.analysis.common import (
     increasing_with_x,
     interpolate,
     line_fit,
+    peak_index,
     policy_params,
     require_iv,
     strictly_monotonic,
@@ -307,7 +308,7 @@ def vth_linear_extrapolation(
             return result(outcome="failed", forced_on_untrusted=forced, warnings=warnings,
                           error=f"Only {xs.size} trusted point(s); the max_gm window needs {max(fit_points, 3)}.")
         slopes = local_derivative(xs, ys, smooth)
-        peak = int(np.argmax(np.abs(slopes)))
+        peak = peak_index(np.abs(slopes))
         first = min(max(peak - fit_points // 2, 0), xs.size - fit_points)
         chosen = np.arange(first, first + fit_points)
         extra = {"gm_max": float(slopes[peak]), "x_at_gm_max": float(xs[peak])}
@@ -468,7 +469,7 @@ def vth_max_gm(
     change = local_derivative(xs, slopes, smooth)
     sign = 1.0 if increasing_with_x(xs, ys) else -1.0
     score = sign * change
-    k = int(np.argmax(score))
+    k = peak_index(score)
     peak = float(xs[k])
     warnings = []
     if 0 < k < xs.size - 1:
@@ -483,7 +484,7 @@ def vth_max_gm(
     half = max(smooth, 3) // 2
     used = np.arange(max(0, k - half), min(xs.size, k + half + 1))
     r.use(used)
-    g_peak = int(np.argmax(np.abs(slopes)))
+    g_peak = peak_index(np.abs(slopes))
     fit = {"x_peak": peak, "dgm_max": float(change[k]), "gm_at_peak": float(slopes[k]),
            "gm_max": float(slopes[g_peak]), "x_at_gm_max": float(xs[g_peak])}
     if bias is not None:
@@ -583,7 +584,7 @@ def gm_max(
     if xs.size < 3:
         return out.failed("gm_max", "S", f"Only {xs.size} trusted point(s); gm_max needs 3.", excluded=r.excluded())
     slopes = local_derivative(xs, ys, smooth)
-    k = int(np.argmax(np.abs(slopes)))
+    k = peak_index(np.abs(slopes))
     half = max(smooth, 3) // 2
     used = np.arange(max(0, k - half), min(xs.size, k + half + 1))
     r.use(used)

@@ -1,5 +1,6 @@
-# Simulator-only test suite on the development OS (macOS) and the lab OS (Windows); blueprint 7 and 8.1.
-# Hardware and harness-acceptance tests never run here.
+# The full gate on the development OS (macOS) and the lab OS (Windows); blueprint v2 7.1 "Windows CI", 8.1, 10
+# (Definition of done). Simulator, visa-loop and fake-ABI only: hardware and harness-acceptance tests never run here.
+# Every gate step runs even when an earlier one failed, so one run reports every red gate.
 name: ci
 
 on:
@@ -11,8 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: pytest (${{ matrix.os }})
+  gate:
+    name: gate (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -20,7 +21,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
-      PYTHONUTF8: "1"
+      PYTHONUTF8: "1"  # the lab setting (setx PYTHONUTF8 1); tests that need it off set it per child process
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
@@ -29,7 +30,32 @@ jobs:
           python-version: "3.12"
       - name: Install (uv.lock, frozen)
         run: uv sync --frozen
-      - name: Lint
+      - name: Tests (simulator, visa-loop; parallel)
+        if: ${{ !cancelled() }}
+        run: uv run pytest -q -m "not hardware and not acceptance and not wall_clock" -n auto
+      # Tests that assert a wall-clock bound of the plan (a 4 h instant run < 2 s, ...) run alone: on the 4-vCPU
+      # runner the other xdist workers took the CPU they measure (Windows: 1.1 s alone, up to 5.9 s among them).
+      - name: Wall-clock tests (alone)
+        if: ${{ !cancelled() }}
+        run: uv run pytest -q -m "wall_clock and not hardware and not acceptance"
+      - name: Lint (ruff)
+        if: ${{ !cancelled() }}
         run: uv run ruff check
-      - name: Tests (simulator only)
-        run: uv run pytest -q -m "not hardware and not acceptance"
+      - name: Recipe check
+        if: ${{ !cancelled() }}
+        run: uv run b1500 dev recipe-check
+      - name: Skill lint
+        if: ${{ !cancelled() }}
+        run: uv run b1500 dev lint-skills
+      - name: Card index up to date
+        if: ${{ !cancelled() }}
+        run: uv run b1500 dev gen-index --check
+      - name: Claude Code skill mirror in sync
+        if: ${{ !cancelled() }}
+        run: uv run b1500 dev sync-harness --check
+      - name: MCP tool budget (10 tools)
+        if: ${{ !cancelled() }}
+        run: uv run b1500 dev tool-budget
+      - name: Manual corpus (no PDFs in CI; manual build --check runs where they are)
+        if: ${{ !cancelled() }}
+        run: uv run b1500 manual status

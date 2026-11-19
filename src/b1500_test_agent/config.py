@@ -603,8 +603,10 @@ def _adopted_name(source: Path, data: dict[str, Any]) -> str:
 def adopt(source: Path, kind: ConfigKind, paths: Paths | None = None) -> ConfigAdoptReport:
     """``b1500 config adopt FILE --as KIND`` (human only): validate ``source`` against the schema of ``kind``,
     diff it against the local file it replaces, back that file up as ``<file>.bak`` and copy ``source`` (its exact
-    text, comments included) into ``bootstrap_dir``; then run the configuration check. A file that does not
-    validate is refused and nothing is written; an identical file is left alone."""
+    text, comments included, with LF line ends) into ``bootstrap_dir``; then run the configuration check. A file
+    that does not validate is refused and nothing is written; an identical file is left alone. Line ends are
+    normalised before the comparison: a proposal saved with CRLF on Windows (Notepad, ``Out-File``) equals the LF
+    file it was copied from."""
     paths = paths if paths is not None else Paths.from_env()
     source = Path(source)
     shown = paths.display(source)
@@ -616,7 +618,7 @@ def adopt(source: Path, kind: ConfigKind, paths: Paths | None = None) -> ConfigA
     try:
         raw = source.read_bytes()
         data = load_yaml(raw)
-        text = raw.decode("utf-8-sig")
+        text = raw.decode("utf-8-sig").replace("\r\n", "\n").replace("\r", "\n")
     except OSError as exc:
         return refused(f"cannot read {shown}: {exc}")
     except (yaml.YAMLError, UnicodeDecodeError) as exc:

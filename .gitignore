@@ -29,6 +29,14 @@ work/
 # Design scratch (history lives in tag archive/v0.2-fake-mcp)
 tmp/
 
+# Offline wheelhouse procedure (docs/deployment-windows.md): never commit wheels or the exported pin lists
+/wheelhouse/
+/wheelhouse-check/
+/empty-cache/
+/requirements.txt
+/requirements-win.txt
+*.whl
+
 # Measurement outputs
 *.parquet
 *.h5

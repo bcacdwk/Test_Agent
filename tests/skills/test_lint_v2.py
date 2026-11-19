@@ -85,6 +85,53 @@ def test_command_alternatives_and_problems() -> None:
         "`b1500 manual page` has no option --bogus"]
 
 
+def test_command_check_does_not_depend_on_how_help_is_rendered(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Typer colours and re-wraps its Rich help when ``GITHUB_ACTIONS``/``FORCE_COLOR`` is set or the terminal is
+    narrow (every CI command check failed that way, WP6.5); the verdicts come from the command tree, so they stay."""
+    from typer import rich_utils
+    from typer.testing import CliRunner
+
+    from b1500_test_agent.adapters.cli import app
+    from b1500_test_agent.devtools.skills import commands
+
+    monkeypatch.setattr(rich_utils, "FORCE_TERMINAL", True)
+    monkeypatch.setattr(rich_utils, "MAX_WIDTH", 40)
+    commands._help_exit_code.cache_clear()
+    try:
+        assert "\x1b[" in CliRunner().invoke(app, ["run", "--help"]).output  # the condition is real
+        assert command_problems(["status|recipes|plan|runs|show|analyze|note|shutdown", "--json"]) == []
+        assert command_problems(["run", "--confirm", "PLAN_ID"]) == []
+        assert command_problems(["manual", "page", "--printed", "4-115"]) == []
+        assert command_problems(["dev", "sync-harness|gen-index|lint-skills"]) == []
+        assert command_problems(["manual", "page", "--bogus"]) == ["`b1500 manual page` has no option --bogus"]
+    finally:
+        commands._help_exit_code.cache_clear()
+
+
+def test_hidden_commands_and_options_count_as_not_listed(monkeypatch: pytest.MonkeyPatch) -> None:
+    import typer
+
+    from b1500_test_agent.devtools.skills import commands
+
+    demo = typer.Typer()
+
+    @demo.command()
+    def shown(flag: bool = typer.Option(False, "--flag"), secret: bool = typer.Option(False, "--secret", hidden=True)) \
+            -> None:
+        """A listed command with a hidden option."""
+
+    @demo.command(hidden=True)
+    def ghost() -> None:
+        """A hidden command."""
+
+    monkeypatch.setattr(commands, "_root_command", lambda: typer.main.get_command(demo))
+    monkeypatch.setattr(commands, "_help_exit_code", lambda path: 0)
+    assert commands.help_problem(["shown"], ["--flag", "--help"]) is None
+    assert commands.help_problem(["shown"], ["--secret"]) == "`b1500 shown --help` does not list --secret"
+    assert commands.help_problem(["ghost"], []) == "`b1500 ghost` is not listed by `b1500 --help`"
+    assert commands.help_problem(["nowhere"], []) == "`b1500 nowhere` is not listed by `b1500 --help`"
+
+
 def test_command_extraction_has_line_numbers() -> None:
     text = "prose b1500 status\n\n`uv run b1500 doctor --probe` and `b1500 dev`\n```bash\nuv run b1500 runs\n```\n"
     assert named_commands_at(text) == [(3, ["doctor", "--probe"]), (3, ["dev"]), (5, ["runs"])]

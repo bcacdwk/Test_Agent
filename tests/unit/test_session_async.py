@@ -139,6 +139,26 @@ def test_async_control_writes_throttled_progress_and_flushes_rows(tmp_path: Path
     assert written[-1] == final and final.last_values == {"drain_V": 0.1, "drain_I": 2e-6}
 
 
+def test_buffered_rows_become_one_table_equal_to_per_segment_frames(tmp_path: Path) -> None:
+    """Row lists are kept as given and turned into a DataFrame only when written (WP6.5: one DataFrame per
+    checkpoint cost a 4 h simulated run a fifth of its wall time); the table equals the per-segment frames
+    concatenated, also with a kind's own DataFrame in between and a column that appears later."""
+    clock = Clock()
+    run, _written, chunks = control(tmp_path, "async", clock, progress_interval_s=60)
+    run.begin(total=4)
+    late = [{**row, "gate_V": 1.0} for row in rows(4)]
+    parts: list[object] = [rows(0), pd.DataFrame(rows(2)), late, []]
+    for index, part in enumerate(parts, start=1):
+        run.checkpoint(index, 4, "sweep", part)  # type: ignore[arg-type]
+    assert chunks == []  # nothing written within the interval
+    assert run.latest is not None and run.latest.last_values == last_values(late)
+    run.finish("completed")
+    expected = pd.concat([pd.DataFrame(rows(0)), pd.DataFrame(rows(2)), pd.DataFrame(late)], ignore_index=True)
+    assert len(chunks) == 1
+    pd.testing.assert_frame_equal(chunks[0], expected)
+    assert last_values(late) == last_values(pd.DataFrame(late)) == {"drain_V": 0.1, "drain_I": 2e-6, "gate_V": 1.0}
+
+
 def test_async_control_flushes_before_raising_run_cancelled(tmp_path: Path) -> None:
     clock = Clock()
     run, written, chunks = control(tmp_path, "async", clock, progress_interval_s=60)

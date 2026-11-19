@@ -109,6 +109,11 @@ def test_stale_sidecar_is_ignored(tmp_path: Path) -> None:
 def test_tx_id_shape() -> None:
     assert re.fullmatch(r"T\d{8}T\d{6}Z-[0-9a-f]{4}", new_tx_id())
     assert new_tx_id(datetime(2026, 11, 17, 6, 30, 12, tzinfo=UTC)).startswith("T20261117T063012Z-")
+    # unique within the process even for many transactions in one second (a duplicate merged two snapshots of the
+    # ATV-13 visa-loop test in the audit, WP6.5)
+    second = datetime(2026, 11, 17, 6, 30, 13, tzinfo=UTC)
+    ids = [new_tx_id(second) for _ in range(3000)]
+    assert len(set(ids)) == len(ids)
 
 
 def test_inflight_marker_absent_valid_and_corrupt(tmp_path: Path) -> None:

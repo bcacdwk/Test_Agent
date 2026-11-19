@@ -172,11 +172,14 @@ def test_kill_during_a_run_and_the_next_transaction_recovers(world: World) -> No
         finally:
             child.kill()  # SIGKILL / TerminateProcess: no cleanup, no finalize
             child.wait(30)
+    # The OS releases the lock when the killed process is gone. On Windows ``b1500.exe`` is a console-script launcher:
+    # its python.exe child dies with it through a job object, but after the launcher (WP6.5: once on
+    # windows-latest the lock was still held right after ``wait``), so wait for that before reading what it left.
+    wait_for(lambda: InstrumentLock(world.state_dir, f"SIM::{SCENARIO}").holder() is None, timeout_s=30)
     marker = read_inflight(world.state_dir / "inflight.json")
     assert marker is not None and marker.run == run_id and marker.adapter == "cli"
     assert manifest_of(world, run_id) is None
     assert sim_state_safe(world) != []  # the residual: outputs stay on until the next transaction
-    assert InstrumentLock(world.state_dir, f"SIM::{SCENARIO}").holder() is None  # the OS released the lock
     service = world.service()
     status = service.station_status(refresh=False)
     assert status.inflight_marker and status.active_run is None

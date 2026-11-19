@@ -181,3 +181,69 @@ def test_deployment_checks_sandbox_risks_and_one_hardening_note() -> None:
     for atv in DEPLOYMENT_ATVS:
         assert re.search(rf"{atv}(?!\d)", text), f"{atv} missing"
         assert "allback" in text[text.index(atv):], f"no fallback after {atv}"
+
+
+# -- deployment-windows.md v2 (WP6.5) -------------------------------------------------------------------------------
+
+BRINGUP_PROMPT = "Use skill b1500-bringup and continue the hardware bring-up from the current stage."
+FIRST_SESSION = (  # blueprint v2 7.5, in this order
+    "git push", "winget install astral-sh.uv", "uv python install 3.12", "IO Libraries", "A.03.00", "System32",
+    "setx PYTHONUTF8 1", "git clone", "C:\\b1500\\test_agent", "B1500_MANUALS_DIR", "uv sync --frozen",
+    "uv run b1500 manual status", "uv run b1500 doctor", "Exit EasyEXPERT", "GPIB address 17",
+    "uv run b1500 con" + "fig init --visa", "uv run b1500 doctor --probe", "uv run b1500 bringup propose-station",
+    "uv run b1500 con" + "fig adopt work\\bringup\\station.proposed.yaml --as station", "uv run b1500 config check",
+    "uv run b1500 harness init --codex", BRINGUP_PROMPT, "$env:B1500_HW = \"1\"; uv run pytest -m hardware",
+    "data\\runs\\", "validation\\hw\\",
+    "tests\\fixtures\\hw\\", "OD-7", "lab/bringup-<date>", "OneDrive", "hw_validated",
+)
+WHEELHOUSE = (  # the procedure checked on the Mac, in order
+    "uv export --frozen --no-hashes --no-emit-project",
+    ("uv pip compile requirements.txt --no-deps --python-platform x86_64-pc-windows-msvc --python-version 3.12"),
+    "--platform win_amd64 --python-version 3.12",
+    '"setuptools>=69" wheel', "--target wheelhouse-check", "never commit wheels", "Checked on the Mac",
+    "setx UV_OFFLINE 1", "--no-index --find-links ..\\wheelhouse -r ..\\requirements-win.txt", "--no-deps -e .",
+    "uv sync --frozen",
+)
+
+
+def _ordered(body: str, markers: tuple[str, ...]) -> dict[str, int]:
+    """Position of each marker, each searched after the previous one (-1 = missing or out of order)."""
+    positions, start = {}, 0
+    for marker in markers:
+        found = body.find(marker, start)
+        positions[marker] = found
+        if found >= 0:
+            start = found + len(marker)
+    return positions
+
+
+def test_deployment_first_session_is_the_blueprint_script() -> None:
+    raw = deployment_sections()["First session"]
+    items = re.findall(r"^(\d+)\. ", raw, re.MULTILINE)
+    assert [int(n) for n in items] == list(range(1, 12))  # blueprint v2 7.5 lines 1-11
+    positions = _ordered(" ".join(raw.split()), FIRST_SESSION)  # markers may wrap across lines
+    assert all(p >= 0 for p in positions.values()), {m: p for m, p in positions.items() if p < 0}
+    procedure = deployment_sections()["Procedure"]
+    assert "### Step 10 — Bring the instrument up with the agent" in procedure
+    assert "### Step 11 — End of the measurement day" in procedure
+
+
+def test_deployment_hardware_suite_sets_b1500_hw() -> None:
+    """Without ``B1500_HW=1`` every hardware test only skips (WP6.4): each mention runs it with the variable."""
+    text = DEPLOYMENT.read_text(encoding="utf-8")
+    runs = [m.start() for m in re.finditer(r"pytest -m hardware", text)]
+    assert runs and all("B1500_HW" in text[max(0, at - 40):at] for at in runs)
+
+
+def test_deployment_offline_wheelhouse_is_the_checked_procedure() -> None:
+    body = " ".join(deployment_sections()["Offline wheelhouse"].replace("\\\n", " ").split())
+    positions = _ordered(body, WHEELHOUSE)
+    assert all(p >= 0 for p in positions.values()), {m: p for m, p in positions.items() if p < 0}
+    for size_fact in ("98 wheels", "81 MB", "12.6 MB", "96 packages"):
+        assert size_fact in body, size_fact  # within the 50 MB per file / 500 MB total download budget
+
+
+def test_deployment_keeps_what_the_stage_files_point_to() -> None:
+    """Stage files point here: S0 "up to `uv sync --frozen`", L4 records results, L10 the harness wiring."""
+    text = DEPLOYMENT.read_text(encoding="utf-8")
+    assert "uv sync --frozen" in text and "## Recorded results" in text and "### Step 7 — Wire the harness" in text

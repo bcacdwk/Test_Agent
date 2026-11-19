@@ -65,6 +65,7 @@ def test_stepped_estimate_has_one_segment_per_step(world: World) -> None:
 # -- running → completed -----------------------------------------------------------------------------------------------
 
 
+@pytest.mark.wall_clock
 def test_v1_stepped_plan_runs_as_a_scaled_long_run(world: World) -> None:
     """``mosfet.idvd`` (a v1 recipe) as a ~9 min asynchronous run on ``timing: scaled(0.005)`` (~3 s wall)."""
     timed_world(world, timing="scaled(0.005)")
@@ -117,6 +118,7 @@ def test_v1_stepped_plan_runs_as_a_scaled_long_run(world: World) -> None:
     assert [r.outcome for r in service.list_runs().runs] == ["completed"]
 
 
+@pytest.mark.wall_clock
 def test_four_hour_run_on_instant_timing_takes_seconds(world: World) -> None:
     """Blueprint v2 4.1: a 4 h run executes in < 2 s of wall time with ``timing: instant``."""
     timed_world(world)
@@ -130,7 +132,8 @@ def test_four_hour_run_on_instant_timing_takes_seconds(world: World) -> None:
     final = service.follow_run(started.run_id or "")
     wall = time.monotonic() - t0
     assert final is not None and final.outcome == "completed", final.message
-    assert wall < 2.0, f"4 h run took {wall:.2f} s of wall time"
+    timings = manifest_of(world, final.run_id or "").timings  # transaction vs archive share, for a slow CI runner
+    assert wall < 2.0, f"4 h run took {wall:.2f} s of wall time (manifest timings {timings})"
     progress = progress_of(world, final.run_id or "")
     assert progress is not None and (progress.done, progress.total) == (504, 504)
     assert len(load_run(final.run_id or "", data_root=world.data).table) == 1008

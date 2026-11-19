@@ -37,6 +37,7 @@ from fastmcp import FastMCP
 from pydantic import Field
 
 from b1500_test_agent import __version__
+from b1500_test_agent.adapters.streams import safe_streams
 from b1500_test_agent.errors import InvalidConfigError
 from b1500_test_agent.models.results import (
     AnalysisResult,
@@ -268,7 +269,9 @@ def install_shutdown_hooks(service: B1500Service, *, wait_s: float = SHUTDOWN_WA
 
 
 def main() -> None:
-    """Entry point of ``b1500-mcp`` and ``b1500 mcp``: serve the ten tools on stdio (logs go to stderr)."""
+    """Entry point of ``b1500-mcp`` and ``b1500 mcp``: serve the ten tools on stdio (logs go to stderr, which never
+    fails on a legacy Windows code page: ``adapters/streams.py``)."""
+    safe_streams()
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s: %(message)s")
     try:
         repo = Paths.from_env().repo_root.as_posix()

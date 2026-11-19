@@ -122,11 +122,13 @@ class Paths(StrictModel):
         return self.model_copy(update={"data_root": data_root, "work_dir": work_dir})
 
     def display(self, path: Path) -> str:
-        """``path`` relative to the repository root with POSIX separators when inside it, else absolute."""
+        """``path`` relative to the repository root with POSIX separators when inside it, else absolute (resolved
+        once: on Windows ``resolve`` opens the file to ask for its final name)."""
+        resolved = path.resolve()
         try:
-            return path.resolve().relative_to(self.repo_root).as_posix()
+            return resolved.relative_to(self.repo_root).as_posix()
         except ValueError:
-            return path.resolve().as_posix()
+            return resolved.as_posix()
 
     def report(self) -> dict[str, str]:
         """The effective directories for ``b1500 config check`` and ``station_status``."""

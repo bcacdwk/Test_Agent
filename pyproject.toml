@@ -58,4 +58,5 @@ markers = [
   "hardware: needs a real B1500A over VISA; skipped unless B1500_HW=1 and backend visa (M4, owner present)",
   "acceptance: M3 harness acceptance scenarios (Codex / Claude Code); run explicitly",
   "manuals: manual corpus, search and citation lint (blueprint 5; fixtures, no PDF needed)",
+  "wall_clock: asserts a wall-clock bound of the plan (e.g. a 4 h instant run < 2 s); CI runs these alone",
 ]

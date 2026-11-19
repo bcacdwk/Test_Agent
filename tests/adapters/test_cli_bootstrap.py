@@ -36,6 +36,15 @@ def as_json(result: Result) -> dict[str, Any]:
     return json.loads(result.stdout)
 
 
+ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+
+
+def plain(text: str) -> str:
+    """Words of a Typer/Rich usage-error panel: ANSI colours (Rich adds them when ``GITHUB_ACTIONS``, ``FORCE_COLOR``
+    or ``PY_COLORS`` is set) and box borders removed, whitespace collapsed (the panel wraps at the terminal width)."""
+    return " ".join(re.sub(r"[\u2500-\u257f]+", " ", ANSI.sub("", text)).split())
+
+
 @pytest.fixture
 def clone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A temporary clone (committed config only, no ``config/local/``) selected through ``B1500_HOME``; no
@@ -112,6 +121,25 @@ def test_config_adopt_validates_diffs_backs_up_and_copies(clone: Path, tmp_path:
     assert again["unchanged"] is True and again["adopted"] is False and again["ok"] is True
 
 
+def test_config_adopt_normalises_windows_line_ends(clone: Path, tmp_path: Path) -> None:
+    """A proposal saved with CRLF on the lab PC (Notepad, ``Out-File``) is adopted with LF line ends, and adopting it
+    again (or its LF twin) is ``unchanged``: line ends never count as a difference (WP6.5, any OS)."""
+    assert invoke("config", "init").exit_code == 0
+    local = clone / "config" / "local" / "station.yaml"
+    text = local.read_text(encoding="utf-8").replace("lab-b1500a-example", "lab-b1500a")
+    crlf = tmp_path / "station.crlf.yaml"
+    crlf.write_bytes(b"\xef\xbb\xbf" + text.replace("\n", "\r\n").encode("utf-8"))  # BOM + CRLF, as Notepad saves
+    first = as_json(invoke("config", "adopt", str(crlf), "--as", "station", "--json"))
+    assert first["adopted"] is True and first["ok"] is True
+    assert local.read_bytes() == text.encode("utf-8")
+    assert all(not line.endswith("\r") for line in first["diff"])
+    for again in (crlf, tmp_path / "station.lf.yaml"):
+        if not again.exists():
+            again.write_bytes(text.encode("utf-8"))
+        repeat = as_json(invoke("config", "adopt", str(again), "--as", "station", "--json"))
+        assert repeat["unchanged"] is True and repeat["adopted"] is False, again.name
+
+
 def test_config_adopt_refuses_an_invalid_file_and_writes_nothing(clone: Path, tmp_path: Path) -> None:
     assert invoke("config", "init").exit_code == 0
     local = clone / "config" / "local" / "station.yaml"
@@ -154,7 +182,7 @@ def test_config_adopt_reports_a_configuration_the_file_breaks(cli_world: World, 
 
 def test_config_adopt_rejects_an_unknown_kind(cli_world: World, tmp_path: Path) -> None:
     result = invoke("config", "adopt", str(tmp_path / "x.yaml"), "--as", "recipe")
-    assert result.exit_code == 2 and "--as must be one of" in result.output
+    assert result.exit_code == 2 and "--as must be one of" in plain(result.output)
 
 
 # -- doctor --probe and bringup propose-station on the simulator ----------------------------------------------------

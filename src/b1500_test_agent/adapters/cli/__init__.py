@@ -45,6 +45,7 @@ from b1500_test_agent.adapters.cli.config import config_app
 from b1500_test_agent.adapters.cli.core import DEFAULT_MCP_APP_SPEC, TOOL_COMMANDS, app
 from b1500_test_agent.adapters.cli.dev import dev_app
 from b1500_test_agent.adapters.cli.manual import manual_app
+from b1500_test_agent.adapters.streams import safe_streams
 
 app.add_typer(config_app, name="config")
 app.add_typer(bringup_app, name="bringup")
@@ -55,5 +56,7 @@ __all__ = ["DEFAULT_MCP_APP_SPEC", "TOOL_COMMANDS", "app", "main"]
 
 
 def main() -> None:
-    """Entry point of the `b1500` console script."""
+    """Entry point of the `b1500` console script (output never fails on a legacy Windows code page:
+    ``adapters/streams.py``)."""
+    safe_streams()
     app(prog_name="b1500")

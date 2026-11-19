@@ -69,7 +69,10 @@ class AbortFile:
 
     def read(self) -> AbortRequest | None:
         """The pending request, ``None`` without one; an unreadable or corrupt file is a request (``CORRUPT_ID``)
-        stamped with the file's modification time."""
+        stamped with the file's modification time. Checked at every checkpoint, so the usual case (no file) is one
+        ``os.path.exists``: an attribute lookup on Windows (Python 3.12), where a failed open costs ~0.1 ms."""
+        if not os.path.exists(self.path):
+            return None
         try:
             text = self.path.read_text(encoding="utf-8")
         except FileNotFoundError:

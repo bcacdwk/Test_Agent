@@ -64,6 +64,21 @@ def test_folder_layout_raw_and_finalize(tmp_path: Path) -> None:
     assert store.latest("mosfet.idvg")["run_id"] == folder.run_id and store.latest("system.self_cal") is None
 
 
+def test_raw_blocks_keep_their_written_digest_and_changed_ones_are_hashed_again(tmp_path: Path) -> None:
+    """``files`` reuses the digest ``save_raw`` took from the bytes it wrote (no read-back of hundreds of blocks,
+    WP6.5) but hashes a block from disk again once its size differs, and never overwrites a block."""
+    folder = RunStore(tmp_path / "runs").create("sim", now=STAMP)
+    for index in range(3):
+        folder.save_raw(f"NAI+{index}.00000E-09\r\n")
+    (folder.path / "raw" / "block-002.txt").write_bytes(b"changed after it was written")
+    files = folder.files()
+    for rel in ("raw/block-000.txt", "raw/block-001.txt", "raw/block-002.txt"):
+        assert files[rel] == hashlib.sha256((folder.path / rel).read_bytes()).hexdigest(), rel
+    with pytest.raises(FileExistsError):
+        folder.raw_files.pop()  # the next block would be written over block-002
+        folder.save_raw("again")
+
+
 def test_analysis_files_and_notes_are_added_after_finalize(tmp_path: Path) -> None:
     store = RunStore(tmp_path / "runs")
     folder = store.create("sim", now=STAMP)

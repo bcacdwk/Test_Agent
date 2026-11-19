@@ -150,6 +150,7 @@ def test_process_mode_reopens_a_session_that_died_between_calls(world: VisaWorld
     assert bus.stats.opens == 2 and not bus.sessions[-1].closed
 
 
+@pytest.mark.wall_clock
 @pytest.mark.parametrize("mode", ["transaction", "process"])
 def test_atv13_per_transaction_bus_overhead_on_visa_loop(world: VisaWorld, mode: str,
                                                          capsys: pytest.CaptureFixture[str]) -> None:

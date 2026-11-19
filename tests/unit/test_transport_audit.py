@@ -79,6 +79,59 @@ def test_jsonl_sink_appends_utf8_lines(tmp_path: Path) -> None:
     assert [AuditEvent.from_json_line(line).ev for line in lines] == ["tool_call", "tool_call"]
 
 
+def _count_opens(monkeypatch: pytest.MonkeyPatch, path: Path) -> list[str]:
+    opened: list[str] = []
+    real = Path.open
+
+    def spy(self: Path, *args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+        mode = str(args[0]) if args else str(kwargs.get("mode", "r"))
+        if self == path and "r" not in mode:  # the sink's writes, not the test's reads
+            opened.append(mode)
+        return real(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "open", spy)
+    return opened
+
+
+def test_held_sink_opens_once_and_flushes_every_event(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Inside ``held()`` the file is opened once (Windows pays ~0.3-1 ms per open/close, WP6.5), yet every event is
+    on disk as soon as it is emitted (another process reading the file, or a killed process, loses nothing)."""
+    path = tmp_path / "run" / "audit.jsonl"
+    sink = JsonlAuditSink(path)
+    opened = _count_opens(monkeypatch, path)
+    with sink.held():
+        for index in range(50):
+            sink.emit(AuditEvent.now("checkpoint", "sim", data={"i": index}))
+            assert len(path.read_bytes().splitlines()) == index + 1  # flushed at once
+        with sink.held():  # nested holds share the handle
+            sink.emit(AuditEvent.now("checkpoint", "sim"))
+        assert sink._handle is not None
+    assert opened == ["a"] and sink._handle is None  # closed when the outermost hold ends
+    sink.emit(AuditEvent.now("checkpoint", "sim"))  # outside a hold: one open per event again
+    assert opened == ["a", "a"]
+    lines = path.read_bytes().split(b"\n")
+    assert len(lines) == 53 and lines[-1] == b"" and b"\r" not in path.read_bytes()
+    assert [AuditEvent.from_json_line(line.decode()).seq for line in lines[:-1]] == list(range(52))
+
+
+def test_held_sink_follows_the_daily_file_and_a_vanished_folder(tmp_path: Path) -> None:
+    from b1500_test_agent.session.session import DailyAuditSink
+
+    sink = DailyAuditSink(tmp_path / "audit")
+    day1 = AuditEvent(ts=datetime(2026, 11, 17, 23, 59, 59, tzinfo=UTC), ev="checkpoint", backend="sim")
+    day2 = AuditEvent(ts=datetime(2026, 11, 18, 0, 0, 1, tzinfo=UTC), ev="checkpoint", backend="sim")
+    with sink.held():
+        sink.emit(day1)
+        sink.emit(day2)  # UTC midnight inside one hold: the next daily file
+    assert len((tmp_path / "audit" / "2026-11-17.jsonl").read_text(encoding="utf-8").splitlines()) == 1
+    assert len((tmp_path / "audit" / "2026-11-18.jsonl").read_text(encoding="utf-8").splitlines()) == 1
+    for file in (tmp_path / "audit").iterdir():
+        file.unlink()  # every handle is closed after the hold (Windows refuses to delete an open file)
+    (tmp_path / "audit").rmdir()
+    sink.emit(day2)  # the folder made before is gone: made again
+    assert (tmp_path / "audit" / "2026-11-18.jsonl").is_file()
+
+
 def test_auditing_transport_records_every_io_call() -> None:
     sink = MemoryAuditSink()
     transport = AuditingTransport(sim(), sink)

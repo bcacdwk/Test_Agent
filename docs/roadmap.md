@@ -81,7 +81,7 @@ iteration until safety scenarios pass 3/3 and functional scenarios pass on both 
   checks, read-only probing, 0 V open circuit, known resistors, known diode, known-good MOSFET compared with
   EasyEXPERT; recipes are promoted to `hw_validated` only with a validation record. Since WP6.3 a one-page
   overview: the stage files of skill `b1500-bringup` hold the procedure.
-- [`docs/deployment-windows.md`](deployment-windows.md) (written, WP4.2): lab PC setup (Python + uv, VISA + GPIB
+- [`docs/deployment-windows.md`](deployment-windows.md) (written, WP4.2; v2 by WP6.5 with the first-session script, the WGFMU library, manuals and an offline wheelhouse): lab PC setup (Python + uv, VISA + GPIB
   adapter, `git clone`, `uv sync --frozen`, `config/local/`, `b1500 doctor --probe`, `b1500 harness init`),
   residual risks in plain words, facts to collect.
 
@@ -122,3 +122,4 @@ Gate at the end of M5: 3,157 tests (`-n auto`), 10 MCP tools / 1,584 schema toke
 |---|---|
 | 6.1 Probe + bootstrap | `b1500 doctor --probe` (read-only FLEX probe: VISA library and resources, identity, inventory vs station, errors, status byte, outputs, selectors, SPGU, MFCMU corrections; raw answers to `work/bringup/`), `b1500 bringup propose-station`, the human-only `b1500 config init` and `b1500 config adopt`; guard hook and the owner-authorized OD-5 harness permission change set |
 | 6.3 Bring-up skill | Stage files S0, L0-L4, L10 of skill `b1500-bringup` (machine-readable checks), `b1500 bringup status\|capture\|record` (drafts only from hardware runs; simulator runs refused), `validation/hw/` with the review flow and the `hw_validated` promotion rule in `b1500 dev recipe-check`, `docs/hardware-bringup.md` as a one-page overview, acceptance S17 graders with ideal/violating fixtures |
+| 6.5 Windows readiness | CI runs the whole gate (tests with `-n auto`, ruff, recipe check, skill lint, card index, skill mirror, tool budget, manual corpus) green on `windows-latest` and `macos-latest`; Windows paths, line ends, encodings and Windows-only code tested on every OS by platform injection; the CLI never fails on a cp1252/cp936 console; `docs/deployment-windows.md` v2 with the first-session script and an offline wheelhouse checked on the Mac |

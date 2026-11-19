@@ -46,6 +46,7 @@ from __future__ import annotations
 import math
 import os
 import secrets
+import threading
 import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import ExitStack, contextmanager
@@ -68,7 +69,7 @@ from b1500_test_agent.models.run import Adapter, CleanupReport, CleanupStep, Loc
 from b1500_test_agent.models.station import InstrumentError, LiveState, channel_slot
 from b1500_test_agent.session.fault import CleanupUnverified, FaultLatched, PositiveControlFailed
 from b1500_test_agent.session.lock import atomic_write_json, host_name, remove_file
-from b1500_test_agent.transport.audit import AuditingTransport, AuditSink
+from b1500_test_agent.transport.audit import AuditingTransport, AuditSink, hold_audit
 from b1500_test_agent.transport.base import Transport, TransportTimeout, state_hooks, unwrap
 
 if TYPE_CHECKING:
@@ -139,10 +140,30 @@ def read_inflight(path: Path) -> InflightMarker | None:
         return InflightMarker(intent=f"corrupt inflight marker: {str(exc).splitlines()[0]}")
 
 
+_TX_IDS_LOCK = threading.Lock()
+_TX_IDS_ISSUED: dict[str, set[str]] = {}
+"""Suffixes this process issued per second stamp, in insertion order (only the last few stamps are kept)."""
+_TX_IDS_KEEP = 4
+
+
 def new_tx_id(now: datetime | None = None) -> str:
-    """Transaction id ``T`` + UTC ``YYYYMMDDThhmmssZ`` + ``-`` + 4 hex digits (the run-id shape, blueprint 0 #9)."""
+    """Transaction id ``T`` + UTC ``YYYYMMDDThhmmssZ`` + ``-`` + 4 hex digits (the run-id shape, blueprint 0 #9).
+
+    Unique within the process: 20 snapshots in one second drew a duplicate suffix in about 1 of 350 test runs
+    (birthday bound over 65,536 suffixes), which merged two transactions in the audit (WP6.5); a suffix is redrawn
+    until it is new for its second. Two processes would need a transaction in the same second with the same suffix
+    (1 in 65,536)."""
     stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
-    return f"T{stamp}-{secrets.token_hex(2)}"
+    with _TX_IDS_LOCK:
+        issued = _TX_IDS_ISSUED.setdefault(stamp, set())
+        suffix = secrets.token_hex(2)
+        while suffix in issued and len(issued) < 0x10000:
+            suffix = secrets.token_hex(2)
+        issued.add(suffix)
+        for old in list(_TX_IDS_ISSUED)[:-_TX_IDS_KEEP]:  # oldest stamps first (insertion order)
+            if old != stamp:
+                del _TX_IDS_ISSUED[old]
+    return f"T{stamp}-{suffix}"
 
 
 # -- Live state -------------------------------------------------------------------------------------------------------
@@ -438,7 +459,8 @@ class Transaction:
             transport.sink = self.run.audit
         self._sink = transport.sink
         try:
-            with transport.bind(run=self.run_id, tx=self.tx_id, intent=self.intent):
+            # one open of the audit file for the whole transaction (each event still flushed at once): WP6.5
+            with hold_audit(self._sink), transport.bind(run=self.run_id, tx=self.tx_id, intent=self.intent):
                 yield
         finally:
             transport.sink = previous

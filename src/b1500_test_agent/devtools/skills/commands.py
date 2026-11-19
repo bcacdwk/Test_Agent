@@ -7,6 +7,12 @@ reached, which must be listed by its parent's ``--help`` and answer its own ``--
 Placeholders (``PLAN_ID``, ``<terms>``, ``...``) end the walk; ``a|b`` alternatives (``status|recipes``,
 ``--codex|--claude``) are checked one by one. Nothing is executed except ``--help``.
 
+"Listed by ``--help``" is decided from the command tree (a command or option shows in the help unless it is
+``hidden``), never by searching the rendered help text: Typer renders help through Rich, which colours and
+re-wraps it whenever ``GITHUB_ACTIONS``, ``FORCE_COLOR`` or ``PY_COLORS`` is set or the terminal is narrow, so a
+text search answered differently on CI than on the developer's machine (WP6.5). ``--help`` itself still runs once
+per command and must exit 0.
+
 Scope: ``.agents/skills/**/*.md``, ``docs/**/*.md`` except ``docs/design/`` (the plan of record and the WP log name
 planned and retired commands) and the dated session reports ``docs/acceptance/<YYYY-MM-DD>-*.md`` (history),
 ``README.md``, ``AGENTS.md``, ``CLAUDE.md`` and the nested ``src/b1500_test_agent/**/*.md``.
@@ -108,25 +114,47 @@ def resolve(tokens: list[str]) -> tuple[list[str], Any, list[str], str | None]:
 
 
 @cache
-def _help(path: tuple[str, ...]) -> tuple[int, str]:
+def _help_exit_code(path: tuple[str, ...]) -> int:
     from typer.testing import CliRunner
 
     from b1500_test_agent.adapters.cli import app
 
-    result = CliRunner().invoke(app, [*path, "--help"])
-    return result.exit_code, result.output
+    return CliRunner().invoke(app, [*path, "--help"]).exit_code
+
+
+def _command_at(path: list[str]) -> Any | None:
+    """The command the words ``path`` name in the CLI tree (``None`` when a word names no command)."""
+    command: Any = _root_command()
+    for name in path:
+        sub = command.commands.get(name) if isinstance(getattr(command, "commands", None), dict) else None
+        if sub is None:
+            return None
+        command = sub
+    return command
+
+
+def _listed_options(command: Any) -> set[str]:
+    """Every option name the command's ``--help`` lists: its non-hidden parameters' names plus ``--help``."""
+    listed = {"--help"}
+    for param in command.params:
+        if not getattr(param, "hidden", False):
+            listed.update((*param.opts, *param.secondary_opts))
+    return listed
 
 
 def help_problem(path: list[str], options: list[str]) -> str | None:
-    """The command appears in its parent's ``--help`` output, its own ``--help`` works and lists every option."""
-    if path:
-        code, output = _help(tuple(path[:-1]))
-        if code != 0 or not re.search(rf"(?<![\w-]){re.escape(path[-1])}(?![\w-])", output):
-            return f"`b1500 {' '.join(path)}` is not listed by `b1500 {' '.join([*path[:-1], '--help'])}`"
-    code, output = _help(tuple(path))
+    """The command appears in its parent's ``--help`` (it exists and is not hidden), its own ``--help`` exits 0 and
+    lists every option (each belongs to a non-hidden parameter). Decided from the command tree, see the module
+    docstring."""
+    command = _command_at(path)
+    if path and (command is None or getattr(command, "hidden", False)):
+        return f"`b1500 {' '.join(path)}` is not listed by `b1500 {' '.join([*path[:-1], '--help'])}`"
+    if command is None:  # the root itself cannot be missing; kept for type narrowing
+        return "`b1500 --help` exits with no command tree"
+    code = _help_exit_code(tuple(path))
     if code != 0:
         return f"`b1500 {' '.join([*path, '--help'])}` exits {code}"
-    missing = [option for option in options if option not in output]
+    missing = [option for option in options if option not in _listed_options(command)]
     if missing:
         return f"`b1500 {' '.join([*path, '--help'])}` does not list {', '.join(missing)}"
     return None

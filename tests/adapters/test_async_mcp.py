@@ -65,6 +65,7 @@ def child_env(world: World) -> dict[str, str]:
 # -- the AC ----------------------------------------------------------------------------------------------------------
 
 
+@pytest.mark.wall_clock
 @pytest.mark.skipif(shutil.which("b1500", path=str(BIN)) is None, reason="console scripts not installed")
 def test_twenty_minute_plan_in_memory_running_busy_progress_and_shutdown_from_a_second_process(
         world: World) -> None:

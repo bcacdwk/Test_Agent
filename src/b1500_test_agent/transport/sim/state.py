@@ -119,12 +119,20 @@ def load_state_file(path: Path) -> SimPersistentState | None:
 
 
 def save_state_file(path: Path, state: SimPersistentState) -> None:
-    """Write ``state`` atomically (temporary file + ``os.replace``)."""
+    """Write ``state`` atomically (temporary file + ``os.replace``): the newest ``COMMAND_LOG_LIMIT`` command
+    records (older ones counted in ``log_dropped``) and the save time. ``state`` itself is not modified, so callers
+    pass the live state without a deep copy, and the compact JSON uses the C encoder: a 4 h simulated run saves its
+    state at checkpoints, where a deep copy plus indented JSON of thousands of records cost tens of milliseconds a
+    save (WP6.5)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    state.trim_log()
-    state.saved_at = datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    data = json.dumps(state.model_dump(mode="json"), ensure_ascii=False, indent=1)
+    record = state.model_dump(mode="json")
+    excess = len(record["command_log"]) - COMMAND_LOG_LIMIT
+    if excess > 0:
+        record["command_log"] = record["command_log"][excess:]
+        record["log_dropped"] = record["log_dropped"] + excess
+    record["saved_at"] = datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    data = json.dumps(record, ensure_ascii=False, separators=(",", ":"))
     tmp = path.with_name(f"{path.name}.tmp-{os.getpid()}")
     try:
         with tmp.open("w", encoding="utf-8", newline="\n") as handle:

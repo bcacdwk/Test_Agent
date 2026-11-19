@@ -247,6 +247,23 @@ def first_compliance(r: Rows) -> tuple[float, float] | None:
 # -- numerics --------------------------------------------------------------------------------------------------------
 
 
+PEAK_TIE_REL = 1e-9
+"""Values within this fraction of the maximum count as equal to it in ``peak_index``: far below any measured noise,
+far above floating-point rounding."""
+
+
+def peak_index(values: np.ndarray) -> int:
+    """Index of the maximum of ``values`` (NaN ignored), the first one when several are equal within
+    ``PEAK_TIE_REL``. A flat top (ideal analytic curves: constant gm above threshold) then gives the same index on
+    every platform; a plain ``argmax`` picked whichever value rounding made largest, which differs between the
+    numpy builds of macOS and Windows (WP6.5)."""
+    finite_values = np.where(np.isfinite(values), values, -np.inf)
+    top = float(np.max(finite_values))
+    if not np.isfinite(top):
+        return int(np.argmax(finite_values))
+    return int(np.flatnonzero(finite_values >= top - PEAK_TIE_REL * abs(top))[0])
+
+
 def strictly_monotonic(x: np.ndarray) -> bool:
     steps = np.diff(x)
     return bool(np.all(steps > 0) or np.all(steps < 0))

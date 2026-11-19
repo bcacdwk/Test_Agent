@@ -27,17 +27,19 @@ from __future__ import annotations
 
 import logging
 import math
+import numbers
 import threading
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
 
+import numpy as np
 import pandas as pd
 
 from b1500_test_agent.models.plan import RunProgress
-from b1500_test_agent.session.abort import AbortWatch
+from b1500_test_agent.session.abort import AbortWatch, RunCancelled
 
 RunMode = Literal["sync", "async"]
 ProgressState = Literal["running", "completed", "cancelled", "failed"]
@@ -56,24 +58,47 @@ _NOT_VALUES = frozenset({"step", "trust"})
 log = logging.getLogger("b1500.runner")
 
 
-def _as_frame(rows: Rows) -> pd.DataFrame:
-    return rows if isinstance(rows, pd.DataFrame) else pd.DataFrame(list(rows))
+Buffered = pd.DataFrame | list[Mapping[str, object]]
+"""Rows kept between two writes: a kind's DataFrame as given, or its row mappings as given (made into a DataFrame
+only when written: one ``pandas.DataFrame`` per checkpoint cost a 4 h simulated run a fifth of its wall time, WP6.5)."""
 
 
-def last_values(frame: pd.DataFrame) -> dict[str, float]:
-    """The newest finite numeric values of ``frame`` by column (``step``, ``trust`` and status columns left out)."""
-    if frame.empty:
-        return {}
+def _rows_frame(parts: Sequence[Buffered]) -> pd.DataFrame:
+    """The buffered parts as one table, in order (consecutive row lists become one DataFrame)."""
+    frames: list[pd.DataFrame] = []
+    pending: list[Mapping[str, object]] = []
+    for part in parts:
+        if isinstance(part, pd.DataFrame):
+            if pending:
+                frames.append(pd.DataFrame(pending))
+                pending = []
+            frames.append(part)
+        else:
+            pending.extend(part)
+    if pending:
+        frames.append(pd.DataFrame(pending))
+    return pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+
+
+def _row_values(row: Iterable[tuple[object, object]]) -> dict[str, float]:
     values: dict[str, float] = {}
-    for column, value in frame.iloc[-1].items():
+    for column, value in row:
         name = str(column)
-        if name in _NOT_VALUES or name.endswith("_status") or isinstance(value, bool):
+        if name in _NOT_VALUES or name.endswith("_status") or isinstance(value, bool | np.bool_):
             continue
-        if isinstance(value, int | float) and math.isfinite(float(value)):
+        if isinstance(value, numbers.Real) and math.isfinite(float(value)):
             values[name] = float(value)
         if len(values) >= LAST_VALUES_MAX:
             break
     return values
+
+
+def last_values(rows: pd.DataFrame | Sequence[Mapping[str, object]]) -> dict[str, float]:
+    """The newest finite numeric values of ``rows`` (a DataFrame or row mappings) by column (``step``, ``trust`` and
+    status columns left out)."""
+    if isinstance(rows, pd.DataFrame):
+        return {} if rows.empty else _row_values(rows.iloc[-1].items())
+    return _row_values(rows[-1].items()) if rows else {}
 
 
 class RunControl:
@@ -99,7 +124,7 @@ class RunControl:
         self._clock = clock
         self._t0 = clock()
         self._written_at: float | None = None
-        self._buffer: list[pd.DataFrame] = []
+        self._buffer: list[Buffered] = []
         self._values: dict[str, float] = {}
         self.latest: RunProgress | None = None
         """The newest progress (read by other threads: ``station_status``, ``get_run`` of this process)."""
@@ -151,22 +176,27 @@ class RunControl:
         if self.collects_rows:
             try:
                 built = rows() if callable(rows) else rows
-                if built is not None:
-                    frame = _as_frame(built)
-                    if not frame.empty:
-                        self._buffer.append(frame)
-                        self._values = last_values(frame)
+                if isinstance(built, pd.DataFrame):
+                    if not built.empty:
+                        self._buffer.append(built)
+                        self._values = last_values(built)
+                elif built is not None:
+                    records = list(built)
+                    if any(records):  # rows without a single cell are no rows
+                        self._buffer.append(records)
+                        self._values = last_values(records)
             except Exception as exc:  # noqa: BLE001 - rows are a view; the measurement goes on
                 self.write_failures += 1
                 if warn is not None:
                     warn("partial rows could not be built", exc)
         self.latest = self._progress("running", done, total, phase)
-        request = self.abort.pending()
+        request = self.abort.pending()  # one read of the abort file per checkpoint
         if self.records_progress:
             self._write(force=request is not None, warn=warn)
         elif request is not None:
             self._flush_rows(warn)
-        self.abort.check()
+        if request is not None:
+            raise RunCancelled(request)
 
     def check_abort(self) -> None:
         """Raise ``RunCancelled`` when an abort applies (readback loops call this at least once a second)."""
@@ -191,7 +221,14 @@ class RunControl:
     def _flush_rows(self, warn: Warn | None) -> None:
         if not self._buffer or self._partial_sink is None:
             return
-        chunk = pd.concat(self._buffer, ignore_index=True) if len(self._buffer) > 1 else self._buffer[0]
+        try:
+            chunk = _rows_frame(self._buffer)
+        except Exception as exc:  # noqa: BLE001 - malformed rows are a write failure; the measurement goes on
+            self._buffer = []
+            self.write_failures += 1
+            if warn is not None:
+                warn("partial rows could not be built", exc)
+            return
         self._buffer = []
         try:
             self._partial_sink(chunk)

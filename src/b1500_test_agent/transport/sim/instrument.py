@@ -679,7 +679,7 @@ class SimTransport:
     def save_state(self) -> None:
         """Atomically write the persistent state to ``state_file`` (no-op without a file)."""
         if self.state_file is not None:
-            save_state_file(self.state_file, self.instrument.export_state())
+            save_state_file(self.state_file, self.instrument.state)  # read only: no copy needed
 
     def inject(self, fault: SimFault) -> None:
         """Activate ``fault`` on the instrument now."""

@@ -254,6 +254,7 @@ def test_larger_tables_go_to_npz_with_a_preview(tmp_path: Path) -> None:
         write_run_table(table, tmp_path)
 
 
+@pytest.mark.wall_clock
 def test_one_million_rows_round_trip_quickly(tmp_path: Path) -> None:
     table = big_table(1_000_000)
     t0 = time.perf_counter()
@@ -265,6 +266,7 @@ def test_one_million_rows_round_trip_quickly(tmp_path: Path) -> None:
     assert elapsed < ROUND_TRIP_LIMIT_S, f"1 M-row npz round trip took {elapsed:.2f} s"
 
 
+@pytest.mark.wall_clock
 def test_csv_round_trip_at_the_limit_is_exact(tmp_path: Path) -> None:
     table = big_table(CSV_MAX_ROWS)
     t0 = time.perf_counter()

@@ -168,7 +168,8 @@ def test_plot_iv_renders_a_plot_set_and_writes_files(tmp_path: Path) -> None:
 
 def test_plots_module_never_imports_pyplot() -> None:
     code = "import sys, b1500_test_agent.analysis.plots; print('matplotlib.pyplot' in sys.modules)"
-    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=120)
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8", check=True,
+                         timeout=120)
     assert out.stdout.strip() == "False"
 
 

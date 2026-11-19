@@ -75,8 +75,8 @@ Implemented (`vth_linear_extrapolation`, M1; default of `mosfet.idvg`; deck slid
 - Fit Id = a + b Vg by least squares through the window; Vg0 = -a/b (Vg-axis intercept); report
   Vth = Vg0 - Vd/2 when `subtract_half_vd` (default true), because linear-region Id is proportional to
   (Vg - Vth - Vd/2) Vd ([01](01-device-physics.md#mosfet-threshold-voltage-definitions)).
-- Window `max_gm` (default): the `fit_points` (default 5) trusted points centred on the maximum of |gm| (clamped at
-  the sweep ends), i.e. the tangent at maximum gm. Or an explicit `window: [lo, hi]` in volts (all trusted points
+- Window `max_gm` (default): the `fit_points` (default 5) trusted points centred on the maximum of |gm| (the first
+  of maxima equal within 1e-9 relative; clamped at the sweep ends), i.e. the tangent at maximum gm. Or an explicit `window: [lo, hi]` in volts (all trusted points
   inside).
 - Vd: the `vd` option if given, else the run plan's parameter `vd` (`vd_param`); missing gives an error (pass `vd`
   or `subtract_half_vd: false`).

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import secrets
 import subprocess
 from collections.abc import Iterable, Mapping
@@ -84,7 +85,8 @@ def software_version() -> str:
     try:
         result = subprocess.run(
             ["git", "describe", "--always", "--dirty", "--tags"],
-            cwd=Path(__file__).resolve().parent, capture_output=True, text=True, timeout=_GIT_TIMEOUT_S, check=False,
+            cwd=Path(__file__).resolve().parent, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=_GIT_TIMEOUT_S, check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return f"{__version__} (git unavailable)"
@@ -131,6 +133,9 @@ class RunFolder:
         self.path = self.runs_dir.joinpath(*self.relpath.parts)
         self.audit = RunAuditSink(self.path)
         self.raw_files: list[str] = []
+        self._raw_dir_ready = False
+        self._raw_digests: dict[str, tuple[int, str]] = {}
+        """Run-relative path → (size, sha256) of each raw block as written (``files`` reuses it, see there)."""
 
     # -- RunHandle --------------------------------------------------------------------------------------------------
 
@@ -139,9 +144,20 @@ class RunFolder:
         characters backslash-escaped) and return that run-relative path."""
         rel = f"{RAW_DIR}/block-{len(self.raw_files):03d}.txt"
         target = self.path / RAW_DIR / rel.split("/")[1]
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open("xb") as handle:
-            handle.write(raw.encode("latin-1", errors="backslashreplace"))
+        if not self._raw_dir_ready:  # made once per run, not once per block
+            target.parent.mkdir(parents=True, exist_ok=True)
+            self._raw_dir_ready = True
+        data = raw.encode("latin-1", errors="backslashreplace")
+        # created exclusively (never overwrites), written with one unbuffered call: a long stepped plan writes a
+        # block per segment, and the buffered file object cost more than the write on Windows (WP6.5)
+        fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o666)
+        try:
+            view = memoryview(data)
+            while view:
+                view = view[os.write(fd, view):]
+        finally:
+            os.close(fd)
+        self._raw_digests[rel] = (len(data), hashlib.sha256(data).hexdigest())
         self.raw_files.append(rel)
         return rel
 
@@ -230,11 +246,27 @@ class RunFolder:
         return note_id
 
     def files(self) -> dict[str, str]:
-        """sha256 of every file in the folder except ``manifest.json`` (run-relative POSIX paths, sorted)."""
+        """sha256 of every file in the folder except ``manifest.json`` (run-relative POSIX paths, sorted as paths).
+
+        Walks with ``os.scandir``, whose entries already know their type and size (on Windows from the directory
+        listing itself, no ``stat`` per file). A raw block this folder wrote (``save_raw``: created exclusively,
+        digest taken from the bytes written) keeps that digest while its size is unchanged; every other file, and a
+        block whose size changed, is read and hashed here. A long stepped plan writes hundreds of blocks, and reading
+        each back cost a quarter of a second on Windows (WP6.5)."""
+        found: list[tuple[Path, int]] = []
+        pending = [self.path]
+        while pending:
+            with os.scandir(pending.pop()) as entries:
+                for entry in entries:
+                    if entry.is_dir(follow_symlinks=False):
+                        pending.append(Path(entry.path))
+                    elif entry.is_file() and entry.name != MANIFEST_FILE:
+                        found.append((Path(entry.path), entry.stat().st_size))
         out: dict[str, str] = {}
-        for path in sorted(self.path.rglob("*")):
-            if path.is_file() and path.name != MANIFEST_FILE:
-                out[path.relative_to(self.path).as_posix()] = sha256_file(path)
+        for path, size in sorted(found):
+            rel = path.relative_to(self.path).as_posix()
+            known = self._raw_digests.get(rel)
+            out[rel] = known[1] if known is not None and known[0] == size else sha256_file(path)
         return out
 
     def is_empty(self) -> bool:

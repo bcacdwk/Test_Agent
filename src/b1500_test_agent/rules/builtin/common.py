@@ -172,6 +172,9 @@ def param_problem(spec: ParamSpec, value: object) -> tuple[str, str, object, obj
     if spec.type == "file":
         if file_param_origin(value) is not None:
             return None
+        if isinstance(value, str) and "\\" in value:  # a Windows spelling: the plan names files with / only
+            return ("uses \\ separators; name the CSV with / (as on every OS)", "type", repr(value),
+                    "recipes/waveforms/<name>.csv or work/waveforms/<name>.csv")
         return ("is not a CSV path under recipes/waveforms/ or work/waveforms/", "type", repr(value),
                 "recipes/waveforms/<name>.csv or work/waveforms/<name>.csv")
     if spec.type == "int":

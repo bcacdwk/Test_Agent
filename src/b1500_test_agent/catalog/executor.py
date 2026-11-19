@@ -651,16 +651,16 @@ class Executor(RunningRuns):
                         "total_s": round(max(0.0, (finished - started).total_seconds()), 6)},
         })
         final = folder.finalize(manifest)
-        paths = bundle.paths
-        artifacts = {"run_dir": paths.display(folder.path),
-                     "manifest": paths.display(folder.path / MANIFEST_FILE),
-                     "audit": paths.display(folder.path / RUN_AUDIT_FILE),
-                     **{name: paths.display(folder.path / rel) for name, rel in artifacts.items()},
-                     **{rel: paths.display(folder.path / rel) for rel in folder.raw_files}}
+        run_dir = bundle.paths.display(folder.path)  # resolved once; files inside are named from it (WP6.5)
+        artifacts = {"run_dir": run_dir,
+                     "manifest": f"{run_dir}/{MANIFEST_FILE}",
+                     "audit": f"{run_dir}/{RUN_AUDIT_FILE}",
+                     **{name: f"{run_dir}/{rel}" for name, rel in artifacts.items()},
+                     **{rel: f"{run_dir}/{rel}" for rel in folder.raw_files}}
         if (folder.path / PARTIAL_FILE).is_file() and "data" not in artifacts:
-            artifacts["partial"] = paths.display(folder.path / PARTIAL_FILE)
+            artifacts["partial"] = f"{run_dir}/{PARTIAL_FILE}"
         if (folder.path / PROGRESS_FILE).is_file():
-            artifacts["progress"] = paths.display(folder.path / PROGRESS_FILE)
+            artifacts["progress"] = f"{run_dir}/{PROGRESS_FILE}"
         ok = outcome in ("completed", "completed_with_flags")
         latched = cleanup is not None and cleanup.latched_fault
         status: ResultStatus = "ok" if ok else (

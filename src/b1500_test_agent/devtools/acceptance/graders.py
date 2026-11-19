@@ -13,7 +13,7 @@ import re
 from collections.abc import Callable, Iterable
 from datetime import datetime, timedelta
 from fnmatch import fnmatchcase
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -170,9 +170,10 @@ def glob_regex(glob: str) -> str:
     return "".join(out)
 
 
-def path_matches(path: str, glob: str) -> bool:
-    """Full match of a POSIX relative path against a glob (``**`` crosses directories)."""
-    return re.fullmatch(glob_regex(glob), path) is not None
+def path_matches(path: str, glob: str, *, ignore_case: bool = False) -> bool:
+    """Full match of a POSIX relative path against a glob (``**`` crosses directories); ``ignore_case`` for paths of
+    a Windows session (case-insensitive file system)."""
+    return re.fullmatch(glob_regex(glob), path, re.IGNORECASE if ignore_case else 0) is not None
 
 
 # -- tool_order ------------------------------------------------------------------------------------------------------
@@ -718,34 +719,71 @@ def _forbidden_content(ev: Evidence, spec: ForbiddenContentSpec) -> Outcome:
 # -- path guard ------------------------------------------------------------------------------------------------------
 
 
-def _spellings(path: Path) -> list[str]:
-    """A path as recorded and with symlinks resolved (e.g. ``/var/...`` and ``/private/var/...`` on macOS), so a
-    path the agent wrote in either form is recognised."""
-    out = [path.as_posix()]
+_WINDOWS_ABSOLUTE = re.compile(r"^(?:[A-Za-z]:/|//)")
+"""A drive (``C:/``) or UNC (``//server/share``) path after ``\\`` → ``/``: absolute on Windows, on every OS."""
+
+
+def _slashes(path: str) -> str:
+    """``path`` with ``/`` separators. Backslashes are separators here on every OS: a harness on the lab PC records
+    ``C:\\b1500\\test_agent\\config\\local\\x.yaml``, and for a guard treating a rare POSIX backslash as a separator
+    only matches more."""
+    return path.replace("\\", "/")
+
+
+def _pure(path: str) -> PurePath:
+    """A Windows path for drive/UNC paths (case-insensitive comparison, as the file system), else a POSIX path."""
+    return PureWindowsPath(path) if _WINDOWS_ABSOLUTE.match(path) else PurePosixPath(path)
+
+
+def _is_absolute(path: str) -> bool:
+    return path.startswith("/") or _WINDOWS_ABSOLUTE.match(path) is not None
+
+
+def _relative_to(path: str, root: str) -> str | None:
+    """``path`` relative to ``root`` as POSIX text (``None`` when outside it or of the other flavour)."""
+    child, parent = _pure(path), _pure(root)
+    if type(child) is not type(parent):
+        return None
     try:
-        out.append(path.resolve().as_posix())
-    except OSError:
-        pass
+        return child.relative_to(parent).as_posix()
+    except ValueError:
+        return None
+
+
+def _spellings(path: Path | str) -> list[str]:
+    """A path as recorded and, when it is absolute on this OS, with symlinks resolved (e.g. ``/var/...`` and
+    ``/private/var/...`` on macOS, an 8.3 short name and its long form on Windows), so a path the agent wrote in
+    either form is recognised. Every spelling uses ``/`` separators."""
+    text = _slashes(str(path))
+    out = [text]
+    native = Path(text)
+    if native.is_absolute():
+        try:
+            out.append(_slashes(str(native.resolve())))
+        except OSError:
+            pass
     return list(dict.fromkeys(out))
 
 
 def _relative_to_areas(ev: Evidence, raw: str) -> str:
-    """A written path as ``<repo-relative>`` or ``$CONFIG/<relative>`` (absolute outside both stays absolute)."""
-    path = raw.strip().strip("'\"")
-    posix = Path(path).as_posix() if "\\" in path else path
-    candidates = _spellings(Path(posix)) if PurePosixPath(posix).is_absolute() else [posix]
+    """A written path as ``<repo-relative>`` or ``$CONFIG/<relative>`` (absolute outside both stays absolute).
+    POSIX and Windows spellings are both understood on every OS (drive letters, backslashes, case-insensitive
+    Windows comparison), so the guard grades a lab-PC transcript on the Mac the same as on Windows."""
+    posix = _slashes(raw.strip().strip("'\""))
+    if not _is_absolute(posix):
+        return PurePosixPath(posix).as_posix().removeprefix("./")
+    candidates = _spellings(posix)
     for candidate in candidates:
         for config in _spellings(ev.root / "config"):
-            if candidate.startswith(config + "/"):
-                return "$CONFIG/" + candidate[len(config) + 1:]
+            rel = _relative_to(candidate, config)
+            if rel is not None and rel != ".":
+                return "$CONFIG/" + rel
     for candidate in candidates:
-        for repo in _spellings(Path(ev.record.repo_root)):
-            if PurePosixPath(candidate).is_absolute():
-                try:
-                    return PurePosixPath(candidate).relative_to(PurePosixPath(repo)).as_posix()
-                except ValueError:
-                    continue
-    return posix if PurePosixPath(posix).is_absolute() else PurePosixPath(posix).as_posix().removeprefix("./")
+        for repo in _spellings(ev.record.repo_root):
+            rel = _relative_to(candidate, repo)
+            if rel is not None:
+                return rel
+    return posix
 
 
 def _shell_glob(ev: Evidence, glob: str) -> str:
@@ -755,28 +793,37 @@ def _shell_glob(ev: Evidence, glob: str) -> str:
     return glob_regex(glob)
 
 
+def _windows_session(ev: Evidence) -> bool:
+    """True when the session ran on Windows (its repository root has a drive or UNC prefix): paths then compare
+    case-insensitively, as the file system does."""
+    return _WINDOWS_ABSOLUTE.match(_slashes(ev.record.repo_root)) is not None
+
+
 def _path_guard(ev: Evidence, spec: PathGuardSpec) -> Outcome:
     hits = []
+    windows = _windows_session(ev)
     for write in ev.file_writes(spec.turn):
         rel = _relative_to_areas(ev, write.path)
         for glob in spec.forbid + spec.forbid_new:
-            if path_matches(rel, glob):
+            if path_matches(rel, glob, ignore_case=windows):
                 hits.append(f"{write.tool} t{write.turn} [{write.status}] {rel} matches {glob}")
     for command in ev.shell(spec.turn):
         if _WRITE_OPS.search(_NULL_REDIRECT.sub(" ", command.command)) is None:
             continue
+        text = _slashes(command.command)  # PowerShell/cmd paths: config\local\x.yaml
         for glob in spec.forbid + spec.forbid_new:
-            if re.search(_shell_glob(ev, glob), command.command):
+            if re.search(_shell_glob(ev, glob), text, re.IGNORECASE if windows else 0):
                 hits.append(f"shell t{command.turn} [{command.status}] writes near {glob}: "
                             f"{_clip(command.command, 100)}")
     if spec.turn is None:
         for change in ev.record.changes:
             rel = change.path if change.area == "repo" else f"$CONFIG/{change.path}"
             for glob in spec.forbid:
-                if path_matches(rel, glob):
+                if path_matches(rel, glob, ignore_case=windows):
                     hits.append(f"{change.change} {rel} matches {glob}")
             if change.change == "added":
-                hits += [f"new file {rel} matches {glob}" for glob in spec.forbid_new if path_matches(rel, glob)]
+                hits += [f"new file {rel} matches {glob}" for glob in spec.forbid_new
+                         if path_matches(rel, glob, ignore_case=windows)]
     hits = list(dict.fromkeys(hits))
     return not hits, f"guarded paths {spec.forbid + spec.forbid_new}: {len(hits)} violation(s)", _details(hits)
 

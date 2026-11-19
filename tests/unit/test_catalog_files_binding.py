@@ -1,5 +1,9 @@
 """Planner v2 (blueprint v2 2.3, decision 21): ``file`` parameters hashed into the plan, re-checked before a run,
-and roles bound through switch outputs and MFCMU sides (WP5.3)."""
+and roles bound through switch outputs and MFCMU sides (WP5.3).
+
+CSV fixtures are written with ``newline="\n"``: the plan hash binds a file's exact bytes, and a text-mode write on
+Windows would store CRLF, i.e. another file (WP6.5). Committed library CSVs keep LF on every clone through
+``.gitattributes`` (``* text=auto eol=lf``), so their digests are the same on the Mac and the lab PC."""
 
 from __future__ import annotations
 
@@ -76,7 +80,7 @@ def world(tmp_path: Path) -> dict[str, Path]:
     (recipes / "test").mkdir(parents=True)
     (recipes / "test" / "table.yaml").write_text(TABLE_RECIPE, encoding="utf-8")
     (recipes / "waveforms").mkdir()
-    (recipes / "waveforms" / "lib.csv").write_text("time,level\n0,0\n1e-6,1\n", encoding="utf-8")
+    (recipes / "waveforms" / "lib.csv").write_text("time,level\n0,0\n1e-6,1\n", encoding="utf-8", newline="\n")
     (tmp_path / "work" / "waveforms").mkdir(parents=True)
     (tmp_path / "pyproject.toml").write_text("[project]\nname = 'tmp'\n", encoding="utf-8")
     return {"root": tmp_path, "recipes": recipes, "work": tmp_path / "work"}
@@ -111,18 +115,33 @@ def test_library_file_is_hashed_into_the_plan(world: dict[str, Path]) -> None:
 
 def test_plan_hash_changes_with_the_csv_content(world: dict[str, Path]) -> None:
     csv = world["work"] / "waveforms" / "adhoc.csv"
-    csv.write_text("time,level\n0,0\n", encoding="utf-8")
+    csv.write_text("time,level\n0,0\n", encoding="utf-8", newline="\n")
     first, again = plan(world, wave=WORK_CSV), plan(world, wave=WORK_CSV)
     assert first.plan_id == again.plan_id  # same content: same plan
-    csv.write_text("time,level\n0,0.5\n", encoding="utf-8")
+    csv.write_text("time,level\n0,0.5\n", encoding="utf-8", newline="\n")
     second = plan(world, wave=WORK_CSV)
     assert second.files["wave"].sha256 != first.files["wave"].sha256
     assert second.plan_hash != first.plan_hash and second.plan_id != first.plan_id
     assert second.request == first.request and second.program == first.program  # only the file content differs
 
 
+def test_line_ends_are_part_of_the_bound_bytes(world: dict[str, Path]) -> None:
+    """The plan binds bytes, not text: the same table saved with CRLF (a Windows editor) is another file with another
+    digest, so a run never executes a file other than the one validated (WP6.5)."""
+    roots = FileRoots.of(world["recipes"], world["work"])
+    csv = world["work"] / "waveforms" / "adhoc.csv"
+    csv.write_bytes(b"time,level\n0,0\n")
+    lf = resolve_param_file(WORK_CSV, roots)
+    csv.write_bytes(b"time,level\r\n0,0\r\n")
+    crlf = resolve_param_file(WORK_CSV, roots)
+    assert lf.problem is None and crlf.problem is None
+    assert lf.sha256 == sha("time,level\n0,0\n") and crlf.sha256 != lf.sha256
+    assert crlf.size_bytes == (lf.size_bytes or 0) + 2
+    assert changed_param_files({"wave": lf}, roots) == ["wave"]
+
+
 def test_work_file_needs_confirmation_as_adhoc(world: dict[str, Path]) -> None:
-    (world["work"] / "waveforms" / "adhoc.csv").write_text("time,level\n0,0\n", encoding="utf-8")
+    (world["work"] / "waveforms" / "adhoc.csv").write_text("time,level\n0,0\n", encoding="utf-8", newline="\n")
     record = plan(world, wave=WORK_CSV)
     assert record.tier == "needs_confirmation" and record.rules.confirm_reasons == ["adhoc_recipe"]
     [finding] = [f for f in record.rules.findings if f.rule_id == "R-ALWAYS-01"]
@@ -157,7 +176,7 @@ def test_paths_outside_the_two_folders_are_refused(world: dict[str, Path], value
 
 def test_a_link_out_of_the_folder_is_refused(world: dict[str, Path]) -> None:
     outside = world["root"] / "secret.csv"
-    outside.write_text("1,2\n", encoding="utf-8")
+    outside.write_text("1,2\n", encoding="utf-8", newline="\n")
     try:
         (world["work"] / "waveforms" / "link.csv").symlink_to(outside)
     except (OSError, NotImplementedError):
@@ -169,11 +188,11 @@ def test_a_link_out_of_the_folder_is_refused(world: dict[str, Path]) -> None:
 def test_changed_files_are_detected_and_reads_reverify(world: dict[str, Path]) -> None:
     roots = FileRoots.of(world["recipes"], world["work"])
     csv = world["work"] / "waveforms" / "adhoc.csv"
-    csv.write_text("a\n", encoding="utf-8")
+    csv.write_text("a\n", encoding="utf-8", newline="\n")
     record = resolve_param_file(WORK_CSV, roots)
     assert read_param_file(record, roots) == b"a\n"
     assert changed_param_files({"wave": record}, roots) == []
-    csv.write_text("b\n", encoding="utf-8")
+    csv.write_text("b\n", encoding="utf-8", newline="\n")
     assert changed_param_files({"wave": record}, roots) == ["wave"]
     with pytest.raises(ParamFileChanged):
         read_param_file(record, roots)
@@ -188,12 +207,12 @@ def test_executor_refuses_a_plan_whose_file_changed(world: dict[str, Path], repo
     paths = Paths.from_env({ENV_DATA_DIR: str(tmp_path / "data")}, repo_root=repo)
     (paths.work_dir / "waveforms").mkdir(parents=True)
     csv = paths.work_dir / "waveforms" / "adhoc.csv"
-    csv.write_text("time,level\n0,0\n", encoding="utf-8")
+    csv.write_text("time,level\n0,0\n", encoding="utf-8", newline="\n")
     reg = RecipeRegistry.load(world["recipes"], kinds={"test_table": TableKind()}, repo_root=world["root"])
     executor = Executor(ConfigLoader(paths), registry=reg, clock=lambda: T0)
     stored = executor.plan(PlanRequest(recipe_id="test.table", pin_map="mosfet-4t", params={"wave": WORK_CSV}))
     assert executor.revalidate(stored.plan_id).plan_id == stored.plan_id
-    csv.write_text("time,level\n0,40\n", encoding="utf-8")
+    csv.write_text("time,level\n0,40\n", encoding="utf-8", newline="\n")
     with pytest.raises(PlanStaleError, match=r"file parameter\(s\) wave \(work/waveforms/adhoc.csv\) changed"):
         executor.revalidate(stored.plan_id)
 

@@ -45,8 +45,9 @@ _OPTIONAL_KEYS = ("error", "data")
 
 def format_ts(ts: datetime) -> str:
     """``ts`` as ISO-8601 UTC with milliseconds and a ``Z`` suffix, e.g. ``2026-11-17T06:30:12.123Z``."""
-    utc = ts.astimezone(UTC)
-    return utc.strftime("%Y-%m-%dT%H:%M:%S.") + f"{utc.microsecond // 1000:03d}Z"
+    utc = ts.astimezone(UTC)  # formatted by hand: strftime costs ~10 us a call on Windows, once per audit event
+    return (f"{utc.year:04d}-{utc.month:02d}-{utc.day:02d}T{utc.hour:02d}:{utc.minute:02d}:{utc.second:02d}."
+            f"{utc.microsecond // 1000:03d}Z")
 
 
 class AuditEvent(StrictModel):

@@ -164,6 +164,19 @@ def test_untrusted_gate_values_also_refuse() -> None:
     assert vth_linear_extrapolation(mosfet_run(gate_status=gate_status)).outcome == "refused"
 
 
+def test_a_flat_gm_top_gives_the_same_peak_on_every_platform() -> None:
+    """Constant gm above threshold (the analytic curve) differs only by rounding between the numpy builds of macOS
+    and Windows; the peak is the first of equal maxima, not the one rounding made largest (WP6.5)."""
+    from b1500_test_agent.analysis.common import peak_index
+
+    flat = np.array([0.1, 0.5, 1.0, 1.0 + 1e-15, 1.0 - 1e-15, 1.0 + 2e-15])
+    assert peak_index(flat) == 2 and peak_index(flat[::-1]) == 0
+    assert peak_index(np.array([0.1, np.nan, 0.3, 0.2])) == 2
+    assert peak_index(np.array([0.1, 0.3, 0.3 * (1 + 1e-6)])) == 2  # a real difference still wins
+    result = vth_linear_extrapolation(mosfet_run())
+    assert result.fit["x_at_gm_max"] < VG[-1] and not result.warnings
+
+
 def test_force_without_untrusted_data_is_not_flagged() -> None:
     result = vth_linear_extrapolation(mosfet_run(), force=True)
     assert result.outcome == "ok" and result.forced_on_untrusted is False and result.warnings == []

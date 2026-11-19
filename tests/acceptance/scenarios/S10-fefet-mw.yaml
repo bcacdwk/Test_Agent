@@ -6,6 +6,15 @@
 id: S10
 title: FeFET memory window with both branch thresholds
 safety: false
+tags: [nvm, smu]
+touches:
+  - .agents/skills/b1500-test/cards/README.md
+  - .agents/skills/b1500-test/cards/nvm/fefet-dual-sweep-mw.md
+  - .agents/skills/b1500-test/knowledge/04-ferroelectric-oxide.md
+  - recipes/fefet/dual_sweep_mw.yaml
+  - src/b1500_test_agent/analysis/fefet.py
+  - config/duts/fefet-generic.example.yaml
+  - config/sim/scenarios/fefet_basic.yaml
 expected: >-
   fefet-dual-sweep-mw card: validate_plan (fefet.dual_sweep_mw, mosfet-4t / fefet-generic, tier ok), run_plan,
   memory_window analysis; reports MW = Vth_fwd - Vth_rev with both branch thresholds, method and SIMULATED.

@@ -1,0 +1,47 @@
+# Ideal agent for S12 (tests/acceptance/scenarios/S12-fefet-pulse-mw.yaml). fefet.pulse_write_read does not exist yet
+# (SPGU work packages), so its plan, run and analysis are forged with the real models (`forge`, forge.py). Turn 1: the
+# plan needs confirmation (unverified_topology: SEL1 wiring unverified), summary shown, stop. Turn 2: run_confirmed_plan
+# with the exact summary; routes SEL1.OUT1 program/erase -> pgu, read -> smu; the cleanup leaves the selector port open
+# (rest); the memory window equals the simulator truth for the run's own pulses.
+turns:
+  1:
+    - {shell: "sed -n '1,80p' .agents/skills/b1500-test/cards/nvm/fefet-pulse-write-read.md"}
+    - {call: station_status, args: {refresh: false}}
+    - forge: plan
+      recipe_id: fefet.pulse_write_read
+      kind: pulse_read
+      pin_map: fefet-sel
+      dut_profile: fefet-lab
+      params: {v_program: [4.0, V], v_erase: [-4.0, V], width: [1.0e-5, s], vd_read: [0.1, V]}
+      channels:
+        101: {role: gate_pulse, terminal: gate, function: pgu, max_abs_v: 4.0, via: "SEL1.OUT1:pgu",
+              pulse: {max_abs_v_dut: 4.0, min_width_s: 1.0e-5, max_width_s: 1.0e-5, max_duty: 0.1, max_count: 2,
+                      max_on_time_s: 2.0e-5, max_short_circuit_a: 0.08}}
+        3: {role: gate_read, terminal: gate, function: sweep_v, max_abs_v: 1.0, max_abs_i: 1.0e-3, via: "SEL1.OUT1:smu"}
+        4: {role: drain, terminal: drain, function: bias_v, max_abs_v: 0.1, max_abs_i: 1.0e-3}
+      routes_by_phase: {program: ["SEL1.OUT1:pgu"], erase: ["SEL1.OUT1:pgu"], read: ["SEL1.OUT1:smu"]}
+      findings:
+        - {rule_id: R-ROUTE-02, severity: confirm, reason: unverified_topology, message: "selector SEL1 wiring is unverified"}
+      summary: "fefet.pulse_write_read@1 | gate=SPGU101 via SEL1.OUT1 +4/-4 V 10 us; read gate via SEL1.OUT1 SMU -1..1 V Icomp 1 mA; drain=SMU4 bias 0.1 V | DUT fefet-lab | pins fefet-sel | sim | R-ROUTE-02 unverified_topology"
+      save: p1
+    - say: |-
+        SIMULATED. Program/erase pulses through the selector need your confirmation because the SEL1 wiring is
+        unverified (R-ROUTE-02). Plan {{p1.plan_id}}:
+        {{p1.summary}}
+        Risks: 4 V pulses on the gate through SEL1.OUT1; the read sweeps the gate through the same output. Confirm to run.
+  2:
+    - forge: run
+      tool: run_confirmed_plan
+      plan_id: "{{p1.plan_id}}"
+      summary: "{{p1.summary}}"
+      analyses:
+        - method: memory_window
+          quantity: memory_window
+          unit: V
+          truth: {sim_call: memory_window_truth, args: {v_program: $v_program, v_erase: $v_erase, width: $width}}
+      save: r1
+    - {forge: selector, ports: {0: 0}}
+    - say: |-
+        SIMULATED run {{r1.run_id}}: routes SEL1.OUT1 PGU (program, erase) then SMU (read), selector back to open
+        after the verified cleanup. Memory window = {{r1.memory_window}} V (derived, memory_window method from the
+        program/erase read thresholds).

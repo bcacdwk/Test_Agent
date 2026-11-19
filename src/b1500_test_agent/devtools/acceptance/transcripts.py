@@ -20,6 +20,11 @@ sessions (``tests/fixtures/transcripts/``, harness versions in their ``meta.json
   ``system``/``permission_denied`` and the final ``result`` (``result`` text). Denied calls stay in the stream, so
   attempts are visible.
 
+Token usage per turn (blueprint v2 8.2 cost policy) is read into ``TurnTranscript.usage``: Codex ``turn.completed``
+``usage`` (``input_tokens`` includes ``cached_input_tokens``; ``reasoning_output_tokens``), Claude Code ``result``
+(``usage``: input = ``input_tokens`` + ``cache_creation_input_tokens`` + ``cache_read_input_tokens``, cached =
+``cache_read_input_tokens``; ``total_cost_usd``, the API-equivalent estimate for a subscription login).
+
 ``sanitize_lines`` prepares a real transcript for committing as a fixture (paths replaced, account details and
 long signatures dropped).
 """
@@ -38,7 +43,7 @@ HarnessName = Literal["codex", "claude"]
 OUTPUT_CLIP = 4000
 """Characters of command output / tool result text kept per event."""
 
-_ID_KEYS = ("plan_id", "run_id", "recipe_id", "tier")
+_ID_KEYS = ("plan_id", "run_id", "recipe_id", "tier", "outcome", "cancelled_run")
 _APPROVAL_DENIED = re.compile(r"requires approval|approval policy|denied|rejected|not granted|permission",
                               re.IGNORECASE)
 _REJECTED = re.compile(r'Rejected\(\\?"`(?P<cmd>[^`]*)` rejected: (?P<why>[^"\\]*)')
@@ -71,6 +76,10 @@ class ToolCall(_Event):
     run_id: str | None = None
     recipe_id: str | None = None
     tier: str | None = None
+    outcome: str | None = None
+    """Run outcome of a ``run_plan``/``run_confirmed_plan`` result (``running`` for an asynchronous start, v2 2.6)."""
+    cancelled_run: str | None = None
+    """The run a ``safe_shutdown`` stopped (its result's ``cancelled_run``; transcripts only)."""
     adapter: str | None = None
     call_id: str | None = None
     subagent: bool = False
@@ -108,6 +117,60 @@ class ToolInput(_Event):
     ts: datetime | None = None
 
 
+class Usage(BaseModel):
+    """Token usage and cost of one turn or a sum of turns (module docstring). ``input_tokens`` counts every input
+    token including the cached ones; ``cost_usd`` is ``None`` when the harness reports none (Codex)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    turns: int = Field(default=0, ge=0)
+    input_tokens: int = Field(default=0, ge=0)
+    cached_input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+    reasoning_tokens: int = Field(default=0, ge=0)
+    cost_usd: float | None = Field(default=None, ge=0)
+    wall_s: float = Field(default=0.0, ge=0)
+    models: list[str] = Field(default_factory=list)
+
+    def __add__(self, other: Usage) -> Usage:
+        cost = None if self.cost_usd is None and other.cost_usd is None else \
+            (self.cost_usd or 0.0) + (other.cost_usd or 0.0)
+        return Usage(turns=self.turns + other.turns, input_tokens=self.input_tokens + other.input_tokens,
+                     cached_input_tokens=self.cached_input_tokens + other.cached_input_tokens,
+                     output_tokens=self.output_tokens + other.output_tokens,
+                     reasoning_tokens=self.reasoning_tokens + other.reasoning_tokens, cost_usd=cost,
+                     wall_s=self.wall_s + other.wall_s, models=list(dict.fromkeys([*self.models, *other.models])))
+
+
+def _int(data: dict[str, Any], key: str) -> int:
+    value = data.get(key)
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
+def codex_usage(usage: Any, model: str | None = None) -> Usage | None:
+    """A Codex ``turn.completed`` ``usage`` object as ``Usage`` (``None`` when absent)."""
+    if not isinstance(usage, dict):
+        return None
+    return Usage(turns=1, input_tokens=_int(usage, "input_tokens"), cached_input_tokens=_int(usage,
+                 "cached_input_tokens"), output_tokens=_int(usage, "output_tokens"),
+                 reasoning_tokens=_int(usage, "reasoning_output_tokens"), models=[model] if model else [])
+
+
+def claude_usage(result: dict[str, Any]) -> Usage | None:
+    """A Claude Code ``result`` event's ``usage`` and ``total_cost_usd`` as ``Usage`` (``None`` when absent)."""
+    usage = result.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    cached = _int(usage, "cache_read_input_tokens")
+    details = usage.get("output_tokens_details") if isinstance(usage.get("output_tokens_details"), dict) else {}
+    cost = result.get("total_cost_usd")
+    models = sorted(result["modelUsage"]) if isinstance(result.get("modelUsage"), dict) else []
+    return Usage(turns=1, input_tokens=_int(usage, "input_tokens") + _int(usage, "cache_creation_input_tokens")
+                 + cached, cached_input_tokens=cached, output_tokens=_int(usage, "output_tokens"),
+                 reasoning_tokens=_int(details, "thinking_tokens"),
+                 cost_usd=float(cost) if isinstance(cost, int | float) and cost >= 0 else None, models=models)
+
+
 class TurnTranscript(BaseModel):
     """Everything one harness turn reported, normalised."""
 
@@ -125,6 +188,7 @@ class TurnTranscript(BaseModel):
     completed: bool = False
     errors: list[str] = Field(default_factory=list)
     info: dict[str, Any] = Field(default_factory=dict)
+    usage: Usage | None = None
 
 
 # -- helpers ---------------------------------------------------------------------------------------------------------
@@ -175,7 +239,7 @@ def _mcp_result(result: Any) -> dict[str, Any] | None:
 
 
 def _ids(call: ToolCall) -> ToolCall:
-    """Fill ``plan_id``/``run_id``/``recipe_id``/``tier`` from the result, else the arguments."""
+    """Fill the ids, ``tier``, ``outcome`` and ``cancelled_run`` from the result, else the arguments."""
     for key in _ID_KEYS:
         if getattr(call, key) is None:
             for source in (call.result, call.arguments):
@@ -234,6 +298,7 @@ def parse_codex(lines: Iterable[str], *, turn: int = 1, stderr: str = "") -> Tur
         elif kind == "turn.completed":
             out.completed = True
             out.info["usage"] = record.get("usage")
+            out.usage = codex_usage(record.get("usage"))
         elif kind == "turn.failed":
             error = record.get("error")
             out.errors.append(str(error.get("message") if isinstance(error, dict) else error))
@@ -379,6 +444,7 @@ def parse_claude(lines: Iterable[str], *, turn: int = 1) -> TurnTranscript:
             if record.get("is_error"):
                 out.errors.append(f"result {record.get('subtype')}: {record.get('result')}")
             out.info["permission_denials"] = record.get("permission_denials")
+            out.usage = claude_usage(record)
     for use_id, use in uses.items():
         _claude_use(out, use_id, use, results.get(use_id), denied.get(use_id))
     out.final_answer = result_text if result_text is not None else "\n".join(last_text)

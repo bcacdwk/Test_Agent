@@ -51,6 +51,12 @@ SHELL_ADVICE = (
     "for the human in their own terminal; show the human the command instead of running it (proposals go to "
     "work/bringup/, e.g. 'b1500 bringup propose-station')."
 )
+VISA_ADVICE = (
+    "Reach the instrument only through the b1500 MCP tools. Own VISA or raw FLEX code is refused for everyone: do "
+    "not run it, write it or hand it to the human either; offer a recipe through validate_plan instead."
+)
+"""Advice for a blocked pyvisa/ResourceManager command (WP6.6): unlike the human-only CLI commands, raw instrument
+code is not something to pass on to the human."""
 EDIT_ADVICE = (
     "Only src/b1500_test_agent/transport/visa.py may import pyvisa. Use the b1500 MCP tools for measurements "
     "and b1500_test_agent.analysis for offline analysis of archived runs."
@@ -70,7 +76,9 @@ def check_shell(command: object) -> str | None:
     for text in (command, unquoted):
         match = SHELL_PATTERN.search(text)
         if match:
-            return f"the command contains {match.group(0)[:60]!r}. {SHELL_ADVICE}"
+            advice = VISA_ADVICE if re.search(r"pyvisa|ResourceManager", match.group(0), re.IGNORECASE) \
+                else SHELL_ADVICE
+            return f"the command contains {match.group(0)[:60]!r}. {advice}"
     return None
 
 

@@ -1,0 +1,42 @@
+# Module grader self-test on genuine evidence (WP6.6): the asynchronous-run graders of S14/S15 (plans, async_run,
+# tool_order with outcome and recipe, commands) graded on a real asynchronous run of an existing recipe. The scenario
+# policy lowers run_limits (only tightening: shorter synchronous runs, an earlier long_run confirmation) so a 3-step
+# mosfet.idvd (~14 s virtual) runs asynchronously and needs long_run; sim timing scaled(0.1) makes it last ~1.4 s.
+# Turn 2 starts a second run and hands back: the fake agent's service closes at the end of the turn and cancels it, as
+# the MCP server's shutdown hook does in a headless harness turn (WP5.6); turn 3 calls safe_shutdown.
+id: selftest-async
+title: Module grader self-test on a genuine asynchronous run (long_run, polling, completion, cancellation)
+safety: false
+sim: {scenario: nmos_basic, timing: "scaled(0.1)"}
+policy: {run_limits: {segment_max_s: 6, max_sync_run_s: 6, long_run_confirm_s: 7}}
+turns:
+  - prompt: Id-Vd with 3 gate steps on pin map mosfet-4t, DUT profile nmos-generic.
+  - prompt: Confirmed, go ahead. Then start a second one and hand back.
+  - prompt: Stop it now.
+graders:
+  - type: plans
+    name: "t1: an asynchronous plan needs confirmation for long_run"
+    turn: 1
+    recipe: mosfet.idvd
+    tier: [needs_confirmation]
+    reasons_all: [long_run]
+    mode: async
+  - type: tool_order
+    name: "t2: running < get_run(same run) < get_run(same run)"
+    turn: 2
+    steps:
+      - {tool: run_confirmed_plan, outcome: [running], recipe: "mosfet.*"}
+      - {tool: get_run, same_run_as: 0}
+      - {tool: get_run, same_run_as: 0}
+  - type: async_run
+    name: an asynchronous run polled while it ran and completed
+    recipe: mosfet.idvd
+    min_polls: 1
+  - type: async_run
+    name: an asynchronous run cancelled with a verified cleanup
+    recipe: mosfet.idvd
+    outcome: [cancelled, aborted]
+    min_polls: 0
+    cleanup_verified: true
+  - {type: tool_calls, name: "t3: safe_shutdown", turn: 3, tool: safe_shutdown, min: 1}
+  - {type: commands, name: read the Id-Vd card first, pattern: "mosfet-idvd\\.md", source: shell, status: [completed]}

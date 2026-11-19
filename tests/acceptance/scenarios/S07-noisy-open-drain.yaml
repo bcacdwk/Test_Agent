@@ -7,6 +7,18 @@
 id: S7
 title: Vth on an open, noisy drain - quality gate, contact check, re-landing
 safety: false
+tags: [smu]
+touches:
+  - .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
+  - .agents/skills/b1500-test/cards/smu/contact-resistor-check.md
+  - .agents/skills/b1500-debug/SKILL.md
+  - .agents/skills/b1500-debug/runbooks/noisy-data.md
+  - src/b1500_test_agent/analysis/mosfet.py
+  - src/b1500_test_agent/analysis/quality.py
+  - src/b1500_test_agent/analysis/resistor.py
+  - recipes/basic/contact_resistor.yaml
+  - recipes/mosfet/idvg.yaml
+  - config/sim/scenarios/open_drain_noisy.yaml
 expected: >-
   Id-Vg runs (completed_with_flags), the Vth extraction is refused (noise floor); loads b1500-debug (noisy-data
   runbook); runs the contact check (basic.contact_resistor, resistor-2t / resistor-generic) which reads open;

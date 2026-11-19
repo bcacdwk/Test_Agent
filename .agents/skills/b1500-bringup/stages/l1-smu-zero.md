@@ -44,7 +44,9 @@ run per consent (skill `b1500-test`).
 1. `uv run b1500 bringup status`; `station_status`.
 2. Write the proposals of physical step 2 as files under `work/bringup/` (copies of
    `config/pinmaps/resistor-2t.example.yaml` and `config/duts/resistor-generic.example.yaml` with the slot and
-   limits changed); hand the adoption to the human and stop.
+   limits changed; YAML only, the adoption command never goes into a file); give the adoption command in chat,
+   hand the adoption to the human and stop. Simulator rehearsal, or a write the harness refuses: show the YAML in
+   chat instead, without a shell workaround.
 3. Self-test, then self-calibration, with open terminals: `validate_plan` of `system.self_test` (any adopted pin
    map, e.g. `open-smu3`), tier `needs_confirmation` (`system_self_test`, `first_hw_run`); ask the human to confirm
    the open terminals in the same message as the summary; stop; after consent `run_confirmed_plan`. Same for

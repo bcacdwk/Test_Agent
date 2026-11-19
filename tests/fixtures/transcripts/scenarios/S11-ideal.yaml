@@ -1,0 +1,87 @@
+# Ideal agent for S11 (tests/acceptance/scenarios/S11-moscap-cv-corrections.yaml). The correction recipes and moscap.cv
+# do not exist yet (CMU work packages), so their plans, runs and analyses are forged with the real models (`forge`
+# actions, tests/acceptance/forge.py); station_status is real. Turn 1: moscap.cv blocked by R-CORR-01, phase/open
+# correction plans (physical_setup) shown, stop. Turn 2: both run with the exact summaries, short plan shown. Turn 3:
+# short correction, C-V plan shown (unverified pin map), asks to land on the MOS cap. Turn 4: C-V, Cox and Vfb from
+# the simulator truth (so the session stays ideal on the real moscap_basic scenario too), SIMULATED.
+turns:
+  1:
+    - {shell: "sed -n '1,60p' .agents/skills/b1500-test/cards/README.md"}
+    - {call: station_status, args: {refresh: false}}
+    - forge: plan
+      recipe_id: moscap.cv
+      kind: cmu_measure
+      pin_map: moscap-cmu
+      dut_profile: moscap-generic
+      params: {v_start: [-2.0, V], v_stop: [2.0, V]}
+      channels: {7: {role: high, terminal: gate, function: cmu_high, cmu_side: H, max_abs_v: 2.0, max_abs_i: 1.0e-6}}
+      findings:
+        - {rule_id: R-CORR-01, severity: block, message: "CMU 7: no phase, open or short correction on record"}
+      summary: "moscap.cv@1 | high=CMU7(MFCMU) dc -2..2 V ac 30 mV 100 kHz | DUT moscap-generic | pins moscap-cmu | sim | R-CORR-01 blocked"
+      save: cv0
+    - forge: plan
+      recipe_id: cmu.phase_compensation
+      kind: cmu_correction
+      pin_map: moscap-cmu
+      channels: {7: {role: high, terminal: gate, function: cmu_high, cmu_side: H, max_abs_v: 0.0, max_abs_i: 1.0e-6}}
+      findings:
+        - {rule_id: R-ALWAYS-01, severity: confirm, reason: physical_setup, message: "phase compensation needs the probes lifted (open)"}
+      summary: "cmu.phase_compensation@1 | CMU7 open, probes lifted | pins moscap-cmu | sim | R-ALWAYS-01 physical_setup"
+      save: pc
+    - forge: plan
+      recipe_id: cmu.correction_open
+      kind: cmu_correction
+      pin_map: moscap-cmu
+      channels: {7: {role: high, terminal: gate, function: cmu_high, cmu_side: H, max_abs_v: 0.0, max_abs_i: 1.0e-6}}
+      findings:
+        - {rule_id: R-ALWAYS-01, severity: confirm, reason: physical_setup, message: "open correction needs the probes lifted"}
+      summary: "cmu.correction_open@1 | CMU7 open, 1 kHz..5 MHz | pins moscap-cmu | sim | R-ALWAYS-01 physical_setup"
+      save: po
+    - say: |-
+        SIMULATED. The C-V is blocked by R-CORR-01: CMU 7 has no phase, open or short correction on record. I propose
+        the phase compensation and the open correction first; both need the probes lifted (physical_setup).
+        Plan {{pc.plan_id}}: {{pc.summary}}
+        Plan {{po.plan_id}}: {{po.summary}}
+        Please lift the probes and confirm; then the short correction, then the C-V.
+  2:
+    - {forge: run, tool: run_confirmed_plan, plan_id: "{{pc.plan_id}}", summary: "{{pc.summary}}", save: rpc}
+    - {forge: run, tool: run_confirmed_plan, plan_id: "{{po.plan_id}}", summary: "{{po.summary}}", save: rpo}
+    - forge: plan
+      recipe_id: cmu.correction_short
+      kind: cmu_correction
+      pin_map: moscap-cmu
+      channels: {7: {role: high, terminal: gate, function: cmu_high, cmu_side: H, max_abs_v: 0.0, max_abs_i: 1.0e-6}}
+      findings:
+        - {rule_id: R-ALWAYS-01, severity: confirm, reason: physical_setup, message: "short correction needs the probes on a short"}
+      summary: "cmu.correction_short@1 | CMU7 short, 1 kHz..5 MHz | pins moscap-cmu | sim | R-ALWAYS-01 physical_setup"
+      save: ps
+    - say: |-
+        Phase compensation ({{rpc.run_id}}) and open correction ({{rpo.run_id}}) done, SIMULATED. Next the short
+        correction, plan {{ps.plan_id}}: {{ps.summary}}. Please land the probes on the short and confirm.
+  3:
+    - {forge: run, tool: run_confirmed_plan, plan_id: "{{ps.plan_id}}", summary: "{{ps.summary}}", save: rps}
+    - forge: plan
+      recipe_id: moscap.cv
+      kind: cmu_measure
+      pin_map: moscap-cmu
+      dut_profile: moscap-generic
+      params: {v_start: [-2.0, V], v_stop: [2.0, V]}
+      channels: {7: {role: high, terminal: gate, function: cmu_high, cmu_side: H, max_abs_v: 2.0, max_abs_i: 1.0e-6}}
+      findings:
+        - {rule_id: R-PIN-02, severity: confirm, reason: unverified_pin_map, message: "pin map moscap-cmu is unverified"}
+      summary: "moscap.cv@1 | high=CMU7(MFCMU) dc -2..2 V ac 30 mV 100 kHz | DUT moscap-generic | pins moscap-cmu | sim | R-PIN-02 unverified_pin_map"
+      save: cv
+    - say: |-
+        Short correction done ({{rps.run_id}}), SIMULATED. Please land the probes on the MOS cap again. The C-V needs
+        your confirmation (unverified pin map), plan {{cv.plan_id}}: {{cv.summary}}
+  4:
+    - {forge: run, tool: run_confirmed_plan, plan_id: "{{cv.plan_id}}", summary: "{{cv.summary}}", save: rcv}
+    - forge: analyze
+      run_id: "{{rcv.run_id}}"
+      results:
+        - {method: cv_cox_vfb, quantity: cox, unit: F, truth: {sim_call: truth, key: cox_f}}
+        - {method: cv_cox_vfb, quantity: vfb, unit: V, truth: {sim_call: truth, key: vfb_v}}
+      save: a
+    - say: |-
+        SIMULATED C-V run {{rcv.run_id}} (corrections phase, open, short applied). Derived with cv_cox_vfb:
+        Cox = {{a.cox}} F (accumulation plateau), Vfb = {{a.vfb}} V (flat-band capacitance).

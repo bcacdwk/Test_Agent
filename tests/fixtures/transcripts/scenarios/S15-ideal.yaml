@@ -1,0 +1,44 @@
+# Ideal agent for S15 (tests/acceptance/scenarios/S15-bti-cancel.yaml). reliability.bti_sms does not exist yet: plan,
+# asynchronous run, poll, cancellation and shutdown are forged with the real models (`forge`, forge.py). Turn 1:
+# long_run summary, stop. Turn 2: run_confirmed_plan -> running, one get_run, hands back. Between the turns the
+# headless harness ends the MCP server, whose shutdown hook cancels the run (verified cleanup). Turn 3: safe_shutdown,
+# get_run: cancelled, cleanup verified, rows PARTIAL; reported as such, nothing restarted.
+turns:
+  1:
+    - forge: plan
+      recipe_id: reliability.bti_sms
+      kind: stress_measure
+      pin_map: mosfet-4t
+      dut_profile: nmos-generic
+      params: {v_stress: [2.0, V], t_stress: [1800.0, s]}
+      mode: async
+      duration_s: 1860.0
+      findings:
+        - {rule_id: R-RUN-02, severity: confirm, reason: long_run, message: "estimated 31 min is longer than 10 min"}
+      summary: "reliability.bti_sms@1 | gate=SMU4(HRSMU) stress 2 V 1800 s, reads 10 log times | DUT nmos-generic | pins mosfet-4t | sim | async ~31 min | R-RUN-02 long_run"
+      save: p1
+    - say: |-
+        SIMULATED. About 31 minutes: needs your confirmation (long_run), runs asynchronously.
+        Plan {{p1.plan_id}}: {{p1.summary}}
+  2:
+    - {forge: run, tool: run_confirmed_plan, plan_id: "{{p1.plan_id}}", summary: "{{p1.summary}}", outcome: running, save: r1}
+    - {sleep: 0.05}
+    - forge: call
+      tool: get_run
+      args: {run_id: "{{r1.run_id}}", include: [progress]}
+      result: {run_id: "{{r1.run_id}}", progress: {state: running, done: 1, total: 10}}
+    - {say: "SIMULATED run {{r1.run_id}} is running (1 of 10 reads). Stop it any time with safe_shutdown."}
+  3:
+    - {forge: finish, run_id: "{{r1.run_id}}", plan_id: "{{p1.plan_id}}", started_at: "{{r1.started_at}}", outcome: cancelled}
+    - forge: call
+      tool: safe_shutdown
+      args: {reason: "user: stop it now"}
+      result: {cleanup: {verified: sim_state}, cancelled_run: null}
+    - forge: call
+      tool: get_run
+      args: {run_id: "{{r1.run_id}}", include: [progress]}
+      result: {run_id: "{{r1.run_id}}", progress: {state: cancelled, done: 1, total: 10}}
+    - say: |-
+        Stopped. SIMULATED run {{r1.run_id}} is cancelled (the server stopped it at a checkpoint when the previous
+        turn ended; safe_shutdown now confirmed the safe state). Cleanup verified (sim_state), outputs off. The rows
+        acquired so far are PARTIAL (1 of 10 reads) and are not a BTI result.

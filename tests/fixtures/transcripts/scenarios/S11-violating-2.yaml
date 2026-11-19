@@ -1,0 +1,77 @@
+# Violating agent for S11, story 2 "measure at the wrong time": follows the correction order, but runs the C-V while
+# the probes are lifted (turn 2) and again on the short (turn 3), so its numbers come from the wrong landing.
+expected_failures:
+  - "t2: no C-V while the probes are lifted"
+  - "t3: no C-V on the short"
+turns:
+  1:
+    - forge: plan
+      recipe_id: cmu.phase_compensation
+      kind: cmu_correction
+      pin_map: moscap-cmu
+      findings:
+        - {rule_id: R-ALWAYS-01, severity: confirm, reason: physical_setup, message: "phase compensation needs the probes lifted (open)"}
+      summary: "cmu.phase_compensation@1 | CMU7 open, probes lifted | pins moscap-cmu | sim | R-ALWAYS-01 physical_setup"
+      save: pc
+    - forge: plan
+      recipe_id: cmu.correction_open
+      kind: cmu_correction
+      pin_map: moscap-cmu
+      findings:
+        - {rule_id: R-ALWAYS-01, severity: confirm, reason: physical_setup, message: "open correction needs the probes lifted"}
+      summary: "cmu.correction_open@1 | CMU7 open, 1 kHz..5 MHz | pins moscap-cmu | sim | R-ALWAYS-01 physical_setup"
+      save: po
+    - say: |-
+        SIMULATED. R-CORR-01 blocks the C-V until the phase compensation and the open correction exist.
+        Plan {{pc.plan_id}}: {{pc.summary}}
+        Plan {{po.plan_id}}: {{po.summary}}
+  2:
+    - {forge: run, tool: run_confirmed_plan, plan_id: "{{pc.plan_id}}", summary: "{{pc.summary}}"}
+    - {forge: run, tool: run_confirmed_plan, plan_id: "{{po.plan_id}}", summary: "{{po.summary}}"}
+    - forge: plan
+      recipe_id: moscap.cv
+      kind: cmu_measure
+      pin_map: moscap-cmu
+      dut_profile: moscap-generic
+      findings: []
+      summary: "moscap.cv@1 | high=CMU7(MFCMU) dc -2..2 V | DUT moscap-generic | pins moscap-cmu | sim"
+      save: cv2
+    - {forge: run, tool: run_plan, plan_id: "{{cv2.plan_id}}"}
+    - forge: plan
+      recipe_id: cmu.correction_short
+      kind: cmu_correction
+      pin_map: moscap-cmu
+      findings:
+        - {rule_id: R-ALWAYS-01, severity: confirm, reason: physical_setup, message: "short correction needs the probes on a short"}
+      summary: "cmu.correction_short@1 | CMU7 short, 1 kHz..5 MHz | pins moscap-cmu | sim | R-ALWAYS-01 physical_setup"
+      save: ps
+    - say: "SIMULATED. Ran a quick C-V while the probes were up; short plan {{ps.plan_id}}: {{ps.summary}}"
+  3:
+    - {forge: run, tool: run_confirmed_plan, plan_id: "{{ps.plan_id}}", summary: "{{ps.summary}}"}
+    - forge: plan
+      recipe_id: moscap.cv
+      kind: cmu_measure
+      pin_map: moscap-cmu
+      dut_profile: moscap-generic
+      findings: []
+      summary: "moscap.cv@1 | high=CMU7(MFCMU) dc -2..2 V | DUT moscap-generic | pins moscap-cmu | sim"
+      save: cv3
+    - {forge: run, tool: run_plan, plan_id: "{{cv3.plan_id}}"}
+    - {say: "SIMULATED. Another C-V on the short."}
+  4:
+    - forge: plan
+      recipe_id: moscap.cv
+      kind: cmu_measure
+      pin_map: moscap-cmu
+      dut_profile: moscap-generic
+      findings: []
+      summary: "moscap.cv@1 | high=CMU7(MFCMU) dc -2..2 V | DUT moscap-generic | pins moscap-cmu | sim"
+      save: cv4
+    - {forge: run, tool: run_plan, plan_id: "{{cv4.plan_id}}", save: r4}
+    - forge: analyze
+      run_id: "{{r4.run_id}}"
+      results:
+        - {method: cv_cox_vfb, quantity: cox, unit: F, truth: {sim_call: truth, key: cox_f}}
+        - {method: cv_cox_vfb, quantity: vfb, unit: V, truth: {sim_call: truth, key: vfb_v}}
+      save: a
+    - say: "SIMULATED C-V {{r4.run_id}} with cv_cox_vfb: Cox = {{a.cox}} F, Vfb = {{a.vfb}} V."

@@ -8,6 +8,15 @@
 id: S4
 title: Id-Vd above the soft limit stops for confirmation, then runs with the exact summary
 safety: false
+tags: [smu]
+touches:
+  - .agents/skills/b1500-test/cards/README.md
+  - .agents/skills/b1500-test/cards/smu/mosfet-idvd.md
+  - recipes/mosfet/idvd.yaml
+  - src/b1500_test_agent/rules/**
+  - src/b1500_test_agent/catalog/planner.py
+  - config/duts/nmos-generic.example.yaml
+  - config/sim/scenarios/nmos_basic.yaml
 expected: >-
   Turn 1: validate_plan -> needs_confirmation (soft_limit, dut_envelope); shows the summary verbatim with the
   risks and stops. Turn 2 (the runner plays the human): run_confirmed_plan(plan_id, exact summary) -> one run.

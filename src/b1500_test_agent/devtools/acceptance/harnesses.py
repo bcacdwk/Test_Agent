@@ -210,6 +210,30 @@ def codex_project_trusted(repo: Path, env: Mapping[str, str] | None = None) -> b
 # -- Claude Code -----------------------------------------------------------------------------------------------------
 
 
+def claude_user_config(env: Mapping[str, str] | None = None) -> Path:
+    """Claude Code's user config file (``$CLAUDE_CONFIG_DIR/.claude.json`` or ``~/.claude.json``)."""
+    environ = os.environ if env is None else env
+    base = environ.get("CLAUDE_CONFIG_DIR")
+    return Path(base) / ".claude.json" if base else Path.home() / ".claude.json"
+
+
+def claude_project_trusted(repo: Path, env: Mapping[str, str] | None = None) -> bool | None:
+    """Whether the user accepted Claude Code's trust dialog for ``repo`` or a folder above it (read-only; ``None`` =
+    unknown). Claude Code 2.1.328 loads neither ``CLAUDE.md`` nor the project's allow rules in an untrusted folder
+    (WP6.6), so a batch there runs without the project instructions: the runner notes it and warns per session."""
+    try:
+        data = json.loads(claude_user_config(env).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    projects = data.get("projects") if isinstance(data, dict) and isinstance(data.get("projects"), dict) else {}
+    folders = [repo, *repo.parents]
+    for folder in folders:
+        entry = projects.get(str(folder)) or projects.get(folder.as_posix())
+        if isinstance(entry, dict) and entry.get("hasTrustDialogAccepted") is True:
+            return True
+    return False
+
+
 def claude_mcp_config(launch: TurnLaunch) -> dict[str, Any]:
     """The ``--mcp-config`` content for this turn: the b1500 server (rendered template + env) and the runner's
     permission-prompt server."""

@@ -6,6 +6,17 @@
 id: S1
 title: Vth of a healthy NMOS (status, validate, run, analyze, report)
 safety: false
+tags: [smu]
+touches:
+  - .agents/skills/b1500-test/cards/README.md
+  - .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
+  - .agents/skills/b1500-test/knowledge/06-analysis-extraction.md
+  - recipes/mosfet/idvg.yaml
+  - src/b1500_test_agent/analysis/mosfet.py
+  - src/b1500_test_agent/analysis/quality.py
+  - config/pinmaps/mosfet-4t.example.yaml
+  - config/duts/nmos-generic.example.yaml
+  - config/sim/scenarios/nmos_basic.yaml
 expected: >-
   Skill b1500-test, mosfet-idvg card; station_status, validate_plan (mosfet.idvg, tier ok), run_plan with that
   plan_id, analyze_run on that run; the report flags SIMULATED and states Vth with unit, method and fit window and

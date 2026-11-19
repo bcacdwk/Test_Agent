@@ -1,0 +1,47 @@
+# Ideal agent for S14 (tests/acceptance/scenarios/S14-bti-async.yaml). reliability.bti_sms does not exist yet (SMU
+# work packages): plan, asynchronous run, polls and analysis are forged with the real models (`forge`, forge.py).
+# Turn 1: long_run summary (async), stop. Turn 2: run_confirmed_plan -> running, get_run polls while it runs, the run
+# completes, analyze_run (bti_power_law): n from the simulator truth.
+turns:
+  1:
+    - {shell: "sed -n '1,80p' .agents/skills/b1500-test/cards/reliability/bti-stress-measure.md"}
+    - forge: plan
+      recipe_id: reliability.bti_sms
+      kind: stress_measure
+      pin_map: mosfet-4t
+      dut_profile: nmos-generic
+      params: {v_stress: [2.0, V], t_stress: [1800.0, s], reads: 10}
+      channels:
+        4: {role: gate, terminal: gate, function: bias_v, max_abs_v: 2.0, max_abs_i: 1.0e-6}
+        3: {role: drain, terminal: drain, function: bias_v, max_abs_v: 0.1, max_abs_i: 1.0e-3}
+      mode: async
+      duration_s: 1860.0
+      findings:
+        - {rule_id: R-RUN-02, severity: confirm, reason: long_run, message: "estimated 31 min is longer than 10 min"}
+      summary: "reliability.bti_sms@1 | gate=SMU4(HRSMU) stress 2 V 1800 s, reads 10 log times; drain=SMU3 0.1 V | DUT nmos-generic | pins mosfet-4t | sim | async ~31 min | R-RUN-02 long_run"
+      save: p1
+    - say: |-
+        SIMULATED. The stress runs about 31 minutes, so it needs your confirmation (long_run) and runs asynchronously.
+        Plan {{p1.plan_id}}: {{p1.summary}}
+  2:
+    - {forge: run, tool: run_confirmed_plan, plan_id: "{{p1.plan_id}}", summary: "{{p1.summary}}", outcome: running, save: r1}
+    - {sleep: 0.05}
+    - forge: call
+      tool: get_run
+      args: {run_id: "{{r1.run_id}}", include: [progress]}
+      result: {run_id: "{{r1.run_id}}", progress: {state: running, done: 3, total: 10}}
+    - {sleep: 0.05}
+    - forge: call
+      tool: get_run
+      args: {run_id: "{{r1.run_id}}", include: [progress]}
+      result: {run_id: "{{r1.run_id}}", progress: {state: running, done: 7, total: 10}}
+    - {sleep: 0.05}
+    - {forge: finish, run_id: "{{r1.run_id}}", plan_id: "{{p1.plan_id}}", started_at: "{{r1.started_at}}", outcome: completed}
+    - forge: analyze
+      run_id: "{{r1.run_id}}"
+      results:
+        - {method: bti_power_law, quantity: n, unit: "1", truth: {sim_call: truth, key: bti_n}}
+      save: a
+    - say: |-
+        SIMULATED BTI run {{r1.run_id}} completed (polled while running). Derived with bti_power_law:
+        time exponent n = {{a.n}}.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,8 @@ PROBES = REPO_ROOT / "tests" / "acceptance" / "probes"
 FAKE_AGENT = Path(__file__).with_name("fake_agent.py")
 CODEX_DIR = FIXTURES / "codex-0.167.1"
 CLAUDE_DIR = FIXTURES / "claude-2.1.326"
+SIM_STAND_INS = REPO_ROOT / "tests" / "fixtures" / "acceptance" / "sim"
+"""Stand-in simulator scenarios for scenarios written ahead of their modules (S3 rewritten, S11-S15)."""
 
 
 def violating_vars() -> dict[str, str]:
@@ -56,6 +59,23 @@ def make_repo(tmp: Path) -> Path:
     return repo
 
 
+def add_manual_corpus(repo: Path) -> None:
+    """Copy the committed manual catalog, synonyms and corpus into a scripted repository (``b1500 manual`` there)."""
+    source, target = REPO_ROOT / "references" / "manuals", repo / "references" / "manuals"
+    target.mkdir(parents=True, exist_ok=True)
+    for name in ("catalog.yaml", "synonyms.yaml"):
+        shutil.copyfile(source / name, target / name)
+    shutil.copytree(source / "corpus", target / "corpus")
+
+
+def add_sim_stand_ins(repo: Path) -> None:
+    """Put the stand-in simulator scenarios into a scripted repository where the real one does not exist yet."""
+    for path in sorted(SIM_STAND_INS.glob("*.yaml")):
+        target = repo / "config" / "sim" / "scenarios" / path.name
+        if not target.exists():
+            shutil.copyfile(path, target)
+
+
 def patch_fake_harness(mp: pytest.MonkeyPatch, script: Path, *, tmp: Path, variables: dict[str, Any] | None = None) \
         -> None:
     """Make the runner launch ``fake_agent.py`` with ``script`` instead of a real harness."""
@@ -72,11 +92,14 @@ def patch_fake_harness(mp: pytest.MonkeyPatch, script: Path, *, tmp: Path, varia
 
 
 def run_scripted(mp: pytest.MonkeyPatch, tmp: Path, harness: str, agent: Path, *, scenario: Path = SELFTEST_SCENARIO,
-                 variables: dict[str, Any] | None = None, timeout_s: float | None = None) \
-        -> tuple[SessionGrade, Path]:
-    """One session of ``scenario`` through the real runner with the scripted agent; returns grade and repo."""
+                 variables: dict[str, Any] | None = None, timeout_s: float | None = None,
+                 prepare: Callable[[Path], None] | None = None) -> tuple[SessionGrade, Path]:
+    """One session of ``scenario`` through the real runner with the scripted agent; returns grade and repo.
+    ``prepare`` adds to the scripted repository first (e.g. ``add_manual_corpus``)."""
     tmp.mkdir(parents=True, exist_ok=True)
     repo = make_repo(tmp)
+    if prepare is not None:
+        prepare(repo)
     script = tmp / "agent.yaml"
     shutil.copyfile(agent, script)
     patch_fake_harness(mp, script, tmp=tmp, variables=variables)

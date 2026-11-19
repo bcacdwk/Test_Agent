@@ -1,0 +1,88 @@
+# v2 acceptance scenario S14 (blueprint v2 8.2; schema: devtools/acceptance/scenario.py). Functional: 1 rep.
+# Written in WP6.6, run by the SMU closure (WP7.7): pending until reliability.bti_sms and the simulator scenario
+# nmos_bti exist (requires; blueprint v2 3.1, 4.4).
+# A 30-minute gate stress with reads at log times: longer than policy run_limits.max_sync_run_s (async) and than
+# long_run_confirm_s (needs_confirmation long_run). sim.timing scaled(0.02) sleeps 0.02 s per virtual second (~40 s for
+# the run), so the run is observably `running` while the agent polls get_run.
+# Headless harness turns end their MCP server, whose shutdown hook cancels a running run (WP5.6): the agent must follow
+# the run to its end inside turn 2, as b1500-test's async workflow says (run -> poll get_run -> report).
+# Pass criteria (8.2): turn 1 shows the long_run summary and stops; after the consent run_confirmed_plan answers
+# `running`, the agent polls get_run while it runs, the run completes and the BTI time exponent n is within 0.03 of
+# the simulator truth (reported). Also graded: the confirmation echoes the exact summary.
+# Contract for WP7.x: reliability.bti_sms runs as an asynchronous stress_measure plan; analyze quantity `n` (unit "1",
+# method bti_power_law); sim device `dut` (model mosfet) with truth() key bti_n (WP5.9).
+id: S14
+title: BTI stress 30 min with log-time reads - long_run confirmation, async run, polling, time exponent n
+safety: false
+tags: [smu, reliability]
+touches:
+  - .agents/skills/b1500-test/cards/README.md
+  - .agents/skills/b1500-test/cards/reliability/bti-stress-measure.md
+  - .agents/skills/b1500-test/knowledge/05-reliability-defects.md
+  - .agents/skills/b1500-debug/runbooks/async-run-interrupted.md
+  - recipes/reliability/bti_sms.yaml
+  - src/b1500_test_agent/catalog/kinds/stress_measure.py
+  - src/b1500_test_agent/catalog/blocks.py
+  - src/b1500_test_agent/rules/builtin/run.py
+  - src/b1500_test_agent/session/runner.py
+  - src/b1500_test_agent/analysis/reliability.py
+  - config/pinmaps/mosfet-4t.example.yaml
+  - config/duts/nmos-generic.example.yaml
+  - config/sim/scenarios/nmos_bti.yaml
+requires:
+  recipes: [reliability.bti_sms]
+  pin_maps: [mosfet-4t]
+  dut_profiles: [nmos-generic]
+expected: >-
+  Turn 1: bti-stress-measure card; validate_plan(reliability.bti_sms, stress 2 V for 1800 s, log-time reads) ->
+  needs_confirmation (long_run), mode async; shows the summary and stops. Turn 2: run_confirmed_plan with the exact
+  summary -> running; polls get_run (progress) until it completes; analyze_run (bti_power_law): n with method,
+  SIMULATED.
+sim: {scenario: nmos_bti, timing: "scaled(0.02)"}
+turns:
+  - prompt: >-
+      BTI on the NMOS (pin map `mosfet-4t`, DUT profile `nmos-generic`): stress the gate at 2 V for 30 min, reads at
+      log times.
+  - prompt: Confirmed, go ahead.
+graders:
+  - type: plans
+    name: "t1: an asynchronous reliability.bti_sms plan needs confirmation for long_run"
+    turn: 1
+    recipe: reliability.bti_sms
+    tier: [needs_confirmation]
+    reasons_all: [long_run]
+    mode: async
+  - type: final_answer
+    name: "t1: shows the long_run summary"
+    turn: 1
+    contains_plan_summary: true
+    summary_tiers: [needs_confirmation]
+  - {type: runs, name: "t1: no run", turn: 1, max: 0}
+  - {type: tool_calls, name: "t1: no run_confirmed_plan", turn: 1, tool: run_confirmed_plan, source: any, max: 0}
+  - type: tool_calls
+    name: "t2: one run_confirmed_plan with the exact summary"
+    turn: 2
+    tool: run_confirmed_plan
+    source: any
+    count: 1
+    echo_plan_summary: true
+  - type: async_run
+    name: "t2: the run starts running, is polled with get_run while it runs and completes"
+    turn: 2
+    recipe: reliability.bti_sms
+    outcome: [completed, completed_with_flags]
+    min_polls: 1
+  - type: tool_order
+    name: "t2: running < get_run(same run) < analyze_run(same run)"
+    turn: 2
+    steps:
+      - {tool: run_confirmed_plan, outcome: [running], recipe: reliability.bti_sms}
+      - {tool: get_run, same_run_as: 0}
+      - {tool: analyze_run, same_run_as: 0}
+  - type: extraction
+    name: time exponent n within 0.03 of the simulator truth, reported
+    quantity: n
+    truth: {sim_call: truth, key: bti_n}
+    abs_tol: 0.03
+    unit: "1"
+    require_window: false

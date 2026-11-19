@@ -43,10 +43,12 @@ from b1500_test_agent.service import B1500Service
 from tests.acceptance.helpers import FIXTURES, REPO_ROOT, run_scripted, violating_vars
 
 AGENTS = FIXTURES / "scenarios"
-SUITE = {load_scenario(p).id: p for p in scenario_files(REPO_ROOT, probes=False)}
+SUITE = {load_scenario(p).id: p for p in scenario_files(REPO_ROOT, probes=False) if p.name != "S03-spgu-overdrive.yaml"}
+"""The v1 suite S1-S10 by id (the rewritten S3 shares v1's id; ``test_v2_scenarios.py`` tests it) plus the v2 ids."""
 IDS = [f"S{n}" for n in range(1, 11)]
-V2_IDS = ["S17"]
-"""v2 scenarios with their own self-test module (S17: ``test_s17_bringup.py``)."""
+V2_IDS = [f"S{n}" for n in range(11, 19)]
+"""v2 scenarios with their own self-test modules (S17: ``test_s17_bringup.py``; S3 rewritten, S11-S16, S18:
+``test_v2_scenarios.py``)."""
 SAFETY = {"S2", "S3", "S5", "S6", "S8", "S9"}
 """Blueprint 8.2: the scenarios marked ★."""
 SIM = {"S1": "nmos_basic", "S2": "nmos_basic", "S3": "fefet_basic", "S4": "nmos_basic", "S5": "nmos_basic",
@@ -185,11 +187,11 @@ def test_forged_violations_are_the_only_ones_the_server_prevents(scenario_id: st
 # -- suite shape -----------------------------------------------------------------------------------------------------
 
 
-def test_suite_has_exactly_s1_to_s10_and_s17() -> None:
-    """S17 (bring-up rehearsal, WP6.3) is self-tested in ``test_s17_bringup.py``; WP6.6 adds the other v2 ids."""
+def test_suite_has_exactly_s1_to_s18() -> None:
+    """Blueprint v2 8.2: S1-S18, with v1's S3 and its rewrite as two files of id S3 (WP9.6 deletes v1's)."""
     assert sorted(SUITE, key=lambda i: int(i[1:])) == [*IDS, *V2_IDS]
     names = sorted(p.name for p in (REPO_ROOT / SUITE_DIR).glob("*.yaml"))
-    assert [n.split("-", 1)[0] for n in names] == [f"S{n:02d}" for n in (*range(1, 11), 17)]
+    assert [n.split("-", 1)[0] for n in names] == [f"S{n:02d}" for n in (1, 2, 3, *range(3, 19))]
 
 
 @pytest.mark.parametrize("scenario_id", IDS)
@@ -439,4 +441,17 @@ def test_runner_left_no_work_files_in_the_scripted_repos(sessions: Sessions) -> 
 
 def test_suite_agent_scripts_exist_for_every_scenario() -> None:
     stems = {p.stem for p in AGENTS.glob("*.yaml")}
-    assert stems == {f"S{n:02d}-{kind}" for n in (*range(1, 11), 17) for kind in ("ideal", "violating")}
+    expected = {f"{stem}-{kind}" for stem in [f"S{n:02d}" for n in range(1, 19)] + ["S03v2"]
+                for kind in ("ideal", "violating")}
+    assert expected <= stems
+    extra = stems - expected  # further violating stories of the v2 scenarios
+    assert all(re.fullmatch(r"S\d{2}(?:v2)?-violating-\d", stem) for stem in extra), extra
+
+
+@pytest.mark.parametrize("scenario_id", IDS + V2_IDS)
+def test_every_suite_scenario_has_family_tags_and_touches(scenario_id: str) -> None:
+    """Blueprint v2 8.2 cost policy: every scenario carries tags (families, topics) and touches globs."""
+    scenario = load_scenario(SUITE[scenario_id])
+    vocabulary = {"smu", "cmu", "spgu", "wgfmu", "nvm", "reliability", "system", "manual", "bringup"}
+    assert scenario.tags and set(scenario.tags) <= vocabulary, scenario.tags
+    assert scenario.touches

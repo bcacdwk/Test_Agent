@@ -1,11 +1,15 @@
-"""``b1500 dev acceptance``: run, grade and report the M3 harness acceptance scenarios (blueprint 8.2).
+"""``b1500 dev acceptance``: run, grade and report the harness acceptance scenarios (blueprint 8.2; v2 8.2 cost
+policy).
 
-- ``run --harness codex|claude --scenario ID [--reps N]`` (repeatable ``--scenario``) or ``--all`` (the suite in
-  ``tests/acceptance/scenarios/``); exit 0 when every scenario meets its threshold.
+- ``run --harness codex|claude`` with ``--scenario ID`` (repeatable), ``--all`` (the suite in
+  ``tests/acceptance/scenarios/``), ``--tag F`` (repeatable; scenarios carrying any of the tags) and/or
+  ``--affected [--since REF]`` (scenarios touched by the changes since the last committed report of this harness);
+  pending scenarios (requirements not met) are left out; ``--max-sessions N`` caps the sessions; ``--dry-run`` only
+  prints the selection. Exit 0 when every started scenario meets its threshold.
 - ``grade DIR``: re-grade a session folder, or every session of a batch folder.
 - ``report BATCH_DIR... [--docs | --out FILE]``: write the Markdown report (``--docs``:
-  ``docs/acceptance/<date>-<harness>-<version>.md`` in the repository).
-- ``list``: the scenarios and probes with kind and default reps.
+  ``docs/acceptance/<date>-<harness>-<version>.md`` in the repository, machine paths shortened).
+- ``list``: the scenarios and probes with kind, default reps, tags and pending requirements.
 """
 
 from __future__ import annotations
@@ -17,18 +21,19 @@ from typing import Annotated
 import typer
 
 from b1500_test_agent.devtools.acceptance import report as report_mod
-from b1500_test_agent.devtools.acceptance import runner
+from b1500_test_agent.devtools.acceptance import runner, selection
 from b1500_test_agent.devtools.acceptance.evidence import SESSION_FILE
 from b1500_test_agent.devtools.acceptance.graders import SessionGrade, grade_session
 from b1500_test_agent.devtools.acceptance.scenario import (
     PROBE_DIR,
     SUITE_DIR,
-    find_scenario,
     load_scenario,
+    missing_requirements,
+    recipe_statuses,
     scenario_files,
 )
 
-acceptance_app = typer.Typer(help="M3 harness acceptance: isolated, graded Codex / Claude Code sessions on the "
+acceptance_app = typer.Typer(help="Harness acceptance: isolated, graded Codex / Claude Code sessions on the "
                                   "simulator (blueprint 8.2).", no_args_is_help=True)
 
 RepoOption = Annotated[Path | None, typer.Option("--repo", help=f"Repository root the harness is launched from "
@@ -59,7 +64,20 @@ def _summary_line(grade: SessionGrade) -> str:
 def run_command(
     harness: Annotated[str, typer.Option("--harness", help="codex or claude.")],
     scenario: Annotated[list[str] | None, typer.Option("--scenario", help="Scenario id or file (repeatable).")] = None,
-    all_: Annotated[bool, typer.Option("--all", help=f"Every scenario in {SUITE_DIR}/.")] = False,
+    all_: Annotated[bool, typer.Option("--all", help=f"Every runnable scenario in {SUITE_DIR}/.")] = False,
+    tag: Annotated[list[str] | None, typer.Option("--tag", help="Only scenarios with this tag (repeatable: any of "
+                                                                "them), e.g. a family: smu, cmu, spgu, wgfmu.")]
+    = None,
+    affected: Annotated[bool, typer.Option("--affected", help="Only scenarios whose own file or touches: globs "
+                                                              "match a file changed since the base.")] = False,
+    since: Annotated[str | None, typer.Option("--since", help="Base for --affected (default: merge-base of HEAD "
+                                                              "and the newest committed report of this harness).")]
+    = None,
+    max_sessions: Annotated[int | None, typer.Option("--max-sessions", min=1, help="Start no more sessions than "
+                                                                                   "this (a scenario only when all "
+                                                                                   "its reps fit).")] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Print the selection and the session count; launch "
+                                                            "nothing.")] = False,
     reps: Annotated[int | None, typer.Option("--reps", min=1, help="Reps per scenario (default: safety 3, "
                                                                    "functional 1).")] = None,
     repo: RepoOption = None,
@@ -75,30 +93,31 @@ def run_command(
     as_json: JsonOption = False,
 ) -> None:
     """Run scenarios against a real harness (simulator only), grade them and write the report. Exit 0 when every
-    scenario meets its threshold (safety 3/3, functional 1 + one logged re-run)."""
+    started scenario meets its threshold (safety 3/3, functional 1 + one logged re-run)."""
     if harness not in ("codex", "claude"):
         raise typer.BadParameter("--harness must be codex or claude")
     root = _repo(repo)
-    if all_ == bool(scenario):
-        raise typer.BadParameter("give --scenario ID (repeatable) or --all")
     try:
-        files = scenario_files(root, probes=False) if all_ else [find_scenario(root, s) for s in scenario or []]
-        for path in files:
-            load_scenario(path)
+        chosen = selection.select(root, harness=harness, scenarios=scenario, all_=all_, tags=tag, affected=affected,
+                                  since=since)
     except (FileNotFoundError, ValueError, TypeError) as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=2) from exc
-    if not files:
-        typer.echo(f"error: no scenarios in {SUITE_DIR}/", err=True)
+    if dry_run:
+        _print_selection(chosen, reps, max_sessions)
+        return
+    if not chosen.selected:
+        typer.echo("no scenario selected" + "".join(f"\n  {k}: {v}" for k, v in chosen.skipped.items()), err=True)
         raise typer.Exit(code=2)
     options = runner.RunOptions(harness=harness, repo_root=root, out_dir=(out or runner.default_out()).resolve(),
                                 reps=reps, timeout_s=timeout, extra_args=list(harness_arg or []),
-                                rerun_failed_functional=not no_rerun)
-    batch = runner.run_batch(files, options, progress=_progress)
+                                rerun_failed_functional=not no_rerun, max_sessions=max_sessions)
+    batch = runner.run_batch([item.path for item in chosen.selected], options, progress=_progress,
+                             notes=chosen.notes())
     batch_dir = Path(batch.batch_dir)
     written = [report_mod.write_report([batch], batch_dir / "report.md")]
     if docs:
-        written.append(report_mod.write_report([batch], report_mod.report_path(root, [batch])))
+        written.append(report_mod.write_report([batch], report_mod.report_path(root, [batch]), shorten=True))
     infos, sessions = report_mod.merge([batch])
     verdicts = [report_mod.scenario_verdict(sid, infos[sid], sessions.get(sid, [])) for sid in infos]
     if as_json:
@@ -108,10 +127,26 @@ def run_command(
             typer.echo(_summary_line(grade))
         for verdict in verdicts:
             typer.echo(f"{verdict.scenario_id}: {verdict.verdict}")
+        for sid, why in batch.skipped.items():
+            typer.echo(f"{sid}: NOT STARTED ({why})")
         for path in written:
             typer.echo(f"report: {path}")
     if not all(v.verdict == "PASS" for v in verdicts):
         raise typer.Exit(code=1)
+
+
+def _print_selection(chosen: selection.Selection, reps: int | None, max_sessions: int | None) -> None:
+    """``run --dry-run``: the scenarios, why each was chosen, the planned sessions and what was left out."""
+    for item in chosen.selected:
+        n = reps or item.reps
+        kind = "safety" if item.scenario.safety else "functional"
+        typer.echo(f"{item.scenario.id:6} {kind:10} {n} session(s)  [{', '.join(item.scenario.tags)}]  "
+                   f"{'; '.join(item.why)}")
+    planned = chosen.sessions(reps)
+    cap = f" (--max-sessions {max_sessions})" if max_sessions else ""
+    typer.echo(f"planned: {len(chosen.selected)} scenario(s), {planned} session(s) without re-runs{cap}")
+    for note in chosen.notes():
+        typer.echo(note)
 
 
 @acceptance_app.command("grade")
@@ -146,8 +181,10 @@ def grade_command(
 def report_command(
     batches: Annotated[list[Path], typer.Argument(help="Batch folders of one harness version.")],
     out: Annotated[Path | None, typer.Option("--out", help="Report file.")] = None,
-    docs: Annotated[bool, typer.Option("--docs", help="Write docs/acceptance/<date>-<harness>-<version>.md.")] =
-    False,
+    docs: Annotated[bool, typer.Option("--docs", help="Write docs/acceptance/<date>-<harness>-<version>.md "
+                                                      "(machine paths shortened).")] = False,
+    shorten: Annotated[bool, typer.Option("--shorten", help="Print <repo> and <out> instead of this machine's "
+                                                            "folders.")] = False,
     repo: RepoOption = None,
 ) -> None:
     """Write the Markdown report of one or more batches."""
@@ -158,9 +195,9 @@ def report_command(
         elif out is not None:
             path = out
         else:
-            typer.echo(report_mod.render(loaded), nl=False)
+            typer.echo(report_mod.render(loaded, shorten=shorten), nl=False)
             return
-        typer.echo(f"report: {report_mod.write_report(loaded, path)}")
+        typer.echo(f"report: {report_mod.write_report(loaded, path, shorten=shorten or docs)}")
     except (OSError, ValueError) as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=2) from exc
@@ -168,8 +205,9 @@ def report_command(
 
 @acceptance_app.command("list")
 def list_command(repo: RepoOption = None) -> None:
-    """List the suite scenarios and the harness probes."""
+    """List the suite scenarios and the harness probes (kind, reps, tags; pending ones with what they still miss)."""
     root = _repo(repo)
+    statuses = recipe_statuses(root)
     for path in scenario_files(root):
         where = "probe" if path.parent.name == Path(PROBE_DIR).name else "suite"
         try:
@@ -178,5 +216,9 @@ def list_command(repo: RepoOption = None) -> None:
             typer.echo(f"{path.name}: INVALID ({str(exc).splitlines()[0]})", err=True)
             continue
         kind = "safety" if scenario.safety else "functional"
-        typer.echo(f"{scenario.id:12} {where:5} {kind:10} reps {scenario.default_reps}  {scenario.title}")
+        missing = missing_requirements(scenario, root, statuses)
+        pending = f"  PENDING: missing {', '.join(missing)}" if missing else ""
+        tags = f"  [{', '.join(scenario.tags)}]" if scenario.tags else ""
+        typer.echo(f"{scenario.id:12} {where:5} {kind:10} reps {scenario.default_reps}  {scenario.title}{tags}"
+                   f"{pending}")
     sys.stdout.flush()

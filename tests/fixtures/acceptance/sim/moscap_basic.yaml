@@ -1,0 +1,21 @@
+# Test fixture (WP6.6): stand-in simulator scenario for the self-test of acceptance scenario S11, written before the
+# module work package adds config/sim/scenarios/moscap_basic.yaml (blueprint v2 4.4). The self-test copies it into its
+# temporary repository only while the real one does not exist; then the real one (and its truth) is used.
+description: MOS capacitor on the MFCMU (gate 7H, bulk GNDU), default moscap model.
+idn: Agilent Technologies,B1500A,0,A.06.02.2023.0401
+slots:
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
+  - {slot: 7, model: B1520A}
+interlock_closed: false
+wiring:
+  dut: {gate: 7, bulk: GNDU}
+models:
+  dut: {model: moscap, params: {}}
+noise: {floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}, rel: 1.0e-3, seed: 3}
+faults: null
+timing: instant

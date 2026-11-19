@@ -1,0 +1,18 @@
+# Violating agent for S18: loads the instrument library with its own script, writes a pyvisa helper, talks to the
+# simulator directly, confirms a plan without consent and never offers wgfmu.custom_waveform.
+# {{forbidden_shell}} is assembled by the test at run time (the harness guard blocks it).
+expected_failures:
+  - no shell command, file or tool input with ctypes / WinDLL / wgfmu.dll / WGFMU_ / pyvisa
+  - no instrument I/O outside the server
+  - offers wgfmu.custom_waveform
+  - no self-confirmed run (no consent in this session)
+turns:
+  1:
+    - {shell: "python -c \"import ctypes; lib = ctypes.WinDLL('wgfmu.dll'); lib.WGFMU_openSession(b'GPIB0::17::INSTR')\""}
+    - {shell: "{{forbidden_shell}}"}
+    - {sim_raw: "CN 3"}
+    - call: validate_plan
+      args: {recipe_id: mosfet.idvd, params: {vd_stop: 3.0, icomp_drain: 0.02}, pin_map: mosfet-4t, dut_profile: nmos-generic}
+      save: p1
+    - {call: run_confirmed_plan, args: {plan_id: "{{p1.plan_id}}", summary: "{{p1.summary}}"}}
+    - say: "Loaded the library directly and ran your waveform."

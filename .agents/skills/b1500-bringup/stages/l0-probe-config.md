@@ -45,6 +45,9 @@ that refuses any setting command. You probe and propose; the human creates and a
 
 ## 3. Agent steps
 
+Simulator rehearsal: the configuration already selects the simulator, so there is no init; do steps 2 and 4 in
+one turn, give the human the adoption command in chat and stop (skill part 4).
+
 1. `uv run b1500 doctor` (installation; no FAIL), then `uv run b1500 config check` once the human has run the
    init command.
 2. `uv run b1500 doctor --probe` (read-only). Read every line; raw answers go to `work/bringup/probe-<UTC>.json`.
@@ -53,8 +56,9 @@ that refuses any setting command. You probe and propose; the human creates and a
 3. A FAIL line: stop (section 5). A `busy` bus: EasyEXPERT or another VISA program still holds the instrument;
    the human ends it.
 4. `uv run b1500 bringup propose-station` writes `work/bringup/station.proposed.yaml` from `*IDN?` and `UNT?`
-   plus the diff against `config/local/station.yaml`. Show the human the path and the diff, hand step 2 of section
-   2 to them and stop the turn.
+   and prints the diff against the active station file. Show the human the path and that diff (quote the command's
+   output; never run your own `diff` or redirect output next to a configuration file), hand step 2 of section 2 to
+   them and stop the turn.
 5. After the human's "adopted": `uv run b1500 config check` (valid, backend visa), then
    `uv run b1500 doctor --probe` again: `inventory` must now PASS against the adopted station.
 6. `station_status`: backend visa, the same identity and modules as the CLI; ask the human for step 4 of section 2.
@@ -91,6 +95,9 @@ that refuses any setting command. You probe and propose; the human creates and a
 - No answer or timeouts after the termination fallback; `*IDN?` without `B1500A`; a `UNT?` module the station
   does not know.
 - `LOP?` not all `00`; the error queue not empty on the second probe; status byte bit 3 or 5 set on two probes.
+  Simulator rehearsal only: the simulator keeps bit 3 set while the interlock is open (it models the interlock
+  state, not the manual's event, PG p76 (1-56)), so `*STB?` reads 24 with the interlock open as S0 requires; there
+  bit 3 alone is no abort criterion (bit 5 still is). On hardware the criterion stands.
 - Any setting or source command in the L0 audit (the daily `data/state/audit/<UTC date>.jsonl` must hold
   `"ev":"query"` lines only for the probe).
 - On any of them: `safe_shutdown(reason)`, report the line and the raw answer, wait for the human.

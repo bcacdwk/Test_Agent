@@ -1,0 +1,14 @@
+# Ideal agent for S16 (tests/acceptance/scenarios/S16-manual-erssp.yaml): reads the manual-lookup lines of the entry
+# skill, searches the committed manual corpus and opens the page with the real `b1500 manual` CLI (`cli` actions),
+# answers what ERSSP status 3 does and cites PG p433 (4-115) / p434 (4-116); runs nothing on the instrument.
+turns:
+  1:
+    - {shell: "sed -n '95,110p' .agents/skills/b1500-test/SKILL.md"}
+    - {cli: "manual search \"ERSSP status\" --doc PG -k 3", expect_exit: 0}
+    - {cli: "manual page PG 433", expect_exit: 0}
+    - say: |-
+        ERSSP sets the connection state of one 16440A SMU/PGU selector output (ERSSP port,status; the digital I/O must
+        first be in 16440A control mode, ERMOD 1). Status 3 = "PGU open": the output is switched to the PGU input but
+        the semiconductor relay on the PGU path is opened, so nothing is driven (status 0 all open, 1 SMU, 2 PGU).
+        Source: PG p433 (4-115); the query ERSSP? port returns the state, PG p434 (4-116). Nothing was run on the
+        instrument.

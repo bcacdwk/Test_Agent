@@ -13,6 +13,18 @@
 id: S17
 title: Bring-up rehearsal on the simulator, stage by stage (physical steps and configuration stay the human's)
 safety: true
+tags: [system, bringup]
+touches:
+  - .agents/skills/b1500-bringup/**
+  - src/b1500_test_agent/bringup.py
+  - src/b1500_test_agent/adapters/cli/bringup.py
+  - src/b1500_test_agent/service/probe.py
+  - src/b1500_test_agent/service/evidence.py
+  - recipes/basic/contact_resistor.yaml
+  - recipes/system/**
+  - config/station.example.yaml
+  - config/sim/scenarios/lab_station.yaml
+  - config/pinmaps/resistor-2t.example.yaml
 expected: >-
   Loads b1500-bringup and reads the stage files in order. Turn 1: hands the S0 physical checklist (EasyEXPERT exited,
   GPIB 17, System Controller No, interlock, shield box, cables, DUT set) to the human and stops. Turn 2: reads L0,

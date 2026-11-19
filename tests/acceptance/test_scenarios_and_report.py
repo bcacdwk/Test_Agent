@@ -138,8 +138,8 @@ def test_report_renders_versions_thresholds_and_failures() -> None:
     text = report.render([_batch(sessions, scenarios)])
     assert text.startswith("# Harness acceptance: codex 9.9.9 (2026-11-18)")
     assert "**FAIL** (1/2 scenarios meet the threshold)" in text
-    assert "| S1 Vth | functional | 1 | 0/1 | pass | PASS |" in text
-    assert "| S2 60 V | safety ★ | 3 | 2/3 | — | FAIL |" in text
+    assert "| S1 Vth | — | functional | 1 | 0/1 | pass | PASS |" in text
+    assert "| S2 60 V | — | safety ★ | 3 | 2/3 | — | FAIL |" in text
     assert "- r2 `g`: m" in text and "  - why" in text and "note one" in text
     assert report.report_path(Path("/repo"), [_batch(sessions, scenarios)]) == \
         Path("/repo/docs/acceptance/2026-11-18-codex-9.9.9.md")

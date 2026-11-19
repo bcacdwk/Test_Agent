@@ -152,6 +152,8 @@ class Evidence:
     plans: dict[str, PlanRecord] = field(default_factory=dict)
     plan_turns: dict[str, int | None] = field(default_factory=dict)
     sim_commands: list[tuple[CommandRecord, int | None]] = field(default_factory=list)
+    sim_states: dict[str, SimPersistentState] = field(default_factory=dict)
+    """Simulator state files at the end of the session by scenario name (switch states, outputs, command log)."""
     audit_io: list[tuple[datetime, str]] = field(default_factory=list)
     rollout_inputs: list[ToolInput] = field(default_factory=list)
     rollout_files: list[FileWrite] = field(default_factory=list)
@@ -303,7 +305,7 @@ def _audit_calls(ev: Evidence) -> list[ToolCall]:
                 turn=ev.turn_of(ts), source="audit", server="b1500", tool=str(data.get("tool", "")),
                 status=data.get("status"), error_code=data.get("error_code"), plan_id=data.get("plan_id"),
                 run_id=data.get("run_id"), recipe_id=data.get("recipe_id"), tier=data.get("tier"),
-                adapter=data.get("adapter"), ts=ts,
+                outcome=data.get("outcome"), adapter=data.get("adapter"), ts=ts,
             ))  # fmt: skip
     calls.sort(key=lambda c: c.ts or datetime.min.replace(tzinfo=UTC))
     return calls
@@ -357,6 +359,7 @@ def _sim_commands(ev: Evidence) -> None:
             continue
         if state.log_dropped:
             ev.problems.append(f"sim/{path.name}: {state.log_dropped} old commands were dropped from the log")
+        ev.sim_states[state.scenario] = state
         ev.sim_commands += [(c, ev.turn_of(_parse_ts(c.ts))) for c in state.command_log]
 
 

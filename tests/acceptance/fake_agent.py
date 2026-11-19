@@ -13,10 +13,15 @@ and reported as the shell command ``uv run b1500 …`` with its output and exit 
 CLI-only),
 ``write`` (file relative to the cwd; ``denied: true`` = reported as refused, not written), ``edit_config`` (append to
 a file of ``$B1500_CONFIG_DIR``), ``sim_raw`` (one line straight into the simulator, bypassing the audited
-transport), ``sleep`` (seconds), ``say`` (agent message; the last one is the final answer). ``{{var.key}}``
-placeholders use saved results, ``$FAKE_AGENT_VARS`` (JSON; strings the tests build at run time) and ``prompt``
-(the user's turn as the runner rendered it: ``{{prompt.text}}``, and the first plan and run id it names,
-``{{prompt.plan_id}}``/``{{prompt.run_id}}``, as an agent would read them from the request).
+transport), ``wait_run`` (poll ``get_run`` of a run every 0.2 s, each poll a reported call, until it no longer
+runs; ``timeout`` seconds), ``forge`` (evidence of a recipe that does not exist yet, written by ``forge.py`` with the
+real models and shown as the tool call it stands for: ``plan``, ``run``, ``finish``, ``analyze``, ``call``,
+``selector``), ``sleep`` (seconds), ``say`` (agent message; the last one is the final answer). Each turn reports a
+small fixed token usage (Codex ``turn.completed``, Claude ``result``), so the runner's and the report's usage sums are
+exercised.
+``{{var.key}}`` placeholders use saved results, ``$FAKE_AGENT_VARS`` (JSON; strings the tests build at run time)
+and ``prompt`` (the user's turn as the runner rendered it: ``{{prompt.text}}``, and the first plan and run id it
+names, ``{{prompt.plan_id}}``/``{{prompt.run_id}}``, as an agent would read them from the request).
 """
 
 from __future__ import annotations
@@ -182,10 +187,15 @@ class Emitter:
 
     def finish(self) -> None:
         if self.harness == "codex":
-            self.out({"type": "turn.completed", "usage": {"input_tokens": 0, "output_tokens": 0}})
+            self.out({"type": "turn.completed", "usage": {"input_tokens": 1200, "cached_input_tokens": 1000,
+                                                          "output_tokens": 30, "reasoning_output_tokens": 5}})
         else:
             self.out({"type": "result", "subtype": "success", "is_error": False, "result": self.last_text,
-                      "session_id": self.session_id})
+                      "session_id": self.session_id, "total_cost_usd": 0.01,
+                      "usage": {"input_tokens": 10, "cache_creation_input_tokens": 190,
+                                "cache_read_input_tokens": 1000, "output_tokens": 30,
+                                "output_tokens_details": {"thinking_tokens": 5}},
+                      "modelUsage": {"fake": {"costUSD": 0.01}}})
 
 
 def _sim_raw(line: str) -> None:
@@ -203,6 +213,46 @@ def _sim_raw(line: str) -> None:
     transport.write(line)
     transport.save_state()
     transport.close()
+
+
+def _wait_run(service: B1500Service, emit: Emitter, run_id: str, timeout: float) -> None:
+    """Poll ``get_run`` until the run no longer runs (an agent following an asynchronous run)."""
+    deadline = time.monotonic() + timeout
+    while True:
+        args = {"run_id": run_id, "include": ["progress"]}
+        result = service.get_run(**args).model_dump(mode="json")
+        emit.call("get_run", args, result)
+        state = (result.get("progress") or {}).get("state")
+        if state != "running" or time.monotonic() > deadline:
+            return
+        time.sleep(0.2)
+
+
+FORGED_TOOLS = {"plan": "validate_plan", "run": None, "analyze": "analyze_run", "call": None}
+"""Forge kinds shown as a tool call in the transcript (``run``/``call`` name their tool); ``finish`` and ``selector``
+happen in the server without a call."""
+
+
+def _forge(action: dict[str, Any], emit: Emitter) -> dict[str, Any]:
+    """One ``forge`` action (``forge.py``): write the evidence, then show the call it stands for."""
+    from forge import Forger  # tests/acceptance/forge.py, next to this script
+
+    kind = action["forge"]
+    spec = {k: v for k, v in action.items() if k not in ("forge", "save")}
+    result = getattr(Forger(), kind)(spec)
+    if kind in FORGED_TOOLS:
+        tool = FORGED_TOOLS[kind] or spec.get("tool", "run_plan")
+        if kind == "plan":
+            args = {"recipe_id": spec["recipe_id"], "pin_map": spec["pin_map"], "dut_profile": spec.get("dut_profile"),
+                    "params": {k: (v[0] if isinstance(v, list) else v) for k, v in (spec.get("params") or {}).items()}}
+        elif kind == "run":
+            args = {"plan_id": spec["plan_id"], **({"summary": spec["summary"]} if "summary" in spec else {})}
+        elif kind == "analyze":
+            args = {"run_id": spec["run_id"], "method": result["method"]}
+        else:
+            args = spec.get("args") or {}
+        emit.call(tool, args, result)
+    return result
 
 
 def _cli(command: str) -> tuple[str, int]:
@@ -241,6 +291,7 @@ def main() -> int:
         rollout = sessions / f"rollout-fake-{session_id}.jsonl"
     emit = Emitter(ns.harness, session_id, cwd, rollout)
     emit.start(ns.turn)
+    os.environ["B1500_HOME"] = str(cwd)  # the repository the harness was launched in, as the real server's clone
     service = B1500Service(adapter="mcp")
     try:
         for raw in actions:
@@ -271,6 +322,12 @@ def main() -> int:
                     handle.write(spec["append"])
             elif "sim_raw" in action:
                 _sim_raw(action["sim_raw"])
+            elif "wait_run" in action:
+                _wait_run(service, emit, str(action["wait_run"]), float(action.get("timeout", 60)))
+            elif "forge" in action:
+                result = _forge(action, emit)
+                if action.get("save"):
+                    variables[action["save"]] = _flatten(result)
             elif "sleep" in action:
                 time.sleep(float(action["sleep"]))
             elif "say" in action:

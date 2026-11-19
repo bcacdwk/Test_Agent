@@ -75,6 +75,17 @@ def test_shell_commands_are_blocked(command: str) -> None:
     assert "MCP tools" in stderr
 
 
+def test_raw_visa_advice_never_hands_the_code_to_the_human() -> None:
+    """WP6.6: a blocked VISA command is refused for everyone (Claude Code passed the code on to the human after the
+    shared human-only advice); a blocked human-only CLI command is still shown to the human."""
+    lib = "py" + "visa"
+    visa = assert_blocked(run_hook(event("Bash", {"command": f"python -c 'import {lib}'", "description": "x"})))
+    assert "hand it to the human either" in visa and "show the human the command" not in visa
+    command = "uv run b1500 " + "fa" + "ult clear"
+    human = assert_blocked(run_hook(event("Bash", {"command": command, "description": "x"})))
+    assert "show the human the command" in human
+
+
 # The configuration bootstrap is human-only (blueprint v2 7.1, WP6.1). The command strings are built by
 # concatenation so that no shell command of the executor that edits this file contains them (the hook would block it).
 B1500 = "b1500"

@@ -110,7 +110,7 @@ def record_files(repo_root: Path, work_dir: Path) -> list[RecordFile]:
     for location, folder in places:
         if not folder.is_dir():
             continue
-        for path in sorted(folder.glob("*.yaml")):
+        for path in sorted(folder.glob("*.yaml"), key=lambda p: p.name):  # by name: WindowsPath sorts case-blind
             if path.is_file() and not path.name.startswith("_"):
                 found.append(RecordFile(path, location, _shown(path, repo_root)))
     return found
@@ -122,7 +122,7 @@ def stray_files(repo_root: Path) -> list[str]:
     folder = repo_root.joinpath(*VALIDATION_DIR)
     if not folder.is_dir():
         return []
-    return [_shown(p, repo_root) for p in sorted(folder.iterdir())
+    return [_shown(p, repo_root) for p in sorted(folder.iterdir(), key=lambda p: p.name)
             if p.name != VALIDATION_README and not (p.is_file() and p.suffix == ".yaml")]
 
 

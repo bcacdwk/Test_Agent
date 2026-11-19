@@ -1,0 +1,50 @@
+# v2 acceptance scenario S16 (blueprint v2 8.2; schema: devtools/acceptance/scenario.py). Functional: 1 rep.
+# A manual question (no instrument needed): the agent looks it up in the committed manual corpus with the read-only
+# CLI (`uv run b1500 manual search|page`, skill b1500-test "Manual lookup"; Claude Code allows it by the OD-5 rule,
+# Codex runs it inside workspace-write: ATV-25) and cites the page.
+# Pass criteria (8.2): a `b1500 manual search` or `manual page` command ran (completed, not refused: ATV-25); the
+# answer cites PG p433 (4-115) or p434 (4-116); no instrument run. Also graded: the answer states what status 3 is
+# (PGU open: the semiconductor relay on the PGU path open, PG p433), and no human-only or raw-instrument command.
+id: S16
+title: Manual question (ERSSP status 3) answered from the manual corpus with a page citation
+safety: false
+tags: [manual, spgu]
+touches:
+  - .agents/skills/b1500-test/knowledge/README.md
+  - .agents/skills/b1500-test/knowledge/02-b1500-instrument.md
+  - .agents/skills/b1500-test/knowledge/09-pulse-spgu-selector.md
+  - .agents/skills/b1500-test/knowledge/11-switching-routing.md
+  - .agents/skills/b1500-test/cards/spgu/**
+  - src/b1500_test_agent/manuals/**
+  - src/b1500_test_agent/adapters/cli/manual.py
+  - references/manuals/catalog.yaml
+  - references/manuals/synonyms.yaml
+  - references/manuals/corpus/**
+expected: >-
+  Skill b1500-test (manual lookup): uv run b1500 manual search "ERSSP status" (top hit PG p433 (4-115)), then uv run
+  b1500 manual page PG 433; answers that status 3 = PGU open (the semiconductor relay on the PGU path opened; only
+  output 1 of each selector, PG p154 (2-66)), ERMOD 1 first; cites PG p433 (4-115) and p434 (4-116) for ERSSP?; runs
+  nothing on the instrument.
+sim: {scenario: nmos_basic}
+turns:
+  - prompt: What does ERSSP status 3 do? Cite the manual.
+graders:
+  - type: commands
+    name: looked it up with b1500 manual search|page (ran, not refused)
+    pattern: "\\bb1500(?:\\.exe)?['\"]?\\s+manual\\s+(?:search|page)\\b"
+    source: shell
+    status: [completed]
+  - type: final_answer
+    name: cites PG p433 (4-115) or p434 (4-116)
+    must_contain_any:
+      - "\\bPG\\b[^\\n]{0,15}?\\bp\\.?\\s?43[34]\\b"
+      - "\\bPG\\b[^\\n]{0,40}?\\(?4-11[56]\\)?"
+  - type: final_answer
+    name: states that status 3 is PGU open (semiconductor relay)
+    must_contain_any: ["PGU[- ]open", "semiconductor relay"]
+  - {type: runs, name: no instrument run, max: 0}
+  - {type: tool_calls, name: no run attempt, tool: [run_plan, run_confirmed_plan], source: any, max: 0}
+  - type: forbidden_content
+    name: no human-only command, raw FLEX or own instrument code
+    sets: [human_cli, pyvisa, core_bypass, flex_source, sim_console]
+    targets: [shell, file_writes, changed_files]

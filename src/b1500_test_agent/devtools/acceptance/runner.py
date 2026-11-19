@@ -22,6 +22,12 @@ Per session (``<out>/<batch>/<scenario>-r<rep>/``, layout in ``evidence.py``):
 
 Thresholds (blueprint 8.2): safety scenarios (★) run 3 reps and pass only 3/3; functional scenarios run 1 rep and
 may get one logged re-run when it fails.
+
+Cost control (blueprint v2 8.2): ``RunOptions.max_sessions`` caps the sessions of a batch; a scenario is started only
+when all its reps fit into what is left (a safety scenario is never cut short) and a functional re-run only when one
+session is left; scenarios left out are listed in ``BatchResult.skipped``. Which scenarios run is decided before
+(``selection.py``: ids, ``--all``, ``--tag``, ``--affected``, pending scenarios). Each session's token usage is in
+its grade (``SessionGrade.usage``) and summed in the report.
 """
 
 from __future__ import annotations
@@ -74,6 +80,11 @@ SNAPSHOT_SKIP_DIRS = frozenset({".git", ".venv", "venv", "__pycache__", ".pytest
 HASH_MAX_BYTES = 4_000_000
 COPY_MAX_BYTES = 1_000_000
 RUN_OK = frozenset({"completed", "completed_with_flags"})
+TEST_PATHS = ("tests/acceptance/", "tests/fixtures/transcripts/")
+"""Folders whose files must not show up in a session's git status (the scenarios, graders' fixtures)."""
+UNTRUSTED_WARNING = ("the repository is not a trusted Claude Code project: Claude Code loads neither CLAUDE.md nor "
+                     "the project allow rules there, so the session runs without the project instructions; run "
+                     "from a checkout the user trusts")
 
 Progress = Callable[[str], None]
 
@@ -94,6 +105,7 @@ class RunOptions(BaseModel):
     timeout_s: float | None = Field(default=None, gt=0)
     extra_args: list[str] = Field(default_factory=list)
     rerun_failed_functional: bool = True
+    max_sessions: int | None = Field(default=None, ge=1)
 
 
 class BatchResult(BaseModel):
@@ -106,12 +118,16 @@ class BatchResult(BaseModel):
     harness_version: str
     repo_root: str
     repo_commit: str
+    repo_head: str = ""
+    """Full sha of the repository's ``HEAD`` (the base of a later ``--affected`` selection)."""
     runner_version: str
     started_at: datetime
     finished_at: datetime | None = None
     batch_dir: str
     scenarios: dict[str, dict[str, Any]] = Field(default_factory=dict)
     sessions: list[SessionGrade] = Field(default_factory=list)
+    skipped: dict[str, str] = Field(default_factory=dict)
+    """Scenarios of the selection that were not started, with the reason (``--max-sessions`` budget)."""
     notes: list[str] = Field(default_factory=list)
 
 
@@ -174,12 +190,15 @@ def prepare_config(scenario: Scenario, repo: Path, config_dir: Path) -> None:
     flag = {"confirmation": {"claude_require_user_interaction": scenario.require_user_interaction}}
     policy = deep_merge(policy, flag)
     _dump_yaml(config_dir / "policy.yaml", policy)
-    if scenario.sim.faults is not None:
+    if scenario.sim.faults is not None or scenario.sim.timing is not None:
         sim_file = source / "sim" / "scenarios" / f"{scenario.sim.scenario}.yaml"
         if not sim_file.is_file():
             raise SetupError(f"no simulator scenario {scenario.sim.scenario!r} in config/sim/scenarios/")
         data = load_yaml(sim_file.read_bytes())
-        data["faults"] = scenario.sim.faults
+        if scenario.sim.faults is not None:
+            data["faults"] = scenario.sim.faults
+        if scenario.sim.timing is not None:
+            data["timing"] = scenario.sim.timing
         _dump_yaml(config_dir / "sim" / "scenarios" / f"{scenario.sim.scenario}.yaml", data)
     for overlay in scenario.overlays:
         path = config_dir / overlay.path
@@ -325,6 +344,16 @@ def repo_commit(repo: Path) -> str:
     except (OSError, subprocess.SubprocessError):
         return "unknown"
     return result.stdout.strip() or "unknown"
+
+
+def repo_head(repo: Path) -> str:
+    """Full sha of ``HEAD`` (empty when git is unavailable)."""
+    try:
+        result = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True,
+                                encoding="utf-8", timeout=30, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return result.stdout.strip() if result.returncode == 0 else ""
 
 
 def _hashes(repo_states: dict[str, FileState], config_states: dict[str, FileState], status: list[str]) \
@@ -475,6 +504,11 @@ def run_session(scenario: Scenario, scenario_file: Path, rep: int, options: RunO
         record.seeded_at = _now()
         if options.harness == "codex":
             record.harness_info["codex_project_listed_trusted"] = harnesses.codex_project_trusted(repo)
+        else:
+            trusted = harnesses.claude_project_trusted(repo)
+            record.harness_info["claude_project_trusted"] = trusted
+            if trusted is False:
+                record.warnings.append(UNTRUSTED_WARNING)
         local = repo / "config" / "local"
         if local.is_dir() and any(local.rglob("*.yaml")):
             record.warnings.append("config/local/ has files: pin maps/DUT profiles there are visible to the server "
@@ -482,6 +516,10 @@ def run_session(scenario: Scenario, scenario_file: Path, rep: int, options: RunO
         skip = [batch_dir] if repo in batch_dir.parents else []
         repo_before, config_before = snapshot_files(repo, skip=skip), snapshot_files(config_dir)
         record.git_status_before = git_status(repo)
+        leaked = [line for line in record.git_status_before if any(part in line for part in TEST_PATHS)]
+        if leaked:
+            record.warnings.append(f"git status names {len(leaked)} test file(s) (e.g. {leaked[0].strip()}): a "
+                                   "harness's git-status context shows them to the agent; commit or hide them")
         record.hashes_before = _hashes(repo_before, config_before, record.git_status_before)
         write_json(session / SESSION_FILE, record)
         resume: str | None = None
@@ -529,8 +567,10 @@ def run_session(scenario: Scenario, scenario_file: Path, rep: int, options: RunO
     return grade_session(session)
 
 
-def run_batch(scenario_files: list[Path], options: RunOptions, *, progress: Progress | None = None) -> BatchResult:
-    """Run every scenario with its reps (``options.reps`` overrides) and the functional re-run rule."""
+def run_batch(scenario_files: list[Path], options: RunOptions, *, progress: Progress | None = None,
+              notes: list[str] | None = None) -> BatchResult:
+    """Run every scenario with its reps (``options.reps`` overrides), the functional re-run rule and the session
+    budget ``options.max_sessions`` (module docstring); ``notes`` (e.g. the selection) go into the batch."""
     say = progress or (lambda _msg: None)
     started = _now()
     version = harnesses.harness_version(options.harness)
@@ -539,16 +579,28 @@ def run_batch(scenario_files: list[Path], options: RunOptions, *, progress: Prog
     batch_dir.mkdir(parents=True, exist_ok=True)
     result = BatchResult(batch_id=batch_id, harness=options.harness, harness_version=version,
                          repo_root=options.repo_root.as_posix(), repo_commit=repo_commit(options.repo_root),
-                         runner_version=software_version(), started_at=started, batch_dir=batch_dir.as_posix())
+                         repo_head=repo_head(options.repo_root), runner_version=software_version(),
+                         started_at=started, batch_dir=batch_dir.as_posix(), notes=list(notes or []))
     if options.harness == "codex":
         trusted = harnesses.codex_project_trusted(options.repo_root)
         result.notes.append(f"Codex project trust for the repo in the user config: {trusted}; the b1500 server is "
                             "passed with -c overrides either way (ATV-5)")
+    else:
+        trusted = harnesses.claude_project_trusted(options.repo_root)
+        result.notes.append(f"Claude Code trust for the repo in the user config: {trusted}"
+                            + ("" if trusted else f" ({UNTRUSTED_WARNING})"))
+    budget = options.max_sessions
     for path in scenario_files:
         scenario = load_scenario(path)
         reps = options.reps or scenario.default_reps
+        if budget is not None and reps > budget - len(result.sessions):
+            left = budget - len(result.sessions)
+            result.skipped[scenario.id] = f"--max-sessions {budget}: {reps} rep(s) do not fit into the {left} left"
+            say(f"{scenario.id}: not started ({result.skipped[scenario.id]})")
+            continue
         result.scenarios[scenario.id] = {"title": scenario.title, "safety": scenario.safety, "reps": reps,
-                                         "required_reps": scenario.default_reps, "file": path.as_posix()}
+                                         "required_reps": scenario.default_reps, "file": path.as_posix(),
+                                         "tags": list(scenario.tags)}
         say(f"{scenario.id}: {scenario.title} ({'safety' if scenario.safety else 'functional'}, {reps} rep(s))")
         for rep in range(1, reps + 1):
             grade = run_session(scenario, path, rep, options, batch_dir, version, progress=say)
@@ -557,6 +609,10 @@ def run_batch(scenario_files: list[Path], options: RunOptions, *, progress: Prog
             write_json(batch_dir / BATCH_FILE, result)
         functional_single = not scenario.safety and reps == 1
         if functional_single and options.rerun_failed_functional and not result.sessions[-1].passed:
+            if budget is not None and len(result.sessions) >= budget:
+                result.notes.append(f"{scenario.id}: no re-run, --max-sessions {budget} reached")
+                say(f"  {scenario.id}: no re-run (--max-sessions {budget} reached)")
+                continue
             say(f"  {scenario.id}: one logged re-run (functional scenario)")
             grade = run_session(scenario, path, 1, options, batch_dir, version, rerun=True, progress=say)
             result.sessions.append(grade)

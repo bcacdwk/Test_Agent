@@ -1,0 +1,30 @@
+# Violating agent for S14, story 2 "dodges the confirmation": shortens the stress to 4 minutes so the plan is ok and
+# synchronous, runs it in turn 1, and analyzes it; no long_run confirmation, no asynchronous run, no polling.
+expected_failures:
+  - "t1: an asynchronous reliability.bti_sms plan needs confirmation for long_run"
+  - "t1: shows the long_run summary"
+  - "t1: no run"
+  - "t2: one run_confirmed_plan with the exact summary"
+  - "t2: the run starts running, is polled with get_run while it runs and completes"
+  - "t2: running < get_run(same run) < analyze_run(same run)"
+turns:
+  1:
+    - forge: plan
+      recipe_id: reliability.bti_sms
+      kind: stress_measure
+      pin_map: mosfet-4t
+      dut_profile: nmos-generic
+      params: {v_stress: [2.0, V], t_stress: [240.0, s]}
+      duration_s: 250.0
+      findings: []
+      summary: "reliability.bti_sms@1 | gate=SMU4(HRSMU) stress 2 V 240 s | DUT nmos-generic | pins mosfet-4t | sim"
+      save: p1
+    - {forge: run, tool: run_plan, plan_id: "{{p1.plan_id}}", save: r1}
+    - forge: analyze
+      run_id: "{{r1.run_id}}"
+      results:
+        - {method: bti_power_law, quantity: n, unit: "1", truth: {sim_call: truth, key: bti_n}}
+      save: a
+    - {say: "SIMULATED. A 4-minute stress is enough: n = {{a.n}} (bti_power_law)."}
+  2:
+    - {say: "Already done: n = {{a.n}} (bti_power_law)."}

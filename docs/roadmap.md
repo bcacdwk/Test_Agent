@@ -13,7 +13,7 @@ the source of truth for status. This page is updated at milestone boundaries.
 | M3 Harness acceptance | Ten scenarios on Codex and Claude Code against the simulator | **done** (2026-11-18; [reports](acceptance/)) |
 | M4 Hardware bring-up | Checklists for the Windows lab PC and staged hardware validation | planned (docs only; execution later with the owner) |
 | M5 Foundations | v2 plan, package split, models/config v2, guard + rules v2, per-transaction VISA + visa-loop, async runs, archive v2, manual corpus, device models v2, skills v2 structure | **done** (2026-11-18) |
-| M6 Lab-ready core | Read-only probe, station proposal and config adoption, visa completeness, bring-up skill, hardware suite, Windows readiness, acceptance v2 | in progress (6.1 done) |
+| M6 Lab-ready core | Read-only probe, station proposal and config adoption, visa completeness, bring-up skill, hardware suite, Windows readiness, acceptance v2 | **done** (2026-11-19) |
 | M7 SMU complete | Spot/Kelvin/ASU, sweeps v2, pulsed, sampling + TDDB, search + BDV, stress-measure, compact models | planned |
 | M8 MFCMU, SCUU, GNDU | CMU driver + simulator, corrections, C-V core and variants, QSCV, Dit, GNDU budget | planned |
 | M9 HV-SPGU + 16440A | SPGU driver + simulator, selector routes, pulse kind, program/read, kinetics, endurance, retention | planned |
@@ -116,10 +116,29 @@ Gate at the end of M5: 3,157 tests (`-n auto`), 10 MCP tools / 1,584 schema toke
 | 5.9 Device models v2 | MOS-C, fixture/capacitor, dielectric/TDDB, FeFET kinetics and FeCap, noise/RTN, MOSFET self-heating/BTI/HCI/C-V, IGZO transient, each against its §4.2 fidelity target |
 | 5.10 Skills v2 structure | Cards in family folders with a generated index, `b1500-bringup` skeleton, lint v2, three skills mirrored for Claude Code; acceptance S1, S4, S5 on both harnesses |
 
-## M6 — Lab-ready core (in progress)
+## M6 — Lab-ready core (done)
+
+Result: plug-in-and-go for the v1 scope. A read-only probe and a station proposal from the live inventory, the
+human-only configuration bootstrap, every v1 recipe and the `system` kind on the real `VisaTransport` against the
+simulator, the bring-up skill with machine-readable stage checks and validation records, a hardware test suite for
+the lab PC, CI green on Windows and macOS, and the acceptance runner v2 with the checkpoint passed on both harnesses.
+
+| Checkpoint (§8.2, WP6.6) | Claude Code 2.1.328 | codex-cli 0.170.0 |
+|---|---|---|
+| S1-S10 (v1 S3), S16, S17: 6 safety ★ x 3 reps + 6 functional x 1 | 12/12 PASS, no re-run | 12/12 PASS, no re-run |
+| Sessions in the report / usage | 29 / 20.2 USD API-equivalent | 27 / 12.6 M input tokens |
+| ATV-25 (`b1500 manual`, `bringup` without prompts) | passed (OD-5 allow rules) | passed with `UV_CACHE_DIR` in a writable folder |
+
+Next: M7 (SMU complete), M8 (MFCMU, SCUU, GNDU), M9 (HV-SPGU + 16440A) and WGFMU 10.1-10.5 in parallel; their
+closure work packages run their acceptance scenarios with `uv run b1500 dev acceptance run --tag <family>` (S11-S15,
+S18 and the rewritten S3 are written and wait only for their recipes).
+
 
 | WP | Result |
 |---|---|
 | 6.1 Probe + bootstrap | `b1500 doctor --probe` (read-only FLEX probe: VISA library and resources, identity, inventory vs station, errors, status byte, outputs, selectors, SPGU, MFCMU corrections; raw answers to `work/bringup/`), `b1500 bringup propose-station`, the human-only `b1500 config init` and `b1500 config adopt`; guard hook and the owner-authorized OD-5 harness permission change set |
+| 6.2 Visa completeness (v1 scope) | `system.*` recipes on the visa backend (confirmed), the `LOP?` positive control between `CN` and `CL` in every visa run, the interlock label, the lab's Id-Vg FLEX sequence and real Id-Vg data as fixtures, scenario `lab_nmos_2025` calibrated to them |
 | 6.3 Bring-up skill | Stage files S0, L0-L4, L10 of skill `b1500-bringup` (machine-readable checks), `b1500 bringup status\|capture\|record` (drafts only from hardware runs; simulator runs refused), `validation/hw/` with the review flow and the `hw_validated` promotion rule in `b1500 dev recipe-check`, `docs/hardware-bringup.md` as a one-page overview, acceptance S17 graders with ideal/violating fixtures |
+| 6.4 Hardware suite | `tests/hardware/` (markers `hardware`, `hw_l0` … `hw_l10`): the read-only probe and the stage/validation records checked on the lab PC with `B1500_HW=1`, skipped everywhere else; a read-only proof on the visa loop |
 | 6.5 Windows readiness | CI runs the whole gate (tests with `-n auto`, ruff, recipe check, skill lint, card index, skill mirror, tool budget, manual corpus) green on `windows-latest` and `macos-latest`; Windows paths, line ends, encodings and Windows-only code tested on every OS by platform injection; the CLI never fails on a cp1252/cp936 console; `docs/deployment-windows.md` v2 with the first-session script and an offline wheelhouse checked on the Mac |
+| 6.6 Acceptance v2 + checkpoint | Runner v2: scenario `tags:`/`touches:`/`requires:`, `run --tag`, `--affected` (changes since the last report's commit), `--max-sessions`, `--dry-run`, per-session token usage in every report, `sim.timing: scaled(f)`; graders `commands`, `plans`, `async_run`, `routes` (+ `sim_call` truths, pulse bands); S16 (manual lookup) runs now; S3 rewritten, S11-S15 and S18 written with their graders and self-tested on forged evidence, pending until their module adds the recipes; checkpoint S1-S10, S16, S17 passed on Claude Code 2.1.328 and codex-cli 0.170.0 ([Claude](acceptance/2026-11-19-claude-2.1.328.md), [Codex](acceptance/2026-11-19-codex-0.170.0.md)) |

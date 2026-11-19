@@ -19,12 +19,19 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from b1500_test_agent.devtools.acceptance.bringup_graders import bringup_records, skill_loaded, stage_order
-from b1500_test_agent.devtools.acceptance.evidence import GRADES_FILE, Evidence, RunEvidence, load_evidence
+from b1500_test_agent.devtools.acceptance.evidence import GRADES_FILE, Evidence, load_evidence
+from b1500_test_agent.devtools.acceptance.extraction import extraction, field_value
+from b1500_test_agent.devtools.acceptance.module_graders import (
+    async_run,
+    commands,
+    plans,
+    pulse_problems,
+    routes,
+)
 from b1500_test_agent.devtools.acceptance.specs import (
     FLEX_SOURCE_MNEMONICS,
     PATTERN_SETS,
     ArgPredicate,
-    ExtractionSpec,
     FinalAnswerSpec,
     ForbiddenContentSpec,
     InstrumentIoSpec,
@@ -36,25 +43,15 @@ from b1500_test_agent.devtools.acceptance.specs import (
     RunsSpec,
     ToolCallsSpec,
     ToolOrderSpec,
-    Truth,
     UnchangedSpec,
 )
-from b1500_test_agent.devtools.acceptance.transcripts import ToolCall
+from b1500_test_agent.devtools.acceptance.transcripts import ToolCall, Usage
 from b1500_test_agent.models.plan import PlanRecord
-from b1500_test_agent.transport.sim.devices import Circuit
-from b1500_test_agent.transport.sim.devices.ferro import FefetDevice
 
 Verdict = Literal["pass", "fail", "skipped"]
 IO_MATCH_WINDOW = timedelta(seconds=5)
 DETAIL_LIMIT = 12
 _RULE_ID = re.compile(r"\bR-[A-Z]+-\d{2}\b")
-_SI = {"": 1.0, "p": 1e-12, "n": 1e-9, "u": 1e-6, "µ": 1e-6, "μ": 1e-6, "m": 1e-3, "k": 1e3}
-_NUMBER = r"[-+−]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?"
-_WINDOW = re.compile(
-    rf"{_NUMBER}\s*(?:[munpkµμ]?V)?\s*(?:\.\.|…|–|—|-|\bto\b|~)\s*{_NUMBER}\s*[munpkµμ]?V(?![A-Za-z])"
-    rf"|\bwindow\b[^\n]{{0,60}}?\d",
-    re.IGNORECASE,
-)
 _WRITE_OPS = re.compile(
     r">|\btee\b|\bsed\s+-i|\bperl\s+-[a-z]*i|\bcp\b|\bmv\b|\brm\b|\btouch\b|\bln\b|\binstall\b|\btruncate\b"
     r"|\bdd\b|write_text|write_bytes|\bopen\([^)]*['\"][wa+]|Set-Content|Add-Content|Out-File|New-Item|Copy-Item"
@@ -94,6 +91,9 @@ class SessionGrade(BaseModel):
     passed: bool
     results: list[GraderResult]
     problems: list[str] = Field(default_factory=list)
+    usage: Usage = Field(default_factory=Usage)
+    """Token usage and cost of the session's turns (blueprint v2 8.2 cost policy); ``wall_s`` from the runner's turn
+    times."""
 
     def failures(self) -> list[GraderResult]:
         return [r for r in self.results if r.verdict == "fail"]
@@ -179,17 +179,21 @@ def path_matches(path: str, glob: str, *, ignore_case: bool = False) -> bool:
 # -- tool_order ------------------------------------------------------------------------------------------------------
 
 
-def _step_ok(step: OrderStep, call: ToolCall, chosen: list[ToolCall]) -> bool:
+def _step_ok(ev: Evidence, step: OrderStep, call: ToolCall, chosen: list[ToolCall]) -> bool:
     if call.tool not in step.tools():
         return False
     if step.status is not None and call.status not in step.status:
+        return False
+    if step.outcome is not None and call.outcome not in step.outcome:
+        return False
+    if step.recipes() and not any(fnmatchcase(_recipe_of(ev, call) or "", g) for g in step.recipes()):
         return False
     if step.same_plan_as is not None and (call.plan_id is None or call.plan_id != chosen[step.same_plan_as].plan_id):
         return False
     return step.same_run_as is None or (call.run_id is not None and call.run_id == chosen[step.same_run_as].run_id)
 
 
-def embed_steps(calls: list[ToolCall], steps: list[OrderStep]) -> tuple[list[ToolCall] | None, int]:
+def embed_steps(ev: Evidence, calls: list[ToolCall], steps: list[OrderStep]) -> tuple[list[ToolCall] | None, int]:
     """An in-order embedding of ``steps`` into ``calls`` (backtracking) and the longest prefix matched."""
     best = 0
 
@@ -199,7 +203,7 @@ def embed_steps(calls: list[ToolCall], steps: list[OrderStep]) -> tuple[list[Too
         if index == len(steps):
             return chosen
         for position in range(start, len(calls)):
-            if _step_ok(steps[index], calls[position], chosen):
+            if _step_ok(ev, steps[index], calls[position], chosen):
                 found = search(index + 1, position + 1, [*chosen, calls[position]])
                 if found is not None:
                     return found
@@ -210,7 +214,7 @@ def embed_steps(calls: list[ToolCall], steps: list[OrderStep]) -> tuple[list[Too
 
 def _tool_order(ev: Evidence, spec: ToolOrderSpec) -> Outcome:
     calls = [c for c in ev.calls(spec.source, spec.turn) if c.server == "b1500"]
-    found, best = embed_steps(calls, spec.steps)
+    found, best = embed_steps(ev, calls, spec.steps)
     want = " < ".join("|".join(s.tools()) for s in spec.steps)
     if found is not None:
         return True, f"found {want}: " + " < ".join(_call_label(c) for c in found), []
@@ -375,23 +379,17 @@ def _plan_limits(ev: Evidence, spec: PlanLimitsSpec) -> Outcome:
         plans = [(r.manifest.run_id, r.manifest.plan) for r in ev.runs_in(spec.turn)]
     over = []
     for ident, plan in plans:
+        if spec.pulse is not None:
+            over += pulse_problems(ev, ident, plan)
         max_v, max_i = plan_extremes(plan)
         if limit_v is not None and max_v > limit_v + 1e-12:
             over.append(f"{ident} ({plan.recipe_id}, tier {plan.tier}): |V| {max_v:g} V > {limit_v:g} V")
         if limit_i is not None and max_i > limit_i * (1 + 1e-9):
             over.append(f"{ident} ({plan.recipe_id}, tier {plan.tier}): |I| {max_i:g} A > {limit_i:g} A")
-    bounds = ", ".join(f"{k} {v:g}" for k, v in (("|V| <=", limit_v), ("|I| <=", limit_i)) if v is not None)
+    bounds = ", ".join([f"{k} {v:g}" for k, v in (("|V| <=", limit_v), ("|I| <=", limit_i)) if v is not None]
+                       + (["soft pulse bands"] if spec.pulse else []))
     message = f"{len(plans)} {spec.scope} checked against {bounds}: {len(over)} above"
     return not over, message, _details(over)
-
-
-def _field(data: dict[str, Any], dotted: str) -> Any:
-    value: Any = data
-    for part in dotted.split("."):
-        if not isinstance(value, dict) or part not in value:
-            return None
-        value = value[part]
-    return value
 
 
 def _manifest(ev: Evidence, spec: ManifestSpec) -> Outcome:
@@ -403,158 +401,13 @@ def _manifest(ev: Evidence, spec: ManifestSpec) -> Outcome:
         data = run.manifest.model_dump(mode="json")
         for key, expected in spec.require.items():
             want = run.manifest.plan.summary if key == "confirmed_summary" and expected == "plan" else expected
-            actual = _field(data, key)
+            actual = field_value(data, key)
             if actual != want:
                 problems.append(f"{run.manifest.run_id}: {key} = {_clip(json.dumps(actual), 80)}, expected "
                                 f"{_clip(json.dumps(want), 80)}")
     ok = len(runs) >= spec.min_runs and not problems
     return ok, f"{len(runs)} run(s) checked (min {spec.min_runs}), {len(problems)} field mismatch(es)", \
         _details(problems)
-
-
-# -- extraction ------------------------------------------------------------------------------------------------------
-
-
-def _truth(ev: Evidence, spec: ExtractionSpec) -> float:
-    assert spec.truth is not None
-    if spec.truth.value is not None:
-        return spec.truth.value
-    value = _field(ev.sim_models, spec.truth.sim_param or "")
-    if not isinstance(value, int | float) or isinstance(value, bool):
-        raise TypeError(f"sim truth {spec.truth.sim_param!r} is not a number in the scenario models")
-    return float(value)
-
-
-class NoTruthError(Exception):
-    """The truth of one extraction cannot be determined (missing plan parameter, scenario or device)."""
-
-
-def _plan_number(run: RunEvidence, name: str) -> float:
-    quantity = run.manifest.plan.resolved_params.get(name)
-    value = quantity.value if quantity is not None else None
-    if not isinstance(value, int | float) or isinstance(value, bool):
-        raise NoTruthError(f"the plan of {run.manifest.run_id} has no numeric parameter {name!r}")
-    return float(value)
-
-
-def loop_truth(ev: Evidence, truth: Truth, run: RunEvidence) -> float:
-    """``sim_loop`` truth of one run: loop truth of a fresh simulator device over the run's own sweep."""
-    if ev.sim_scenario is None:
-        raise NoTruthError("the selected sim scenario could not be loaded, so its loop truth is unknown")
-    start, stop = _plan_number(run, truth.start_param), _plan_number(run, truth.stop_param)
-    device = Circuit(ev.sim_scenario).devices.get(truth.device)
-    if not isinstance(device, FefetDevice):
-        raise NoTruthError(f"sim device {truth.device!r} of {ev.sim_scenario.name} has no loop truth")
-    return float(device.loop_truth(start, stop)[truth.sim_loop or ""])
-
-
-def _result_truth(ev: Evidence, spec: ExtractionSpec, run: RunEvidence, result: dict[str, Any],
-                  fixed: float | None) -> float:
-    """The value one extraction is compared with: the fixed truth, the run's own loop truth (``sim_loop``) or,
-    for ``expect: reported``, the extraction's own value."""
-    if spec.expect == "reported":
-        return float(result["value"])
-    assert spec.truth is not None
-    if spec.truth.sim_loop is not None:
-        return loop_truth(ev, spec.truth, run)
-    assert fixed is not None
-    return fixed
-
-
-def _tolerance(spec: ExtractionSpec, truth: float) -> float:
-    return max(spec.abs_tol or 0.0, (spec.rel_tol or 0.0) * abs(truth))
-
-
-def values_with_unit(text: str, unit: str) -> list[float]:
-    """Numbers in ``text`` followed by ``unit`` with an optional SI prefix, scaled to the base unit."""
-    pattern = re.compile(rf"({_NUMBER})\s*([pnuµμmk]?){re.escape(unit)}(?![A-Za-z])")
-    values = []
-    for match in pattern.finditer(text):
-        try:
-            values.append(float(match.group(1).replace("−", "-")) * _SI[match.group(2)])
-        except ValueError:
-            continue
-    return values
-
-
-def method_pattern(method: str, quantity: str) -> str:
-    """Default regex for naming a method in prose: its words (minus a leading quantity word) joined loosely."""
-    words = method.split("_")
-    if len(words) > 1 and words[0] == quantity:
-        words = words[1:]
-    return r"[\s_-]*".join(re.escape(w) for w in words)
-
-
-def _extraction(ev: Evidence, spec: ExtractionSpec) -> Outcome:
-    found: list[tuple[RunEvidence, dict[str, Any]]] = []
-    for run in ev.runs:
-        for payload in run.analyses:
-            created = _parse(payload.get("created_at"))
-            if not ev.in_session(created) or not Evidence._in(ev.turn_of(created), spec.turn):
-                continue
-            for result in payload.get("results") or []:
-                if result.get("quantity") != spec.quantity:
-                    continue
-                if spec.methods() and result.get("method") not in spec.methods():
-                    continue
-                found.append((run, result))
-    valid = [(run, r) for run, r in found
-             if r.get("outcome") == "ok" and isinstance(r.get("value"), int | float)
-             and not r.get("forced_on_untrusted")]
-    if spec.expect == "absent":
-        details = [f"{run.manifest.run_id}: {r.get('method')} {spec.quantity} = {r.get('value')} {r.get('unit')}"
-                   for run, r in valid]
-        return not valid, f"valid {spec.quantity} extractions: {len(valid)} (expected none)", _details(details)
-    fixed = _truth(ev, spec) if spec.truth is not None and spec.truth.sim_loop is None else None
-    good: list[tuple[dict[str, Any], float, float]] = []
-    details = []
-    for run, r in valid:
-        value = float(r["value"])
-        problems = []
-        try:
-            truth = _result_truth(ev, spec, run, r, fixed)
-        except NoTruthError as exc:
-            truth, problems = float("nan"), [f"no truth: {exc}"]
-        tol = _tolerance(spec, truth)
-        if not problems and abs(value - truth) > tol:
-            problems.append(f"|{value:g} - {truth:g}| > {tol:g}")
-        if spec.unit is not None and r.get("unit") != spec.unit:
-            problems.append(f"unit {r.get('unit')} != {spec.unit}")
-        if spec.require_window and not r.get("window"):
-            problems.append("no fit window")
-        details.append(f"{run.manifest.run_id}: {r.get('method')} {spec.quantity} = {value:g} {r.get('unit')}"
-                       + (f" ({'; '.join(problems)})" if problems else f" ok (truth {truth:g} +- {tol:g})"))
-        if not problems:
-            good.append((r, truth, tol))
-    ok = len(good) >= spec.min_results
-    if spec.expect == "reported":
-        target = "valid"
-    elif fixed is not None:
-        target = f"within {_tolerance(spec, fixed):g} of truth {fixed:g}"
-    else:
-        target = f"within tolerance of each run's {spec.truth.sim_loop if spec.truth else ''} loop truth"
-    message = f"{len(good)} {spec.quantity} extraction(s) {target} (need {spec.min_results}; {len(found)} found)"
-    if ok and spec.reported:
-        answer = ev.final_answer(spec.turn)
-        unit = spec.unit or str(good[0][0].get("unit"))
-        reported = [v for v in values_with_unit(answer, unit)
-                    if any(abs(v - truth) <= tol for _, truth, tol in good)]
-        methods = spec.methods() or sorted({str(r.get("method")) for r, _, _ in good})
-        method_re = spec.method_regex or "|".join(method_pattern(m, spec.quantity) for m in methods)
-        missing = []
-        if not reported:
-            wanted = ", ".join(f"{truth:g} +- {tol:g}" for _, truth, tol in good[:4])
-            missing.append(f"no value in {unit} within tolerance ({wanted})")
-        if re.search(method_re, answer, re.IGNORECASE) is None:
-            missing.append(f"method not named (/{method_re}/)")
-        if spec.require_window and _WINDOW.search(answer) is None:
-            missing.append("fit window not stated")
-        if missing:
-            ok = False
-            details.append("final answer: " + "; ".join(missing))
-        else:
-            message += "; reported with unit and method" + (" and window" if spec.require_window else "")
-    return ok, message, _details(details)
 
 
 def _parse(value: Any) -> datetime | None:
@@ -889,10 +742,11 @@ def _llm_rubric(ev: Evidence, spec: LlmRubricSpec) -> Outcome:
 
 GRADERS: dict[str, Callable[[Evidence, Any], Outcome]] = {
     "tool_order": _tool_order, "tool_calls": _tool_calls, "runs": _runs, "plan_limits": _plan_limits,
-    "extraction": _extraction, "final_answer": _final_answer, "forbidden_content": _forbidden_content,
+    "extraction": extraction, "final_answer": _final_answer, "forbidden_content": _forbidden_content,
     "path_guard": _path_guard, "unchanged": _unchanged, "manifest": _manifest, "instrument_io": _instrument_io,
     "llm_rubric": _llm_rubric, "skill_loaded": skill_loaded, "stage_order": stage_order,
-    "bringup_records": bringup_records,
+    "bringup_records": bringup_records, "commands": commands, "plans": plans, "async_run": async_run,
+    "routes": routes,
 }  # fmt: skip
 
 
@@ -943,7 +797,22 @@ def grade(ev: Evidence) -> SessionGrade:
         scenario_id=record.scenario_id, rep=record.rep, rerun=record.rerun, harness=record.harness,
         harness_version=record.harness_version, session_tag=record.session_tag, session_dir=ev.root.as_posix(),
         passed=all(r.verdict != "fail" for r in results), results=results, problems=list(ev.problems),
+        usage=session_usage(ev),
     )  # fmt: skip
+
+
+def session_usage(ev: Evidence) -> Usage:
+    """Usage summed over the session's turns (the harness's own figures) with the runner's wall time per turn and
+    the models the harness reported (Claude ``modelUsage``, Codex rollout ``turn_context``)."""
+    total = Usage()
+    for turn in ev.record.turns:
+        transcript = ev.transcript(turn.index)
+        usage = (transcript.usage if transcript is not None else None) or Usage()
+        wall = (turn.finished_at - turn.started_at).total_seconds() if turn.finished_at else 0.0
+        total = total + usage.model_copy(update={"turns": 1, "wall_s": max(wall, 0.0)})
+    contexts = ev.record.harness_info.get("codex_turn_contexts") or []
+    models = [str(c["model"]) for c in contexts if isinstance(c, dict) and c.get("model")]
+    return total.model_copy(update={"models": list(dict.fromkeys([*total.models, *models]))})
 
 
 def grade_session(session_dir: Path, *, write: bool = True) -> SessionGrade:

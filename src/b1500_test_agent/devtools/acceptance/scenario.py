@@ -9,6 +9,14 @@ later turns = the runner playing the human, e.g. "Confirmed, go ahead.") and the
 Prompts may reference seeds as ``{{seed.<name>.<field>}}``: ``plan_id``, ``summary``, ``tier`` (plan and run
 seeds), ``run_id`` (run seeds), ``path`` (file seeds).
 
+Selection metadata (blueprint v2 8.2 cost policy): ``tags`` (the instrument families the scenario exercises, plus
+topic tags such as ``manual`` or ``bringup``; ``acceptance run --tag``), ``touches`` (repository globs of the skill,
+card, recipe, rule and analysis files whose change can change the agent's behaviour in it; ``acceptance run
+--affected``) and ``requires`` (recipes, pin maps and DUT profiles that must exist before it can run: a scenario
+written ahead of its module is *pending* until the module's work package adds them; ``selection.py``). ``sim.timing``
+sets the simulator's ``timing`` (``instant``, ``scaled`` or ``scaled(f)``: real seconds slept per virtual second, so
+an asynchronous run can be polled).
+
 Example::
 
     id: S4
@@ -33,6 +41,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from b1500_test_agent.config import load_yaml
 from b1500_test_agent.devtools.acceptance.specs import GraderSpec
+from b1500_test_agent.models.station import timing_scale
 
 SUITE_DIR = "tests/acceptance/scenarios"
 PROBE_DIR = "tests/acceptance/probes"
@@ -43,6 +52,9 @@ SEED_FIELDS = {"plan": ("plan_id", "summary", "tier"), "run": ("plan_id", "summa
                "file": ("path",)}
 _PLACEHOLDER = re.compile(r"\{\{\s*seed\.([A-Za-z0-9_-]+)\.([a-z_]+)\s*\}\}")
 _NAME = r"^[A-Za-z][A-Za-z0-9_-]{0,39}$"
+_TAG = r"^[a-z][a-z0-9-]{0,23}$"
+_RECIPE_ID = r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$"
+_CONFIG_NAME = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
 
 
 class _Model(BaseModel):
@@ -67,11 +79,41 @@ class Turn(_Model):
 
 
 class SimSelection(_Model):
-    """Simulator scenario (``config/sim/scenarios/<scenario>.yaml``) and an optional fault profile
-    (``config/sim/faults/<faults>.yaml``) that replaces the scenario's own ``faults`` entry."""
+    """Simulator scenario (``config/sim/scenarios/<scenario>.yaml``), an optional fault profile
+    (``config/sim/faults/<faults>.yaml``) that replaces the scenario's own ``faults`` entry, and an optional
+    ``timing`` that replaces its ``timing`` (``scaled(f)`` makes an asynchronous run last long enough to be polled;
+    blueprint v2 4.1)."""
 
     scenario: str = Field(default="nmos_basic", pattern=r"^[A-Za-z0-9_-]+$")
     faults: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]+$")
+    timing: str | None = None
+
+    @field_validator("timing")
+    @classmethod
+    def _timing(cls, value: str | None) -> str | None:
+        if value is not None:
+            timing_scale(value)
+            return value.strip()
+        return value
+
+
+class Requirements(_Model):
+    """What must exist in the repository before the scenario can run: ``recipes`` present and runnable (status other
+    than ``not_implemented``), ``reserved`` present and still ``not_implemented`` (a scenario about reserved slots
+    retires itself when its module implements them), committed example ``pin_maps`` and ``dut_profiles``. The
+    simulator scenario of ``sim`` is always required. Until then the scenario is *pending*: listed, never run."""
+
+    recipes: list[Annotated[str, Field(pattern=_RECIPE_ID)]] = Field(default_factory=list)
+    reserved: list[Annotated[str, Field(pattern=_RECIPE_ID)]] = Field(default_factory=list)
+    pin_maps: list[Annotated[str, Field(pattern=_CONFIG_NAME)]] = Field(default_factory=list)
+    dut_profiles: list[Annotated[str, Field(pattern=_CONFIG_NAME)]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _disjoint(self) -> Requirements:
+        both = sorted(set(self.recipes) & set(self.reserved))
+        if both:
+            raise ValueError(f"a recipe cannot be required runnable and reserved at once: {both}")
+        return self
 
 
 class ConfigOverlay(_Model):
@@ -156,6 +198,13 @@ class Scenario(_Model):
     id: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_.-]{0,39}$")
     title: str = Field(min_length=1)
     safety: bool = False
+    tags: list[Annotated[str, Field(pattern=_TAG)]] = Field(default_factory=list)
+    """Families the scenario exercises (``smu``, ``cmu``, ``spgu``, ``wgfmu``, ``nvm``, ``reliability``, ``system``)
+    and topic tags (``manual``, ``bringup``); ``acceptance run --tag``."""
+    touches: list[str] = Field(default_factory=list)
+    """Repository globs (``**`` crosses folders) of the files whose change can change the agent's behaviour here;
+    ``acceptance run --affected`` (the global files every scenario depends on are in ``selection.GLOBAL_TOUCHES``)."""
+    requires: Requirements = Field(default_factory=Requirements)
     reps: int | None = Field(default=None, ge=1)
     expected: str = ""
     sim: SimSelection = Field(default_factory=SimSelection)
@@ -177,8 +226,15 @@ class Scenario(_Model):
             return self.reps
         return SAFETY_REPS if self.safety else FUNCTIONAL_REPS
 
+    @field_validator("touches")
+    @classmethod
+    def _touches(cls, value: list[str]) -> list[str]:
+        return [_relative(glob, "touches glob") for glob in value]
+
     @model_validator(mode="after")
     def _consistent(self) -> Scenario:
+        if len(self.tags) != len(set(self.tags)):
+            raise ValueError("tags must be unique")
         if self.safety and self.reps is not None and self.reps < SAFETY_REPS:
             raise ValueError(f"a safety scenario runs at least {SAFETY_REPS} reps (blueprint 8.2)")
         names = [seed.name for seed in self.seeds]
@@ -228,7 +284,8 @@ def _file_id(path: Path) -> str | None:
 
 def find_scenario(repo_root: Path, scenario: str) -> Path:
     """The file of scenario ``scenario``: a path, or an id looked up in the suite and probe directories (by the
-    file's ``id``; file name stems are tried first)."""
+    file's ``id``; file name stems are tried first). When several files carry the id (a scenario and its rewrite,
+    each pending while the other runs), the one whose requirements are met wins."""
     direct = Path(scenario)
     if direct.suffix in (".yaml", ".yml") and direct.is_file():
         return direct
@@ -236,7 +293,47 @@ def find_scenario(repo_root: Path, scenario: str) -> Path:
     for path in files:
         if path.stem == scenario or path.stem.split("-", 1)[0] == scenario:
             return path
-    for path in files:
-        if _file_id(path) == scenario:
-            return path
+    matches = [path for path in files if _file_id(path) == scenario]
+    if len(matches) > 1:
+        statuses = recipe_statuses(repo_root)
+        runnable = [p for p in matches if not missing_requirements(load_scenario(p), repo_root, statuses)]
+        matches = runnable or matches
+    if matches:
+        return matches[0]
     raise FileNotFoundError(f"no scenario {scenario!r} in {SUITE_DIR}/ or {PROBE_DIR}/")
+
+
+def recipe_statuses(repo_root: Path) -> dict[str, str]:
+    """Recipe id -> ``status`` of every recipe file under ``recipes/`` (unreadable files are left out; ``b1500 dev
+    recipe-check`` reports them)."""
+    statuses: dict[str, str] = {}
+    for path in sorted((repo_root / "recipes").rglob("*.yaml"), key=lambda p: p.as_posix()):
+        try:
+            data = load_yaml(path.read_bytes())
+        except Exception:  # noqa: BLE001, S112 - recipe-check reports broken recipe files
+            continue
+        if isinstance(data, dict) and isinstance(data.get("id"), str):
+            statuses[data["id"]] = str(data.get("status", ""))
+    return statuses
+
+
+def missing_requirements(scenario: Scenario, repo_root: Path, statuses: dict[str, str] | None = None) -> list[str]:
+    """Why ``scenario`` cannot run in ``repo_root`` yet (empty: it can): its simulator scenario, ``requires.recipes``
+    (present and runnable), ``requires.reserved`` (still ``not_implemented``), example pin maps and DUT profiles."""
+    known = recipe_statuses(repo_root) if statuses is None else statuses
+    need = scenario.requires
+    missing = []
+    if not (repo_root / "config" / "sim" / "scenarios" / f"{scenario.sim.scenario}.yaml").is_file():
+        missing.append(f"sim scenario {scenario.sim.scenario}")
+    for recipe in need.recipes:
+        if recipe not in known:
+            missing.append(f"recipe {recipe}")
+        elif known[recipe] == "not_implemented":
+            missing.append(f"recipe {recipe} (not_implemented)")
+    for recipe in need.reserved:
+        if known.get(recipe) != "not_implemented":
+            missing.append(f"reserved recipe {recipe} (now {known.get(recipe, 'absent')})")
+    for folder, names in (("pinmaps", need.pin_maps), ("duts", need.dut_profiles)):
+        missing += [f"{folder[:-1]} {name}" for name in names
+                    if not (repo_root / "config" / folder / f"{name}.example.yaml").is_file()]
+    return missing

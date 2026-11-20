@@ -15,10 +15,13 @@ Reads return the message text with the read termination and any trailing ``\\r``
 
 from __future__ import annotations
 
-from typing import ClassVar, NamedTuple, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, ClassVar, NamedTuple, Protocol, runtime_checkable
 
 from b1500_test_agent.errors import B1500Error
 from b1500_test_agent.models.common import Backend, ErrorCode
+
+if TYPE_CHECKING:
+    from b1500_test_agent.transport.wgfmu.api import WgfmuApi
 
 
 class TransportError(B1500Error):
@@ -109,11 +112,13 @@ class HostClock(Protocol):
 
 class Bus(NamedTuple):
     """The instrument links of one station (blueprint v2 2.4): ``flex`` carries FLEX text (VISA or simulator);
-    ``wgfmu`` is the WGFMU instrument-library session (``WgfmuApi``, WP10.1), ``None`` until then and whenever no
-    WGFMU library is available. ``make_bus`` builds it; the session opens and closes ``flex`` per transaction."""
+    ``wgfmu`` is the WGFMU instrument library (``transport.wgfmu.api.WgfmuApi``, audited by ``AuditingWgfmu``):
+    the simulated library on the simulator (WP10.1), ``None`` on visa until the DLL binding (WP10.2) and whenever no
+    WGFMU library is available. ``make_bus`` builds it; the session opens and closes ``flex`` per transaction, the
+    transaction's WGFMU phase opens and closes the library session (WP10.3)."""
 
     flex: Transport
-    wgfmu: object | None = None
+    wgfmu: WgfmuApi | None = None
 
 
 @runtime_checkable

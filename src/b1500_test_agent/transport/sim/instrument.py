@@ -40,6 +40,13 @@ HV-SPGU (WP9.1): an output-on SPGU channel joins every circuit evaluation at its
 running SPGU output drives the devices in virtual time whenever the clock advances (``units/spgu.py``).
 ``advance(seconds)`` is the host waiting without bus traffic (``SimTransport.wait``); ``receive_block(data)`` takes
 the binary block announced by ``ALW``/``ALS``.
+
+WGFMU (WP10.1): the instrument library ``transport/sim/wgfmu.py`` (``SimWgfmu``) attaches itself as
+``wgfmu_unit`` and shares the clock, the circuit and the persistent state. The circuit is a ``DrivenCircuit``: every
+evaluation (also the SMU's) sees the DUT terminals the WGFMU channels drive through their RSUs (from
+``state.wgfmu``, brought up to the clock first), and an RSU on its SMU path passes the SMU cabled to it
+(``SimScenario.rsu_smu``). ``unsafe_reasons()`` includes connected WGFMU channels, a running sequencer and an open
+library session.
 """
 
 from __future__ import annotations
@@ -51,7 +58,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from b1500_test_agent.models.measurement import CHANNEL_NUMBERS
 from b1500_test_agent.models.sim import SimFault
@@ -65,7 +72,7 @@ from b1500_test_agent.models.station import (
 )
 from b1500_test_agent.transport.base import BusLocked, TransportClosed, TransportError, TransportTimeout
 from b1500_test_agent.transport.sim import flex
-from b1500_test_agent.transport.sim.devices import Circuit, canonical_channel
+from b1500_test_agent.transport.sim.devices import canonical_channel
 from b1500_test_agent.transport.sim.faults import FaultEngine
 from b1500_test_agent.transport.sim.format import frame
 from b1500_test_agent.transport.sim.state import (
@@ -92,6 +99,11 @@ from b1500_test_agent.transport.sim.units.sampling import SamplingUnit
 from b1500_test_agent.transport.sim.units.smu import SmuUnit, force_source
 from b1500_test_agent.transport.sim.units.spgu import SpguUnit
 from b1500_test_agent.transport.sim.units.switch import SwitchUnit
+from b1500_test_agent.transport.sim.wgfmu_checks import static_drive
+from b1500_test_agent.transport.sim.wgfmu_engine import DrivenCircuit
+
+if TYPE_CHECKING:
+    from b1500_test_agent.transport.sim.wgfmu import SimWgfmu
 
 SCALED_TIME_FACTOR = SIM_SCALED_DEFAULT
 """Real seconds slept per virtual second with ``timing: scaled`` (no factor); ``scaled(f)`` sleeps ``f``."""
@@ -141,7 +153,9 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
     def __init__(self, scenario: SimScenario, *, faults: Iterable[SimFault] = ()) -> None:
         self.scenario = scenario
         self.faults = FaultEngine(faults)
-        self.circuit = Circuit(scenario)
+        self.wgfmu_unit: SimWgfmu | None = None
+        """The simulated WGFMU instrument library on this instrument (set by ``SimWgfmu``), if any."""
+        self.circuit = DrivenCircuit(scenario, self._wgfmu_drive)
         self.state = SimPersistentState(scenario=scenario.name, auto_calibration=scenario.auto_calibration)
         self.state.devices = self.circuit.export_state()
         self.interrupt_pending = False
@@ -508,6 +522,19 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         smu_currents = {node: value for node, value in currents.items() if isinstance(node, int)}
         return {**smu_currents, **{ch: 0.0 for ch in cut}}
 
+    def _wgfmu_drive(self) -> tuple[dict[int, float], dict[int, int]]:
+        """What the WGFMU channels drive through their RSUs now (``DrivenCircuit``)."""
+        if self.wgfmu_unit is not None:
+            return self.wgfmu_unit.drive()
+        if not self.state.wgfmu and not self.scenario.rsu_smu:
+            return {}, {}
+        return static_drive(self.state.wgfmu, self.scenario.rsu_smu)
+
+    def sync_wgfmu(self) -> None:
+        """Bring a running WGFMU sequencer up to the clock (before the state is saved or checked)."""
+        if self.wgfmu_unit is not None:
+            self.wgfmu_unit.drive()
+
     def _on_levels(self) -> dict[int, float]:
         """Programmed voltages of the switched-on SMUs that force voltage, plus the static levels at the DUT of the
         output-on HV-SPGU channels (WP9.1; no compliance: ``_icomp`` is infinite for them)."""
@@ -616,6 +643,7 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
 
     def unsafe_reasons(self) -> list[str]:
         """Why the instrument is not in the safe state (empty when safe)."""
+        self.sync_wgfmu()
         reasons = []
         for channel, state in sorted(self.state.channels.items()):
             if state.output_on:
@@ -632,6 +660,13 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
             reasons.append(f"{len(self._input_queue)} command(s) held in the input buffer")
         if self.spgu_output_active():
             reasons.append("SPGU output active (SPST? 1)")
+        for channel, wg in sorted(self.state.wgfmu.items()):
+            if wg.connected:
+                reasons.append(f"WGFMU channel {channel}: connected ({wg.mode} mode, {wg.voltage} V)")
+            if wg.running:
+                reasons.append(f"WGFMU channel {channel}: sequencer running")
+        if self.wgfmu_unit is not None and self.wgfmu_unit.session_open:
+            reasons.append("WGFMU library session open")
         return reasons
 
     def assert_safe(self) -> None:
@@ -655,6 +690,8 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         self._sync_devices()
         self._sync_channels()
         self._spgu_sync()  # an SPGU output another process started continues from now
+        if self.wgfmu_unit is not None:
+            self.wgfmu_unit.on_state_import()
 
 
 class SimTransport:
@@ -797,6 +834,7 @@ class SimTransport:
     def save_state(self) -> None:
         """Atomically write the persistent state to ``state_file`` (no-op without a file)."""
         if self.state_file is not None:
+            self.instrument.sync_wgfmu()
             save_state_file(self.state_file, self.instrument.state)  # read only: no copy needed
 
     def inject(self, fault: SimFault) -> None:

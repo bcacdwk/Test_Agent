@@ -96,6 +96,27 @@ class CmuPersistent(_Mutable):
     data: list[CmuCorrectionPoint] = Field(default_factory=list)
 
 
+class WgfmuChannelState(_Mutable):
+    """Hardware state of one WGFMU channel (blueprint v2 2.4, 4.1): what the instrument keeps between library
+    sessions, transactions and processes. ``mode``/``force_range``/``measure_mode``/``current_range``/
+    ``voltage_range``/``measure_enabled`` are the settings applied by ``update``, ``execute`` or a DC function (the
+    library holds pending ones per process); ``connected`` = enabled by ``connect`` (RSU on the WGFMU path unless the
+    mode is ``smu``); ``voltage`` = the output level when no sequencer runs (initial voltage after ``update``, the
+    last voltage after a run, the level at an ``abort``, the DC level); ``running`` = a sequencer was running when the
+    state was saved (another process sees it running until ``abort`` or ``initialize``). Power-on/``initialize``:
+    the defaults (SMU mode, disconnected, 0 V)."""
+
+    mode: Literal["dc", "fastiv", "pg", "smu"] = "smu"
+    force_range: Literal["auto", "3v", "5v", "-10v", "10v"] = "auto"
+    measure_mode: Literal["voltage", "current"] = "voltage"
+    current_range: Literal["1ua", "10ua", "100ua", "1ma", "10ma"] = "10ma"
+    voltage_range: Literal["5v", "10v"] = "10v"
+    measure_enabled: bool = True
+    connected: bool = False
+    voltage: float = 0.0
+    running: bool = False
+
+
 class SimPersistentState(_Mutable):
     """Contents of the state file. ``auto_calibration`` is the ``CM`` switch: instrument state that survives host
     sessions until ``*RST``/device clear (PG p379 (4-61)).
@@ -118,7 +139,11 @@ class SimPersistentState(_Mutable):
 
     WP9.1: an active SPGU output also keeps ``spgu_remaining_s`` (virtual seconds left when last synchronised;
     ``None`` = free run) and ``spgu_run`` (the number of the output, so a process tells its own run from one another
-    process started)."""
+    process started).
+
+    WGFMU (WP10.1): ``wgfmu`` = channel id (``201``) -> ``WgfmuChannelState`` (missing = power-on state), changed only
+    through the instrument library (``transport/sim/wgfmu.py``); ``*RST`` and a device clear leave it as it is
+    (conservative reading, TODO(verify) at bring-up L8). ``wgfmu_runs`` counts executed sequencer runs (noise seeds)."""
 
     version: int = STATE_VERSION
     scenario: str
@@ -138,6 +163,8 @@ class SimPersistentState(_Mutable):
     scuu_paths: dict[int, int] = Field(default_factory=dict)
     scuu_indicators: dict[int, bool] = Field(default_factory=dict)
     channels: dict[int, ChannelState] = Field(default_factory=dict)
+    wgfmu: dict[int, WgfmuChannelState] = Field(default_factory=dict)
+    wgfmu_runs: int = 0
     devices: dict[str, dict[str, float | int | bool | str]] = Field(default_factory=dict)
     measurement_count: int = 0
     next_seq: int = 0

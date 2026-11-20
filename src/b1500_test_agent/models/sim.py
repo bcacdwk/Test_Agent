@@ -418,10 +418,82 @@ class SpguLoadMismatch(StrictModel):
     load_ohm: float = Field(gt=0.0, le=1.0e12)
 
 
+LIBRARY_FUNCTIONS: tuple[str, ...] = (
+    "open_session", "close_session", "initialize", "clear", "set_timeout", "channel_ids", "set_operation_mode",
+    "set_force_voltage_range", "set_measure_mode", "set_measure_current_range", "set_measure_voltage_range",
+    "set_measure_enabled", "create_pattern", "add_vectors", "set_measure_event", "set_range_event", "add_sequence",
+    "update", "connect", "disconnect", "execute", "wait_until_completed", "abort", "status", "channel_status",
+    "measure_value_size", "measure_values", "dc_force_voltage", "dc_measure_value", "self_test", "self_calibration",
+    "errors",
+)  # fmt: skip
+"""The methods of the WGFMU instrument-library protocol (``transport.wgfmu.api.WgfmuApi``, blueprint v2 2.4) that
+the WGFMU faults can target (test: equal to the protocol's methods)."""
+
+LibraryFunction = Annotated[str, Field(pattern=r"^[a-z][a-z_]{1,39}$")]
+
+
+def _known_function(fn: str) -> str:
+    if fn not in LIBRARY_FUNCTIONS:
+        raise ValueError(f"fn {fn!r} is not a WGFMU library function ({', '.join(LIBRARY_FUNCTIONS)})")
+    return fn
+
+
+class WgfmuErrorFault(StrictModel):
+    """The ``nth`` call of library function ``fn`` (a ``WgfmuApi`` method such as ``execute``) fails with ``code``
+    and has no effect (blueprint v2 4.3): a library error (-15 .. -1) or a firmware error (3000-3999, e.g. 3001 RSU
+    not connected, 3050 memory overflow; the call returns the firmware-error code). One-shot."""
+
+    kind: Literal["wgfmu_error"] = "wgfmu_error"
+    fn: LibraryFunction
+    code: int
+    nth: int = Field(default=1, ge=1)
+
+    @model_validator(mode="after")
+    def _valid(self) -> WgfmuErrorFault:
+        _known_function(self.fn)
+        if not (-15 <= self.code <= -1 or 3000 <= self.code <= 3999):
+            raise ValueError(f"code {self.code} is neither a library error (-15..-1) nor a firmware error (3000-3999)")
+        return self
+
+
+class WgfmuHang(StrictModel):
+    """The ``nth`` call of library function ``fn`` never completes: it blocks for the session timeout
+    (``set_timeout``, default 100 s, virtual time) and then fails with a communication error; on ``execute`` or
+    ``wait_until_completed`` the sequencer also stays running until ``abort`` or ``initialize`` (blueprint v2 4.3).
+    One-shot."""
+
+    kind: Literal["wgfmu_hang"] = "wgfmu_hang"
+    fn: LibraryFunction
+    nth: int = Field(default=1, ge=1)
+
+    @model_validator(mode="after")
+    def _valid(self) -> WgfmuHang:
+        _known_function(self.fn)
+        return self
+
+
+class WgfmuDisconnectFails(StrictModel):
+    """Stuck RSU relay: ``disconnect`` of the listed WGFMU channels (null = all) fails with a firmware error and the
+    channel stays connected to the DUT, also through ``initialize`` (``count`` failing ``disconnect`` calls; null =
+    always), so the cleanup cannot verify the WGFMU part of the safe state (blueprint v2 4.3)."""
+
+    kind: Literal["wgfmu_disconnect_fails"] = "wgfmu_disconnect_fails"
+    channels: list[Channel] | None = None
+    count: int | None = Field(default=None, ge=1)
+
+
+class WgfmuDllMissing(StrictModel):
+    """The WGFMU instrument library cannot be loaded (blueprint v2 4.3): the simulated bus has no library session
+    (``Bus.wgfmu`` is ``None``); injected later, ``open_session`` fails with a library error."""
+
+    kind: Literal["wgfmu_dll_missing"] = "wgfmu_dll_missing"
+
+
 SimFault = Annotated[
     ComplianceAt | ErrxFault | TimeoutFault | GarbageData | InterlockOpen | Disconnect | Oscillation | IdnOverride
     | ModulesOverride | IgnoreDz | CleanupFailure | Slow | RunInterrupt | BusLockedFault | AbortIgnored
-    | BreakdownAt | CmuCorrectionLost | CmuOverload | SpguNoStop | SpguLoadMismatch,
+    | BreakdownAt | CmuCorrectionLost | CmuOverload | SpguNoStop | SpguLoadMismatch
+    | WgfmuErrorFault | WgfmuHang | WgfmuDisconnectFails | WgfmuDllMissing,
     Field(discriminator="kind"),
 ]
 """One simulator fault (blueprint 3, v2 4.3); the ``kind`` key selects the type."""
@@ -430,6 +502,7 @@ FAULT_KINDS: tuple[str, ...] = (
     "compliance_at", "errx", "timeout", "garbage_data", "interlock_open", "disconnect", "oscillation",
     "idn_override", "modules_override", "ignore_dz", "cleanup_failure", "slow", "run_interrupt", "bus_locked",
     "abort_ignored", "breakdown_at", "cmu_correction_lost", "cmu_overload", "spgu_no_stop", "spgu_load_mismatch",
+    "wgfmu_error", "wgfmu_hang", "wgfmu_disconnect_fails", "wgfmu_dll_missing",
 )  # fmt: skip
 """Every ``SimFault`` kind, in blueprint order (v1 kinds, then the v2 additions of blueprint 4.3)."""
 

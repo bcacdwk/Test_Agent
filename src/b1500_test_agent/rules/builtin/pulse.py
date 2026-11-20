@@ -350,7 +350,8 @@ def wgfmu_access(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     channels = live.wgfmu_channels
     if channels is None:
         if pre:
-            yield block("the WGFMU channel ids were not read (WGFMU_getChannelIds)", source=env.live("wgfmu_channels"),
+            yield block("the WGFMU channel ids were not read from the instrument library",
+                        source=env.live("wgfmu_channels"),
                         observed=None, limit="the bound channels")
         return
     available = {norm_channel(c) for c in channels}

@@ -31,3 +31,7 @@ faults:
   - {kind: cmu_overload, at_step: 4, condition: saturation}  # MFCMU step 4 reads D (or U; excess_current: error 320)
   - {kind: spgu_no_stop, spp_ignored: 1}              # the SPGU output ignores every stop but the 2nd SPP (null: all)
   - {kind: spgu_load_mismatch, channel: 101, load_ohm: 50.0}  # SPGU 101 drives 50 Ohm whatever SER says
+  - {kind: wgfmu_error, fn: execute, code: 3050, nth: 1}  # WGFMU library call fails (3001 RSU, 3050 memory, -1 ...)
+  - {kind: wgfmu_hang, fn: wait_until_completed, nth: 1}  # library call blocks for the session timeout; run hangs
+  - {kind: wgfmu_disconnect_fails, channels: [201], count: null}  # RSU relay stuck: channel stays connected
+  - {kind: wgfmu_dll_missing}                         # no WGFMU library: Bus.wgfmu is None on the simulator

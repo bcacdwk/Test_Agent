@@ -651,6 +651,20 @@ class SimScenario(StrictModel):
     timing: str = "instant"
     auto_calibration: bool = False
     scuu: list[Slot] = Field(default_factory=list)
+    rsu_smu: dict[Channel, Channel] = Field(default_factory=dict)
+    """WGFMU channel (``201``) -> the SMU whose Force is cabled to that channel's RSU "From SMU" input (WG p20 (1-8)):
+    while the RSU is not on the WGFMU path, a DUT terminal wired to the WGFMU channel sees that SMU (blueprint v2
+    4.2 "Switches", ATV-32). Empty: the RSU's SMU input is not cabled (the terminal floats)."""
+
+    @model_validator(mode="after")
+    def _rsu_inputs(self) -> SimScenario:
+        types = {s.slot: _check_model(s.model) for s in self.slots}
+        for wgfmu, smu in self.rsu_smu.items():
+            if wgfmu <= 10 or types.get(channel_slot(wgfmu)) != "WGFMU":
+                raise ValueError(f"rsu_smu: {wgfmu} is not a WGFMU channel (201, 202 ...) of the mainframe.")
+            if types.get(channel_slot(smu)) not in SMU_TYPES:
+                raise ValueError(f"rsu_smu: {wgfmu} -> {smu} is not an SMU channel of the mainframe.")
+        return self
 
     @field_validator("timing")
     @classmethod

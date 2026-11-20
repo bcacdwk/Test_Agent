@@ -1,0 +1,186 @@
+# WGFMU programming examples 1-11 of the B1530A User's Guide, Edition 8 (WG), chapter 3, as fixtures for the
+# simulated instrument library (WP10.1, blueprint v2 8.1 "SimWgfmu vs WG Examples 1-11 shapes").
+# `params` are the values of the example code (seconds, volts, channel ids as printed); `expect` are the shapes the
+# example's program produces, derived from the code and the function reference (event counts, data sizes, timings,
+# errors). tests/sim/wgfmu_examples.py replays each example through the WgfmuApi protocol (Python names instead of
+# the C functions; C constants as the protocol's literals); tests/sim/test_sim_wgfmu_examples.py checks `expect`.
+# The DUT and mainframe of each replay are test choices (the manual's examples name only channels): WGFMU in slot 1
+# (channels 101/102) and an HRSMU in slot 2 (FLEX channel 201) as in Examples 10 and 11.
+
+mainframe:
+  - {slot: 1, model: B1530A}
+  - {slot: 2, model: B1517A}
+
+examples:
+  ex01:
+    title: Pulse voltage output
+    source: WG p52-53 (3-12, 3-13)
+    params:
+      channel: 101
+      pattern: pulse
+      vectors: [[1.0e-4, 1.0], [4.0e-4, 1.0], [1.0e-4, 0.0], [4.0e-4, 0.0]]   # 0.1 ms rise, 0.4 ms hold, ...
+      count: 10
+    expect:
+      total_time_s: 0.01                    # 10 x 1 ms, no delay between repeats (WG p80 (4-10))
+      values: 0                             # no measurement event
+      levels:                               # output at run times (s): ramp, plateau, fall, base, 10th pulse
+        - [5.0e-5, 0.5]
+        - [3.0e-4, 1.0]
+        - [5.5e-4, 0.5]
+        - [8.0e-4, 0.0]
+        - [9.3e-3, 1.0]
+      final_level: 0.0
+
+  ex02:
+    title: Pulse voltage output and sampling measurement
+    source: WG p54 (3-14)
+    params:
+      event: {name: evt, t: 0.0, points: 100, interval: 1.0e-5, average: 0.0, raw: false}
+    expect:
+      values: 1000                          # 100 points x 10 repeats, averaged data
+      times_s: [[0, 0.0], [1, 1.0e-5], [99, 9.9e-4], [100, 1.0e-3], [999, 9.99e-3]]
+      voltages: [[0, 0.0], [5, 0.5], [10, 1.0], [55, 0.5], [99, 0.0]]   # voltage measurement of the output
+
+  ex03:
+    title: Sampling with checkError (error handling)
+    source: WG p55 (3-15)
+    params:
+      events:                               # line 11 then line 12: same name, overlapping window
+        - {name: evt, t: 0.0, points: 1000, interval: 1.0e-6, average: 0.0, raw: false}
+        - {name: evt, t: 0.0, points: 100, interval: 1.0e-5, average: 0.0, raw: false}
+      bad_mode: current                     # line 18: a measurement-mode constant passed as operation mode
+    expect:
+      overwrite_warning: severe             # "Line 12 causes an overwrite warning" (WG p138 (4-68) Table 4-4)
+      error_code: -1                        # WGFMU_PARAMETER_OUT_OF_RANGE_ERROR
+      error_text_contains: "-1 WGFMU_PARAMETER_OUT_OF_RANGE_ERROR"
+
+  ex04:
+    title: Treat warnings as errors
+    source: WG p56 (3-16)
+    params:
+      treat_level: severe
+    expect:
+      error_code: -8                        # the overwrite warning becomes an error (simulator: WGFMU_ERROR)
+      kept_event_points: 1000               # the failing call has no effect: line 11's event stays
+      values: 10000                         # 1000 points x 10 repeats
+
+  ex05:
+    title: Error summary after measurement
+    source: WG p57 (3-17)
+    expect:
+      summary_codes: [-1, -13]              # bad mode; then no sequencer ran for waitUntilCompleted
+      warnings: [severe, normal]            # event overwrite; execute without a Fast IV/PG channel
+
+  ex06:
+    title: Two channels, three sampling rates
+    source: WG p58-60 (3-18 to 3-20)
+    params:
+      points: 32768
+      intervals: [1.0e-4, 1.0e-5, 1.0e-6]
+      average: 1.0e-8
+      time0: 1.0e-6
+      v1: 0.5
+      v2: 1.0
+      events: ["10kHz", "100kHz", "1MHz"]
+      r_ohm: 1000.0                         # test DUT: resistor between channel 1 and channel 2
+    expect:
+      values: 98304                         # 3 x 32768 (WG extract: "98304 total points")
+      total_time_s: 3.63724903              # time3 = time0 + sum(interval x points) + 3 x averagingTime
+      event_first_times_s: [1.005e-6, 3.276801015, 3.604481025]   # time0..2 + average/2
+      current_a: 5.0e-4                     # (v2 - v1) / r_ohm into channel 2
+
+  ex07:
+    title: Polling channel status
+    source: WG p61 (3-21)
+    expect:
+      final_status: 10000                   # WGFMU_STATUS_COMPLETED
+      events: [3, 3]
+      values: [98304, 98304]
+
+  ex08:
+    title: Event-specific completion and partial read
+    source: WG p62 (3-22)
+    params: {pattern: v2, event: "100kHz", cycle: 0, loop: 0, count: 0}
+    expect:
+      completed: true
+      index: 32768
+      size: 32768
+      first_time_s: 3.276801015             # time1 + average/2
+
+  ex09:
+    title: Id-Vg measurement
+    source: WG p63-65 (3-23 to 3-25)
+    params:
+      polarity: -1
+      vg_rise: 1.0e-7
+      vg_step_length: 5.0e-7
+      vg_min: 2.0
+      vg_max: 3.0
+      vg_step: 0.01
+      vg_step_delay: 2.0e-7
+      gate: 101
+      vd_rise: 1.0e-7
+      vd_min: 0.0
+      vd_max: 10.0
+      vd_step: 2.0
+      drain: 102
+    expect:
+      vg_steps: 101
+      vd_steps: 6
+      gate_vectors: 202
+      drain_vectors: 12
+      values: 606                           # 6 Id events x 101 points
+      per_file: 101                         # writeResults3 per Vd
+      gate_total_s: 3.636e-4                # 6 x 101 x 600 ns
+      drain_total_s: 3.642e-4               # 6 x (100 ns + 60.6 us)
+      first_event_time_s: 3.5e-7            # vgRiseTime + vgStepDelay + average / 2
+      interval_s: 6.0e-7
+
+  ex10:
+    title: WGFMU pulse with SMU DC bias
+    source: WG p66-67 (3-26, 3-27)
+    params:
+      flex_before: ["CN 201", "DV 201,0,3"]
+      flex_after: ["CL 201"]
+      event: {name: evt, t: 0.0, points: 1000, interval: 1.0e-6, average: 0.0, raw: false}
+      smu_v: 3.0
+      r_ohm: 1.0e+5                         # test DUT: resistor between WGFMU 101 and SMU 201; at most 30 uA,
+                                            # below the SMU's default 100 uA compliance (DV without Icomp)
+    expect:
+      values: 10000
+
+  ex11:
+    title: SMU sampling plus WGFMU measurement
+    source: WG p68-69 (3-28, 3-29)
+    params:
+      timeout_s: 120
+      flex_reset: "*RST"
+      flex_enable: "CN 201"
+      flex_disable: "CL 201"
+    expect:
+      timeout_s: 120.0
+      values: 10000
+      errx: "0"
+
+  dc:
+    title: DC measurement (Table 3-19)
+    source: WG p70 (3-30)
+    params: {channel: 101, v: 1.5, r_ohm: 1.0e+4}
+    expect:
+      current_a: 1.5e-4
+
+  status_table_4_15:
+    title: Channel execution status example (Table 4-15)
+    source: WG p146 (4-76)
+    params:
+      sequences:                            # pattern length, count, events per pattern, points per event
+        - [1.0e-5, 3, 7, 5]
+        - [5.0e-5, 1, 6, 4]
+        - [2.0e-5, 2, 5, 3]
+    expect:
+      total_time_s: 1.201e-4                # 3 x 10 us + 50 ns + 1 x 50 us + 50 ns + 2 x 20 us
+      total_events: 37
+      total_points: 159
+      at_time_s: 1.001e-4                   # end of the first loop of sequence 2
+      completed_events: 32
+      completed_points: 144

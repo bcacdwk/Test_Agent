@@ -10,7 +10,9 @@ on ``read``, ``disconnect``, ``cleanup_failure``, ``bus_locked``, ``run_interrup
 visa-loop test resource, which puts the real ``VisaTransport`` on the same instrument). ``run_interrupt`` is counted
 by the instrument (one ``XE`` = one measurement) and raised by the link at the read of that measurement. Other
 host-side faults (parser exception, ``EnvelopeViolation``) are injected by monkeypatching in the tests, not here.
-``breakdown_at`` (WP7.4) is consulted by the sampling engine (``units/sampling.py``) at every sampled point.
+``breakdown_at`` (WP7.4) is consulted by the sampling engine (``units/sampling.py``) at every sampled point. The
+WGFMU faults (``wgfmu_error``, ``wgfmu_hang``, ``wgfmu_disconnect_fails``, ``wgfmu_dll_missing``; WP10.1) are
+consulted by the simulated instrument library ``SimWgfmu`` (one count per library call).
 """
 
 from __future__ import annotations
@@ -40,6 +42,10 @@ from b1500_test_agent.models.sim import (
     SpguLoadMismatch,
     SpguNoStop,
     TimeoutFault,
+    WgfmuDisconnectFails,
+    WgfmuDllMissing,
+    WgfmuErrorFault,
+    WgfmuHang,
 )
 from b1500_test_agent.models.station import SimSlot
 
@@ -297,3 +303,46 @@ class FaultEngine:
             if fault.count is not None and item.count >= fault.nth + fault.count - 1:
                 item.spent = True
         return refused
+
+    # -- WGFMU instrument library -------------------------------------------------------------------------------------
+
+    def wgfmu_call(self, fn: str) -> tuple[int | None, bool]:
+        """Count one call of library function ``fn``: ``(error code, hangs)`` (``wgfmu_error``, ``wgfmu_hang``;
+        both one-shot on their ``nth`` call)."""
+        code = None
+        for item in self._of(WgfmuErrorFault):
+            fault = item.fault
+            assert isinstance(fault, WgfmuErrorFault)
+            if fault.fn == fn:
+                item.count += 1
+                if item.count == fault.nth:
+                    item.spent = True
+                    code = fault.code if code is None else code
+        hangs = self._nth([a for a in self._of(WgfmuHang) if a.fault.fn == fn])  # type: ignore[union-attr]
+        return code, hangs
+
+    def _relay_faults(self, channel: int) -> list[_Active]:
+        return [a for a in self._of(WgfmuDisconnectFails)
+                if a.fault.channels is None or channel in a.fault.channels]  # type: ignore[union-attr]
+
+    def wgfmu_disconnect_fails(self, channel: int) -> bool:
+        """Count one ``disconnect`` of WGFMU ``channel``; True if its RSU relay stays closed
+        (``wgfmu_disconnect_fails``: ``count`` failing calls, null = always)."""
+        failed = False
+        for item in self._relay_faults(channel):
+            fault = item.fault
+            assert isinstance(fault, WgfmuDisconnectFails)
+            item.count += 1
+            failed = True
+            if fault.count is not None and item.count >= fault.count:
+                item.spent = True
+        return failed
+
+    def wgfmu_relay_stuck(self, channel: int) -> bool:
+        """True while a ``wgfmu_disconnect_fails`` fault keeps the RSU relay of ``channel`` closed (also through
+        ``initialize``)."""
+        return bool(self._relay_faults(channel))
+
+    def wgfmu_dll_missing(self) -> bool:
+        """True while a ``wgfmu_dll_missing`` fault is active."""
+        return bool(self._of(WgfmuDllMissing))

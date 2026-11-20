@@ -38,6 +38,7 @@ from tests.integration.async_helpers import (
     run_dir,
     run_events,
     sim_state_safe,
+    stepped_long,
     timed_world,
     wait_for,
 )
@@ -130,11 +131,22 @@ def test_an_abort_file_written_by_another_process_cancels_the_run(world: World) 
 # -- busy contention ------------------------------------------------------------------------------------------------
 
 
+CONTENTION_BUDGET_S = 30.0
+"""Wall time the busy checks may take: three ``b1500`` processes and a second executor (on a loaded windows-latest
+runner a console-script start alone takes seconds)."""
+
+
 @needs_scripts
 def test_busy_contention_between_processes(world: World) -> None:
+    # The held run has to outlast the checks. ``IDVD_LONG`` (~11 s at scaled(0.02)) once completed on windows-latest
+    # between the CLI ``show`` (still running) and the second executor's attempt, which then ran ``ok``: a race of the
+    # test, not of the lock. 120 steps are ~64 s, twice the budget; ``stop_runs`` cancels them at the next checkpoint.
     timed_world(world, timing="scaled(0.02)")
     service = world.service(adapter="mcp")
-    started = service.run_plan(service.validate_plan(**IDVD_LONG).plan_id or "")
+    plan = service.validate_plan(**stepped_long(120))
+    assert plan.resolved is not None and plan.resolved.est_s * 0.02 > 2 * CONTENTION_BUDGET_S, plan.resolved
+    started = service.run_confirmed_plan(plan.plan_id or "", plan.summary or "")
+    assert started.outcome == "running", started.message
     run_id = started.run_id or ""
     wait_for(lambda: (p := progress_of(world, run_id)) is not None and p.done >= 1, timeout_s=30)
     t0 = time.monotonic()
@@ -148,9 +160,11 @@ def test_busy_contention_between_processes(world: World) -> None:
     assert code == 0 and shown["run"]["outcome"] == "running" and shown["progress"]["state"] == "running"
     other = world.service(lock_timeout_s=0.2)  # another executor on the same instrument (lock = another process)
     refused = other.run_plan(other.validate_plan(**idvd_long(vg_points=2)).plan_id or "")
+    still = [r.run_id for r in service.list_runs(status="running").runs]
+    assert still == [run_id], "the held run ended before the second executor tried (test race, not a lock result)"
     assert (refused.status, refused.error_code) == ("busy", "instrument_busy")
     assert f"busy: run {run_id}" in refused.message
-    assert time.monotonic() - t0 < 30
+    assert time.monotonic() - t0 < CONTENTION_BUDGET_S
     assert service.stop_runs("test end", wait_s=30)
     assert_async_invariant(world, run_id)
 

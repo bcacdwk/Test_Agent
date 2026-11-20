@@ -14,6 +14,7 @@ locking, unlocking, closing and reading pass through.
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass
 
 from b1500_test_agent.models.common import Backend
@@ -122,3 +123,14 @@ class ReadOnlyTransport:
 
     def device_clear(self) -> None:
         raise self._refuse("device clear (it re-initialises the instrument)")
+
+    def write_block(self, cmd: str, data: bytes) -> None:
+        raise self._refuse(f"binary block command {cmd.strip()[:40]!r}")
+
+    def wait(self, seconds: float) -> None:
+        """A host wait sends nothing; passed through (or a real sleep)."""
+        waiter = getattr(self.inner, "wait", None)
+        if callable(waiter):
+            waiter(seconds)
+        else:
+            time.sleep(seconds)

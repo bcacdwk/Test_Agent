@@ -3,7 +3,8 @@
 Schemas live in ``models/sim.py`` (``SimFault``, ``SimFaultProfile``). Faults come from the scenario's fault
 profile or from ``SimInstrument.inject()``; counters start when a fault becomes active. Instrument-side faults
 (``compliance_at``, ``errx``, ``timeout`` on ``XE``/queries, ``garbage_data``, ``interlock_open``, ``oscillation``,
-overrides, ``ignore_dz``, ``slow``, ``abort_ignored``, ``cmu_correction_lost``, ``cmu_overload``) are consulted by
+overrides, ``ignore_dz``, ``slow``, ``abort_ignored``, ``cmu_correction_lost``, ``cmu_overload``, ``spgu_no_stop``,
+``spgu_load_mismatch``) are consulted by
 ``SimInstrument``; link faults (``timeout``
 on ``read``, ``disconnect``, ``cleanup_failure``, ``bus_locked``, ``run_interrupt``) by ``SimTransport`` (and by the
 visa-loop test resource, which puts the real ``VisaTransport`` on the same instrument). ``run_interrupt`` is counted
@@ -36,9 +37,17 @@ from b1500_test_agent.models.sim import (
     RunInterrupt,
     SimFault,
     Slow,
+    SpguLoadMismatch,
+    SpguNoStop,
     TimeoutFault,
 )
 from b1500_test_agent.models.station import SimSlot
+
+
+def _canonical(channel: int) -> int:
+    """``101``..``1001`` -> ``1``..``10`` (PG Table 4-1); other numbers unchanged."""
+    return channel // 100 if channel > 10 and channel % 100 == 1 else channel
+
 
 GARBAGE_ELEMENT = "N?I+#.#####E-##"
 """Unparsable 15-character element written by ``garbage_data`` (same width as a real FMT 1/5 element)."""
@@ -211,6 +220,33 @@ class FaultEngine:
             assert isinstance(fault, CmuOverload)
             if fault.at_step == step:
                 return fault.condition
+        return None
+
+    def spgu_stuck(self) -> bool:
+        """True while a ``spgu_no_stop`` fault holds: the SPGU output ignores every stop condition but ``SPP``."""
+        return bool(self._of(SpguNoStop))
+
+    def spgu_spp_ignored(self) -> bool:
+        """Count one ``SPP``; True if it has no effect (``spgu_no_stop``: the first ``spp_ignored`` ones, or all). The
+        first ``SPP`` after those ends the fault."""
+        ignored = False
+        for item in self._of(SpguNoStop):
+            fault = item.fault
+            assert isinstance(fault, SpguNoStop)
+            item.count += 1
+            if fault.spp_ignored is not None and item.count > fault.spp_ignored:
+                item.spent = True
+            else:
+                ignored = True
+        return ignored
+
+    def spgu_load(self, channel: int) -> float | None:
+        """The load (Ohm) a ``spgu_load_mismatch`` fault puts on SPGU ``channel`` (canonical number), if any."""
+        for item in reversed(self._of(SpguLoadMismatch)):
+            fault = item.fault
+            assert isinstance(fault, SpguLoadMismatch)
+            if fault.channel is None or _canonical(fault.channel) == channel:
+                return fault.load_ohm
         return None
 
     def slow_factor(self) -> float:

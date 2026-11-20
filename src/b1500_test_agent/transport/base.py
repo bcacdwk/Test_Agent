@@ -87,6 +87,26 @@ class Transport(Protocol):
         ...
 
 
+@runtime_checkable
+class BlockWriter(Protocol):
+    """A link that sends a command header followed by a binary data block (the HV-SPGU ``ALW``/``ALS`` ALWG data,
+    blueprint v2 2.5): ``VisaTransport``, ``SimTransport`` and the wrappers that forward to them."""
+
+    def write_block(self, cmd: str, data: bytes) -> None:
+        """Send ``cmd`` (with the write termination), then ``data`` as raw bytes right after it."""
+        ...
+
+
+@runtime_checkable
+class HostClock(Protocol):
+    """A link that lets time pass on the host side without bus traffic (between status polls of an SPGU output, a
+    held bias): the simulator advances its virtual clock, the VISA link sleeps."""
+
+    def wait(self, seconds: float) -> None:
+        """Let ``seconds`` (>= 0) pass."""
+        ...
+
+
 class Bus(NamedTuple):
     """The instrument links of one station (blueprint v2 2.4): ``flex`` carries FLEX text (VISA or simulator);
     ``wgfmu`` is the WGFMU instrument-library session (``WgfmuApi``, WP10.1), ``None`` until then and whenever no

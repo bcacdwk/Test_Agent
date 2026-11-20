@@ -58,7 +58,7 @@ def test_crash_leaves_marker_and_live_outputs_and_the_next_transaction_recovers(
     assert recovery.data is not None
     assert recovery.data["previous_tx"] == marker.tx and recovery.data["verified"] == "sim_state"
     recovery_steps = [e.data["step"] for e in events[: events.index(recovery)] if e.ev == "cleanup_step"]
-    assert recovery_steps == ["abort", "zero", "disconnect", "drain_errors", "verify"]
+    assert recovery_steps == ["abort", "spgu_stop", "zero", "disconnect", "drain_errors", "verify"]  # SPGU in slot 1
     exit_events = events[events.index(recovery) + 1:]
     assert_cleanup_order(exit_events)
     h.sim.instrument.assert_safe()

@@ -20,6 +20,7 @@ of events of a 4 h simulated run (WP6.5, blueprint v2 4.1: < 2 s wall).
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -30,7 +31,7 @@ from typing import Protocol, TextIO, TypeVar, runtime_checkable
 
 from b1500_test_agent.models.audit import AuditEvent, AuditEventName
 from b1500_test_agent.models.common import Backend
-from b1500_test_agent.transport.base import Transport
+from b1500_test_agent.transport.base import Transport, TransportError
 
 T = TypeVar("T")
 
@@ -248,3 +249,24 @@ class AuditingTransport:
 
     def device_clear(self) -> None:
         self._call("device_clear", None, self.inner.device_clear, lambda _: None)
+
+    def write_block(self, cmd: str, data: bytes) -> None:
+        """``cmd`` + binary block (``BlockWriter``), audited as one ``write`` whose command names the block size and
+        the first 16 hex digits of its sha256."""
+        text = f"{cmd} <block {len(data)} bytes sha256 {hashlib.sha256(data).hexdigest()[:16]}>"
+        self._call("write", text, lambda: _block_writer(self.inner, cmd)(cmd, data), lambda _: None)
+
+    def wait(self, seconds: float) -> None:
+        """Host wait (``HostClock``; not an I/O, not audited): forwarded, or a real sleep for links without one."""
+        waiter = getattr(self.inner, "wait", None)
+        if callable(waiter):
+            waiter(seconds)
+        else:
+            time.sleep(seconds)
+
+
+def _block_writer(inner: Transport, cmd: str) -> Callable[[str, bytes], None]:
+    writer = getattr(inner, "write_block", None)
+    if not callable(writer):
+        raise TransportError(f"{cmd!r}: the link {type(inner).__name__} cannot send a binary data block")
+    return writer

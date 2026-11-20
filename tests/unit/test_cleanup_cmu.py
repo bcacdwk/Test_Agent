@@ -17,10 +17,18 @@ ENVELOPE = CompiledEnvelope(channels={CMU: ChannelEnvelope(
 LOP_CMU_ON = "LOP00,00,00,00,00,00,40,00,00,00"
 LOP_OFF = "LOP00,00,00,00,00,00,00,00,00,00"
 NO_ERROR = '0,"No Error."'
+UNT_LAB = ";".join(["B1525A,0", "B1530A,0", "B1517A,0", "B1517A,0", "B1511B,0", "B1511B,0", "B1520A,0"]
+                   + ["0,0"] * 3)
+"""The lab mainframe (SPGU 1, MFCMU 7): the cleanup reads ``UNT?`` once and runs its SPGU step too (WP9.1)."""
 
 
 class HwSpy(SpyTransport):
     backend = "visa"
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+        self._fixed.setdefault("UNT?", UNT_LAB)
+        self._fixed.setdefault("SPST?", "0")
 
 
 class Events:
@@ -43,9 +51,11 @@ def test_the_mfcmu_is_zeroed_before_dz() -> None:
     spy = HwSpy(answers={"LOP?": [LOP_CMU_ON, LOP_OFF], "ERRX?": NO_ERROR})
     events = Events()
     report = run_cleanup(driven(spy), always_abort=False, emit=events).report
-    assert spy.sent == ["LOP?", "DCV 7,0", "ACV 7,0", "DZ", "CL", "ERRX?", "LOP?"]
+    # v2 order: SPGU stop (step 2), then the MFCMU DC/AC 0 and DZ (step 4), CL, drain, verify LOP? + SPST?
+    assert spy.sent == ["UNT?", "SPST?", "LOP?", "DCV 7,0", "ACV 7,0", "DZ", "CL", "ERRX?", "LOP?", "SPST?"]
     assert report.verified == "lop"
-    assert events.steps[0] == ("zero", True, "all channels; MFCMU 7 DC 0 V, AC 0 V")
+    assert events.steps[0][:2] == ("spgu_stop", True)
+    assert events.steps[1] == ("zero", True, "all channels; MFCMU 7 DC 0 V, AC 0 V")
 
 
 def test_a_failing_mfcmu_zero_still_sends_dz_and_retries() -> None:
@@ -53,9 +63,10 @@ def test_a_failing_mfcmu_zero_still_sends_dz_and_retries() -> None:
     spy = HwSpy(answers={"LOP?": lop, "ERRX?": NO_ERROR})
     events = Events()
     report = run_cleanup(driven(spy), always_abort=False, emit=events).report
-    assert spy.sent[:5] == ["LOP?", "DZ", "CL", "ERRX?", "LOP?"]  # attempt 1: the MFCMU part failed, DZ went out
-    assert spy.sent[5:] == ["LOP?", "DCV 7,0", "ACV 7,0", "DZ", "CL", "ERRX?", "LOP?"]  # attempt 2 repeats both
-    assert events.steps[0][:2] == ("zero", False) and "LOP? timed out" in events.steps[0][2]
+    # attempt 1: the MFCMU part failed, DZ went out; attempt 2 repeats the SPGU and MFCMU steps and DZ
+    assert spy.sent[:8] == ["UNT?", "SPST?", "LOP?", "DZ", "CL", "ERRX?", "LOP?", "SPST?"]
+    assert spy.sent[8:] == ["SPST?", "LOP?", "DCV 7,0", "ACV 7,0", "DZ", "CL", "ERRX?", "LOP?", "SPST?"]
+    assert events.steps[1][:2] == ("zero", False) and "LOP? timed out" in events.steps[1][2]
     assert ("device_clear", True) in [(s, ok) for s, ok, _ in events.steps]
     assert report.verified == "lop"
 
@@ -63,4 +74,4 @@ def test_a_failing_mfcmu_zero_still_sends_dz_and_retries() -> None:
 def test_without_an_mfcmu_the_cleanup_is_unchanged() -> None:
     spy = HwSpy(answers={"LOP?": LOP_OFF, "ERRX?": NO_ERROR})
     run_cleanup(B1500Driver(spy), always_abort=False, emit=Events())  # type: ignore[arg-type]
-    assert spy.sent == ["DZ", "CL", "ERRX?", "LOP?"]
+    assert spy.sent == ["UNT?", "SPST?", "DZ", "CL", "ERRX?", "LOP?", "SPST?"]  # no MFCMU step, the SPGU one

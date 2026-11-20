@@ -4,11 +4,13 @@ One module per instrument family: ``core`` (system queries, output switches, ``F
 ``XE``/``AB``/``*RST``), ``smu`` (``CMM``, ``AAD``/``AIT``, ``RI``/``RV``, ``WV``/``WI``/``WSV``/``WSI``/``WNX``,
 ``WT``/``WM``, ``DV``/``DI``), ``cmu`` (the MFCMU: ``IMP``, ``FC``, ``ACV``, ``DCV``, ``RC``, ``ACT``, ``LMN``, the
 MM 18-26 sources, ``ADJ``/``ADJ?`` and the data correction ``CORRL``/``CLCORR``/``CORR?``/``DCORR``/``CORRDT``/
-``CORRST``/``CORRST?``), ``spgu`` (``SPST?``) and ``switch`` (``ERMOD?``, ``ERSSP?``; ASU ``SAP``, ``SAR``, ``SAL``;
-the SCUU's ``SSP``/``SSL``); the SPGU and selector work packages (M9) add their setting commands to the same
-modules. This package re-exports every public builder and constant, so callers import the package
-(``from b1500_test_agent.driver import flex``) and write ``flex.dv(...)``. Builders are pure (syntax and domain
-checks only, never policy) and return one command per string.
+``CORRST``/``CORRST?``), ``spgu`` (the HV-SPGU: ``SIM``, ``SPM``, ``SPT``, ``SPV``, ``SPPER``, ``SPRM``, ``SER``,
+``SPUPD``, ``SRP``, ``SPP``, ``SPST?``, ``ODSW``, ``STGP``, ``CORRSER?``, ``ALW``, ``ALS``; WP9.1) and ``switch``
+(``ERMOD?``, ``ERSSP?``; ASU ``SAP``, ``SAR``, ``SAL``; the SCUU's ``SSP``/``SSL``); the selector work package (M9)
+adds its setting commands to the same module. This package re-exports every public builder and constant, so callers
+import the package (``from b1500_test_agent.driver import flex``) and write ``flex.dv(...)``. Builders are pure
+(syntax and domain checks only, never policy) and return one command per string; ``alw``/``als`` return the command
+header and the binary block that follows it.
 WP7.4: ``core`` also builds the time stamps ``TSC``/``TSR``; ``sampling`` holds the SMU sampling (``MM 10``) setup
 ``MCC``, ``ML``, ``MT``, ``MSC``, ``MV``, ``MI``.
 """
@@ -145,8 +147,37 @@ from b1500_test_agent.driver.flex.smu import (
     wv,
 )
 from b1500_test_agent.driver.flex.spgu import (
+    ALWG_DT_NS,
+    ALWG_MAX_PATTERNS,
+    ALWG_MAX_REPEAT,
+    ALWG_MAX_VECTORS,
+    CORRSER_MEASURE_ONLY,
+    SER_LOAD_OHM,
+    SIM_ALWG,
+    SIM_PG,
+    SPGU_LEVEL_V,
+    SPM_MODES,
+    SPP,
+    SPRM_COUNT,
+    SPRM_DURATION,
+    SPRM_DURATION_S,
+    SPRM_MAX_COUNT,
     SPST_Q,
     SPST_STATES,
+    SRP,
+    als,
+    alw,
+    corrser_q,
+    odsw,
+    ser,
+    sim,
+    spm,
+    spper,
+    sprm,
+    spt,
+    spupd,
+    spv,
+    stgp,
 )
 from b1500_test_agent.driver.flex.switch import (
     ASU_PATH_CODES,
@@ -181,6 +212,10 @@ __all__ = [
     "ADJ_MODES",
     "ADJ_READ_LAST",
     "ADJ_RESULTS",
+    "ALWG_DT_NS",
+    "ALWG_MAX_PATTERNS",
+    "ALWG_MAX_REPEAT",
+    "ALWG_MAX_VECTORS",
     "ASU_PATHS",
     "ASU_PATH_CODES",
     "CAL_Q",
@@ -191,6 +226,7 @@ __all__ = [
     "CMU_MAX_DC_V",
     "CMU_MAX_STEPS",
     "CORRECTION_CODES",
+    "CORRSER_MEASURE_ONLY",
     "CORR_RESULTS",
     "DCORR_MODES",
     "ERMOD_MAX",
@@ -244,9 +280,20 @@ __all__ = [
     "SAR_ENABLE_1PA",
     "SAR_RESPONSE",
     "SCUU_SMU_SLOT_OFFSETS",
+    "SER_LOAD_OHM",
     "SER_SETTING",
+    "SIM_ALWG",
+    "SIM_PG",
+    "SPGU_LEVEL_V",
+    "SPM_MODES",
+    "SPP",
+    "SPRM_COUNT",
+    "SPRM_DURATION",
+    "SPRM_DURATION_S",
+    "SPRM_MAX_COUNT",
     "SPST_Q",
     "SPST_STATES",
+    "SRP",
     "SSP_PATHS",
     "STB_Q",
     "SWEEP_MODES",
@@ -261,6 +308,8 @@ __all__ = [
     "adj",
     "adj_q",
     "ait",
+    "als",
+    "alw",
     "cl",
     "clcorr",
     "cm",
@@ -269,6 +318,7 @@ __all__ = [
     "corr_q",
     "corrdt",
     "corrl",
+    "corrser_q",
     "corrst",
     "corrst_q",
     "dcorr",
@@ -291,6 +341,7 @@ __all__ = [
     "mt",
     "mtdcv",
     "mv",
+    "odsw",
     "pdcv",
     "ptdcv",
     "pwdcv",
@@ -300,8 +351,17 @@ __all__ = [
     "sal",
     "sap",
     "sar",
+    "ser",
+    "sim",
+    "spm",
+    "spper",
+    "sprm",
+    "spt",
+    "spupd",
+    "spv",
     "ssl",
     "ssp",
+    "stgp",
     "tsc",
     "tsr",
     "wacv",

@@ -396,10 +396,32 @@ class CmuOverload(StrictModel):
     condition: Literal["saturation", "unbalance", "excess_current"] = "saturation"
 
 
+class SpguNoStop(StrictModel):
+    """The HV-SPGU output does not stop (blueprint v2 4.3): ``SPST?`` keeps answering 1 through the end of its count or
+    duration, a closed output switch, ``SIM``/``SPRM``/``SPUPD``/``SRP``/``CORRSER?``, ``*RST`` and a device clear,
+    and the first ``spp_ignored`` ``SPP`` commands are ignored too (null = every one: the output never stops). The
+    ``SPP`` after those stops it and ends the fault, so a cleanup whose ``SPP`` retry is honoured verifies, and one
+    that never gets there latches the fault (``cleanup_unverified``)."""
+
+    kind: Literal["spgu_no_stop"] = "spgu_no_stop"
+    spp_ignored: int | None = Field(default=None, ge=1)
+
+
+class SpguLoadMismatch(StrictModel):
+    """The HV-SPGU channel ``channel`` (null = every SPGU channel) drives a load of ``load_ohm`` (to ground) instead of
+    the scenario's wiring (blueprint v2 4.3): the level reaching it is the open-load level ``|V| (SER + 50) / SER``
+    divided by ``(load + 50) / load``, so a declared ``SER`` that differs from the real load delivers more or less
+    than the set level (never more than the open-load level the guard checks); ``CORRSER?`` reads ``load_ohm``."""
+
+    kind: Literal["spgu_load_mismatch"] = "spgu_load_mismatch"
+    channel: Channel | None = None
+    load_ohm: float = Field(gt=0.0, le=1.0e12)
+
+
 SimFault = Annotated[
     ComplianceAt | ErrxFault | TimeoutFault | GarbageData | InterlockOpen | Disconnect | Oscillation | IdnOverride
     | ModulesOverride | IgnoreDz | CleanupFailure | Slow | RunInterrupt | BusLockedFault | AbortIgnored
-    | BreakdownAt | CmuCorrectionLost | CmuOverload,
+    | BreakdownAt | CmuCorrectionLost | CmuOverload | SpguNoStop | SpguLoadMismatch,
     Field(discriminator="kind"),
 ]
 """One simulator fault (blueprint 3, v2 4.3); the ``kind`` key selects the type."""
@@ -407,7 +429,7 @@ SimFault = Annotated[
 FAULT_KINDS: tuple[str, ...] = (
     "compliance_at", "errx", "timeout", "garbage_data", "interlock_open", "disconnect", "oscillation",
     "idn_override", "modules_override", "ignore_dz", "cleanup_failure", "slow", "run_interrupt", "bus_locked",
-    "abort_ignored", "breakdown_at", "cmu_correction_lost", "cmu_overload",
+    "abort_ignored", "breakdown_at", "cmu_correction_lost", "cmu_overload", "spgu_no_stop", "spgu_load_mismatch",
 )  # fmt: skip
 """Every ``SimFault`` kind, in blueprint order (v1 kinds, then the v2 additions of blueprint 4.3)."""
 

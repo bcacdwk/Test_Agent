@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MAP = ROOT / "references" / "driver-map" / "flex-driver-map.yaml"
 FAMILY_MODULES: tuple[ModuleType, ...] = (flex_core, flex_smu, flex_sampling, flex_cmu, flex_spgu, flex_switch)
 COMMAND_CONSTANTS = ("XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q",
-                     "ERMOD_Q", "SPST_Q")
+                     "ERMOD_Q", "SPST_Q", "SRP", "SPP")
 """Constants that are whole commands (each cites its manual page and has a driver-map entry)."""
 _PDF = re.compile(r"PDF (\d+)(?:-(\d+))?")
 
@@ -383,7 +383,9 @@ def test_family_modules_hold_disjoint_builders() -> None:
     assert {"corrst_q", "adj_q", "imp", "fc", "acv", "dcv", "rc", "act", "lmn", "wdcv", "wtdcv", "wmdcv", "wfc",
             "wtfc", "wmfc", "wacv", "wtacv", "wmacv", "pdcv", "ptdcv", "pwdcv", "mdcv", "mtdcv", "adj", "corrl",
             "clcorr", "corr_q", "dcorr", "corrdt", "corrst"} == set(_own_functions(flex_cmu))  # WP8.1
-    assert set() == set(_own_functions(flex_spgu)) and "SPST_Q" in _own_constants(flex_spgu)
+    assert {"sim", "spm", "spt", "spv", "spper", "sprm", "ser", "spupd", "odsw", "stgp", "corrser_q", "alw",
+            "als"} == set(_own_functions(flex_spgu))  # WP9.1
+    assert {"SPST_Q", "SRP", "SPP"} <= set(_own_constants(flex_spgu))
     assert {"erssp_q", "sap", "sar", "sal", "ssp", "ssl"} == set(_own_functions(flex_switch))
     assert {"ERMOD_Q", "ASU_PATHS", "LRN_ASU_PATH", "LRN_ASU_1PA", "SSP_PATHS", "LRN_SCUU_PATH"} <= set(
         _own_constants(flex_switch))

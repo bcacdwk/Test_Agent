@@ -72,7 +72,7 @@ def test_safe_shutdown_is_never_gated_and_clear_needs_a_verified_shutdown(tmp_pa
     h.sim.clear_faults()  # the stuck relay was repaired
     good = h.session.safe_shutdown(reason="operator")
     assert good.verified == "sim_state" and not good.latched_fault and not good.errors
-    assert [s.step for s in good.steps] == ["abort", "zero", "disconnect", "drain_errors", "verify"]
+    assert [s.step for s in good.steps] == ["abort", "spgu_stop", "zero", "disconnect", "drain_errors", "verify"]
     h.session.fault_latch.clear(by="owner", shutdown=good)
     assert h.session.fault_latch.get() is None
     cleared = next(e for e in h.daily.events if e.ev == "fault_cleared")

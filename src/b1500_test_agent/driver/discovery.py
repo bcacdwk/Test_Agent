@@ -30,6 +30,8 @@ Formats from the Keysight B1500 Series Programming Guide, Edition 15 ("PG"; PDF 
   disabled), one item per SMU with an ASU. The manual prints no example and does not say what a mainframe without an
   ASU answers; the parser takes an empty answer (or the bare mnemonic) as "no ASU". TODO(verify) raw captures at
   bring-up L1/L2 (ATV-28, ASU presence).
+- ``CORRSER? chnum,mode,delay,interval,count`` (PDF 386, printed 4-68): ``loadZ,voltage`` (the impedance calculated
+  from the measured terminal voltage, and that voltage). TODO(verify) the number format with a raw capture at L7.
 
 ATV-1 (``LOP?`` usable for cleanup verification) holds per the manual for SMU and MFCMU slots: after ``CL`` every
 slot must read ``00``. Table 4-26 has no SPGU/WGFMU codes and reports per slot, not per subchannel, so those modules
@@ -38,7 +40,9 @@ slot must read ``00``. Table 4-26 has no SPGU/WGFMU codes and reports per slot, 
 
 from __future__ import annotations
 
+import math
 import re
+from dataclasses import dataclass
 
 from b1500_test_agent.driver.errors import FlexParseError
 from b1500_test_agent.driver.flex import (
@@ -288,3 +292,28 @@ def parse_asu_1pa(text: str) -> dict[int, bool]:
     """
     items = _asu_items(text, SAR_RESPONSE, LRN_ASU_1PA, {SAR_ENABLE_1PA, SAR_DISABLE_1PA})
     return {ch: mode == SAR_ENABLE_1PA for ch, mode in items.items()}
+
+
+@dataclass(frozen=True)
+class LoadMeasurement:
+    """``CORRSER?`` answer: the load impedance the SPGU calculated (Ohm) and the terminal voltage it measured (V)."""
+
+    load_ohm: float
+    voltage_v: float
+
+
+def parse_corrser(text: str) -> LoadMeasurement:
+    """``CORRSER? ...`` -> ``LoadMeasurement`` from ``loadZ,voltage`` (PG PDF 386).
+
+    Raises:
+        FlexParseError: If the answer is not two finite numbers with a positive impedance.
+    """
+    parts = [part.strip() for part in text.strip().split(",")]
+    try:
+        load, voltage = (float(part) for part in parts) if len(parts) == 2 else (math.nan, math.nan)
+    except ValueError:
+        load = voltage = math.nan
+    if not (math.isfinite(load) and math.isfinite(voltage) and load > 0):
+        raise FlexParseError(f"CORRSER? answer is not 'loadZ,voltage' with a positive impedance: {text!r}",
+                             raw=text)
+    return LoadMeasurement(load_ohm=load, voltage_v=voltage)

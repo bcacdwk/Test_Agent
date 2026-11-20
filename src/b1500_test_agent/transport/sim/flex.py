@@ -50,6 +50,38 @@ ERR_ADJ_NOT_MANUAL = 680
 ERR_CORR_STANDARD = 682
 ERR_CORR_AC_ZERO = 684
 ERR_CORR_INCOMPLETE = 685
+ERR_SPGU_MODULE = 2000
+ERR_SPGU_SOURCE = 2002
+ERR_SPGU_NOT_PG = 2003
+ERR_SPGU_NOT_ALWG = 2004
+ERR_SPGU_LOAD = 2101
+ERR_SPGU_PERIOD = 2103
+ERR_SPGU_COUNT = 2104
+ERR_SPGU_LEVEL = 2105
+ERR_SPGU_SUM = 2106
+ERR_SPGU_AMPLITUDE = 2107
+ERR_SPGU_TRANSITION = 2108
+ERR_SPGU_LEADING = 2111
+ERR_SPGU_PERIOD_FIT = 2112
+ERR_SPGU_DELAY = 2113
+ERR_SPGU_WIDTH = 2114
+ERR_SPGU_DURATION = 2115
+ERR_SPGU_SWITCH_FIT = 2121
+ERR_SPGU_SWITCH_DELAY = 2122
+ERR_SPGU_SWITCH_WIDTH = 2123
+ERR_SPGU_ADC_FIT = 2131
+ERR_SPGU_ADC_DELAY = 2132
+ERR_SPGU_ADC_INTERVAL = 2133
+ERR_SPGU_ADC_COUNT = 2134
+ERR_ALWG_NO_SEQUENCE = 2151
+ERR_ALWG_SEQUENCE_SIZE = 2152
+ERR_ALWG_INDEX = 2153
+ERR_ALWG_REPEAT = 2154
+ERR_ALWG_NO_PATTERN = 2155
+ERR_ALWG_PATTERN_SIZE = 2156
+ERR_ALWG_TIME = 2157
+ERR_ALWG_LEVEL = 2158
+ERR_SPGU_LOW_VOLTAGE = 2204
 
 ERROR_MESSAGES: dict[int, str] = {
     100: "Undefined GPIB command.",
@@ -90,9 +122,42 @@ ERROR_MESSAGES: dict[int, str] = {
     682: "Invalid standard is specified as CMU correction.",
     684: "AC Voltage is 0 mV.",
     685: "CMU correction is not complete.",
+    2000: "SPGU module does not exist.",
+    2002: "SPGU signal source does not exist.",
+    2003: "SPGU operation mode must be PG. (SIM 0).",
+    2004: "SPGU operation mode must be ALWG (SIM 1).",
+    2101: "Specified load impedance is out of absolute limits.",
+    2103: "Specified period is out of absolute limits.",
+    2104: "Specified trigger count is out of absolute limits.",
+    2105: "Specified load voltage is out of range.",
+    2106: "Specified load voltage of added amplitude is out of range.",
+    2107: "Specified voltage is out of absolute limits (can't achieve amplitude).",
+    2108: "Specified transition time is out of absolute limits.",
+    2111: "Leading/0.8 must be within Width value.",
+    2112: "Delay + Width + Trail/0.8 must be within Period value.",
+    2113: "Specified pulse delay is out of absolute limits.",
+    2114: "Specified pulse width is out of absolute limits.",
+    2115: "Specified duration is out of absolute limits.",
+    2121: "Delay + Width must be within Period value (ODSW Timing).",
+    2122: "Specified ODSW delay timing parameter out of absolute limits.",
+    2123: "Specified ODSW width timing parameter out of absolute limits.",
+    2131: "Delay + Interval * N must be within Period value (ADC Timing).",
+    2132: "Specified delay for DUT impedance measurement out of absolute limits.",
+    2133: "Specified interval for DUT impedance measurement out of absolute limits.",
+    2134: "Specified count for DUT impedance measurement out of absolute limits.",
+    2151: "ALWG Sequence Data is not ready.",
+    2152: "Specified ALWG Sequence Data size is out of absolute limits.",
+    2153: "Specified pattern index of ALWG Sequence Data is out of absolute limits.",
+    2154: "Specified repeat count of ALWG Sequence Data is out of absolute limits.",
+    2155: "ALWG Pattern Data is not ready.",
+    2156: "Specified ALWG Pattern Data size is out of absolute limits.",
+    2157: "Specified interval time of ALWG Pattern is out of absolute limits.",
+    2158: "Specified output voltage of ALWG Pattern Data is out of absolute limits.",
+    2204: "Load voltage is too small for DUT impedance measurement.",
 }
 """``ERRX?`` messages for the codes the simulator raises (PG PDF 575-587; 305 from the ``ERRX?`` example, PDF 432;
-the MFCMU and SCUU codes 280-290, 320-323 and 671-685 from PDF 582-583 and 586-587)."""
+the MFCMU and SCUU codes 280-290, 320-323 and 671-685 from PDF 582-583 and 586-587; the SPGU operation errors
+2000-2204 from PDF 590-593)."""
 
 
 def error_message(code: int) -> str:
@@ -110,7 +175,7 @@ ERROR_QUEUE_SIZE = 30
 
 QUERIES = frozenset({
     "*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "LOP?", "*TST?", "*CAL?", "NUB?", "*LRN?",
-    "ERMOD?", "ERSSP?", "SPST?", "CORRST?", "ADJ?", "CORR?",
+    "ERMOD?", "ERSSP?", "SPST?", "CORRST?", "ADJ?", "CORR?", "CORRSER?",
 })  # fmt: skip
 """Commands that put a response into the query buffer."""
 
@@ -130,13 +195,14 @@ SUPPORTED = QUERIES | SAMPLING_COMMANDS | CMU_COMMANDS | frozenset({
     "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
     "SAP", "SAR", "SAL",
     "SSP", "SSL",
+    "SIM", "SPM", "SPT", "SPV", "SPPER", "SPRM", "SER", "SPUPD", "SRP", "SPP", "ODSW", "STGP", "ALW", "ALS",
 })  # fmt: skip
 """Every mnemonic the simulator executes (the v1 subset plus ``CM`` and ``*LRN?`` types 0 and 31, v2 2.6, the family
 state queries of the bring-up probe, v2 7.1: ``ERMOD?``, ``ERSSP?``, ``SPST?``, ``CORRST?``, ``ADJ?`` mode 0, the
 sampling commands of WP7.4 and the v2 sweep sources of WP7.2: ``DI``, ``WI``, ``WSV``/``WSI``, ``WNX``/``WNCC`` with
-``MM 16``), the ASU commands of WP7.1 (``SAP``, ``SAR``, ``SAL`` with ``*LRN?`` types 62 and 63) and the MFCMU and
-SCUU commands of WP8.1 with ``MM`` 17-26 and ``*LRN?`` types 70-73, 80, 81, 90; anything else is error 100 and
-logged ``unsupported``."""
+``MM 16``), the ASU commands of WP7.1 (``SAP``, ``SAR``, ``SAL`` with ``*LRN?`` types 62 and 63), the MFCMU and
+SCUU commands of WP8.1 with ``MM`` 17-26 and ``*LRN?`` types 70-73, 80, 81, 90, and the HV-SPGU commands of WP9.1;
+anything else is error 100 and logged ``unsupported``."""
 
 ALONE_ONLY = frozenset({"AB", "*RST", "FMT", "BC"})
 """Mnemonics that must be sent alone: the simulator rejects the whole line (error 103) otherwise (PDF 44, 364,

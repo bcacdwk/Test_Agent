@@ -50,7 +50,7 @@ PRIORITY_SCALE = {
     "(CM and *LRN? by WP5.6, the read-only probe queries ERMOD?, ERSSP?, SPST?, CORRST?, ADJ? by WP6.1, the SMU "
     "sampling MM 10 with MCC, ML, MT, MSC, MV, MI and the time stamps TSC/TSR by WP7.4, the sweep sources DI, WI, "
     "WSV, WSI, WNX and MM 16 by WP7.2, MM 1 spot and the ASU commands SAP, SAR, SAL by WP7.1, the MFCMU commands, "
-    "MM 17-26 and the SCUU's SSP/SSL by WP8.1)",
+    "MM 17-26 and the SCUU's SSP/SSL by WP8.1, the HV-SPGU PG/ALWG commands by WP9.1)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
     "simulator's FLEX subset v1 (AV, BC, NUB?, TSC)",
     "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
@@ -70,6 +70,7 @@ DRIVER_METHODS = (
     "cv_sweep", "cf_sweep", "ac_level_sweep", "pulsed_spot_c", "pulsed_cv_sweep", "ct_sampling",
     "set_phase_compensation_mode", "set_correction_frequencies", "measure_correction", "set_correction_standard",
     "set_correction_data", "set_correction", "scuu_route", "set_scuu_indicator",
+    "configure_spgu", "apply_pulse_setup", "start_pulses", "stop_pulses", "measure_pulse_load",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
@@ -78,7 +79,9 @@ COMMAND_BUILDERS = (
     "imp", "fc", "acv", "dcv", "rc", "act", "lmn", "wdcv", "wtdcv", "wmdcv", "wfc", "wtfc", "wmfc", "wacv", "wtacv",
     "wmacv", "pdcv", "ptdcv", "pwdcv", "mdcv", "mtdcv", "adj", "corrl", "clcorr", "corr_q", "dcorr", "corrdt",
     "corrst", "ssp", "ssl",
+    "sim", "spm", "spt", "spv", "spper", "sprm", "ser", "spupd", "odsw", "stgp", "corrser_q", "alw", "als",
     "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q", "ERMOD_Q", "SPST_Q",
+    "SRP", "SPP",
 )  # fmt: skip
 DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
 
@@ -148,8 +151,24 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "ERMOD?": CommandTarget("selector_control_mode", "ERMOD_Q", "read-only probe (WP6.1); ERMOD itself: WP9.2"),
     "ERSSP?": CommandTarget("selector_state", "erssp_q", "read-only probe per declared selector port, only with "
                             "the 16440A control mode on (WP6.1); ERSSP itself: WP9.2"),
-    "SPST?": CommandTarget("pulse_output_active", "SPST_Q", "read-only probe (WP6.1); SPGU cleanup verification: "
-                           "WP9.1"),
+    "SPST?": CommandTarget("pulse_output_active", "SPST_Q", "read-only probe (WP6.1); cleanup step 2 (SPP when 1) "
+                           "and verification, SpguOps.wait_pulses_stopped polling (WP9.1)"),
+    "SIM": CommandTarget("configure_spgu", "sim", "HV-SPGU PG (0) or ALWG (1) mode, first write of every SPGU setup"),
+    "SPRM": CommandTarget("configure_spgu", "sprm", "count (1) or duration (2) only; free run (0) is never built"),
+    "SPPER": CommandTarget("configure_spgu", "spper", "PG mode"),
+    "SER": CommandTarget("configure_spgu", "ser", "per channel in every setup; set_pulse_load changes it through "
+                         "OutputGuard.check_pulse (the open-load level rises as SER falls)"),
+    "SPM": CommandTarget("configure_spgu", "spm", "two-level (1/2) or three-level (3) pulses; DC (0) is not used"),
+    "SPT": CommandTarget("configure_spgu", "spt", "per pulse source"),
+    "SPV": CommandTarget("configure_spgu", "spv", "per pulse source; OutputGuard.check_pulse on the open-load level"),
+    "ODSW": CommandTarget("configure_spgu", "odsw", "written in every setup (disabled unless the program enables it)"),
+    "STGP": CommandTarget("configure_spgu", "stgp", "written in every setup"),
+    "ALW": CommandTarget("configure_spgu", "alw", "ALWG pattern data block per channel (Table 2-4)"),
+    "ALS": CommandTarget("configure_spgu", "als", "ALWG sequence data block (Table 2-5)"),
+    "SPUPD": CommandTarget("apply_pulse_setup", "spupd", "only channels configured by this driver"),
+    "SRP": CommandTarget("start_pulses", "SRP", "re-checks every applied channel against the guard"),
+    "SPP": CommandTarget("stop_pulses", "SPP", "never gated; cleanup step 2"),
+    "CORRSER?": CommandTarget("measure_pulse_load", "corrser_q", "mode 0 only (the guard checks every SER change)"),
     "CORRST?": CommandTarget("correction_enabled", "corrst_q", "read-only probe per installed MFCMU (WP6.1); "
                              "R-CORR-01 pre-execute: M8"),
     "ADJ?": CommandTarget("phase_compensation_result", "adj_q", "mode 0 last result (WP6.1); mode 1 measures the "
@@ -224,6 +243,21 @@ GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "ERMOD?": ([420, 421], ["4-102 to 4-103"]),
     "ERSSP?": ([434], ["4-116"]),
     "SPST?": ([513, 514], ["4-195 to 4-196"]),
+    "SIM": ([508], ["4-190"]),
+    "SPRM": ([512, 513], ["4-194 to 4-195"]),
+    "SPPER": ([512], ["4-194"]),
+    "SER": ([507], ["4-189"]),
+    "SPM": ([510, 511], ["4-192 to 4-193"]),
+    "SPT": ([514, 515], ["4-196 to 4-197"]),
+    "SPV": ([516, 517], ["4-198 to 4-199"]),
+    "ODSW": ([478, 479], ["4-160 to 4-161"]),
+    "STGP": ([523, 524], ["4-205 to 4-206"]),
+    "ALW": ([361, 362], ["4-43 to 4-44"]),
+    "ALS": ([360, 361], ["4-42 to 4-43"]),
+    "SPUPD": ([515, 516], ["4-197 to 4-198"]),
+    "SRP": ([518], ["4-200"]),
+    "SPP": ([511], ["4-193"]),
+    "CORRSER?": ([385, 386], ["4-67 to 4-68"]),
     "CM": ([379], ["4-61"]),
     "AIT": ([356, 357, 358, 359], ["4-38 to 4-41"]),
     "CMM": ([380], ["4-62"]),

@@ -98,7 +98,8 @@ def test_v1_recipe_completes_on_backend_visa_with_cleanup_verified(case: dict[st
     bus, _, result = run_on_visa(world, case, chunk_size=case.get("chunk", CHUNK))
     assert bus.stats.max_chunks > 1  # multi-chunk data reads
     sent = [r.mnemonic for r in bus.instrument.command_log if r.outcome == "ok"]
-    assert sent[-3:] == ["CL", "ERRX?", "LOP?"] and "XE" in sent and "DZ" in sent
+    # v2 cleanup on the lab mainframe (SPGU in slot 1): SPST? (no SPP: inactive), DZ, CL, drain, LOP? + SPST? verify
+    assert sent[-6:] == ["SPST?", "DZ", "CL", "ERRX?", "LOP?", "SPST?"] and "XE" in sent and "SPP" not in sent
 
     # LOP? positive control: read after CN (outputs on at 0 V) and before any level or trigger
     cn = sent.index("CN")
@@ -141,7 +142,7 @@ def test_system_recipe_runs_confirmed_on_backend_visa(case: dict[str, Any], worl
     assert validation.summary is not None and "| visa |" in validation.summary and "no outputs" in validation.summary
     sent = [r.mnemonic for r in bus.instrument.command_log if r.outcome == "ok"]
     query = SYSTEM_QUERIES[recipe_id]
-    assert sent.count(query) == 1 and sent[-3:] == ["CL", "ERRX?", "LOP?"]
+    assert sent.count(query) == 1 and sent[-4:] == ["CL", "ERRX?", "LOP?", "SPST?"]
     assert not {"CN", "DV", "WV", "XE", "*RST"} & set(sent)
     assert not [r for r in bus.instrument.command_log if r.source]
 

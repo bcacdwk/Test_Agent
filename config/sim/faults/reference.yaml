@@ -29,3 +29,5 @@ faults:
   - {kind: breakdown_at, t_s: 600.0, device: null}    # dielectrics break 600 s after the first sampled point (MM 10)
   - {kind: cmu_correction_lost, after_cmd: "UNT?", nth: 1}  # MFCMU loses corrections + phase compensation
   - {kind: cmu_overload, at_step: 4, condition: saturation}  # MFCMU step 4 reads D (or U; excess_current: error 320)
+  - {kind: spgu_no_stop, spp_ignored: 1}              # the SPGU output ignores every stop but the 2nd SPP (null: all)
+  - {kind: spgu_load_mismatch, channel: 101, load_ohm: 50.0}  # SPGU 101 drives 50 Ohm whatever SER says

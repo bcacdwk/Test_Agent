@@ -25,6 +25,10 @@ What the wire does here:
   VI_ERROR_TMO; I/O from a session without the lock while another session holds it -> VI_ERROR_RSRC_LOCKED; the
   simulated ``bus_locked`` fault refuses ``lock_excl`` requests the same way (one request per ``lock_excl``);
 - link faults: ``disconnect`` -> VI_ERROR_CONN_LOST for every later call (dropped writes logged);
+- binary blocks: ``write_raw(data)`` hands the bytes to the instrument as the data block of the ``ALW``/``ALS`` header
+  written before it (WP9.1);
+- host waits: ``LoopManager.host_wait(seconds)`` lets the simulator's virtual time pass (``VisaTransport.wait`` uses it
+  instead of sleeping, so polling an SPGU output runs at simulation speed);
 - shared instrument: the persistent state lives in ``<dir>/<resource>.state.json``; a session loads it when it opens
   or locks (if another process saved since) and saves it when it unlocks or closes (if this process changed it), so
   several processes share one instrument as they share the real one;
@@ -269,6 +273,14 @@ class LoopManager:
     def close(self) -> None:
         self.closed = True
 
+    def host_wait(self, seconds: float) -> None:
+        """The host waits ``seconds`` (``VisaTransport.wait``): virtual time passes on the bus's instrument."""
+        instrument = self.bus.instrument
+        start = instrument.clock
+        instrument.advance(seconds)
+        self.bus.touch()
+        self.bus.wait(start)
+
 
 class LoopResource:
     """One VISA session to the simulated instrument (see the module docstring for the modelled behaviour)."""
@@ -316,6 +328,13 @@ class LoopResource:
         self.bus.instrument.handle(line)
         faults.count_write()
         return len(wire)
+
+    def write_raw(self, message: bytes) -> int:
+        """The data block after an ``ALW``/``ALS`` header (no termination added)."""
+        self._enter(f"write_raw of {len(message)} bytes", "<block>")
+        self.bus.instrument.receive_block(bytes(message))
+        self.bus.instrument.faults.count_write()
+        return len(message)
 
     def read(self) -> str:
         self._enter("read")

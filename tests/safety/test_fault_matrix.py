@@ -243,7 +243,7 @@ def test_retry_path_is_audited_with_device_clear(tmp_path: Path) -> None:
         h.sim.inject(CleanupFailure(count=1))
     assert_global_invariant(h)
     steps = [(s.attempt, s.step, s.ok) for s in tx.cleanup.steps]  # type: ignore[union-attr]
-    assert steps[0] == (1, "zero", False)
+    assert steps[:2] == [(1, "spgu_stop", True), (1, "zero", False)]  # SPST? 0: no SPP (v2 cleanup step 2)
     assert (2, "device_clear", True) in steps
     assert steps[-1] == (2, "verify", True)
     assert any(r.mnemonic == "<device_clear>" for r in h.log)

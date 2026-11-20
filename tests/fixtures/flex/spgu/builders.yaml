@@ -1,0 +1,41 @@
+# Golden FLEX strings of the HV-SPGU builders (src/b1500_test_agent/driver/flex/spgu.py), WP9.1.
+# Each case: the builder, its arguments, the exact string the builder writes (`expect`) and, where the Programming
+# Guide prints an example, that example (`manual`) with its PDF page; the builder writes numbers in its own canonical
+# form (shortest round-trip decimal, upper-case exponent), which must be numerically equal to the manual's.
+source: >-
+  Keysight B1500 Series Programming Guide, Edition 15: SER PDF 507, SIM PDF 508, SPM PDF 511, SPP PDF 511, SPPER
+  PDF 512, SPRM PDF 513, SPST? PDF 514, SPT PDF 515, SPUPD PDF 516, SPV PDF 516, SRP PDF 518, ODSW PDF 479, STGP PDF
+  523, CORRSER? PDF 386 and the SPGU programming examples Tables 3-27/3-28 (PDF 286-290).
+kind: builders
+cases:
+  - {builder: sim, args: [1], expect: "SIM 1", manual: "SIM 1", pdf: 508}
+  - {builder: sim, args: [0], expect: "SIM 0", manual: "SIM 0", pdf: 287}
+  - {builder: spm, args: [101, 3], expect: "SPM 101,3", manual: "SPM 101,3", pdf: 511}
+  - {builder: spm, args: [101, 1], expect: "SPM 101,1", pdf: 290}
+  - {builder: spper, args: [2.0e-5], expect: "SPPER 2E-05", manual: "SPPER 20E-6", pdf: 512}
+  - {builder: spper, args: [1.0e-4], expect: "SPPER 0.0001", pdf: 287}
+  - {builder: sprm, args: [1, 300], expect: "SPRM 1,300", manual: "SPRM 1,300", pdf: 513}
+  - {builder: sprm, args: [2, 10.0], expect: "SPRM 2,10", manual: "SPRM 2,10", pdf: 287}
+  - {builder: spt, args: [101, 1, 0, 5.0e-7, 2.0e-8], expect: "SPT 101,1,0,5E-07,2E-08",
+     manual: "SPT 101,1,0,5E-7,20E-9", pdf: 515}
+  - {builder: spt, args: [101, 2, 6.0e-5, 3.0e-5, 2.0e-8, 2.0e-8], expect: "SPT 101,2,6E-05,3E-05,2E-08,2E-08",
+     pdf: 287}
+  - {builder: spv, args: [101, 1, -0.5, 0.5], expect: "SPV 101,1,-0.5,0.5", manual: "SPV 101,1,-0.5,0.5", pdf: 516}
+  - {builder: spv, args: [102, 2, 0, -3], expect: "SPV 102,2,0,-3", pdf: 287}
+  - {builder: spv, args: [101, 0, 1.5], expect: "SPV 101,0,1.5", pdf: 516}
+  - {builder: ser, args: [101, 1000000.0], expect: "SER 101,1000000", manual: "SER 101,1000000", pdf: 507}
+  - {builder: ser, args: [102, 50.0], expect: "SER 102,50", pdf: 289}
+  - {builder: spupd, args: [[101, 102, 201, 202]], expect: "SPUPD 101,102,201,202",
+     manual: "SPUPD 101,102,201,202", pdf: 516}
+  - {builder: odsw, args: [101, 1, 1, 1.0e-6, 2.0e-6], expect: "ODSW 101,1,1,1E-06,2E-06",
+     manual: "ODSW 101,1,1,1E-6,2E-6", pdf: 479}
+  - {builder: odsw, args: [101, 0], expect: "ODSW 101,0", manual: "ODSW 101, 0", pdf: 287}
+  - {builder: odsw, args: [102, 1, 0], expect: "ODSW 102,1,0", pdf: 478}
+  - {builder: stgp, args: [101, 1], expect: "STGP 101,1", manual: "STGP 101,1", pdf: 523}
+  - {builder: corrser_q, args: [101, 1, 1.0e-5, 2.0e-5, 3], expect: "CORRSER? 101,1,1E-05,2E-05,3",
+     manual: "CORRSER? 101, 1,1E-05,2E-05,3", pdf: 290}
+  - {builder: corrser_q, args: [102, 0, 0, 5.0e-6, 1], expect: "CORRSER? 102,0,0,5E-06,1", pdf: 386}
+constants:
+  - {name: SRP, expect: "SRP", pdf: 518}
+  - {name: SPP, expect: "SPP", pdf: 511}
+  - {name: SPST_Q, expect: "SPST?", pdf: 514}

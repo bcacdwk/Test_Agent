@@ -108,8 +108,11 @@ sweep source, trigger, wait, read, zero, disconnect. In v1 the recipe kind compi
 `validate_plan` returns it as the plan's FLEX preview (writes only) so a human can audit it.
 
 - Every run is one transaction: rules re-checked under the instrument lock, output guard on every source command,
-  then cleanup abort, zero, disconnect, verify (deck slide 8: zero and disconnect after any error and after every
-  measurement), whatever happened. Unverified cleanup latches a fault that only a human clears.
+  then cleanup abort, SPGU stop, zero, disconnect, verify (deck slide 8: zero and disconnect after any error and
+  after every measurement), whatever happened. Unverified cleanup latches a fault that only a human clears.
+- SPGU stop (cleanup step 2, mainframes with an HV-SPGU, e.g. the lab's slot 1): `SPST?` and, while it reads 1,
+  `SPP` (PG PDF 511, 513-514); the verification also needs `SPST?` = 0. `DZ` does not stop a running SPGU output
+  (it is not a stop condition, PG PDF 142); an SPGU that ignores `SPP` latches the fault unless the retry stops it.
 - On hardware the verification is `LOP?` (PG PDF 446-447: `00` = output off, `01` = forcing voltage, `1x` =
   compliance). Its positive control: right after `CN` (outputs on at 0 V, before any level) the run reads `LOP?`
   once and every switched-on SMU must show a non-`00` code; only then does the all-`00` answer after `CL` prove
@@ -160,6 +163,10 @@ measurement as `mosfet.idvg` on pin map `mosfet-3t-lab` with these deliberate di
 | `ERRX?`, `LOP?` | oldest error code and message; per-slot output state | 431, 446-447 |
 | `*TST?`, `*CAL?`, `CM` | self-test; self-calibration; auto-calibration on/off | 540, 376, 379 |
 | `SAP`, `SAR`, `SAL`, `SSP` | ASU path; ASU 1 pA auto range; ASU indicator; SCUU path | 505, 506, 505, 519 |
+| `SIM`, `SPRM`, `SPPER` | SPGU mode PG/ALWG; count or duration (free run never); pulse period | 508, 512-513, 512 |
+| `SER`, `SPM`, `SPT`, `SPV` | SPGU load (sets the open-load level); 2/3-level mode; timing; levels | 507, 510-511, 514-517 |
+| `SPUPD`, `SRP`, `SPP`, `SPST?` | apply setup (base level); start; stop; output active | 515-516, 518, 511, 513-514 |
+| `ODSW`, `STGP`, `CORRSER?`, `ALW`/`ALS` | pulse switch; trigger out; load measurement; ALWG data blocks | 478, 523, 385-386, 360-362 |
 
 ## Data status codes
 

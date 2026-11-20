@@ -70,5 +70,6 @@ markers = [
   "hw_l10: hardware test of bring-up stage L10 (harness and handoff)",
   "acceptance: M3 harness acceptance scenarios (Codex / Claude Code); run explicitly",
   "manuals: manual corpus, search and citation lint (blueprint 5; fixtures, no PDF needed)",
+  "spgu: HV-SPGU family (builders, driver, simulator, cleanup step 2, safety, visa-loop; blueprint v2 8.1)",
   "wall_clock: asserts a wall-clock bound of the plan (e.g. a 4 h instant run < 2 s); CI runs these alone",
 ]

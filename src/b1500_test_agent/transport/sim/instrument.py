@@ -8,10 +8,10 @@ the FLEX handlers live in units registered by mnemonic (``units/core.py``: ident
 output switches, A/D converters; ``units/smu.py``: ranging, SMU modes, sources and the measurement engine;
 ``units/sampling.py``: the SMU sampling setup (``MM 10``), timer reset and sampling engine;
 ``units/cmu.py`` + ``units/cmu_engine.py``: the MFCMU (signal, MM 17-26, phase compensation, data correction, the
-fixture parasitics; ``MM``/``XE`` dispatch by measurement mode; WP8.1); ``units/spgu.py``; ``units/switch.py``:
-selector queries, the ASU paths and the SCUU paths). Each supported mnemonic has exactly one handler
-(``units.base.handler_table``; test ``tests/sim/test_units.py``), each simulated ``*LRN?`` type one answer
-(``units.base.learn_table``).
+fixture parasitics; ``MM``/``XE`` dispatch by measurement mode; WP8.1); ``units/spgu.py`` + ``units/spgu_output.py``:
+the HV-SPGU (WP9.1); ``units/switch.py``: selector queries, the ASU paths and the SCUU paths). Each supported mnemonic
+has exactly one handler (``units.base.handler_table``; test ``tests/sim/test_units.py``), each simulated ``*LRN?``
+type one answer (``units.base.learn_table``).
 
 Time is virtual: ``clock`` (s) advances only when the host waits (a read, a serial poll). A measurement started by
 ``XE`` at ``t0`` ends at ``t0 + duration``, where the duration comes from ``WT`` and the ADC settings (times the
@@ -35,10 +35,16 @@ MFCMU sides (WP8.1): a terminal wired to ``"7H"``/``"7L"`` sees the MFCMU's DC b
 virtual ground) while its output switch is on; with an SCUU on that MFCMU the SCUU path decides whether the side is
 the MFCMU, the SMU in slot 6 / slot 5 (its level and current count as that SMU's) or open (``_route_sides``). SMU
 currents are always evaluated with these side levels, so a DC bias from the MFCMU shows in an SMU reading.
+
+HV-SPGU (WP9.1): an output-on SPGU channel joins every circuit evaluation at its static level (no compliance); a
+running SPGU output drives the devices in virtual time whenever the clock advances (``units/spgu.py``).
+``advance(seconds)`` is the host waiting without bus traffic (``SimTransport.wait``); ``receive_block(data)`` takes
+the binary block announced by ``ALW``/``ALS``.
 """
 
 from __future__ import annotations
 
+import math
 import time
 from collections import deque
 from collections.abc import Callable, Iterable
@@ -74,6 +80,7 @@ from b1500_test_agent.transport.sim.state import (
 from b1500_test_agent.transport.sim.units.base import (
     DEFAULT_ICOMP,
     FOREVER,
+    SPGU_TYPES,
     Measurement,
     Unsupported,
     handler_table,
@@ -166,6 +173,7 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         self._reset_smu_settings()
         self._reset_sampling_settings()
         self._reset_cmu_settings()
+        self._reset_spgu_settings()
 
     def _slots(self) -> dict[int, SimSlot]:
         override = self.faults.modules()
@@ -289,6 +297,9 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         The response (all query responses of the line joined by ``;``) is also queued for ``read_message``.
         """
         self._settle()
+        missing = self._spgu_missing_block()
+        if missing is not None:  # a command came where an ALW/ALS data block was announced
+            self._queue_error(missing)
         parts = flex.split_line(line)
         if not parts:
             return None
@@ -379,10 +390,30 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
     # -- reading -------------------------------------------------------------------------------------------------------
 
     def _settle(self) -> None:
-        """Complete a running measurement whose end time has passed."""
+        """Complete a running measurement whose end time has passed; bring a running SPGU output up to the clock."""
         m = self._measurement
         if m is not None and self.clock >= m.end:
             self._finish(m)
+        self._spgu_sync(self.clock)
+
+    def advance(self, seconds: float) -> None:
+        """The host waits ``seconds`` (>= 0) without bus traffic: the virtual clock moves on (``SimTransport.wait``)."""
+        if not (math.isfinite(seconds) and seconds >= 0):
+            raise ValueError(f"advance needs a non-negative number of seconds, got {seconds!r}")
+        self.clock += seconds
+        self._settle()
+
+    def receive_block(self, data: bytes) -> None:
+        """The binary data block that follows an ``ALW``/``ALS`` header (logged as ``<block>``); errors are queued
+        for ``ERRX?`` like a failed command."""
+        self._settle()
+        try:
+            self._spgu_block(bytes(data))
+        except flex.FlexError as exc:
+            self._queue_error(exc.code)
+            self._log("", "<block>", "<block>", (str(len(data)),), "error", exc.code)
+            return
+        self._log("", "<block>", "<block>", (str(len(data)),), "ok")
 
     def read_message(self, timeout_s: float) -> str:
         """The next message as sent on the wire (query response + CR/LF, or measurement data with the FMT
@@ -478,9 +509,12 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         return {**smu_currents, **{ch: 0.0 for ch in cut}}
 
     def _on_levels(self) -> dict[int, float]:
-        """Programmed voltages of the switched-on SMUs that force voltage."""
-        return {ch: st.voltage for ch, st in self.state.channels.items()
-                if st.output_on and st.mode == "V" and self._is_smu(ch)}
+        """Programmed voltages of the switched-on SMUs that force voltage, plus the static levels at the DUT of the
+        output-on HV-SPGU channels (WP9.1; no compliance: ``_icomp`` is infinite for them)."""
+        levels = {ch: st.voltage for ch, st in self.state.channels.items()
+                  if st.output_on and st.mode == "V" and self._is_smu(ch)}
+        levels.update(self._spgu_levels())
+        return levels
 
     def _on_currents(self) -> dict[int, tuple[float, float]]:
         """Programmed (current, |Vcomp|) of the switched-on SMUs that force current."""
@@ -493,6 +527,8 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         return self.solve(levels, {ch: self._icomp(ch) for ch in levels}, self._on_currents())
 
     def _icomp(self, channel: int) -> float:
+        if self._channel_type(channel) in SPGU_TYPES:
+            return math.inf  # the HV-SPGU has no compliance (PG PDF 141)
         icomp = self.state.channels[channel].icomp
         return icomp if icomp is not None else DEFAULT_ICOMP
 
@@ -594,6 +630,8 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
             reasons.append("measurement pending")
         if self._input_queue:
             reasons.append(f"{len(self._input_queue)} command(s) held in the input buffer")
+        if self.spgu_output_active():
+            reasons.append("SPGU output active (SPST? 1)")
         return reasons
 
     def assert_safe(self) -> None:
@@ -616,6 +654,7 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         self.state = state
         self._sync_devices()
         self._sync_channels()
+        self._spgu_sync()  # an SPGU output another process started continues from now
 
 
 class SimTransport:
@@ -727,6 +766,19 @@ class SimTransport:
         self._require_open()
         self._check_link("device clear")
         self.instrument.device_clear()
+
+    def write_block(self, cmd: str, data: bytes) -> None:
+        """``cmd`` (an ``ALW``/``ALS`` header), then its binary data block (``BlockWriter``)."""
+        self.write(cmd)
+        self._check_link(f"write block of {len(data)} bytes")
+        self.instrument.receive_block(data)
+
+    def wait(self, seconds: float) -> None:
+        """The host waits (``HostClock``): virtual time passes (scaled timing also sleeps)."""
+        self._require_open()
+        start = self.instrument.clock
+        self.instrument.advance(seconds)
+        self._waited(start)
 
     # -- simulator extras ----------------------------------------------------------------------------------------------
 

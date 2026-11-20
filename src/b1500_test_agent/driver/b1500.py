@@ -4,9 +4,9 @@
 A facade over one operations mixin per instrument family (``driver/ops/``): ``CoreOps`` (queries, state, data
 format, ``CN``, ``XE`` + read, on ``DriverBase``), ``SmuOps`` (integration, ranging, guarded ``DV``/``DI`` and the
 staircase sweeps ``WV``/``WI``/``WSV``/``WSI``/``WNX``), ``CmuOps`` (MFCMU signal, MM 17-26 setups, phase
-compensation, data correction, cleanup zeroing; WP8.1), ``SpguOps`` (output state) and ``SwitchOps`` (selector state,
-ASU, guarded SCUU path); the SPGU and selector work packages add their guarded operations to the same mixins. Every
-command comes from
+compensation, data correction, cleanup zeroing; WP8.1), ``SpguOps`` (guarded HV-SPGU PG/ALWG setup, start, stop,
+polling and load measurement; WP9.1) and ``SwitchOps`` (selector state, ASU, guarded SCUU path); the selector work
+package adds its guarded operations to the same mixin. Every command comes from
 ``driver/flex/`` and is written alone (one command per write, never ``;``-joined). Source operations refuse without
 an ``OutputGuard`` and check every channel and value against it before the first byte is written. The driver
 orchestrates nothing else: cleanup order (``AB`` -> ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify) belongs to

@@ -4,7 +4,8 @@
 ``station`` (settings, station profile with switches, pin maps, correction records, sim scenarios, live state) ·
 ``policy`` (policy, DUT profiles, hard-limit ceiling) · ``recipe`` · ``plan`` (request, record, binding, envelopes
 incl. pulse/AC/waveform, rule reports, run progress) · ``sources`` (pulse trains, WGFMU waveform programs, the
-source plan of a kind's program) · ``run`` (cleanup, fault, manifest, summary) ·
+source plan of a kind's program) · ``spgu`` (HV-SPGU PG and ALWG programs and their guard view) · ``run``
+(cleanup, fault, manifest, summary) ·
 ``analysis`` · ``measurement`` · ``audit`` (audit event line) · ``sim`` (simulator device parameters, faults) ·
 ``results`` (service/tool result models) · ``manuals`` (manual catalog, corpus records, ``b1500 manual`` results) ·
 ``bringup`` (probe, station proposal, config bootstrap) · ``validation`` (bring-up stages, hardware validation

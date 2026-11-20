@@ -114,7 +114,11 @@ class SimPersistentState(_Mutable):
     WP8.1: ``cmu`` = MFCMU channel -> ``CmuPersistent`` (phase compensation mode, correction list, standards and data;
     ``*RST`` resets only the mode), ``scuu_paths`` = MFCMU channel -> ``SSP`` path 1-4 of its SCUU (missing = both
     outputs open, the power-on and ``*RST`` state), ``scuu_indicators`` = MFCMU channel -> ``SSL`` LED on (missing =
-    on, the initial setting)."""
+    on, the initial setting).
+
+    WP9.1: an active SPGU output also keeps ``spgu_remaining_s`` (virtual seconds left when last synchronised;
+    ``None`` = free run) and ``spgu_run`` (the number of the output, so a process tells its own run from one another
+    process started)."""
 
     version: int = STATE_VERSION
     scenario: str
@@ -123,6 +127,8 @@ class SimPersistentState(_Mutable):
     selector_mode: int = Field(default=0, ge=0, le=63)
     selector_ports: dict[int, int] = Field(default_factory=dict)
     spgu_output_active: bool = False
+    spgu_remaining_s: float | None = Field(default=None, ge=0)
+    spgu_run: int = Field(default=0, ge=0)
     cmu_corrections: dict[int, dict[int, bool]] = Field(default_factory=dict)
     cmu_phase_results: dict[int, int] = Field(default_factory=dict)
     asu_paths: dict[int, int] = Field(default_factory=dict)

@@ -9,10 +9,11 @@ of the plan's envelope (no envelope: no guard, so every source operation refuses
 
 ``__exit__`` runs for ANY exit, ``BaseException`` and ``EnvelopeViolation`` included:
 1 ``AB`` if ``XE`` was issued and its read did not complete (sent alone; on timeout device clear, then ``AB``)
+1b (v2 step 2, on instruments with an HV-SPGU, WP9.1) ``SPST?`` and ``SPP`` if an SPGU output is active
 2 ``DZ`` (v2 step 4: first ``DCV ch,0`` and ``ACV ch,0`` on every MFCMU the transaction drove whose ``LOP?`` code
-still shows its output switch on, WP8.1) 3 ``CL`` 4 ``ERRX?`` drain 5 verify outputs off (``LOP?`` on hardware,
-simulator state on sim, which includes the MFCMU DC bias and AC level; on hardware a failed ``LOP?`` positive control
-makes the verification fail whatever ``LOP?`` reads)
+still shows its output switch on, WP8.1) 3 ``CL`` 4 ``ERRX?`` drain 5 verify outputs off (``LOP?`` plus ``SPST?`` = 0
+with an SPGU on hardware, simulator state on sim, which includes the MFCMU DC bias and AC level and the SPGU output;
+on hardware a failed ``LOP?`` positive control makes the verification fail whatever ``LOP?`` reads)
 6 on any step error: device clear, retry the sequence once
 7 still unverified (``DZ``, ``CL`` or the verification failed in the last attempt) -> ``FaultLatch.set`` + audit
 ``cleanup_unverified`` 8 save the simulator state, remove the inflight marker, unlock and close the bus (``process``
@@ -68,17 +69,24 @@ from b1500_test_agent.models.audit import AuditEvent, AuditEventName
 from b1500_test_agent.models.common import Backend, JsonScalar, StrictModel
 from b1500_test_agent.models.plan import CompiledEnvelope
 from b1500_test_agent.models.run import Adapter, CleanupReport, CleanupStep, LockHolder, PositiveControl
-from b1500_test_agent.models.station import InstrumentError, LiveState, channel_slot
+from b1500_test_agent.models.station import (
+    MODULE_TYPE_BY_MODEL,
+    InstrumentError,
+    LiveState,
+    ModuleInventory,
+    channel_slot,
+)
 from b1500_test_agent.session.fault import CleanupUnverified, FaultLatched, PositiveControlFailed
 from b1500_test_agent.session.lock import atomic_write_json, host_name, remove_file
 from b1500_test_agent.transport.audit import AuditingTransport, AuditSink, hold_audit
-from b1500_test_agent.transport.base import Transport, TransportTimeout, state_hooks, unwrap
+from b1500_test_agent.transport.base import Transport, TransportError, TransportTimeout, state_hooks, unwrap
 
 if TYPE_CHECKING:
     from b1500_test_agent.session.runner import RowsSource, RunControl
     from b1500_test_agent.session.session import Session
 
-CleanupStepName = Literal["abort", "zero", "disconnect", "drain_errors", "verify", "device_clear", "restore"]
+CleanupStepName = Literal["abort", "spgu_stop", "zero", "disconnect", "drain_errors", "verify", "device_clear",
+                          "restore"]
 
 STATE_SAVE_INTERVAL_S = 1.0
 """Least wall time between two saves of the simulator state at checkpoints (the persisted state then shows what a
@@ -208,6 +216,17 @@ def _sim_output_text(state: Any) -> str:
     return on if state.voltage == 0 else f"{on} {state.voltage:g} V"
 
 
+SPGU_MODULE_TYPE = "HVSPGU"
+"""Module type whose installation adds cleanup step 2 (``SPP`` when ``SPST?`` reads 1; blueprint v2 2.6)."""
+
+
+def spgu_installed(inventory: ModuleInventory | None) -> bool | None:
+    """Whether ``inventory`` (an ``UNT?`` reading) lists an HV-SPGU; ``None`` when no inventory is known."""
+    if inventory is None:
+        return None
+    return any(MODULE_TYPE_BY_MODEL.get(m.model) == SPGU_MODULE_TYPE for m in inventory.modules)
+
+
 @dataclass
 class CleanupOutcome:
     """A cleanup report plus a ``KeyboardInterrupt``/``SystemExit`` caught while cleaning up (re-raised by the
@@ -218,10 +237,16 @@ class CleanupOutcome:
 
 
 def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
-                positive: PositiveControl | None = None) -> CleanupOutcome:
-    """``AB`` (when ``always_abort`` or a measurement is pending) -> MFCMU ``DCV 0``/``ACV 0`` (channels the driver
-    drove) + ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify;
-    after any failed step a device clear and one retry of the whole sequence (blueprint 2.4 steps 1-6).
+                positive: PositiveControl | None = None, spgu: bool | None = None) -> CleanupOutcome:
+    """``AB`` (when ``always_abort`` or a measurement is pending) -> SPGU stop -> MFCMU ``DCV 0``/``ACV 0`` (channels
+    the driver drove) + ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify; after any failed step a device clear and one
+    retry of the whole sequence (blueprint 2.4 steps 1-6, v2 2.6 steps 1, 2, 4, 6-10).
+
+    ``spgu``: whether an HV-SPGU is installed (``None`` = unknown: ``UNT?`` is read once after the abort step, and an
+    unreadable inventory counts as installed). With an SPGU the ``spgu_stop`` step reads ``SPST?`` and sends ``SPP``
+    when an output is active (``SPP`` also when ``SPST?`` cannot be read), and the hardware verification also needs
+    ``SPST?`` = 0; an SPGU that will not stop (``spgu_no_stop``) is stopped by the retry's ``SPP`` or latches the
+    fault.
 
     Every step continues after a failure of an earlier one (``CL`` turns outputs off even when ``DZ`` failed) and
     is audited as ``cleanup_step``. The result is verified only when ``DZ``, ``CL`` and the verification all
@@ -250,6 +275,17 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
         steps.append(record)
         emit("cleanup_step", {"step": name, "ok": ok, "attempt": attempt, "detail": record.detail}, error=error)
         return ok
+
+    def spgu_stop() -> tuple[bool, str]:
+        try:
+            active = driver.pulse_output_active()
+        except Exception as exc:  # noqa: BLE001 - state unknown: stop anyway (SPP is harmless when nothing runs)
+            driver.stop_pulses()
+            return False, f"{flex.SPST_Q} unreadable ({type(exc).__name__}: {exc}); {flex.SPP} sent anyway"
+        if not active:
+            return True, f"{flex.SPST_Q} 0: no SPGU output active"
+        driver.stop_pulses()
+        return True, f"{flex.SPST_Q} 1: {flex.SPP} sent"
 
     def abort() -> tuple[bool, str]:
         try:
@@ -297,11 +333,14 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
         on = {slot: code for slot, code in outputs.items() if states[slot].output_on}
         if on:
             return False, f"outputs on: {on}"
+        if spgu and driver.pulse_output_active():
+            return False, f"SPGU output still active ({flex.SPST_Q} 1)"
         if positive is not None and not positive.ok:
             return False, (f"all slots report 00, but the LOP? positive control failed ({positive.detail}): 00 does "
                            "not prove the outputs off")
         evidence = "" if positive is None else f"; positive control with the outputs on: {positive.detail}"
-        return all_outputs_off(states), "all slots report 00" + evidence
+        spst = f"; {flex.SPST_Q} 0" if spgu else ""
+        return all_outputs_off(states), "all slots report 00" + spst + evidence
 
     def clear() -> tuple[bool, str]:
         driver.device_clear()
@@ -314,6 +353,10 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
         results: dict[str, bool] = {}
         if always_abort or driver.measurement_pending:
             results["abort"] = step("abort", attempt, abort)
+        if spgu is None:
+            spgu = _read_spgu_installed(driver, deferred)
+        if spgu:
+            results["spgu_stop"] = step("spgu_stop", attempt, spgu_stop)
         results["zero"] = step("zero", attempt, zero)
         results["disconnect"] = step("disconnect", attempt, disconnect)
         results["drain_errors"] = step("drain_errors", attempt, drain)
@@ -324,6 +367,17 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
     report = CleanupReport(steps=steps, verified=method if verified else "unverified", outputs_after=dict(outputs),
                            latched_fault=False, errors=errors, positive_control=positive)
     return CleanupOutcome(report=report, deferred=deferred[0] if deferred else None)
+
+
+def _read_spgu_installed(driver: B1500Driver, deferred: list[BaseException]) -> bool:
+    """``UNT?`` once (cleanup without a known inventory); an unreadable answer counts as an installed SPGU, and an
+    interrupt is deferred like one inside a cleanup step."""
+    try:
+        return bool(spgu_installed(driver.modules()))
+    except BaseException as exc:  # noqa: BLE001 - the SPGU step then runs and reports what fails
+        if not isinstance(exc, Exception):
+            deferred.append(exc)
+        return True
 
 
 def _codes_text(codes: dict[int, str]) -> str:
@@ -383,6 +437,19 @@ class _RawCapture:
 
     def device_clear(self) -> None:
         self.inner.device_clear()
+
+    def write_block(self, cmd: str, data: bytes) -> None:
+        writer = getattr(self.inner, "write_block", None)
+        if not callable(writer):
+            raise TransportError(f"{cmd!r}: the link cannot send a binary data block")
+        writer(cmd, data)
+
+    def wait(self, seconds: float) -> None:
+        waiter = getattr(self.inner, "wait", None)
+        if callable(waiter):
+            waiter(seconds)
+        else:
+            time.sleep(seconds)
 
 
 # -- Transaction ------------------------------------------------------------------------------------------------------
@@ -538,8 +605,17 @@ class Transaction:
         atomic_write_json(self._session.inflight_path, marker.model_dump(mode="json"))
         self._marker_written = True
 
+    def _spgu_hint(self) -> bool | None:
+        """Whether an HV-SPGU is installed, from the inventory this transaction's driver or the session's last
+        snapshot read (``None``: unknown, the cleanup reads ``UNT?``)."""
+        known = spgu_installed(self.driver.last_inventory)
+        if known is not None:
+            return known
+        live = self._session.last_live
+        return spgu_installed(live.inventory if live is not None else None)
+
     def _recover(self, previous: InflightMarker) -> None:
-        outcome = run_cleanup(self.driver, always_abort=True, emit=self._emit)
+        outcome = run_cleanup(self.driver, always_abort=True, emit=self._emit, spgu=self._spgu_hint())
         report = outcome.report
         self._emit("recovery_cleanup", {"previous_tx": previous.tx, "previous_run": previous.run,
                                         "previous_pid": previous.pid, "previous_intent": previous.intent,
@@ -701,7 +777,7 @@ class Transaction:
             if not self._cleanup_done:
                 self._cleanup_done = True
                 outcome = run_cleanup(self.driver, always_abort=self._always_abort, emit=self._emit,
-                                      positive=self.positive_control)
+                                      positive=self.positive_control, spgu=self._spgu_hint())
                 deferred = outcome.deferred
                 report = outcome.report
                 if report.verified == "unverified":

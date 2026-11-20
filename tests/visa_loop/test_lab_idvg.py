@@ -60,7 +60,8 @@ def test_the_lab_measurement_runs_on_visa_with_the_documented_flow(world: VisaWo
     queries = [c for c in sent if c.split(" ")[0].endswith("?")]
     cn = mnemonics.index("CN")
     assert {"*IDN?", "UNT?", "*STB?", "*LRN? 31"} <= set(queries)
-    assert mnemonics[cn:cn + 3] == ["CN", "ERRX?", "LOP?"] and mnemonics[-3:] == ["CL", "ERRX?", "LOP?"]
+    assert mnemonics[cn:cn + 3] == ["CN", "ERRX?", "LOP?"]
+    assert mnemonics[-6:] == ["SPST?", "DZ", "CL", "ERRX?", "LOP?", "SPST?"]  # v2 cleanup: SPGU stopped, verified
 
     manifest = json.loads((world.run_dir(result.run_id) / "manifest.json").read_text(encoding="utf-8"))
     control = manifest["cleanup"]["positive_control"]

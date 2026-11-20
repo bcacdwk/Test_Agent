@@ -24,6 +24,7 @@ below 100 ms over GPIB (``bus_*`` audit events carry ``dur_ms``); fallback ``vis
 from __future__ import annotations
 
 import contextlib
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -254,3 +255,24 @@ class VisaTransport:
 
     def device_clear(self) -> None:
         self._io("device clear", self._require_open().clear)
+
+    def write_block(self, cmd: str, data: bytes) -> None:
+        """``cmd`` with the write termination, then ``data`` as raw bytes (``write_raw``; PG PDF 360-361 ``ALS``,
+        361-362 ``ALW``: "send the data just after the command"). TODO(verify) at bring-up L7 (blueprint 7.6 items 3,
+        9) that the B1500 takes the block as the message after the terminated header; fallback: one ``write_raw`` of
+        header + LF + block."""
+        inst = self._require_open()
+        writer = getattr(inst, "write_raw", None)
+        if not callable(writer):
+            raise TransportError(f"write_block {cmd!r}: the VISA resource {self.resource} has no write_raw")
+        self._io(f"write {cmd!r}", inst.write, cmd)
+        self._io(f"write block of {len(data)} bytes after {cmd!r}", writer, bytes(data))
+
+    def wait(self, seconds: float) -> None:
+        """Host wait between polls (``HostClock``): a sleep; a resource manager that simulates the instrument (the
+        visa-loop tests' ``rm_factory``) may provide ``host_wait(seconds)`` to let its virtual time pass instead."""
+        waiter = getattr(self._rm, "host_wait", None)
+        if callable(waiter):
+            waiter(seconds)
+        else:
+            time.sleep(seconds)

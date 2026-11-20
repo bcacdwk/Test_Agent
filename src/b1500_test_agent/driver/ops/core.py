@@ -82,6 +82,9 @@ class DriverBase:
         self.guard = guard
         self._measurement_pending = False
         self._format: tuple[int, int] = (1, 0)  # instrument default without FMT: FMT 1,0 (PG PDF 436)
+        self.last_inventory: ModuleInventory | None = None
+        """The ``UNT?`` answer this driver read last (``modules``), ``None`` before; the transaction cleanup uses it
+        to know whether an SPGU is installed without asking again (blueprint v2 2.6 step 2)."""
 
     # -- internal ---------------------------------------------------------------------------------------------
 
@@ -109,6 +112,28 @@ class DriverBase:
         self._require_idle(f"query {cmd!r}")
         return self.transport.query(cmd, timeout_s=timeout_s).strip()
 
+    def _write_block(self, header: str, block: bytes) -> None:
+        """Send a command header followed by its binary data block (``ALW``/``ALS``); the link must support it
+        (``transport.base.BlockWriter``)."""
+        self._require_idle(f"write {header!r}")
+        if ";" in header:  # defensive: builders never join commands
+            raise DriverStateError(f"refusing a combined command string: {header!r}")
+        writer = getattr(self.transport, "write_block", None)
+        if not callable(writer):
+            raise DriverStateError(f"{header!r} refused: this link cannot send a binary data block")
+        writer(header, block)
+
+    def host_wait(self, seconds: float) -> None:
+        """Let ``seconds`` pass on the host side without bus traffic (between status polls): the link's ``wait`` when
+        it has one (the simulator advances its virtual clock; the VISA link sleeps), else a real sleep."""
+        if not (isinstance(seconds, int | float) and math.isfinite(seconds) and seconds >= 0):
+            raise ValueError(f"host_wait needs a non-negative number of seconds, got {seconds!r}")
+        waiter = getattr(self.transport, "wait", None)
+        if callable(waiter):
+            waiter(float(seconds))
+        else:
+            time.sleep(seconds)
+
     def _require_guard(self, operation: str, ch: int) -> OutputGuard:
         if self.guard is None:
             raise EnvelopeViolation("no_guard", f"{operation} refused: no OutputGuard installed", channel=ch)
@@ -125,8 +150,10 @@ class CoreOps(DriverBase):
         return parse_idn(self._query(flex.IDN_Q))
 
     def modules(self) -> ModuleInventory:
-        """``UNT?`` -> ``ModuleInventory`` of occupied slots (PG PDF 545)."""
-        return parse_unt(self._query(flex.UNT_Q))
+        """``UNT?`` -> ``ModuleInventory`` of occupied slots (PG PDF 545); kept as ``last_inventory``."""
+        inventory = parse_unt(self._query(flex.UNT_Q))
+        self.last_inventory = inventory
+        return inventory
 
     def errors(self, drain: bool = True) -> list[InstrumentError]:
         """``ERRX?`` entries (PG PDF 431-432). ``drain=True`` reads until the queue answers code 0.

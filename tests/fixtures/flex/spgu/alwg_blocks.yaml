@@ -1,0 +1,54 @@
+# ALWG data blocks (binary, big endian) of the HV-SPGU, shared by the builder tests (driver/flex/spgu.py `alw`/`als`)
+# and the simulator's decoder tests (transport/sim/units/spgu_output.py); the two implementations share no code.
+source: >-
+  Keysight B1500 Series Programming Guide, Edition 15, PDF 150 (printed 2-62, Table 2-4 ALWG Pattern Data: 20-byte
+  header [module type 1 byte, data format revision 1 byte, number of patterns 2 bytes, 16 zero bytes], per pattern
+  number of vectors 2 bytes + initial voltage 4 bytes [1 uV/count], per vector output level 4 bytes [1 uV/count] and
+  pulse switch status 1 bit [1 close] + incremental time 31 bits [1 ns/count]; -1 mV = 11111111111111111111110000011000)
+  and PDF 151 (printed 2-63, Table 2-5 ALWG Sequence Data: 20-byte header with the number of pattern cycles, per cycle
+  pattern index 2 bytes + repeat count 4 bytes; Figure 2-34 example sizes 176, 160 and 32 bytes).
+kind: alwg
+note: hand-assembled from the tables (not instrument data); TODO(verify) with a raw ALW?/ALS? read-back at bring-up L7.
+patterns:
+  - name: two_vectors
+    patterns:
+      - initial_v: 0.0
+        vectors: [[1.0e-6, 1.0, true], [1.0e-6, 0.0, false]]
+    hex: >-
+      0000000100000000000000000000000000000000
+      000200000000
+      000f4240800003e8
+      00000000000003e8
+  - name: minus_one_millivolt
+    patterns:
+      - initial_v: -0.001
+        vectors: [[1.0e-8, -40.0, false]]
+    hex: >-
+      0000000100000000000000000000000000000000
+      0001fffffc18
+      fd9da6000000000a
+  - name: figure_2_34_channel_801
+    patterns:
+      - {initial_v: 0.0, vectors: [[1.0e-7, 1.0, true], [1.0e-7, 1.0, true], [1.0e-7, 0.0, true], [1.0e-7, 0.0, true],
+                                   [1.0e-7, 1.0, true], [1.0e-7, 1.0, true], [1.0e-7, 0.0, true], [1.0e-7, 0.0, true],
+                                   [1.0e-7, 0.0, false]]}
+      - {initial_v: 0.0, vectors: [[1.0e-7, 1.0, true], [1.0e-7, 1.0, true], [1.0e-7, 0.0, true], [1.0e-7, 0.0, true],
+                                   [1.0e-7, 1.0, true], [1.0e-7, 1.0, true], [1.0e-7, 0.0, true], [1.0e-7, 0.0, true],
+                                   [1.0e-7, 0.0, false]]}
+    length: 176
+  - name: figure_2_34_channel_901
+    patterns:
+      - {initial_v: 0.0, vectors: [[1.0e-7, 2.0, true], [1.0e-7, 2.0, true], [1.0e-7, 0.0, true], [1.0e-7, 0.0, true],
+                                   [1.0e-7, 2.0, true], [1.0e-7, 2.0, true], [1.0e-7, 0.0, true], [1.0e-7, 0.0, true],
+                                   [1.0e-7, 0.0, false]]}
+      - {initial_v: 0.0, vectors: [[1.0e-7, 3.0, true], [1.0e-7, 3.0, true], [1.0e-7, 0.0, true], [1.0e-7, 0.0, true],
+                                   [1.0e-7, 3.0, true], [1.0e-7, 0.0, true], [1.0e-7, 0.0, false]]}
+    length: 160
+sequences:
+  - name: figure_2_34
+    cycles: [[2, 2], [1, 3]]
+    hex: >-
+      0000000200000000000000000000000000000000
+      000200000002
+      000100000003
+    length: 32

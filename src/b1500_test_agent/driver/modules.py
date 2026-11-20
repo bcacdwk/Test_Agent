@@ -41,6 +41,7 @@ from b1500_test_agent.models.sources import (
     on_grid,
     open_load_voltage,
 )
+from b1500_test_agent.models.spgu import AlwgProgram, SpguPulseProgram
 from b1500_test_agent.models.station import MODULE_TYPE_BY_MODEL
 
 SpecType = Literal["HPSMU", "MPSMU", "HRSMU", "MCSMU", "HCSMU", "HVSMU", "GNDU"]
@@ -347,7 +348,8 @@ class SpguSpec(StrictModel):
     10 s (10 ns resolution); width 10 ns to period - 10 ns; delay 0 to period - 20 ns (width and delay resolution
     2.5 ns, 10 ns when a transition exceeds 8 us); transitions 8 ns to 0.4 s (2 ns, 8 ns above 8 us; initial 20 ns);
     width >= leading / 0.8 and period >= delay + width + trailing / 0.8; count 1 to 1,000,000 pulses or duration
-    1 us to 31,556,926 s (10 ns resolution); free run (``SPRM 0``) is never used (R-PULSE-01).
+    1 us to 31,556,926 s (10 ns resolution); free run (``SPRM 0``) is never used (R-PULSE-01). ALWG (PG p150 (2-62)
+    "Table 2-4"): at most 1024 - patterns vectors per channel, vector times 10 ns to 671.08863 ms on the 10 ns grid.
     """
 
     module_type: Literal["HVSPGU"] = "HVSPGU"
@@ -372,6 +374,8 @@ class SpguSpec(StrictModel):
     duration_resolution_s: float = 1e-8
     load_ohm: tuple[float, float] = (0.1, 1e6)
     initial_load_ohm: float = 50.0
+    alwg_max_vectors: int = 1024
+    alwg_dt_s: tuple[float, float] = (1e-8, 0.67108863)
     high_z_min_load_ohm: float = 1e3
     """Smallest ``SER`` for a terminal declared ``high_z`` (blueprint v2 2.8 R-SPGU-01): a smaller declared load
     lets the auto-levelling raise the open-load voltage towards 2x the set level."""
@@ -440,6 +444,63 @@ class SpguSpec(StrictModel):
         if train.load_ohm is not None and not _within(train.load_ohm, self.load_ohm):
             found.append(SpecProblem(f"SER load {train.load_ohm:g} Ohm is outside {_span(self.load_ohm)} Ohm",
                                      train.load_ohm, _span(self.load_ohm)))
+        return found
+
+    def _open_load_problem(self, ch: int, extreme_v: float, load_ohm: float) -> list[SpecProblem]:
+        """Error 2107: the open-load level ``|V| (SER + 50) / SER`` must stay within the 40 V output (PG p591)."""
+        open_v = self.open_load_v(extreme_v, load_ohm)
+        if open_v > self.max_open_v * (1 + 1e-12):
+            return [SpecProblem(f"channel {ch}: {extreme_v:g} V with a {load_ohm:g} Ohm load setting needs "
+                                f"{open_v:g} V open load, beyond {self.max_open_v:g} V (error 2107)", open_v,
+                                self.max_open_v)]
+        return []
+
+    def program_problems(self, program: SpguPulseProgram | AlwgProgram) -> list[SpecProblem]:
+        """Where an SPGU program leaves the module spec (empty when inside). PG: every pulse source's train
+        (``train_problems``), the three-level sum within +-40 V (error 2106, PG p591) and the open-load level within
+        40 V (error 2107). ALWG (PG p150-151 (2-62) Tables 2-4/2-5): levels +-40 V on 1 mV, vector times 10 ns to
+        671.08863 ms on 10 ns, at most ``1024 - patterns`` vectors per channel, the run bound and ``SER`` as for PG,
+        the open-load level within 40 V."""
+        found: list[SpecProblem] = []
+        if isinstance(program, SpguPulseProgram):
+            for ch, channel in sorted(program.channels.items()):
+                for train in program.source_trains(ch):
+                    found += [SpecProblem(f"channel {ch}: {p.message}", p.observed, p.limit)
+                              for p in self.train_problems(train)]
+                if channel.levels == "three_level" and abs(channel.extreme_v) > self.max_open_v:
+                    found.append(SpecProblem(f"channel {ch}: the three-level sum {channel.extreme_v:g} V is outside "
+                                             f"+-{self.max_open_v:g} V (error 2106)", channel.extreme_v,
+                                             self.max_open_v))
+                found += self._open_load_problem(ch, channel.extreme_v, channel.load_ohm)
+            return found
+        if program.count is not None and not _within(program.count, self.count):
+            found.append(SpecProblem(f"count {program.count} is outside {self.count[0]}..{self.count[1]}",
+                                     program.count, f"{self.count[0]}..{self.count[1]}"))
+        if program.duration_s is not None and not (_within(program.duration_s, self.duration_s)
+                                                   and on_grid(program.duration_s, self.duration_resolution_s)):
+            found.append(SpecProblem(f"duration {program.duration_s:g} s is outside {_span(self.duration_s)} s or "
+                                     "off the 10 ns resolution", program.duration_s, _span(self.duration_s)))
+        for ch, channel in sorted(program.channels.items()):
+            train = program.guard_train(ch)
+            if not _within(channel.load_ohm, self.load_ohm):
+                found.append(SpecProblem(f"channel {ch}: SER load {channel.load_ohm:g} Ohm is outside "
+                                         f"{_span(self.load_ohm)} Ohm", channel.load_ohm, _span(self.load_ohm)))
+            vectors = sum(len(pattern.vectors) for pattern in channel.patterns)
+            if vectors > self.alwg_max_vectors - len(channel.patterns):
+                found.append(SpecProblem(f"channel {ch}: {vectors} ALWG vectors exceed 1024 - "
+                                         f"{len(channel.patterns)} patterns", vectors,
+                                         self.alwg_max_vectors - len(channel.patterns)))
+            for number, pattern in enumerate(channel.patterns, start=1):
+                for level in pattern.levels():
+                    if abs(level) > self.max_open_v or not on_grid(level, self.level_resolution_v):
+                        found.append(SpecProblem(f"channel {ch} pattern {number}: level {level:g} V is outside "
+                                                 f"+-{self.max_open_v:g} V or not on 1 mV", level, self.max_open_v))
+                for vector in pattern.vectors:
+                    if not (_within(vector.dt_s, self.alwg_dt_s) and on_grid(vector.dt_s, self.period_resolution_s)):
+                        found.append(SpecProblem(f"channel {ch} pattern {number}: vector time {vector.dt_s:g} s is "
+                                                 f"outside {_span(self.alwg_dt_s)} s or off the 10 ns grid",
+                                                 vector.dt_s, _span(self.alwg_dt_s)))
+            found += self._open_load_problem(ch, train.max_abs_set_v, channel.load_ohm)
         return found
 
 

@@ -70,6 +70,15 @@ class DriverStateError(DriverError):
     code: ClassVar[ErrorCode] = "internal"
 
 
+class SpguStillActive(DriverError):
+    """The SPGU output did not stop (``SPST?`` still 1) within the time the run allowed (blueprint v2 ATV-19); the
+    caller stops it with ``SPP`` (and the transaction cleanup verifies ``SPST?`` = 0 or latches the fault)."""
+
+    def __init__(self, message: str, *, waited_s: float) -> None:
+        super().__init__(message)
+        self.waited_s = waited_s
+
+
 _ERRX_RE = re.compile(r"^\s*(?P<code>[+-]?\d+)\s*(?:,\s*(?P<msg>.*?))?\s*$", re.DOTALL)
 _UNSIGNED_RE = re.compile(r"^\+?(?P<value>\d+)$")
 

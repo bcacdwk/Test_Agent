@@ -34,6 +34,8 @@ from tests.unit.driver_helpers import SpyTransport
 LOP_OFF = "LOP" + ",".join(["00"] * 10)
 LOP_ON = "LOP01," + ",".join(["00"] * 9)
 NO_ERROR = '0,"No Error."'
+UNT_NO_SPGU = ";".join(["B1511B,0", "B1511B,0", "B1517A,0", "B1517A,0"] + ["0,0"] * 6)
+"""``UNT?`` of a mainframe without an HV-SPGU: the cleanup reads it once and skips its SPGU step (v2 step 2)."""
 
 
 def holder(**changes: object) -> LockHolder:
@@ -59,6 +61,7 @@ class HwSpy(SpyTransport):
     def __init__(self, *args: object, fail_writes: dict[str, list[Exception]] | None = None, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
         self.fail_writes = fail_writes or {}
+        self._fixed.setdefault("UNT?", UNT_NO_SPGU)  # no SPGU unless a test answers UNT? itself
 
     def write(self, cmd: str) -> None:
         failures = self.fail_writes.get(cmd)
@@ -224,7 +227,7 @@ def test_hardware_cleanup_verifies_with_lop() -> None:
     events = Recorder()
     outcome = run_cleanup(B1500Driver(spy), always_abort=True, emit=events)
     report = outcome.report
-    assert spy.sent == ["AB", "DZ", "CL", "ERRX?", "ERRX?", "LOP?"]
+    assert spy.sent == ["AB", "UNT?", "DZ", "CL", "ERRX?", "ERRX?", "LOP?"]  # inventory unknown: read once
     assert report.verified == "lop" and report.outputs_after == {slot: "00" for slot in range(1, 11)}
     assert [e.code for e in report.errors] == [305] and outcome.deferred is None
     assert [d["step"] for ev, d, _ in events.events if ev == "cleanup_step" and d] == [

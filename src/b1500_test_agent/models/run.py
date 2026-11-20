@@ -60,11 +60,12 @@ class LockHolder(StrictModel):
 
 
 class CleanupStep(StrictModel):
-    """One step of the transaction cleanup ``AB → DZ → CL → ERRX drain → verify`` (blueprint 2.4); ``restore`` comes
-    after the verification and puts back a setting the run changed (v2 2.6, R-CAL-02: the auto-calibration state of
-    an asynchronous run), never touching an output."""
+    """One step of the transaction cleanup ``AB → SPP → DZ → CL → ERRX drain → verify`` (blueprint 2.4, v2 2.6);
+    ``spgu_stop`` (v2 step 2) reads ``SPST?`` and sends ``SPP`` when an SPGU output is active, on instruments with an
+    SPGU; ``restore`` comes after the verification and puts back a setting the run changed (v2 2.6, R-CAL-02: the
+    auto-calibration state of an asynchronous run), never touching an output."""
 
-    step: Literal["abort", "zero", "disconnect", "drain_errors", "verify", "device_clear", "restore"]
+    step: Literal["abort", "spgu_stop", "zero", "disconnect", "drain_errors", "verify", "device_clear", "restore"]
     ok: bool
     attempt: int = Field(default=1, ge=1)
     detail: str = ""

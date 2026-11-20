@@ -255,8 +255,9 @@ an automatic abort in such a block the stress stays on, current-limited, until t
 ## Cleanup and fault latch
 
 Every instrument action runs inside one transaction. On any exit, including errors, interrupts and guard
-violations, it: aborts a pending measurement, zeroes and disconnects the outputs, drains instrument errors and
-verifies that all outputs are off. A failed step triggers a device clear and one retry. If the safe state still
+violations, it: aborts a pending measurement, stops an active SPGU output (blueprint v2 2.6 step 2: on a mainframe
+with an HV-SPGU, `SPST?` and `SPP` while it reads 1), zeroes and disconnects the outputs, drains instrument errors and
+verifies that all outputs are off (on hardware `LOP?` and, with an SPGU, `SPST?` = 0). A failed step triggers a device clear and one retry. If the safe state still
 cannot be verified, a persistent **fault latch** is set: every sourcing path then refuses (R-FAULT-01) until a human
 runs `b1500 fault clear`, which succeeds only after a verified safe shutdown. `safe_shutdown` itself is never gated.
 A crash mid-run leaves an in-flight marker; the next transaction runs the recovery cleanup first. The instrument
@@ -275,6 +276,15 @@ and AC level. A new driver (recovery, `safe_shutdown`) knows no MFCMU it drove a
 and `CL` (PG p397 (4-79), p382 (4-64)). Every SCUU path change (`SSP`) is guarded by `check_route` per output: it
 switches outputs on and resets the SMUs (ATV-27, PG p520 (4-202)); its modules are never named in `CN` (error 323).
 Returning the SCUU to its `rest` state belongs to the route step of the cleanup (WP9.2).
+
+**SPGU stop (cleanup step 2, WP9.1).** The cleanup knows whether an HV-SPGU is installed from the `UNT?` the run's
+pre-execute snapshot read (a transaction without one, e.g. `safe_shutdown` or an in-flight recovery, reads `UNT?`
+once; an unreadable inventory counts as an SPGU). `DZ` is not an SPGU stop condition (PG PDF 142), so `SPP` comes
+first; an `SPST?` that cannot be read still gets `SPP`. An SPGU that ignores `SPP` (simulated fault `spgu_no_stop`)
+fails the verification; the retry after the device clear sends `SPP` again, and only if that stops it is the cleanup
+verified, otherwise the fault latches. The guard checks every SPGU write that can raise a level (setup, apply, start,
+a `SER` change, the `CORRSER?` load measurement, which outputs a pulse) at the open-load level; the driver never lets
+the instrument set `SER` itself (`CORRSER?` mode 0 only) and never builds free run (`SPRM 0`, the `*RST` setting).
 
 **`LOP?` positive control (hardware, WP6.2; v1 ATV-1, ATV-23).** On hardware the verification is `LOP?` reading `00`
 for every slot. An all-`00` answer proves the outputs off only if `LOP?` reports this instrument's output switches at

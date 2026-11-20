@@ -90,7 +90,8 @@ def test_sampling_recipe_runs_on_backend_visa_with_cleanup_verified(case: dict[s
     bus.instrument.assert_safe()
 
     sent = [r.mnemonic for r in bus.instrument.command_log if r.outcome == "ok"]
-    assert sent[-3:] == ["CL", "ERRX?", "LOP?"] and "TSR" in sent and "MM" in sent
+    # v2 cleanup on the lab mainframe (SPGU in slot 1): SPST? (no SPP: inactive) before DZ, LOP? + SPST? verify
+    assert sent[-4:] == ["CL", "ERRX?", "LOP?", "SPST?"] and "TSR" in sent and "MM" in sent and "SPP" not in sent
     cn = sent.index("CN")
     control = sent.index("LOP?", cn)
     assert sent[cn + 1:control] == ["ERRX?"] and not {"DV", "MV", "MI", "XE"} & set(sent[:control])

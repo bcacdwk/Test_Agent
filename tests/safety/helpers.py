@@ -41,7 +41,8 @@ SWEEP = StaircaseSetup(channel=GATE, start=0.0, stop=1.5, points=11, icomp=1e-5,
 WIDTH = 2
 """Elements per step with ``FMT 1,1``: the drain current and the gate source value."""
 
-CLEANUP_ORDER = ("device_clear", "abort", "zero", "disconnect", "drain_errors", "verify")
+CLEANUP_ORDER = ("device_clear", "abort", "spgu_stop", "zero", "disconnect", "drain_errors", "verify")
+"""Blueprint v2 2.6 order; ``spgu_stop`` (step 2) runs on instruments with an HV-SPGU (every lab-layout scenario)."""
 
 
 class HookTransport:
@@ -109,6 +110,13 @@ class HookTransport:
     def device_clear(self) -> None:
         self._armed()
         self.inner.device_clear()
+
+    def write_block(self, cmd: str, data: bytes) -> None:
+        self._armed()
+        self.inner.write_block(cmd, data)
+
+    def wait(self, seconds: float) -> None:
+        self.inner.wait(seconds)
 
 
 @dataclass

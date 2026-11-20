@@ -8,8 +8,9 @@ measurement lifecycle). Manual references (Programming Guide Ed. 15, physical PD
 545; ``ERRX?`` 431-432; ``*STB?`` 523; ``*OPC?`` 480; ``*RST`` 502 (initialise like power-on, PDF 175); ``LOP?``
 446-447 (Table 4-26); ``*TST?`` 540-541; ``*CAL?`` 377; ``NUB?`` 478; ``FMT`` 436-438; ``BC`` 364; ``TSC`` 538-539;
 ``CN`` 380-381; ``CL`` 378; ``DZ`` 397; ``AB`` 351-352; ``AAD`` 351; ``AIT`` 356-359; ``AV`` 362-363; ``CM`` 379
-(printed 4-61); ``*LRN?`` 447-450 (printed 4-129 to 4-132; types 0 and 31 are simulated, other types are logged
-``unsupported``). The simulator does not run the auto-calibration itself (it only keeps the ``CM`` switch).
+(printed 4-61); ``*LRN?`` 447-452 (printed 4-129 to 4-134; types 0 and 31 here, the family types registered with
+``units.base.learns`` by their units, any other type is logged ``unsupported``). The simulator does not run the
+auto-calibration itself (it only keeps the ``CM`` switch).
 """
 
 from __future__ import annotations
@@ -205,18 +206,31 @@ class CoreUnit:
     # -- channels ------------------------------------------------------------------------------------------------------
 
     def _close_channel(self, channel: int) -> None:
-        """``CL`` condition: switch off, 0 V, 100 uA compliance (PDF 378), unless the output is stuck."""
+        """``CL`` condition: switch off, 0 V, 100 uA compliance (PDF 378; an MFCMU also 0 V rms, 1 kHz and auto range,
+        PDF 500), unless the output is stuck."""
         if not self.faults.stuck(channel):
             self.state.channels[channel] = ChannelState(icomp=None)
+            self._rc.pop(channel, None)
 
     @handles("CN")
     def _cmd_cn(self, cmd: flex.Command) -> None:
+        """``CN [chnum...]`` (PDF 380-381). With an SCUU its modules are switched by ``SSP`` only: naming one is error
+        323 (PDF 583); a bare ``CN`` skips its SMUs, enables its MFCMU and connects the MFCMU path (PDF 381). The ASU
+        outputs of the channels return to the SMU side (PG p505 (4-187))."""
+        scuu = self._scuu_modules()
         channels = self._channels_arg(cmd)
+        if cmd.args and scuu & set(channels):
+            raise flex.FlexError(flex.ERR_SCUU_USE_SSP, f"channels {sorted(scuu & set(channels))}")
         for channel in channels:
+            if not cmd.args and channel in scuu and self._channel_type(channel) not in CMU_TYPES:
+                continue
             state = self.state.channels[channel]
             if not state.output_on:
                 self.state.channels[channel] = ChannelState(output_on=True, voltage=0.0, icomp=DEFAULT_ICOMP)
         self._asu_to_smu_side(channels)
+        if not cmd.args:
+            for cmu in sorted(c for c in scuu if self._channel_type(c) in CMU_TYPES):
+                self._scuu_connect(cmu, 4)
 
     @handles("CL")
     def _cmd_cl(self, cmd: flex.Command) -> None:
@@ -287,8 +301,9 @@ class CoreUnit:
     @handles("*LRN?")
     def _cmd_lrn(self, cmd: flex.Command) -> str:
         """``*LRN? type`` (PG p447-451 (4-129 to 4-133)): type 0 = output switches (``CN ch,...`` or ``CL``), type 31
-        = ``TM``/``AV``/``CM``/``FMT``/``MM`` settings, types 62/63 = ASU paths and 1 pA auto ranging (switch unit);
-        any other type is not simulated (error 100, unsupported)."""
+        = ``TM``/``AV``/``CM``/``FMT``/``MM`` settings; the family types are answered by their units' ``@learns``
+        methods (62/63 ASU paths and 1 pA auto ranging, 80/81 SCUU: switch unit; 70-73, 90 MFCMU: cmu unit); any other
+        type is not simulated (error 100, unsupported)."""
         flex.arity(cmd, 1, 1)
         kind = flex.integer(cmd.args[0])
         if not 0 <= kind <= 110:
@@ -298,9 +313,10 @@ class CoreUnit:
             return "CN" + ",".join(str(ch) for ch in on) if on else "CL"
         if kind == 31:
             return self._lrn_settings()
-        if kind in (62, 63):
-            return self._lrn_asu(kind)
-        raise Unsupported(f"*LRN? {kind} is not simulated (types 0 and 31 are)")
+        learner = self._learners.get(kind)
+        if learner is not None:
+            return learner(kind)
+        raise Unsupported(f"*LRN? {kind} is not simulated (types 0, 31 and those of {sorted(self._learners)} are)")
 
     # -- A/D converters ------------------------------------------------------------------------------------------------
 

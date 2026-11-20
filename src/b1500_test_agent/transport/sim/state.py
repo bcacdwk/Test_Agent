@@ -55,7 +55,9 @@ class CommandRecord(_Mutable):
 
 class ChannelState(_Mutable):
     """Output state of one channel. ``mode`` is what it forces: ``V`` (``voltage`` with current compliance ``icomp``,
-    V and A) or ``I`` (``current`` with voltage compliance ``vcomp``, A and V; ``voltage`` is then unused and 0)."""
+    V and A) or ``I`` (``current`` with voltage compliance ``vcomp``, A and V; ``voltage`` is then unused and 0). On an
+    MFCMU ``voltage`` is the DC bias and ``ac_vrms``/``freq_hz`` the oscillator level and frequency (WP8.1; the
+    ``CN``/``CL`` condition is 0 V, 0 V rms, 1 kHz, PG PDF 382)."""
 
     output_on: bool = False
     mode: Literal["V", "I"] = "V"
@@ -66,6 +68,32 @@ class ChannelState(_Mutable):
     comp_polarity: int = 0
     vrange: int = 0
     irange: int = 0
+    ac_vrms: float = 0.0
+    freq_hz: float = 1000.0
+
+
+class CmuCorrectionPoint(_Mutable):
+    """Correction data of one listed frequency (``CORRL``): the standards' readings taken by ``CORR?`` (or set by
+    ``CORRDT``) as measured impedances ``[re, im]`` in Ohm, and the load standard's reference impedance in use then."""
+
+    freq_hz: float
+    open: list[float] | None = None
+    short: list[float] | None = None
+    load: list[float] | None = None
+    load_ref: list[float] | None = None
+
+
+class CmuPersistent(_Mutable):
+    """MFCMU state that survives host sessions (WP8.1): the phase compensation mode (``ADJ``; 0 auto after ``*RST``),
+    the correction frequency list (``CORRL``/``CLCORR``), the standards' reference values (``DCORR``: correction mode
+    -> ``[mode, primary, secondary]``) and the correction data per listed frequency. Cleared only by a power cycle
+    (and the ``cmu_correction_lost`` fault); ``*RST`` keeps the data and switches the corrections off (PG PDF 382,
+    388)."""
+
+    adj_mode: int = Field(default=0, ge=0, le=2)
+    freqs: list[float] = Field(default_factory=list)
+    standards: dict[int, list[float]] = Field(default_factory=dict)
+    data: list[CmuCorrectionPoint] = Field(default_factory=list)
 
 
 class SimPersistentState(_Mutable):
@@ -81,7 +109,12 @@ class SimPersistentState(_Mutable):
     ASU state (WP7.1; SMU channel -> setting, a missing channel holds the initial setting, PG Table 2-13, PDF 180):
     ``asu_paths`` = ``SAP`` path (0 SMU side, initial; 1 AUX), ``asu_1pa_auto`` = ``SAR`` 1 pA auto ranging enabled
     (initial: disabled), ``asu_indicator`` = ``SAL`` indicator enabled (initial: enabled). ``CN`` and ``CL`` return
-    the path to the SMU side (PG p505 (4-187)); ``*RST``/device clear reset all three."""
+    the path to the SMU side (PG p505 (4-187)); ``*RST``/device clear reset all three.
+
+    WP8.1: ``cmu`` = MFCMU channel -> ``CmuPersistent`` (phase compensation mode, correction list, standards and data;
+    ``*RST`` resets only the mode), ``scuu_paths`` = MFCMU channel -> ``SSP`` path 1-4 of its SCUU (missing = both
+    outputs open, the power-on and ``*RST`` state), ``scuu_indicators`` = MFCMU channel -> ``SSL`` LED on (missing =
+    on, the initial setting)."""
 
     version: int = STATE_VERSION
     scenario: str
@@ -95,6 +128,9 @@ class SimPersistentState(_Mutable):
     asu_paths: dict[int, int] = Field(default_factory=dict)
     asu_1pa_auto: dict[int, bool] = Field(default_factory=dict)
     asu_indicator: dict[int, bool] = Field(default_factory=dict)
+    cmu: dict[int, CmuPersistent] = Field(default_factory=dict)
+    scuu_paths: dict[int, int] = Field(default_factory=dict)
+    scuu_indicators: dict[int, bool] = Field(default_factory=dict)
     channels: dict[int, ChannelState] = Field(default_factory=dict)
     devices: dict[str, dict[str, float | int | bool | str]] = Field(default_factory=dict)
     measurement_count: int = 0

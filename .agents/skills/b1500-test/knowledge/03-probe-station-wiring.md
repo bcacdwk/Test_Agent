@@ -113,7 +113,14 @@ Seeded from deck slide 12.
   measurements; it opens while the SCUU is in SMU state (UG PDF 103).
 - 16440A SMU/PGU selector (with the 16445A adapter): switches a DUT terminal between an SMU and an SPGU channel,
   used for pulse program plus SMU read (UG PDF 44-45). Reserved recipe `spgu.program_smu_read`.
-- SCUU path command `SSP` (PG PDF 519); initial path open (PG PDF 180). C-V and selector work is reserved in v1.
+- SCUU path command `SSP chnum,path` with the MFCMU's channel (PG p520 (4-202)): 1 Force1 only, 2 Force2 only, 3 both
+  SMUs, 4 CMUH/CMUL; Force1 is the SMU in slot `cmu_slot - 1`, Force2 the one in `cmu_slot - 2`. Power-on and `*RST`
+  leave it open, which no `SSP` path restores (so a declared SCUU rests at `smu` or `cmu`). A connection switches the
+  unit's output on; switching an SMU's output to the MFCMU sets it to 0 V, 100 V range, 20 mA, back to SMU 0 V, 20 V
+  range, 100 uA. Its modules are never named in `CN` (error 323); the path reads back with `*LRN? 81`.
+- MFCMU sides: a pin map puts the High pair (Hc/Hp: DC bias and AC drive) on `7H` and the Low pair (Lc/Lp: the
+  virtual ground the current is measured at) on `7L` for the MFCMU in slot 7; roles `cmu_high`/`cmu_low` bind to
+  them. With an SCUU the same pads are its outputs (CMUH/Force1, CMUL/Force2).
 
 ## Shielding grounding and interlock
 

@@ -35,6 +35,21 @@ ERR_NO_MM = 214
 ERR_NO_SWEEP = 220
 ERR_SWEEP_COMPLIANCE = 223
 ERR_SYNC_MODE = 224
+ERR_NO_CV_SWEEP = 280
+ERR_NO_CV_PULSE = 281
+ERR_NO_CV_PULSE_SWEEP = 282
+ERR_CV_PULSE_LINEAR = 283
+ERR_CMU_PULSE_WIDTH = 284
+ERR_NO_CF_SWEEP = 290
+ERR_CMU_EXCESS_CURRENT = 320
+ERR_NOT_FOR_CMU = 321
+ERR_NOT_FOR_SMU = 322
+ERR_SCUU_USE_SSP = 323
+ERR_SSP_CHANNEL = 671
+ERR_ADJ_NOT_MANUAL = 680
+ERR_CORR_STANDARD = 682
+ERR_CORR_AC_ZERO = 684
+ERR_CORR_INCOMPLETE = 685
 
 ERROR_MESSAGES: dict[int, str] = {
     100: "Undefined GPIB command.",
@@ -59,9 +74,25 @@ ERROR_MESSAGES: dict[int, str] = {
     223: "Compliance must be set correctly.",
     224: "Sweep and sync output modes must be the same.",
     227: "Sweep measurement was aborted.",
+    280: "Send WDCV to set CV sweep source.",
+    281: "Send PDCV to set CV pulse source.",
+    282: "Send PWDCV to set CV pulse sweep source.",
+    283: "Set linear sweep for MM20.",
+    284: "Improper setting of CMU frequency and pulse width.",
+    290: "Send WFC to set Cf sweep source.",
     305: "Excess current in HPSMU.",
+    320: "Excess current in CMU.",
+    321: "This command is not available for CMU.",
+    322: "This command is not available for SMU.",
+    323: "Use SSP instead of CN for SCUU modules.",
+    671: "SSP is not available for this channel.",
+    680: "CMU correction mode must be manual.",
+    682: "Invalid standard is specified as CMU correction.",
+    684: "AC Voltage is 0 mV.",
+    685: "CMU correction is not complete.",
 }
-"""``ERRX?`` messages for the codes the simulator raises (PG PDF 575-580; 305 from the ``ERRX?`` example, PDF 432)."""
+"""``ERRX?`` messages for the codes the simulator raises (PG PDF 575-587; 305 from the ``ERRX?`` example, PDF 432;
+the MFCMU and SCUU codes 280-290, 320-323 and 671-685 from PDF 582-583 and 586-587)."""
 
 
 def error_message(code: int) -> str:
@@ -79,32 +110,45 @@ ERROR_QUEUE_SIZE = 30
 
 QUERIES = frozenset({
     "*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "LOP?", "*TST?", "*CAL?", "NUB?", "*LRN?",
-    "ERMOD?", "ERSSP?", "SPST?", "CORRST?", "ADJ?",
+    "ERMOD?", "ERSSP?", "SPST?", "CORRST?", "ADJ?", "CORR?",
 })  # fmt: skip
 """Commands that put a response into the query buffer."""
 
 SAMPLING_COMMANDS = frozenset({"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"})
 """The SMU sampling setup (``MM 10``) and the timer reset (``units/sampling.py``, v2 kind ``smu_sampling``)."""
 
-SUPPORTED = QUERIES | SAMPLING_COMMANDS | frozenset({
+CMU_COMMANDS = frozenset({
+    "IMP", "FC", "ACV", "DCV", "RC", "ACT", "LMN", "WDCV", "WTDCV", "WMDCV", "WFC", "WTFC", "WMFC", "WACV", "WTACV",
+    "WMACV", "PDCV", "PTDCV", "PWDCV", "MDCV", "MTDCV", "ADJ", "CORRL", "CLCORR", "DCORR", "CORRDT", "CORRST",
+})  # fmt: skip
+"""MFCMU setting commands (WP8.1, blueprint v2 4.1; their queries ``ADJ?``, ``CORR?``, ``CORRST?`` are in
+``QUERIES``)."""
+
+SUPPORTED = QUERIES | SAMPLING_COMMANDS | CMU_COMMANDS | frozenset({
     "*RST", "FMT", "BC", "TSC", "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "RI", "RV",
     "MM", "CMM", "DV", "WV", "WT", "WM", "XE", "CM",
     "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
     "SAP", "SAR", "SAL",
+    "SSP", "SSL",
 })  # fmt: skip
 """Every mnemonic the simulator executes (the v1 subset plus ``CM`` and ``*LRN?`` types 0 and 31, v2 2.6, the family
 state queries of the bring-up probe, v2 7.1: ``ERMOD?``, ``ERSSP?``, ``SPST?``, ``CORRST?``, ``ADJ?`` mode 0, the
 sampling commands of WP7.4 and the v2 sweep sources of WP7.2: ``DI``, ``WI``, ``WSV``/``WSI``, ``WNX``/``WNCC`` with
-``MM 16``) and the ASU commands of WP7.1 (``SAP``, ``SAR``, ``SAL`` with ``*LRN?`` types 62 and 63); anything else is
-error 100 and logged ``unsupported``."""
+``MM 16``), the ASU commands of WP7.1 (``SAP``, ``SAR``, ``SAL`` with ``*LRN?`` types 62 and 63) and the MFCMU and
+SCUU commands of WP8.1 with ``MM`` 17-26 and ``*LRN?`` types 70-73, 80, 81, 90; anything else is error 100 and
+logged ``unsupported``."""
 
 ALONE_ONLY = frozenset({"AB", "*RST", "FMT", "BC"})
 """Mnemonics that must be sent alone: the simulator rejects the whole line (error 103) otherwise (PDF 44, 364,
 437). The real instrument executes ``AB``/``*RST`` and silently drops the rest; the simulator is stricter so a
 driver bug is loud."""
 
-SOURCE_COMMANDS = frozenset({"DV", "DI", "WV", "WI", "WSV", "WSI", "WNX", "MV", "MI"})
-"""Commands that set an output level (the safety spy watches these)."""
+SOURCE_COMMANDS = frozenset({
+    "DV", "DI", "WV", "WI", "WSV", "WSI", "WNX", "MV", "MI",
+    "ACV", "DCV", "WDCV", "WACV", "PDCV", "PWDCV", "MDCV", "SSP",
+})  # fmt: skip
+"""Commands that set an output level or connect an output (the safety spy watches these): the SMU sources, the MFCMU
+AC level and DC bias sources and the SCUU path ``SSP`` (which switches outputs on and resets SMUs)."""
 
 ZEROING_COMMANDS = frozenset({"DZ", "CL"})
 """Commands the ``cleanup_failure`` fault makes time out."""

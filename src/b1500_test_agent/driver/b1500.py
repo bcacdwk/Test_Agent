@@ -3,30 +3,45 @@
 
 A facade over one operations mixin per instrument family (``driver/ops/``): ``CoreOps`` (queries, state, data
 format, ``CN``, ``XE`` + read, on ``DriverBase``), ``SmuOps`` (integration, ranging, guarded ``DV``/``DI`` and the
-staircase sweeps ``WV``/``WI``/``WSV``/``WSI``/``WNX``), ``CmuOps`` (correction state), ``SpguOps`` (output state)
-and ``SwitchOps`` (selector state); the CMU, SPGU and switch work packages add their guarded operations to the same
-mixins. Every command comes from
+staircase sweeps ``WV``/``WI``/``WSV``/``WSI``/``WNX``), ``CmuOps`` (MFCMU signal, MM 17-26 setups, phase
+compensation, data correction, cleanup zeroing; WP8.1), ``SpguOps`` (output state) and ``SwitchOps`` (selector state,
+ASU, guarded SCUU path); the SPGU and selector work packages add their guarded operations to the same mixins. Every
+command comes from
 ``driver/flex/`` and is written alone (one command per write, never ``;``-joined). Source operations refuse without
 an ``OutputGuard`` and check every channel and value against it before the first byte is written. The driver
 orchestrates nothing else: cleanup order (``AB`` -> ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify) belongs to
 ``session/transaction.py``.
 ``SamplingOps`` (WP7.4) adds time stamps, guarded ``MV``/``MI`` and the ``MM 10`` sampling setup.
 
-``StaircaseSetup``, ``SweepSource``, ``RawBlock`` and the ADC code tables are re-exported here, so callers import the
-driver API from one module.
+``StaircaseSetup``, ``SweepSource``, ``RawBlock``, the ADC code tables and the MFCMU setup models are re-exported
+here, so callers import the driver API from one module.
 """
 
 from __future__ import annotations
 
-from b1500_test_agent.driver.ops.cmu import CmuOps
+from b1500_test_agent.driver.ops.cmu import (
+    AcLevelSweepSetup,
+    CfSweepSetup,
+    CmuBlock,
+    CmuOps,
+    CmuSignal,
+    CmuSweepTiming,
+    CtSamplingSetup,
+    CvSweepSetup,
+    PulsedCvSweepSetup,
+    PulsedSpotCSetup,
+)
 from b1500_test_agent.driver.ops.core import CoreOps, RawBlock
 from b1500_test_agent.driver.ops.sampling import SamplingOps, SamplingSetup, SamplingSource
 from b1500_test_agent.driver.ops.smu import ADC_MODE_CODES, ADC_TYPE_CODES, SmuOps, StaircaseSetup, SweepSource
 from b1500_test_agent.driver.ops.spgu import SpguOps
 from b1500_test_agent.driver.ops.switch import SwitchOps
 
-__all__ = ["ADC_MODE_CODES", "ADC_TYPE_CODES", "B1500Driver", "RawBlock", "SamplingSetup", "SamplingSource",
-           "StaircaseSetup", "SweepSource"]
+__all__ = [
+    "ADC_MODE_CODES", "ADC_TYPE_CODES", "AcLevelSweepSetup", "B1500Driver", "CfSweepSetup", "CmuBlock", "CmuSignal",
+    "CmuSweepTiming", "CtSamplingSetup", "CvSweepSetup", "PulsedCvSweepSetup", "PulsedSpotCSetup", "RawBlock",
+    "SamplingSetup", "SamplingSource", "StaircaseSetup", "SweepSource",
+]
 
 
 class B1500Driver(CoreOps, SmuOps, SamplingOps, CmuOps, SpguOps, SwitchOps):

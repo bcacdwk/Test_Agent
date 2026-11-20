@@ -1,0 +1,13 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 252-255 (printed 3-72 to 3-75): Table 3-20 spot C example (FMT 1, TSC 1, IMP 100, LMN 1, MM 17) and its Measurement Result Example; element layout PDF 47 (Spot C: Para1,Para2[,Osc_level,Dc_bias]), PDF 46 (Time first), Tables 1-6, 1-10 to 1-12 (PDF 50-55)
+# kind: fmt1
+# command: FMT 1; TSC 1; SSP 10,4; ACT 0,2; FC 10,1000000; ACV 10,0.03; MM 17,10; IMP 100; LMN 1; DCV 10,-5; TSR; XE
+# terminator: crlf
+# note: the printed row is Cp (pF), C_st, G (uS), G_st, OSC (mV), Osc_st, DC (V), Dc_st, Time (s): 4.96981,NJC,26.1577,NJY,28.7737,NJV,4.72556,NJV,0.0259; on the wire the time comes first (Mid(mret, 4, 12)), 16 characters per element
+# note: the time element's header is not printed (N J T assumed); values converted to SI units and written in engineering notation (PDF 51 allows it); the MFCMU is in slot 10 (channel J)
+# cmu: {"imp": 100, "mode": 17, "monitor": true, "source": false, "timestamp": true, "index": false}
+# point: N J T +25.9000E-03
+# point: N J C +4.96981E-12
+# point: N J Y +26.1577E-06
+# point: N J V +28.7737E-03
+# point: N J V +4.72556E+00
+NJT+25.9000E-03,NJC+4.96981E-12,NJY+26.1577E-06,NJV+28.7737E-03,NJV+4.72556E+00

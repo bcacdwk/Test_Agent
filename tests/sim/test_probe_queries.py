@@ -84,10 +84,11 @@ def test_state_persists_across_processes(tmp_path: Path) -> None:
         ("ERSSP? 4", 120),  # ports 0-3 (PG PDF 433)
         ("ERSSP?", 103),  # the port is required (wrong parameter count, as for every command)
         ("CORRST? 7,4", 120),  # modes 1-3 (PG PDF 388)
-        ("CORRST? 3,1", 151),  # slot 3 is an SMU
+        ("CORRST? 3,1", 322),  # slot 3 is an SMU: "not available for SMU" (PG PDF 583)
         ("CORRST? 9,1", 153),  # slot 9 is empty
         ("ADJ? 7,2", 120),  # modes 0 and 1 (PG PDF 356)
-        ("ADJ? 4,0", 151),
+        ("ADJ? 4,0", 322),
+        ("ADJ? 1,0", 151),  # slot 1 is the HV-SPGU
         ("ERMOD? 1", 103),
     ],
 )
@@ -99,9 +100,15 @@ def test_malformed_probe_queries_queue_an_error_and_answer_nothing(command: str,
 
 
 @pytest.mark.parametrize("command", ["ADJ? 7,1", "ADJ? 7"])
-def test_phase_compensation_measurement_is_not_simulated_yet(command: str) -> None:
-    """``ADJ?`` mode 1 (the manual's default) measures for about 30 s; the CMU work package simulates it."""
+def test_phase_compensation_measurement_needs_the_manual_mode(command: str) -> None:
+    """``ADJ?`` mode 1 (the manual's default) measures for about 30 s, only in the manual mode (error 680, PG PDF
+    587); the read-only probe therefore always writes mode 0 (WP8.1 simulates the measurement)."""
     sim = lab()
     sim.write(command)
-    assert sim.instrument.errors == [100]
-    assert sim.instrument.commands("ADJ?")[-1].outcome == "unsupported"
+    assert sim.instrument.errors == [680]
+    sim.query("ERRX?")
+    sim.write("ADJ 7,1")
+    start = sim.instrument.clock
+    assert sim.query(command, timeout_s=60.0) == "0"
+    assert sim.instrument.clock - start == pytest.approx(30.0)
+    assert sim.query("ADJ? 7,0") == "0"

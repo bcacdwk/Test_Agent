@@ -1,0 +1,47 @@
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario; device params are typed by
+# b1500_test_agent.models.sim (DEVICE_PARAMS); consumed by the simulator (transport/sim/). Name = file name. The
+# slots mirror config/station.example.yaml; `wiring` is the physical wiring of the simulated prober (independent of
+# the agent's pin map); `models` holds the truth parameters tests compare extractions against; noise, faults and
+# timing as documented in nmos_basic.yaml.
+#
+# The MFCMU known-capacitance check (blueprint v2 4.2 "fixture + capacitor"; bring-up stage L6, recipes cmu.* and
+# cmu.spot): a 100 pF reference capacitor between the MFCMU sides 7H/7L (pin map capacitor-cmu), seen through the
+# measurement path parasitics of the `fixture` device (open 0.3 pF || 1 GOhm across, short 0.5 Ohm + 50 nH in series,
+# 1 deg/MHz cable phase error until phase compensation). Uncorrected the MFCMU reads about 100.3 pF; with phase
+# compensation and open/short correction at the measurement frequency it reads 100 pF within 0.1 %. The relative
+# noise (2e-4 of |Z| at the initial ACT 0,2 averaging) stays well inside that.
+
+description: >-
+  100 pF reference capacitor on CMU1 (a on 7H, b on 7L) behind the fixture parasitics (0.3 pF open, 0.5 Ohm + 50 nH
+  short, 1 deg/MHz phase error); for the MFCMU correction and known-capacitance checks; instant timing.
+idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101
+slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
+  - {slot: 7, model: B1520A}
+interlock_closed: false
+wiring:
+  std:
+    a: 7H
+    b: 7L
+  path:
+    high: 7H
+    low: 7L
+models:
+  std:
+    model: capacitor
+    params:
+      c_f: 1.0e-10              # truth: 100 pF, lossless
+  path:
+    model: fixture
+    params: {}                  # blueprint 4.2 defaults (models.sim_devices.FixtureParams); TODO(verify) at M12 L6
+noise:
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  rel: 2.0e-4
+  seed: 11
+faults: null
+timing: instant

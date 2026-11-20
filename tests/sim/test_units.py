@@ -2,7 +2,8 @@
 
 ``SimInstrument`` dispatches through ``units.base.handler_table``; ``units/core.py`` holds the family-independent
 handlers, ``units/smu.py`` the SMU handlers and measurement engine, ``units/sampling.py`` the SMU sampling setup and
-engine (WP7.4), ``units/{cmu,spgu,switch}.py`` the family state queries of the read-only probe (WP6.1).
+engine (WP7.4), ``units/cmu.py`` the MFCMU (and the ``MM``/``XE`` dispatch by measurement mode, WP8.1),
+``units/{spgu,switch}.py`` the SPGU and switch handlers (selector queries, ASU, SCUU).
 """
 
 from __future__ import annotations
@@ -20,11 +21,11 @@ from b1500_test_agent.transport.sim.units.switch import SwitchUnit
 
 CORE = {"*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "*RST", "LOP?", "*TST?", "*CAL?", "NUB?", "FMT", "BC", "TSC",
         "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "CM", "*LRN?"}
-SMU = {"RI", "RV", "MM", "CMM", "DV", "WV", "WT", "WM", "XE", "DI", "WI", "WSV", "WSI", "WNX", "WNCC"}
+SMU = {"RI", "RV", "CMM", "DV", "WV", "WT", "WM", "DI", "WI", "WSV", "WSI", "WNX", "WNCC"}
 SAMPLING = {"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"}
-CMU = {"CORRST?", "ADJ?"}
+CMU = {"CORRST?", "ADJ?", "CORR?", "MM", "XE"} | set(flex.CMU_COMMANDS)  # MM/XE dispatch by mode (WP8.1)
 SPGU = {"SPST?"}
-SWITCH = {"ERMOD?", "ERSSP?", "SAP", "SAR", "SAL"}
+SWITCH = {"ERMOD?", "ERSSP?", "SAP", "SAR", "SAL", "SSP", "SSL"}
 
 
 def test_every_supported_mnemonic_has_exactly_one_handler() -> None:

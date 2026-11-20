@@ -1,5 +1,5 @@
 """The simulator circuit: device objects of a scenario (``build_device``) and the wiring that connects their
-terminals to channels or the GNDU (``Circuit``), blueprint 4.2."""
+terminals to channels, MFCMU sides (``"7H"``/``"7L"``, WP8.1) or the GNDU (``Circuit``), blueprint 4.2."""
 
 from __future__ import annotations
 
@@ -34,6 +34,9 @@ from b1500_test_agent.transport.sim.devices.mosfet import DamagedMosfet, Mosfet,
 from b1500_test_agent.transport.sim.devices.noise import NoiseSource
 
 P = TypeVar("P", bound=StrictModel)
+
+Node = int | str
+"""A circuit node with a forced level: a canonical channel number or an MFCMU side target (``"7H"``, ``"7L"``)."""
 
 
 def _typed(params: StrictModel, schema: type[P]) -> P:
@@ -112,40 +115,42 @@ class Circuit:
         """True when a device has internal state (then the instrument commits applied voltages)."""
         return bool(self.stateful)
 
-    def _voltages(self, name: str, levels: Mapping[int, float]) -> dict[str, float | None]:
+    def terminal_voltages(self, name: str, levels: Mapping[Node, float]) -> dict[str, float | None]:
+        """Voltage of each wired terminal of device ``name`` for ``levels`` (``None`` = floating): GNDU 0 V, a
+        channel or MFCMU side its level, anything else (or a node without a level) floating."""
         voltages: dict[str, float | None] = {}
         for terminal, target in self.wiring.get(name, {}).items():
             if target == "GNDU":
                 voltages[terminal] = 0.0
-            elif isinstance(target, int):
+            elif target is not None:
                 voltages[terminal] = levels.get(target)
             else:
                 voltages[terminal] = None
         return voltages
 
-    def _collect(self, levels: Mapping[int, float], evaluate: Callable[[str, Device, dict[str, float | None]],
-                                                                       dict[str, float]]) -> dict[int, float]:
-        currents = {channel: 0.0 for channel in levels}
+    def _collect(self, levels: Mapping[Node, float], evaluate: Callable[[str, Device, dict[str, float | None]],
+                                                                        dict[str, float]]) -> dict[Node, float]:
+        currents: dict[Node, float] = {node: 0.0 for node in levels}
         for name, device in self.devices.items():
             wiring = self.wiring.get(name, {})
-            for terminal, current in evaluate(name, device, self._voltages(name, levels)).items():
+            for terminal, current in evaluate(name, device, self.terminal_voltages(name, levels)).items():
                 target = wiring.get(terminal)
-                if isinstance(target, int) and target in currents:
+                if target is not None and target in currents:
                     currents[target] += current
         return currents
 
-    def channel_currents(self, levels: Mapping[int, float]) -> dict[int, float]:
-        """Current (A) delivered by each channel in ``levels`` (canonical channel → forced voltage, for the channels
-        whose output switch is on). Terminals on other channels float; GNDU terminals are at 0 V. Device state is
-        not changed (see ``commit``)."""
+    def channel_currents(self, levels: Mapping[Node, float]) -> dict[Node, float]:
+        """Current (A) delivered by each node in ``levels`` (canonical channel or MFCMU side ``"7H"``/``"7L"`` →
+        forced voltage, for the outputs that are on). Terminals on other nodes float; GNDU terminals are at 0 V.
+        Device state is not changed (see ``commit``)."""
         return self._collect(levels, lambda _name, device, v: device.terminal_currents(v))
 
-    def commit(self, levels: Mapping[int, float]) -> None:
+    def commit(self, levels: Mapping[Node, float]) -> None:
         """Apply ``levels`` (the voltages actually forced) to every stateful device."""
         for name, device in self.stateful.items():
-            device.commit(self._voltages(name, levels))
+            device.commit(self.terminal_voltages(name, levels))
 
-    def advance(self, dt: float, levels: Mapping[int, float]) -> dict[int, float]:
+    def advance(self, dt: float, levels: Mapping[Node, float]) -> dict[Node, float]:
         """Hold ``levels`` for ``dt`` seconds (≥ 0): every dynamic device evolves; returns the current (A) of each
         channel in ``levels`` at the end of the interval plus the mean displacement current over it."""
         if dt < 0.0:

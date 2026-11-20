@@ -1,0 +1,48 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 281-284 (printed 3-101 to 3-104): C-t sampling example (FMT 1,1, TSC 1, MTDCV, MDCV ch,base,bias,0, MM 26, IMP 100) and its Measurement Result Example (first 10 of 30 samples); layout PDF 49 (C-t: [Sampling_no,]Para1,Para2), NUB? = 4 per sample
+# kind: fmt1
+# command: FMT 1,1; TSC 1; SSP 7,4; ACT 0,2; FC 7,1000000; ACV 7,0.03; MTDCV 0.1,0.05,10,0; MDCV 7,0,5,0; MM 26,7; IMP 100; RC 7,0; TSR; XE
+# terminator: crlf
+# note: per sample Sampling_no (index, data type X), Time, Cp, G: the example reads the index at 4, the time at 16 + 4 of each 64-character block
+# note: values from the printed result table (Cp pF, G uS) converted to SI; index and time headers assumed (N G X, N G T); the printed table has 30 samples, the fixture keeps the first 10 (MTDCV number 10)
+# cmu: {"imp": 100, "mode": 26, "monitor": false, "source": true, "timestamp": true, "index": true}
+# point: N G X +1.00000E+00
+# point: N G T +101.990E-03
+# point: N G C +100.051E-15
+# point: N G Y +57.9184E-09
+# point: N G X +2.00000E+00
+# point: N G T +152.000E-03
+# point: N G C +98.9954E-15
+# point: N G Y +51.0581E-09
+# point: N G X +3.00000E+00
+# point: N G T +201.990E-03
+# point: N G C +101.344E-15
+# point: N G Y +60.3764E-09
+# point: N G X +4.00000E+00
+# point: N G T +252.000E-03
+# point: N G C +98.8522E-15
+# point: N G Y +58.5930E-09
+# point: N G X +5.00000E+00
+# point: N G T +301.990E-03
+# point: N G C +99.0403E-15
+# point: N G Y +51.4987E-09
+# point: N G X +6.00000E+00
+# point: N G T +351.990E-03
+# point: N G C +100.490E-15
+# point: N G Y +58.8621E-09
+# point: N G X +7.00000E+00
+# point: N G T +401.990E-03
+# point: N G C +99.7872E-15
+# point: N G Y +50.5812E-09
+# point: N G X +8.00000E+00
+# point: N G T +452.000E-03
+# point: N G C +99.0492E-15
+# point: N G Y +44.9747E-09
+# point: N G X +9.00000E+00
+# point: N G T +501.990E-03
+# point: N G C +99.9805E-15
+# point: N G Y +46.0361E-09
+# point: N G X +10.0000E+00
+# point: N G T +552.000E-03
+# point: N G C +97.2752E-15
+# point: N G Y +51.8454E-09
+NGX+1.00000E+00,NGT+101.990E-03,NGC+100.051E-15,NGY+57.9184E-09,NGX+2.00000E+00,NGT+152.000E-03,NGC+98.9954E-15,NGY+51.0581E-09,NGX+3.00000E+00,NGT+201.990E-03,NGC+101.344E-15,NGY+60.3764E-09,NGX+4.00000E+00,NGT+252.000E-03,NGC+98.8522E-15,NGY+58.5930E-09,NGX+5.00000E+00,NGT+301.990E-03,NGC+99.0403E-15,NGY+51.4987E-09,NGX+6.00000E+00,NGT+351.990E-03,NGC+100.490E-15,NGY+58.8621E-09,NGX+7.00000E+00,NGT+401.990E-03,NGC+99.7872E-15,NGY+50.5812E-09,NGX+8.00000E+00,NGT+452.000E-03,NGC+99.0492E-15,NGY+44.9747E-09,NGX+9.00000E+00,NGT+501.990E-03,NGC+99.9805E-15,NGY+46.0361E-09,NGX+10.0000E+00,NGT+552.000E-03,NGC+97.2752E-15,NGY+51.8454E-09

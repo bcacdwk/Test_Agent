@@ -72,13 +72,16 @@ naming it), `note`.
 | `TSC` / `TSR` (time stamps; WP7.4) | `set_time_stamp` / `reset_timer` | `tsc` / `tsr` |
 | `XE` + output-buffer read | `execute_and_read` | `XE` |
 | `*OPC?` | `wait_complete` (added by WP1.3) | `OPC_Q` |
+| `CM`, `*LRN?`; `ERMOD?`, `ERSSP?`, `SPST?`, `CORRST?`, `ADJ?` | `set_auto_calibration`, `auto_calibration`; the probe queries | WP5.6; WP6.1 |
+| MFCMU: `IMP`, `FC`/`ACV`/`DCV`, `RC`, `ACT`, `LMN`, the MM 18-26 sources and timing, `ADJ`, `CORRL`, `CLCORR`, `CORR?`, `DCORR`, `CORRDT`, `CORRST`; `MM` 17-20, 22, 23, 26 (`MM_MODE_TARGETS`); SCUU `SSP`, `SSL` | `CmuOps` (`apply_cmu_signal`, `cv_sweep`, `cf_sweep`, ...), `SwitchOps.scuu_route` | WP8.1 |
 
 Mapped since: `CM`, `*LRN?` (WP5.6); the probe queries `ERMOD?`, `ERSSP?`, `SPST?`, `CORRST?`, `ADJ?` (WP6.1); the
 sampling setup `MM 10`, `MCC`, `ML`, `MT`, `MSC`, `MV`, `MI` and the time stamps `TSC`, `TSR` (WP7.4); `DI`, `WI`,
-`WSV`, `WSI`, `WNX` and `MM 16` (WP7.2). Every other mnemonic is `unmapped`: 235 of the 280 command entries, and 225
-of the 282 atoms (all 42 D atoms among them). Of the 57 mapped atoms, 18 are partial. Some partial atoms share only
-`XE` with the driver, such as the CMU (C-t sampling included), pulsed and QSCV execute atoms, because their `MM` mode
-is not supported.
+`WSV`, `WSI`, `WNX` and `MM 16` (WP7.2); the spot setup `MM 1` and the ASU `SAP`, `SAR`, `SAL` (WP7.1); the MFCMU
+commands with `MM` 17-20, 22, 23, 26 and the SCUU `SSP`, `SSL` (WP8.1). Every other mnemonic is `unmapped`: 202 of
+the 280 command entries, and 204 of the 282 atoms (all 42 D atoms among them). Of the 78 mapped atoms, 10 are
+partial. Some partial atoms share only `XE` with the driver, such as the pulsed and QSCV execute atoms, because their
+`MM` mode is not supported.
 
 ## Priority scale
 
@@ -90,7 +93,8 @@ is not supported.
 
 How a priority is set:
 1. A mapped FLEX entry counts as `m1`. An unmapped one counts as `m2` if it is in `M2_COMMANDS`, else `later`.
-   An `MM <n>` entry of a mode without a driver method (`MM_MODE_TARGETS`: 2, 10, 16) is `later`. Host tokens: the output-buffer read and `session.close` are `m1`.
+   An `MM <n>` entry is mapped when `MM_MODE_TARGETS` names the driver method that sends mode n (1, 2, 10, 16 and
+   the MFCMU modes 17-20, 22, 23, 26), else `later`. Host tokens: the output-buffer read and `session.close` are `m1`.
    WGFMU and EasyEXPERT tokens are `later`. An atom starts at the latest priority among its entries.
 2. If the atom id names a later-scope unit (`wgfmu`, `easyexpert`, `spgu`, `cmu`, `qscv`, `hvsmu`, `hcsmu`,
    `uhcu`, `hvmcu`, `uhvu`, `asu`, `scuu`, `selector`, `dio`), the atom is `later` even if `XE` maps.

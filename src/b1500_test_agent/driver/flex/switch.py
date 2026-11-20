@@ -1,10 +1,11 @@
-"""Switch FLEX builders and constants: the 16440A SMU/PGU selector over the digital I/O port and the atto sense and
-switch unit (ASU) of an HRSMU or B1511B MPSMU (blueprint v2 2.5).
+"""Switch FLEX builders and constants: the 16440A SMU/PGU selector over the digital I/O port, the atto sense and
+switch unit (ASU) of an HRSMU or B1511B MPSMU and the SCUU (SMU CMU unify unit) paths (blueprint v2 2.5).
 
 WP6.1 adds the read-only queries the bring-up probe needs (``ERMOD?``, ``ERSSP?``); WP7.1 the ASU commands (``SAP``
-path, ``SAR`` 1 pA auto ranging, ``SAL`` indicator) and the two ``*LRN?`` types that read them back (62, 63). The
-selector setting commands (``ERMOD``, ``ERSSP``) arrive with WP9.2 and the SCUU (``SSP``, ``SSL``) with WP8.1.
-Builders check only the syntax domain of the manual.
+path, ``SAR`` 1 pA auto ranging, ``SAL`` indicator) and the two ``*LRN?`` types that read them back (62, 63); WP8.1
+the SCUU path and indicator (``SSP``, ``SSL``; the manual has no ``SSP?``: ``*LRN? 81`` answers the path,
+``LRN_SCUU_PATH``). The selector setting commands (``ERMOD``, ``ERSSP``) arrive with WP9.2. Builders check only the
+syntax domain of the manual.
 
 Source: Keysight B1500 Series Programming Guide, Edition 15 ("PG"; physical PDF pages, chapter 4 printed 4-N =
 PDF N + 318).
@@ -92,3 +93,48 @@ def sal(ch: int, mode: int) -> str:
     """``SAL chnum,mode``: connection status indicator (LED) of the ASU of SMU ``ch`` (PG PDF 505, printed 4-187):
     0 disables, 1 enables it (initial setting). No output change."""
     return f"SAL {_channel(ch)},{_choice(mode, (0, 1), 'SAL mode')}"
+
+
+# -- SCUU (SMU CMU unify unit) ----------------------------------------------------------------------------------------
+
+SSP_PATHS: Final[dict[int, tuple[SwitchState, SwitchState]]] = {
+    1: ("smu", "open"), 2: ("open", "smu"), 3: ("smu", "smu"), 4: ("cmu", "cmu"),
+}  # fmt: skip
+"""``SSP chnum,path`` -> what the two SCUU outputs connect to (Table 4-30, PG PDF 520; Table 1-5, PDF 37): output 1
+(CMUH / Force1, the SMU in slot ``slot - 1``) and output 2 (CMUL / Force2, the SMU in slot ``slot - 2``), where
+``slot`` is the MFCMU's. Power-on and ``*RST`` leave both outputs open (no ``SSP`` path does that)."""
+
+SCUU_SMU_SLOT_OFFSETS: Final[tuple[int, int]] = (1, 2)
+"""Output 1 (CMUH/Force1) is fed by the SMU in slot ``cmu_slot - 1``, output 2 (CMUL/Force2) by ``cmu_slot - 2``
+(PG PDF 520-521)."""
+
+LRN_SCUU_ITEM = "SSP"
+"""The item name of the ``*LRN? 81`` answer (PG PDF 452)."""
+
+LRN_SCUU_PATH = 81
+"""``*LRN? 81``: the SCUU connection path, ``SSP chnum,mode`` (PG PDF 452, printed 4-134); the manual has no
+``SSP?`` query, so this is how the path is read back."""
+
+
+def _scuu_cmu(ch: int, mnemonic: str) -> int:
+    """The MFCMU channel of an SCUU command: 3 to 10 or 301 to 1001 (two SMU slots below it; PG PDF 519-520)."""
+    slot = _channel(ch) if ch <= 10 else _channel(ch) // 100
+    if slot < 3 or (ch > 10 and ch % 100 != 1):
+        raise ValueError(f"{mnemonic} chnum must be an MFCMU channel 3 to 10 or 301 to 1001, got {ch}")
+    return ch
+
+
+def ssp(ch: int, path: int) -> str:
+    """``SSP chnum,path``: connect the SCUU outputs (PG PDF 519-521, printed 4-201 to 4-203; ``SSP_PATHS``): 1
+    Force1/Sense1 to output 1, 2 Force2/Sense2 to output 2, 3 both SMUs, 4 CMUH/CMUL. Making a connection switches
+    the connected unit's output ON; switching from SMU to MFCMU sets the SMU to 0 V, 100 V range, 20 mA compliance,
+    series resistor off; back to SMU: 0 V, 20 V range, 100 uA compliance (ATV-27). ``chnum`` is the MFCMU channel."""
+    return f"SSP {_scuu_cmu(ch, 'SSP')},{_choice(path, tuple(SSP_PATHS), 'SSP path')}"
+
+
+def ssl(ch: int, on: bool) -> str:
+    """``SSL chnum,mode``: SCUU connection status indicator (LED) 1 enabled (initial setting) or 0 disabled (PG
+    PDF 519, printed 4-201). No output change."""
+    if not isinstance(on, bool):
+        raise TypeError(f"SSL mode must be a bool, got {on!r}")
+    return f"SSL {_scuu_cmu(ch, 'SSL')},{1 if on else 0}"

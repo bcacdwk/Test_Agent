@@ -1,0 +1,68 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 271-274 (printed 3-91 to 3-94): CV (AC level) sweep example (FMT 1,1, TSC 1, WMACV 2,1, WACV ch,1,v1,v2,10, MM 23, IMP 100, LMN 1, DCV 5 V) and its Measurement Result Example; layout PDF 48 (CV (AC level): Para1,Para2[,Osc_level,Dc_bias][,Source_data]), NUB? = 6 x 10
+# kind: fmt1
+# command: FMT 1,1; TSC 1; SSP 7,4; ACT 0,2; FC 7,1000000; WMACV 2,1; WTACV 0,0,0; WACV 7,1,0.01,0.1,10; MM 23,7; IMP 100; LMN 1; RC 7,0; DCV 7,5; TSR; XE
+# terminator: crlf
+# note: per step Time, Cp, G, Osc_level, Dc_bias, Source_data (the AC level, data type V)
+# note: values from the printed result table (Level mV, Cp pF, G uS, OSC mV) converted to SI; time and source headers assumed (N G T, W/E G V)
+# cmu: {"imp": 100, "mode": 23, "monitor": true, "source": true, "timestamp": true, "index": false}
+# point: N G T +71.4000E-03
+# point: N G C +101.413E-15
+# point: N G Y +23.6010E-09
+# point: N G V +9.97990E-03
+# point: N G V +5.00485E+00
+# point: W G V +10.0000E-03
+# point: N G T +139.210E-03
+# point: N G C +102.654E-15
+# point: N G Y +45.0136E-09
+# point: N G V +19.9630E-03
+# point: N G V +5.00490E+00
+# point: W G V +20.0000E-03
+# point: N G T +157.060E-03
+# point: N G C +100.627E-15
+# point: N G Y +52.2385E-09
+# point: N G V +29.9446E-03
+# point: N G V +5.00488E+00
+# point: W G V +30.0000E-03
+# point: N G T +225.010E-03
+# point: N G C +100.530E-15
+# point: N G Y +52.9098E-09
+# point: N G V +39.9260E-03
+# point: N G V +5.00491E+00
+# point: W G V +40.0000E-03
+# point: N G T +242.980E-03
+# point: N G C +100.080E-15
+# point: N G Y +56.2029E-09
+# point: N G V +49.8853E-03
+# point: N G V +5.00495E+00
+# point: W G V +50.0000E-03
+# point: N G T +260.920E-03
+# point: N G C +98.2925E-15
+# point: N G Y +49.2554E-09
+# point: N G V +59.8801E-03
+# point: N G V +5.00515E+00
+# point: W G V +60.0000E-03
+# point: N G T +328.850E-03
+# point: N G C +99.2213E-15
+# point: N G Y +54.8534E-09
+# point: N G V +69.8990E-03
+# point: N G V +5.00502E+00
+# point: W G V +70.0000E-03
+# point: N G T +346.790E-03
+# point: N G C +99.0670E-15
+# point: N G Y +50.1863E-09
+# point: N G V +79.9150E-03
+# point: N G V +5.00514E+00
+# point: W G V +80.0000E-03
+# point: N G T +364.460E-03
+# point: N G C +100.248E-15
+# point: N G Y +51.2628E-09
+# point: N G V +89.8920E-03
+# point: N G V +5.00487E+00
+# point: W G V +90.0000E-03
+# point: N G T +382.410E-03
+# point: N G C +99.6081E-15
+# point: N G Y +51.9715E-09
+# point: N G V +99.8690E-03
+# point: N G V +5.00486E+00
+# point: E G V +100.000E-03
+NGT+71.4000E-03,NGC+101.413E-15,NGY+23.6010E-09,NGV+9.97990E-03,NGV+5.00485E+00,WGV+10.0000E-03,NGT+139.210E-03,NGC+102.654E-15,NGY+45.0136E-09,NGV+19.9630E-03,NGV+5.00490E+00,WGV+20.0000E-03,NGT+157.060E-03,NGC+100.627E-15,NGY+52.2385E-09,NGV+29.9446E-03,NGV+5.00488E+00,WGV+30.0000E-03,NGT+225.010E-03,NGC+100.530E-15,NGY+52.9098E-09,NGV+39.9260E-03,NGV+5.00491E+00,WGV+40.0000E-03,NGT+242.980E-03,NGC+100.080E-15,NGY+56.2029E-09,NGV+49.8853E-03,NGV+5.00495E+00,WGV+50.0000E-03,NGT+260.920E-03,NGC+98.2925E-15,NGY+49.2554E-09,NGV+59.8801E-03,NGV+5.00515E+00,WGV+60.0000E-03,NGT+328.850E-03,NGC+99.2213E-15,NGY+54.8534E-09,NGV+69.8990E-03,NGV+5.00502E+00,WGV+70.0000E-03,NGT+346.790E-03,NGC+99.0670E-15,NGY+50.1863E-09,NGV+79.9150E-03,NGV+5.00514E+00,WGV+80.0000E-03,NGT+364.460E-03,NGC+100.248E-15,NGY+51.2628E-09,NGV+89.8920E-03,NGV+5.00487E+00,WGV+90.0000E-03,NGT+382.410E-03,NGC+99.6081E-15,NGY+51.9715E-09,NGV+99.8690E-03,NGV+5.00486E+00,EGV+100.000E-03

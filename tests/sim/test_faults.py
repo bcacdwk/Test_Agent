@@ -44,6 +44,7 @@ def test_every_kind_has_a_schema_and_parses_from_yaml_data() -> None:
         "cleanup_failure": {"count": 1}, "slow": {"factor": 10}, "bus_locked": {"nth": 2, "count": 1},
         "run_interrupt": {"segment": 2}, "abort_ignored": {"nth": 1, "count": None},
         "breakdown_at": {"t_s": 600.0, "device": "dut"},
+        "cmu_correction_lost": {"after_cmd": "XE"}, "cmu_overload": {"at_step": 0, "condition": "unbalance"},
     }  # fmt: skip
     assert set(examples) == set(FAULT_KINDS)
     for kind, fields in examples.items():

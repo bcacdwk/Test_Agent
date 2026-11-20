@@ -36,7 +36,7 @@ from b1500_test_agent.config import ConfigBundle
 from b1500_test_agent.driver.b1500 import B1500Driver
 from b1500_test_agent.driver.discovery import LOP_STATUS_CODES
 from b1500_test_agent.driver.errors import DriverError, status_flags
-from b1500_test_agent.driver.flex import ADJ_RESULTS, CORRECTION_CODES, ERMOD_SELECTOR
+from b1500_test_agent.driver.flex import ADJ_RESULTS, ERMOD_SELECTOR
 from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.bringup import InventoryReading, ProbeCheck, ProbeExchange, ProbeReport, ProbeStatus
 from b1500_test_agent.models.common import ErrorCode, ResultStatus
@@ -254,12 +254,13 @@ class _Probe:
             self.add("spgu", "PASS", f"SPGU in slot {', '.join(map(str, slots))}: output inactive")
 
     def cmu_check(self, driver: B1500Driver, slot: int) -> None:
-        corr = {name: driver.correction_enabled(slot, name) for name in CORRECTION_CODES}
+        live = driver.correction_state(slot)  # CORRST? x3, ADJ? slot,0 and *LRN? 90 (the compensation mode)
         result = driver.phase_compensation_result(slot)
         alias = self.alias(slot)
-        self.cmu = {**(self.cmu or {}), alias: CmuCorrectionLive(corr_state=corr, phase=result == 0)}
-        states = ", ".join(f"{name} {'on' if on else 'off'}" for name, on in corr.items())
-        detail = f"slot {slot}: corrections {states}; phase compensation result {result} ({ADJ_RESULTS[result]})"
+        self.cmu = {**(self.cmu or {}), alias: live}
+        states = ", ".join(f"{name} {'on' if on else 'off'}" for name, on in live.corr_state.items())
+        detail = (f"slot {slot}: corrections {states}; phase compensation result {result} ({ADJ_RESULTS[result]}), "
+                  f"{'in effect' if live.phase else 'not in effect'}")
         if result in (1, 2):
             self.add(f"cmu {alias}", "WARN", detail + "; repeat it at bring-up L6 with the terminals open")
         else:

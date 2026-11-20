@@ -81,7 +81,7 @@ sweeps; WP7.1 the spot, mode 1).
 | 13 | quasi-static C-V | SMU | reserved |
 | 14, 15 | linear / binary search | SMU | reserved |
 | 16 | multi-channel sweep (`WV`/`WI` primary + `WNX` sources, either mode; PDF 102) | SMU | `smu_staircase` with two or more sweep roles |
-| 17-20, 22, 23, 26 | spot C, C-V, pulsed C, C-f, C-V(AC level), C-t | MFCMU | reserved (correction, SCUU) |
+| 17-20, 22, 23, 26 | spot C, C-V, pulsed C, C-f, C-V(AC level), C-t | MFCMU | driver + simulator (WP8.1); recipes M8 |
 | 27, 28 | multi-channel pulsed spot / sweep | SMU | reserved |
 
 WGFMU waveforms run through the B1530A instrument library and SPGU pulses through their own commands, not through

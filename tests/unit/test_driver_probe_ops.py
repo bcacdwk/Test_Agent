@@ -14,6 +14,7 @@ from b1500_test_agent.models.station import CmuCorrectionLive
 from b1500_test_agent.transport.audit import AuditingTransport, MemoryAuditSink
 from b1500_test_agent.transport.readonly import ReadOnlyTransport, ReadOnlyViolation, is_query
 from b1500_test_agent.transport.sim import SimTransport
+from b1500_test_agent.transport.sim.state import CmuPersistent
 from tests.sim.helpers import load_scenario, noiseless
 
 
@@ -41,9 +42,15 @@ def test_family_queries_parse_the_simulator_answers(sim: SimTransport) -> None:
     state.cmu_phase_results[7] = 0
     assert (driver.selector_control_mode(), driver.selector_state(2), driver.pulse_output_active()) == (
         1, "pgu_open", True)
+    # a completed compensation is in effect only in the manual (or load adaptive) mode; auto is the *RST state
+    assert driver.correction_state(7).phase is False
+    state.cmu[7] = CmuPersistent(adj_mode=1)
     assert driver.correction_state(7) == CmuCorrectionLive(corr_state={"open": True, "short": False, "load": True},
                                                            phase=True)
     assert driver.phase_compensation_result(7) == 0
+    state.cmu[7] = CmuPersistent(adj_mode=2)
+    state.cmu_phase_results[7] = 3
+    assert driver.correction_state(7).phase is True  # load adaptive: compensated before every measurement
     sent = [r.command for r in sim.instrument.command_log]
     assert "ADJ? 7,0" in sent and all(not c.startswith("ADJ? 7,1") and c != "ADJ? 7" for c in sent)
 

@@ -264,6 +264,18 @@ lock is an OS file lock, released automatically when its process dies. After the
 cleanup adds a `restore` step (the auto-calibration switch, R-CAL-02); it never touches an output and is skipped when
 the cleanup could not verify the safe state.
 
+**MFCMU and SCUU (WP8.1).** Every MFCMU source command passes `OutputGuard.check_ac` with the channel's resulting
+frequency, AC level and DC bias (`FC`, `ACV`, `DCV`, both ends of every `WDCV`/`WFC`/`WACV` sweep, base and pulse of
+`PDCV`/`PWDCV`, base/bias/post of `MDCV`); a correction measurement (`CORR?`) is refused unless the same driver wrote
+the frequency list and the guard admits the AC level at every listed frequency, and the phase compensation (`ADJ?`
+mode 1) needs the channel in the plan's allowlist. Cleanup step 4 (blueprint v2 2.6) sends `DCV ch,0` and `ACV ch,0`
+to every MFCMU the transaction drove whose `LOP?` code still shows its output on, then `DZ` (which also zeroes every
+MFCMU DC bias); `CL` leaves the MFCMU at 0 V, 0 V rms, 1 kHz. The simulator's verification includes the MFCMU DC bias
+and AC level. A new driver (recovery, `safe_shutdown`) knows no MFCMU it drove and relies on the instrument-wide `DZ`
+and `CL` (PG p397 (4-79), p382 (4-64)). Every SCUU path change (`SSP`) is guarded by `check_route` per output: it
+switches outputs on and resets the SMUs (ATV-27, PG p520 (4-202)); its modules are never named in `CN` (error 323).
+Returning the SCUU to its `rest` state belongs to the route step of the cleanup (WP9.2).
+
 **`LOP?` positive control (hardware, WP6.2; v1 ATV-1, ATV-23).** On hardware the verification is `LOP?` reading `00`
 for every slot. An all-`00` answer proves the outputs off only if `LOP?` reports this instrument's output switches at
 all, so every run that switches outputs on reads `LOP?` once right after `CN`, before any level is applied (the

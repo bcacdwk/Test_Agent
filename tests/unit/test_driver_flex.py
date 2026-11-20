@@ -199,7 +199,9 @@ def test_numbers_are_round_trip_exact() -> None:
         lambda: flex.dz([103]),
         lambda: flex.fmt(2, 0),  # only FMT 1 and 5
         lambda: flex.fmt(1, 11),
-        lambda: flex.mm(3, [1]),  # only MM 1, 2, 10 and 16
+        lambda: flex.mm(3, [1]),  # only MM 1, 2, 10, 16 and the MFCMU modes
+        lambda: flex.mm(17, [7, 3]),  # spot C takes one channel
+        lambda: flex.mm(21, [7]),  # not a measurement mode
         lambda: flex.mm(2, []),
         lambda: flex.mm(2, list(range(1, 11)) + [101]),  # 11 > 10
         lambda: flex.cmm(1, 5),
@@ -378,7 +380,10 @@ def test_family_modules_hold_disjoint_builders() -> None:
     assert {"mcc", "ml", "mt", "msc", "mv", "mi"} == set(_own_functions(flex_sampling))  # WP7.4
     assert {"cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "di", "wi", "wsv", "wsi", "wnx"} == set(
         _own_functions(flex_smu))
-    assert {"corrst_q", "adj_q"} == set(_own_functions(flex_cmu))
+    assert {"corrst_q", "adj_q", "imp", "fc", "acv", "dcv", "rc", "act", "lmn", "wdcv", "wtdcv", "wmdcv", "wfc",
+            "wtfc", "wmfc", "wacv", "wtacv", "wmacv", "pdcv", "ptdcv", "pwdcv", "mdcv", "mtdcv", "adj", "corrl",
+            "clcorr", "corr_q", "dcorr", "corrdt", "corrst"} == set(_own_functions(flex_cmu))  # WP8.1
     assert set() == set(_own_functions(flex_spgu)) and "SPST_Q" in _own_constants(flex_spgu)
-    assert {"erssp_q", "sap", "sar", "sal"} == set(_own_functions(flex_switch))
-    assert {"ERMOD_Q", "ASU_PATHS", "LRN_ASU_PATH", "LRN_ASU_1PA"} <= set(_own_constants(flex_switch))
+    assert {"erssp_q", "sap", "sar", "sal", "ssp", "ssl"} == set(_own_functions(flex_switch))
+    assert {"ERMOD_Q", "ASU_PATHS", "LRN_ASU_PATH", "LRN_ASU_1PA", "SSP_PATHS", "LRN_SCUU_PATH"} <= set(
+        _own_constants(flex_switch))

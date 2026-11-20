@@ -49,7 +49,8 @@ PRIORITY_SCALE = {
     "and system.* self-test/self-cal; the B1500Driver methods of blueprint section 2.3; v2 additions mapped since "
     "(CM and *LRN? by WP5.6, the read-only probe queries ERMOD?, ERSSP?, SPST?, CORRST?, ADJ? by WP6.1, the SMU "
     "sampling MM 10 with MCC, ML, MT, MSC, MV, MI and the time stamps TSC/TSR by WP7.4, the sweep sources DI, WI, "
-    "WSV, WSI, WNX and MM 16 by WP7.2, MM 1 spot and the ASU commands SAP, SAR, SAL by WP7.1)",
+    "WSV, WSI, WNX and MM 16 by WP7.2, MM 1 spot and the ASU commands SAP, SAR, SAL by WP7.1, the MFCMU commands, "
+    "MM 17-26 and the SCUU's SSP/SSL by WP8.1)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
     "simulator's FLEX subset v1 (AV, BC, NUB?, TSC)",
     "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
@@ -65,11 +66,18 @@ DRIVER_METHODS = (
     "phase_compensation_result",
     "set_time_stamp", "reset_timer", "sampling_setup", "sampling_update",
     "spot_setup", "asu_paths", "asu_1pa_auto", "set_asu_path", "set_asu_1pa_auto", "set_asu_indicator",
+    "set_impedance_model", "apply_cmu_signal", "set_cmu_range", "set_cmu_integration", "set_cmu_monitor", "spot_c",
+    "cv_sweep", "cf_sweep", "ac_level_sweep", "pulsed_spot_c", "pulsed_cv_sweep", "ct_sampling",
+    "set_phase_compensation_mode", "set_correction_frequencies", "measure_correction", "set_correction_standard",
+    "set_correction_data", "set_correction", "scuu_route", "set_scuu_indicator",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
     "di", "wi", "wsv", "wsi", "wnx",
     "erssp_q", "corrst_q", "adj_q", "tsc", "tsr", "mcc", "ml", "mt", "msc", "mv", "mi", "sap", "sar", "sal",
+    "imp", "fc", "acv", "dcv", "rc", "act", "lmn", "wdcv", "wtdcv", "wmdcv", "wfc", "wtfc", "wmfc", "wacv", "wtacv",
+    "wmacv", "pdcv", "ptdcv", "pwdcv", "mdcv", "mtdcv", "adj", "corrl", "clcorr", "corr_q", "dcorr", "corrdt",
+    "corrst", "ssp", "ssl",
     "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q", "ERMOD_Q", "SPST_Q",
 )  # fmt: skip
 DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
@@ -118,8 +126,8 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "DI": CommandTarget("force_i", "di", "OutputGuard-checked (current level vs |I|, Vcomp vs |V|); bias_i and "
                         "step_i roles (WP7.2), kind smu_spot bias_i roles (WP7.1)"),
     "MM": CommandTarget("staircase", "mm", "staircase sends MM 2 (staircase) and MM 16 (multi-channel sweep, "
-                        "WP7.2), sampling_setup MM 10, spot_setup MM 1 (WP7.1) (MM_MODE_TARGETS); every other "
-                        "mode is unmapped"),
+                        "WP7.2), sampling_setup MM 10, spot_setup MM 1 (WP7.1), the MFCMU setups MM 17-26 (WP8.1) "
+                        "(MM_MODE_TARGETS); every other mode is unmapped"),
     "CMM": CommandTarget("staircase", "cmm", "sent inside the staircase, sampling and spot setups"),
     "WV": CommandTarget("staircase", "wv", "OutputGuard-checked voltage primary sweep"),
     "WI": CommandTarget("staircase", "wi", "OutputGuard-checked current primary sweep, lin/log single/double "
@@ -144,8 +152,8 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
                            "WP9.1"),
     "CORRST?": CommandTarget("correction_enabled", "corrst_q", "read-only probe per installed MFCMU (WP6.1); "
                              "R-CORR-01 pre-execute: M8"),
-    "ADJ?": CommandTarget("phase_compensation_result", "adj_q", "mode 0 only (last result, no measurement; WP6.1); "
-                          "mode 1 phase compensation: M8"),
+    "ADJ?": CommandTarget("phase_compensation_result", "adj_q", "mode 0 last result (WP6.1); mode 1 measures the "
+                          "compensation: measure_phase_compensation (WP8.1)"),
     "TSC": CommandTarget("set_time_stamp", "tsc", "kind smu_sampling (WP7.4): time stamps before every datum"),
     "TSR": CommandTarget("reset_timer", "tsr", "once before the first sampling trigger (immediate form only)"),
     "MCC": CommandTarget("sampling_setup", "mcc", "clears sampling sources left by an earlier program"),
@@ -159,9 +167,45 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
                          "path to the SMU side; read back by *LRN? 62 (WP7.1)"),
     "SAR": CommandTarget("set_asu_1pa_auto", "sar", "ranging only; read back by *LRN? 63 (WP7.1)"),
     "SAL": CommandTarget("set_asu_indicator", "sal", "ASU indicator; no output change (WP7.1)"),
+    "IMP": CommandTarget("set_impedance_model", "imp", "Table 4-16; run-table modes 10, 11, 100, 101, 200, 201"),
+    "FC": CommandTarget("apply_cmu_signal", "fc", "OutputGuard.check_ac; also set_cmu_frequency"),
+    "ACV": CommandTarget("apply_cmu_signal", "acv", "OutputGuard.check_ac; also set_cmu_ac, zero_cmu (cleanup)"),
+    "DCV": CommandTarget("apply_cmu_signal", "dcv", "OutputGuard.check_ac; MFCMU +-25 V only; also set_cmu_dc, "
+                         "zero_cmu (cleanup step 4)"),
+    "RC": CommandTarget("set_cmu_range", "rc"),
+    "ACT": CommandTarget("set_cmu_integration", "act"),
+    "LMN": CommandTarget("set_cmu_monitor", "lmn"),
+    "WDCV": CommandTarget("cv_sweep", "wdcv", "OutputGuard.check_ac at both ends; MFCMU form only"),
+    "WTDCV": CommandTarget("cv_sweep", "wtdcv"),
+    "WMDCV": CommandTarget("cv_sweep", "wmdcv", "also pulsed_cv_sweep"),
+    "WFC": CommandTarget("cf_sweep", "wfc", "OutputGuard.check_ac at both ends"),
+    "WTFC": CommandTarget("cf_sweep", "wtfc"),
+    "WMFC": CommandTarget("cf_sweep", "wmfc"),
+    "WACV": CommandTarget("ac_level_sweep", "wacv", "OutputGuard.check_ac at both ends"),
+    "WTACV": CommandTarget("ac_level_sweep", "wtacv"),
+    "WMACV": CommandTarget("ac_level_sweep", "wmacv"),
+    "PDCV": CommandTarget("pulsed_spot_c", "pdcv", "OutputGuard.check_ac at base and pulse"),
+    "PTDCV": CommandTarget("pulsed_spot_c", "ptdcv", "also pulsed_cv_sweep"),
+    "PWDCV": CommandTarget("pulsed_cv_sweep", "pwdcv", "OutputGuard.check_ac at base, start and stop"),
+    "MDCV": CommandTarget("ct_sampling", "mdcv", "OutputGuard.check_ac at base, bias and post"),
+    "MTDCV": CommandTarget("ct_sampling", "mtdcv"),
+    "ADJ": CommandTarget("set_phase_compensation_mode", "adj", "initializes the MFCMU"),
+    "CORRL": CommandTarget("set_correction_frequencies", "corrl"),
+    "CLCORR": CommandTarget("set_correction_frequencies", "clcorr"),
+    "CORR?": CommandTarget("measure_correction", "corr_q", "OutputGuard.check_ac at every listed frequency"),
+    "DCORR": CommandTarget("set_correction_standard", "dcorr"),
+    "CORRDT": CommandTarget("set_correction_data", "corrdt"),
+    "CORRST": CommandTarget("set_correction", "corrst"),
+    "SSP": CommandTarget("scuu_route", "ssp", "OutputGuard.check_route per output; resets the SMUs (ATV-27); path "
+                         "read back with *LRN? 81 (no SSP? exists)"),
+    "SSL": CommandTarget("set_scuu_indicator", "ssl"),
 }
 MM_MODE_TARGETS: dict[int, str] = {1: "B1500Driver.spot_setup", 2: "B1500Driver.staircase",
-                                   10: "B1500Driver.sampling_setup", 16: "B1500Driver.staircase"}
+                                   10: "B1500Driver.sampling_setup", 16: "B1500Driver.staircase",
+                                   17: "B1500Driver.spot_c", 18: "B1500Driver.cv_sweep",
+                                   19: "B1500Driver.pulsed_spot_c", 20: "B1500Driver.pulsed_cv_sweep",
+                                   22: "B1500Driver.cf_sweep", 23: "B1500Driver.ac_level_sweep",
+                                   26: "B1500Driver.ct_sampling"}
 """``MM <mode>`` entries of the legacy atoms: the driver method that sends each mapped mode (others unmapped)."""
 # Mapped commands are all m1; these unmapped ones are m2; everything else is `later`.
 M2_COMMANDS = frozenset({"AV", "BC", "NUB?", "TSC"})
@@ -202,6 +246,34 @@ GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "WSV": ([561, 562, 563], ["4-243 to 4-245"]),
     "WSI": ([560, 561], ["4-242 to 4-243"]),
     "WNX": ([556, 557, 558, 559], ["4-238 to 4-241"]),
+    # MFCMU and SCUU (WP8.1)
+    "IMP": ([441], ["4-123"]),
+    "FC": ([435], ["4-117"]),
+    "ACV": ([354, 355], ["4-36 to 4-37"]),
+    "DCV": ([390, 391], ["4-72 to 4-73"]),
+    "RC": ([500], ["4-182"]),
+    "ACT": ([354], ["4-36"]),
+    "LMN": ([445, 446], ["4-127 to 4-128"]),
+    "WDCV": ([549, 550], ["4-231 to 4-232"]),
+    "WTDCV": ([566, 567], ["4-248 to 4-249"]),
+    "WMDCV": ([554, 555], ["4-236 to 4-237"]),
+    "WFC": ([550, 551], ["4-232 to 4-233"]),
+    "WTFC": ([567, 568], ["4-249 to 4-250"]),
+    "WMFC": ([555, 556], ["4-237 to 4-238"]),
+    "WACV": ([547], ["4-229"]),
+    "WTACV": ([565, 566], ["4-247 to 4-248"]),
+    "WMACV": ([553, 554], ["4-235 to 4-236"]),
+    "PDCV": ([484, 485], ["4-166 to 4-167"]),
+    "PTDCV": ([487, 488], ["4-169 to 4-170"]),
+    "PWDCV": ([489, 490], ["4-171 to 4-172"]),
+    "MDCV": ([467, 468], ["4-149 to 4-150"]),
+    "MTDCV": ([476, 477], ["4-158 to 4-159"]),
+    "CORRL": ([384, 385], ["4-66 to 4-67"]),
+    "CLCORR": ([379], ["4-61"]),
+    "DCORR": ([389], ["4-71"]),
+    "CORRDT": ([383, 384], ["4-65 to 4-66"]),
+    "SSP": ([519, 520, 521], ["4-201 to 4-203"]),
+    "SSL": ([519], ["4-201"]),
 }
 CHAPTER_4_PDF_OFFSET = 318
 

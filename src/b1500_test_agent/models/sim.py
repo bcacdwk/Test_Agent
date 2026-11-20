@@ -373,10 +373,33 @@ class BreakdownAt(StrictModel):
     device: str | None = None
 
 
+class CmuCorrectionLost(StrictModel):
+    """After the ``nth`` execution of ``after_cmd`` (a mnemonic such as ``UNT?`` or ``XE``) every MFCMU loses its
+    corrections and phase compensation as a power cycle of the module would: correction functions OFF, correction
+    data, frequency list and standard references cleared, compensation result 3 and mode auto (blueprint v2 4.3;
+    R-CORR-01 must then refuse a C-V run before it starts). One-shot."""
+
+    kind: Literal["cmu_correction_lost"] = "cmu_correction_lost"
+    after_cmd: Mnemonic
+    nth: int = Field(default=1, ge=1)
+
+
+class CmuOverload(StrictModel):
+    """At measurement step ``at_step`` of every MFCMU measurement the module overloads (blueprint v2 4.3):
+    ``saturation`` reports status ``D`` (IV amplifier saturation), ``unbalance`` status ``U`` (NULL loop unbalance;
+    PG Table 1-10, PDF 53), ``excess_current`` queues error 320 and switches the MFCMU output OFF (PG PDF 583), the
+    step and the rest of the measurement reading ``199.999E+99``. With the automatic abort on, ``D``/``U`` end the
+    sweep too."""
+
+    kind: Literal["cmu_overload"] = "cmu_overload"
+    at_step: Step
+    condition: Literal["saturation", "unbalance", "excess_current"] = "saturation"
+
+
 SimFault = Annotated[
     ComplianceAt | ErrxFault | TimeoutFault | GarbageData | InterlockOpen | Disconnect | Oscillation | IdnOverride
     | ModulesOverride | IgnoreDz | CleanupFailure | Slow | RunInterrupt | BusLockedFault | AbortIgnored
-    | BreakdownAt,
+    | BreakdownAt | CmuCorrectionLost | CmuOverload,
     Field(discriminator="kind"),
 ]
 """One simulator fault (blueprint 3, v2 4.3); the ``kind`` key selects the type."""
@@ -384,7 +407,7 @@ SimFault = Annotated[
 FAULT_KINDS: tuple[str, ...] = (
     "compliance_at", "errx", "timeout", "garbage_data", "interlock_open", "disconnect", "oscillation",
     "idn_override", "modules_override", "ignore_dz", "cleanup_failure", "slow", "run_interrupt", "bus_locked",
-    "abort_ignored", "breakdown_at",
+    "abort_ignored", "breakdown_at", "cmu_correction_lost", "cmu_overload",
 )  # fmt: skip
 """Every ``SimFault`` kind, in blueprint order (v1 kinds, then the v2 additions of blueprint 4.3)."""
 

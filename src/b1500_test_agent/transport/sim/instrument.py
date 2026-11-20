@@ -5,10 +5,13 @@ Behaviour follows the Keysight B1500 Series Programming Guide, Edition 15 ("PG",
 FLEX subset (``flex.SUPPORTED``); anything else queues error 100 and is logged ``unsupported``. ``SimInstrument``
 keeps the clock, the persistent state, the error queue, the command log, the measurement lifecycle and the dispatch;
 the FLEX handlers live in units registered by mnemonic (``units/core.py``: identity, status, buffer, format,
-output switches, A/D converters; ``units/smu.py``: ranging, modes, sources and the measurement engine;
+output switches, A/D converters; ``units/smu.py``: ranging, SMU modes, sources and the measurement engine;
 ``units/sampling.py``: the SMU sampling setup (``MM 10``), timer reset and sampling engine;
-``units/cmu.py``, ``units/spgu.py``, ``units/switch.py``: the family state queries of the bring-up probe). Each
-supported mnemonic has exactly one handler (``units.base.handler_table``; test ``tests/sim/test_units.py``).
+``units/cmu.py`` + ``units/cmu_engine.py``: the MFCMU (signal, MM 17-26, phase compensation, data correction, the
+fixture parasitics; ``MM``/``XE`` dispatch by measurement mode; WP8.1); ``units/spgu.py``; ``units/switch.py``:
+selector queries, the ASU paths and the SCUU paths). Each supported mnemonic has exactly one handler
+(``units.base.handler_table``; test ``tests/sim/test_units.py``), each simulated ``*LRN?`` type one answer
+(``units.base.learn_table``).
 
 Time is virtual: ``clock`` (s) advances only when the host waits (a read, a serial poll). A measurement started by
 ``XE`` at ``t0`` ends at ``t0 + duration``, where the duration comes from ``WT`` and the ADC settings (times the
@@ -27,6 +30,11 @@ Device state (FeFET polarization): the voltages actually applied are committed t
 change (``DC_COMMIT_COMMANDS``) and after every measured sweep step (all steps are evaluated at ``XE``; an ``AB`` or
 device clear before the end rolls the state back to the last completed step). ``state.devices`` mirrors the circuit
 state, so it is saved and loaded with the rest of the persistent state.
+
+MFCMU sides (WP8.1): a terminal wired to ``"7H"``/``"7L"`` sees the MFCMU's DC bias (High) or 0 V (Low, the
+virtual ground) while its output switch is on; with an SCUU on that MFCMU the SCUU path decides whether the side is
+the MFCMU, the SMU in slot 6 / slot 5 (its level and current count as that SMU's) or open (``_route_sides``). SMU
+currents are always evaluated with these side levels, so a DC bias from the MFCMU shows in an SMU reading.
 """
 
 from __future__ import annotations
@@ -63,7 +71,14 @@ from b1500_test_agent.transport.sim.state import (
     load_state_file,
     save_state_file,
 )
-from b1500_test_agent.transport.sim.units.base import DEFAULT_ICOMP, FOREVER, Measurement, Unsupported, handler_table
+from b1500_test_agent.transport.sim.units.base import (
+    DEFAULT_ICOMP,
+    FOREVER,
+    Measurement,
+    Unsupported,
+    handler_table,
+    learn_table,
+)
 from b1500_test_agent.transport.sim.units.cmu import CmuUnit
 from b1500_test_agent.transport.sim.units.core import CoreUnit
 from b1500_test_agent.transport.sim.units.sampling import SamplingUnit
@@ -77,7 +92,9 @@ SCALED_TIME_FACTOR = SIM_SCALED_DEFAULT
 POLL_ADVANCE_S = 0.01
 """Virtual time a serial poll takes (so polling loops see measurements finish)."""
 
-DC_COMMIT_COMMANDS = frozenset({"CN", "CL", "DZ", "DV", "DI", "SAP", "*RST", "*TST?", "*CAL?"})
+DC_COMMIT_COMMANDS = frozenset(
+    {"CN", "CL", "DZ", "DV", "DI", "SAP", "*RST", "*TST?", "*CAL?", "DCV", "SSP", "ADJ", "ADJ?"}
+)
 """Commands after which the DC output levels are committed to stateful devices."""
 
 
@@ -137,6 +154,9 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         self._handlers: dict[str, Callable[[flex.Command], str | None]] = {
             mnemonic: getattr(self, name) for mnemonic, name in handler_table(type(self)).items()
         }
+        self._learners: dict[int, Callable[[int], str]] = {
+            kind: getattr(self, name) for kind, name in learn_table(type(self)).items()
+        }
 
     # -- settings ------------------------------------------------------------------------------------------------------
 
@@ -145,6 +165,7 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         self._reset_core_settings()
         self._reset_smu_settings()
         self._reset_sampling_settings()
+        self._reset_cmu_settings()
 
     def _slots(self) -> dict[int, SimSlot]:
         override = self.faults.modules()
@@ -310,6 +331,8 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
             self._log(line, cmd.text, cmd.mnemonic, cmd.args, "ok")
             if cmd.mnemonic in DC_COMMIT_COMMANDS:
                 self._commit_dc()
+            if self.faults.cmu_correction_lost_after(cmd.mnemonic):
+                self._lose_cmu_corrections()
             for code in self.faults.errors_after(cmd.mnemonic):
                 self._queue_error(code)
             if self.faults.command_hangs(cmd.mnemonic):
@@ -440,13 +463,19 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
     # -- circuit and measurement lifecycle -----------------------------------------------------------------------------
 
     def _current(self, levels: dict[int, float]) -> dict[int, float]:
-        """Channel currents for the channel voltages ``levels``; an SMU whose ASU is switched to the AUX input
-        (``SAP`` path 1) is not connected to the DUT: its terminal floats and it carries no current."""
+        """Current of each SMU channel in ``levels``. An SMU whose ASU is switched to the AUX input (``SAP`` path 1)
+        is not connected to the DUT: its terminal floats and it carries no current. The MFCMU sides sit at their levels
+        (``_route_sides``); a side routed to an SMU through the SCUU counts as that SMU's terminal."""
         cut = [ch for ch in levels if self._asu_on_aux(ch)]
-        if not cut:
-            return self.circuit.channel_currents(levels)
-        currents = self.circuit.channel_currents({ch: v for ch, v in levels.items() if ch not in cut})
-        return {**currents, **{ch: 0.0 for ch in cut}}
+        connected = {ch: v for ch, v in levels.items() if ch not in cut}
+        sides, alias = self._route_sides(connected)
+        currents = self.circuit.channel_currents({**connected, **sides})
+        for side, smu in alias.items():
+            current = currents.pop(side, 0.0)
+            if smu in currents:
+                currents[smu] += current
+        smu_currents = {node: value for node, value in currents.items() if isinstance(node, int)}
+        return {**smu_currents, **{ch: 0.0 for ch in cut}}
 
     def _on_levels(self) -> dict[int, float]:
         """Programmed voltages of the switched-on SMUs that force voltage."""
@@ -490,6 +519,8 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
             for channel, state in self.state.channels.items():
                 if state.output_on and not self.faults.stuck(channel):
                     force_source(state, "V", 0.0, state.icomp if state.icomp is not None else DEFAULT_ICOMP)
+        if measurement.on_end is not None:
+            measurement.on_end(aborted)
         self._measurement = None
         self._commit_dc()
 
@@ -504,9 +535,12 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         """Commit the DC output levels (compliance-limited, as ``solve`` applies them) to stateful devices."""
         if not self.circuit.has_state:
             return
+        applied: dict[int, float] = {}
         if self._on_levels() or self._on_currents():
             applied, _, _ = self.dc_solution()
-            self.circuit.commit(applied)
+        sides, _ = self._route_sides(applied)
+        if applied or sides:
+            self.circuit.commit({**applied, **sides})
         self._sync_devices()
 
     def _rollback_devices(self, measurement: Measurement) -> None:
@@ -554,6 +588,8 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
                 reasons.append(f"channel {channel}: output {state.voltage} V")
             if state.mode == "I":
                 reasons.append(f"channel {channel}: forcing {state.current} A")
+            if state.ac_vrms != 0.0:
+                reasons.append(f"channel {channel}: AC level {state.ac_vrms} V rms")
         if self._measurement is not None:
             reasons.append("measurement pending")
         if self._input_queue:
@@ -561,7 +597,8 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         return reasons
 
     def assert_safe(self) -> None:
-        """All channels at 0 V with relays open and no measurement pending; raises ``SimSafetyError``."""
+        """All channels at 0 V (MFCMU: DC and AC 0) with relays open and no measurement pending; raises
+        ``SimSafetyError``."""
         reasons = self.unsafe_reasons()
         if reasons:
             raise SimSafetyError("Simulator not safe: " + "; ".join(reasons))

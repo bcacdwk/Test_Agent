@@ -1,8 +1,8 @@
 # Driver layer (`driver/`): safety-critical
 
-Owns FLEX builders (`flex/`: `core.py`, `smu.py`, one module per family), `B1500Driver` (`b1500.py`, a facade over
-the `ops/` mixins `CoreOps` and `SmuOps` on `DriverBase`), `OutputGuard` (`guard.py`), the ASCII parser, discovery,
-instrument errors and the module spec table. Spec: blueprint v2 §2.5 (v1 §2.3, §3); deck layer L3.
+Owns FLEX builders (`flex/`: one module per family), `B1500Driver` (`b1500.py`, a facade over the `ops/` mixins on
+`DriverBase`: core, smu, cmu, spgu, switch), `OutputGuard` (`guard.py`), the ASCII parser (+ `cmu_data.py` for MFCMU
+blocks), discovery, instrument errors and the module spec table. Spec: blueprint v2 §2.5 (v1 §2.3, §3); layer L3.
 
 - FLEX mnemonics appear as string literals only in `flex/` (lint test); `flex/__init__.py` re-exports every builder
   (`flex.dv(...)`). Builders are pure: syntax and domain checks only, never policy; `flex/` imports only `models`.

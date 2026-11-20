@@ -3,7 +3,8 @@
 Schemas live in ``models/sim.py`` (``SimFault``, ``SimFaultProfile``). Faults come from the scenario's fault
 profile or from ``SimInstrument.inject()``; counters start when a fault becomes active. Instrument-side faults
 (``compliance_at``, ``errx``, ``timeout`` on ``XE``/queries, ``garbage_data``, ``interlock_open``, ``oscillation``,
-overrides, ``ignore_dz``, ``slow``, ``abort_ignored``) are consulted by ``SimInstrument``; link faults (``timeout``
+overrides, ``ignore_dz``, ``slow``, ``abort_ignored``, ``cmu_correction_lost``, ``cmu_overload``) are consulted by
+``SimInstrument``; link faults (``timeout``
 on ``read``, ``disconnect``, ``cleanup_failure``, ``bus_locked``, ``run_interrupt``) by ``SimTransport`` (and by the
 visa-loop test resource, which puts the real ``VisaTransport`` on the same instrument). ``run_interrupt`` is counted
 by the instrument (one ``XE`` = one measurement) and raised by the link at the read of that measurement. Other
@@ -21,6 +22,8 @@ from b1500_test_agent.models.sim import (
     BreakdownAt,
     BusLockedFault,
     CleanupFailure,
+    CmuCorrectionLost,
+    CmuOverload,
     ComplianceAt,
     Disconnect,
     ErrxFault,
@@ -194,6 +197,21 @@ class FaultEngine:
                 item.spent = True
                 due.append(fault.device)
         return due
+
+    def cmu_correction_lost_after(self, mnemonic: str) -> bool:
+        """Count one execution of ``mnemonic``; True if the MFCMUs lose their corrections now
+        (``cmu_correction_lost``, one-shot)."""
+        return self._nth([a for a in self._of(CmuCorrectionLost)
+                          if a.fault.after_cmd == mnemonic])  # type: ignore[union-attr]
+
+    def cmu_overload_at(self, step: int) -> str | None:
+        """The ``cmu_overload`` condition at MFCMU measurement step ``step`` (``None`` without one)."""
+        for item in self._of(CmuOverload):
+            fault = item.fault
+            assert isinstance(fault, CmuOverload)
+            if fault.at_step == step:
+                return fault.condition
+        return None
 
     def slow_factor(self) -> float:
         """Product of the active ``slow`` factors (1.0 without one)."""

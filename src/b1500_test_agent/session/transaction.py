@@ -9,8 +9,10 @@ of the plan's envelope (no envelope: no guard, so every source operation refuses
 
 ``__exit__`` runs for ANY exit, ``BaseException`` and ``EnvelopeViolation`` included:
 1 ``AB`` if ``XE`` was issued and its read did not complete (sent alone; on timeout device clear, then ``AB``)
-2 ``DZ`` 3 ``CL`` 4 ``ERRX?`` drain 5 verify outputs off (``LOP?`` on hardware, simulator state on sim; on hardware
-a failed ``LOP?`` positive control makes the verification fail whatever ``LOP?`` reads)
+2 ``DZ`` (v2 step 4: first ``DCV ch,0`` and ``ACV ch,0`` on every MFCMU the transaction drove whose ``LOP?`` code
+still shows its output switch on, WP8.1) 3 ``CL`` 4 ``ERRX?`` drain 5 verify outputs off (``LOP?`` on hardware,
+simulator state on sim, which includes the MFCMU DC bias and AC level; on hardware a failed ``LOP?`` positive control
+makes the verification fail whatever ``LOP?`` reads)
 6 on any step error: device clear, retry the sequence once
 7 still unverified (``DZ``, ``CL`` or the verification failed in the last attempt) -> ``FaultLatch.set`` + audit
 ``cleanup_unverified`` 8 save the simulator state, remove the inflight marker, unlock and close the bus (``process``
@@ -217,7 +219,8 @@ class CleanupOutcome:
 
 def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
                 positive: PositiveControl | None = None) -> CleanupOutcome:
-    """``AB`` (when ``always_abort`` or a measurement is pending) -> ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify;
+    """``AB`` (when ``always_abort`` or a measurement is pending) -> MFCMU ``DCV 0``/``ACV 0`` (channels the driver
+    drove) + ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify;
     after any failed step a device clear and one retry of the whole sequence (blueprint 2.4 steps 1-6).
 
     Every step continues after a failure of an earlier one (``CL`` turns outputs off even when ``DZ`` failed) and
@@ -258,8 +261,19 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
         return True, "sent alone"
 
     def zero() -> tuple[bool, str]:
+        # v2 step 4 (blueprint 2.6): the MFCMUs this driver drove get DCV 0 and ACV 0 (AC off before the relays
+        # open), then DZ zeros every channel. DZ is sent even when the MFCMU zeroing failed; the step then fails.
+        cmu_error: Exception | None = None
+        zeroed: list[int] = []
+        try:
+            zeroed = driver.zero_cmu()
+        except Exception as exc:  # noqa: BLE001 - recorded after DZ; the retry repeats both
+            cmu_error = exc
         driver.zero()
-        return True, "all channels"
+        if cmu_error is not None:
+            raise cmu_error
+        cmu = f"; MFCMU {', '.join(str(ch) for ch in zeroed)} DC 0 V, AC 0 V" if zeroed else ""
+        return True, "all channels" + cmu
 
     def disconnect() -> tuple[bool, str]:
         driver.disconnect()

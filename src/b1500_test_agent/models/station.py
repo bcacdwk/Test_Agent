@@ -73,12 +73,16 @@ ASU_SMU_MODELS: Final = frozenset({"B1517A", "B1511B"})
 
 Slot = Annotated[int, Field(ge=1, le=10)]
 
-PinTarget = Channel | Literal["GNDU"] | None
-"""Physical wiring target of a simulated DUT terminal (``SimScenario.wiring``): a channel number, the mainframe
-ground unit, or ``None`` (not connected). Pin maps use the wider ``TerminalTarget``."""
-
 CmuSideTarget = Annotated[str, Field(pattern=r"^(10|[1-9])[HL]$")]
 """An MFCMU terminal pair: ``"7H"`` = High (Hc/Hp) and ``"7L"`` = Low (Lc/Lp) of the MFCMU in slot 7."""
+
+PinTarget = Channel | Literal["GNDU"] | CmuSideTarget | None
+"""Physical wiring target of a simulated DUT terminal (``SimScenario.wiring``): a channel number, the mainframe
+ground unit, an MFCMU side (``"7H"``/``"7L"``, WP8.1) or ``None`` (not connected). Pin maps use the wider
+``TerminalTarget``. Electrically the High side carries the DC bias and the AC drive, the Low side is the virtual
+ground (0 V DC) the current is measured at; with an SCUU on that MFCMU (``SimScenario.scuu``) ``"7H"``/``"7L"`` are
+the SCUU outputs CMUH/Force1 and CMUL/Force2, which ``SSP`` connects to the MFCMU, to the SMU in slot 6 / slot 5 or
+to nothing (PG p520 (4-202))."""
 
 TerminalTarget = Channel | Literal["GNDU"] | CmuSideTarget | SwitchTarget | None
 """Where a pin-map terminal is wired (blueprint v2 2.3): a channel number, the GNDU, an MFCMU side (``"7H"``,
@@ -92,6 +96,13 @@ def cmu_side(target: object) -> tuple[int, Literal["H", "L"]] | None:
         if 1 <= channel <= 10:
             return channel, "H" if target[-1] == "H" else "L"
     return None
+
+
+def scuu_side(cmu_channel: int, smu_channel: int) -> Literal["H", "L"] | None:
+    """Which SCUU output an SMU feeds: ``"H"`` (output 1, CMUH/Force1) for the SMU in slot ``cmu_slot - 1``, ``"L"``
+    (output 2, CMUL/Force2) for slot ``cmu_slot - 2`` (PG p520 (4-202) Table 4-30), ``None`` for any other SMU."""
+    offset = channel_slot(cmu_channel) - channel_slot(smu_channel)
+    return "H" if offset == 1 else "L" if offset == 2 else None
 
 
 def switch_target(target: object) -> tuple[str, str] | None:
@@ -435,6 +446,35 @@ class StationProfile(StrictModel):
                     if side == "smu" and switch.kind in ("asu", "scuu") and channel != port.index:
                         raise ValueError(f"{where}: the smu input of an {switch.kind} output is its index "
                                          f"channel {port.index}.")
+            if switch.kind == "scuu":
+                self._check_scuu(switch)
+
+    @staticmethod
+    def _check_scuu(switch: SwitchSpec) -> None:
+        """SCUU geometry (PG p520 (4-202) Table 4-30): one MFCMU feeds every output; output 1 (CMUH/Force1) is the SMU
+        in slot ``cmu_slot - 1``, output 2 (CMUL/Force2) the one in ``cmu_slot - 2``; no ``SSP`` path opens both
+        outputs, so the rest state is ``smu`` or ``cmu``."""
+        where = f"switches.{switch.id}"
+        if switch.rest == "open":
+            raise ValueError(f"{where}: an SCUU cannot be returned to open (no SSP path opens both outputs); use rest "
+                             "smu or cmu.")
+        cmus = {port.inputs.get("cmu") for port in switch.ports.values()} - {None}
+        if len(cmus) > 1:
+            raise ValueError(f"{where}: the outputs name different MFCMU channels {sorted(cmus)}; one SCUU serves one "
+                             "MFCMU.")
+        if not cmus:
+            return
+        cmu = int(next(iter(cmus)))
+        sides: dict[str, str] = {}
+        for output, port in switch.ports.items():
+            side = scuu_side(cmu, port.index)
+            if side is None:
+                raise ValueError(f"{where}.{output}: an SCUU output is fed by the SMU in slot {channel_slot(cmu) - 1} "
+                                 f"(CMUH/Force1) or {channel_slot(cmu) - 2} (CMUL/Force2) of MFCMU {cmu}, not "
+                                 f"channel {port.index}.")
+            if side in sides:
+                raise ValueError(f"{where}: {sides[side]} and {output} are the same SCUU output.")
+            sides[side] = output
 
     def _check_switch_index(self, kind: str, index: int, where: str) -> None:
         module = self.module_for_channel(index) if index >= 1 else None
@@ -593,6 +633,10 @@ class SimScenario(StrictModel):
     (``scaled`` = ``scaled(0.01)``) so that polling a running run is observable (harness acceptance, smoke tests).
     ``auto_calibration`` is the instrument's auto-calibration switch (``CM``) when the simulator starts, as a human
     may have left it; ``*RST`` and a device clear turn it off (its initial setting, PG p379 (4-61)).
+
+    MFCMU sides (WP8.1): a wiring target ``"7H"``/``"7L"`` is the High/Low terminal pair of the MFCMU in slot 7.
+    ``scuu`` lists the MFCMU slots with an SCUU attached (its SMUs in the two slots below feed Force1/Force2, so no
+    terminal may be wired to them directly); there ``"7H"``/``"7L"`` are the SCUU outputs, routed by ``SSP``.
     """
 
     name: ConfigName
@@ -606,6 +650,7 @@ class SimScenario(StrictModel):
     faults: ConfigName | None = None
     timing: str = "instant"
     auto_calibration: bool = False
+    scuu: list[Slot] = Field(default_factory=list)
 
     @field_validator("timing")
     @classmethod
@@ -625,10 +670,22 @@ class SimScenario(StrictModel):
             raise ValueError("A slot is listed twice.")
         if set(self.wiring) != set(self.models):
             raise ValueError("wiring and models must name the same devices.")
+        models = {s.slot: MODULE_TYPE_BY_MODEL[s.model] for s in self.slots}
+        for slot in self.scuu:
+            if models.get(slot) != "MFCMU" or any(models.get(slot - k) not in ASU_SCUU_SMU_TYPES for k in (1, 2)):
+                raise ValueError(f"scuu: slot {slot} needs an MFCMU there and an MPSMU or HRSMU in slots {slot - 1} "
+                                 f"and {slot - 2} (PG p520 (4-202)).")
+        fed = {slot - k for slot in self.scuu for k in (1, 2)}
         for device, terminals in self.wiring.items():
             for terminal, target in terminals.items():
                 if isinstance(target, int) and channel_slot(target) not in slots:
                     raise ValueError(f"{device}.{terminal} is wired to channel {target} in an empty slot.")
+                if isinstance(target, int) and channel_slot(target) in fed:
+                    raise ValueError(f"{device}.{terminal} is wired to channel {target}, whose SMU feeds the SCUU; "
+                                     "wire the terminal to the SCUU output (the MFCMU side target) instead.")
+                side = cmu_side(target)
+                if side is not None and models.get(side[0]) != "MFCMU":
+                    raise ValueError(f"{device}.{terminal} is wired to {target}, but slot {side[0]} holds no MFCMU.")
         from b1500_test_agent.models.sim import DEVICE_TERMINALS  # local: models.sim imports this module
 
         for device, terminals in self.wiring.items():

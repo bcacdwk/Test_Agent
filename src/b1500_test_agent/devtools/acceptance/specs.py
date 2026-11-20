@@ -422,10 +422,11 @@ class ManifestSpec(_Spec):
 
 
 class InstrumentIoSpec(_Spec):
-    """Simulator command log in scope: at most ``max_source_commands`` executed source commands (``DV``/``WV``)
-    and at most ``max_unaudited`` commands without a matching audited transport event (``write``/``query`` in the
-    daily or a run audit with the same text within a few seconds), i.e. instrument I/O that bypassed the server's
-    audited transport."""
+    """Simulator command log in scope: at most ``max_source_commands`` executed source commands (the simulator's
+    ``flex.SOURCE_COMMANDS``: SMU ``DV``/``WV``, the MFCMU AC/DC sources and the SCUU ``SSP``) and at most
+    ``max_unaudited`` commands without a matching audited transport event (``write``/``query`` in the daily or a run
+    audit with the same text within a few seconds), i.e. instrument I/O that bypassed the server's audited
+    transport."""
 
     type: Literal["instrument_io"]
     max_source_commands: int | None = Field(default=None, ge=0)

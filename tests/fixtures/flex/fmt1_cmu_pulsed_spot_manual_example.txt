@@ -1,0 +1,11 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 261-264 (printed 3-81 to 3-84): pulsed spot C example (FMT 1, TSC 1, PTDCV, PDCV, MM 19, IMP 100) and its Measurement Result Example; layout PDF 47 (Pulsed spot C: Para1,Para2), 3 elements read with Mid(mret, 4/20/36)
+# kind: fmt1
+# command: FMT 1; TSC 1; SSP 7,4; ACT 0,2; FC 7,1000000; ACV 7,0.03; PTDCV 0,0.01; PDCV 7,0,5; MM 19,7; IMP 100; RC 7,0; TSR; XE
+# terminator: crlf
+# note: the printed row is Cp (pF), C_st, G (uS), G_st, Time (s): 0.101969,NGC,0.258706,NGY,0.59655; on the wire the time comes first
+# note: values converted to SI; the time element's header is not printed (N G T assumed)
+# cmu: {"imp": 100, "mode": 19, "monitor": false, "source": false, "timestamp": true, "index": false}
+# point: N G T +596.550E-03
+# point: N G C +101.969E-15
+# point: N G Y +258.706E-09
+NGT+596.550E-03,NGC+101.969E-15,NGY+258.706E-09

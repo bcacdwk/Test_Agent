@@ -27,3 +27,5 @@ faults:
   - {kind: bus_locked, nth: 1, count: 2}              # another VISA client holds the bus: 2 lock requests refused
   - {kind: abort_ignored, nth: 1, count: null}        # AB has no effect: a running measurement keeps running
   - {kind: breakdown_at, t_s: 600.0, device: null}    # dielectrics break 600 s after the first sampled point (MM 10)
+  - {kind: cmu_correction_lost, after_cmd: "UNT?", nth: 1}  # MFCMU loses corrections + phase compensation
+  - {kind: cmu_overload, at_step: 4, condition: saturation}  # MFCMU step 4 reads D (or U; excess_current: error 320)

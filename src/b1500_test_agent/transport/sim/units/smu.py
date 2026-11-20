@@ -6,12 +6,13 @@ optional synchronous ``WSV``/``WSI`` source) and multi-channel sweep (``MM 16``,
 the scenario circuit (``solve`` applies the compliances of voltage and current sources; ``_block`` formats one step).
 It uses the dispatcher's shared state and helpers (``state``, ``faults``, ``circuit``, ``scenario``, ``_smu``,
 ``_channel_type``, ``_check_interlock``, ``_on_levels``, ``_on_currents``, ``_current``, ``_sync_devices``) and the
-A/D converter settings of ``CoreUnit`` (``integration_time``, ``noise_multiplier``). A second family that brings its
-own ``MM`` modes takes over ``MM``/``XE`` dispatch by mode. Manual references (Programming Guide Ed. 15, physical PDF
-pages): ``RI`` 501; ``RV`` 503; ``MM`` 470-471; ``CMM`` 380; ``DV`` 396; ``DI`` 391-392; ``WV`` 568-569; ``WI``
-551-552; ``WSV`` 561-563; ``WSI`` 560-561; ``WNX`` 556-559; ``WNCC`` 556; ``WT`` 564-565; ``WM`` 552-553; ``XE``
-570; current/voltage source limits Tables 4-6/4-7 (PDF 341-342); interlock in the high-voltage state 577;
-multi-channel sweep 102-103; errors 220, 223, 224 (PDF 578-579).
+A/D converter settings of ``CoreUnit`` (``integration_time``, ``noise_multiplier``). ``MM`` and ``XE`` are
+dispatched by measurement mode in ``units/cmu.py`` (WP8.1): the MFCMU modes there, every other mode to
+``_cmd_mm``/``_cmd_xe`` here. Manual references (Programming Guide Ed. 15, physical PDF pages): ``RI`` 501;
+``RV`` 503; ``MM`` 470-471; ``CMM`` 380; ``DV`` 396; ``DI`` 391-392; ``WV`` 568-569; ``WI`` 551-552; ``WSV`` 561-563;
+``WSI`` 560-561; ``WNX`` 556-559; ``WNCC`` 556; ``WT`` 564-565; ``WM`` 552-553; ``XE`` 570; current/voltage source
+limits Tables 4-6/4-7 (PDF 341-342); interlock in the high-voltage state 577; multi-channel sweep 102-103; errors
+220, 223, 224 (PDF 578-579).
 ``MM 10`` (sampling) triggers are handed to ``SamplingUnit._start_sampling`` (``units/sampling.py``, WP7.4).
 
 Current sources (``DI``, ``WI``, ``WSI``, ``WNX`` mode 2): the channel's voltage is solved so that its current equals
@@ -177,7 +178,6 @@ class SmuUnit:
             raise flex.FlexError(flex.ERR_RANGE, f"RV {code}")
         self._rv[channel] = code
 
-    @handles("MM")
     def _cmd_mm(self, cmd: flex.Command) -> None:
         """``MM 1|2|10|16,ch...``: spot, staircase sweep, sampling (``units/sampling.py``) or multi-channel sweep;
         other modes are unsupported (PDF 470-471)."""
@@ -515,7 +515,6 @@ class SmuUnit:
                 break
         return lo
 
-    @handles("XE")
     def _cmd_xe(self, cmd: flex.Command) -> None:
         """``XE``: trigger the ``MM`` measurement (PDF 570); errors 214, 220, 224, 200."""
         flex.arity(cmd, 0, 0)

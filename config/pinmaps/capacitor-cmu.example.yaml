@@ -1,0 +1,19 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Two-terminal capacitor (the 100 pF reference standard of bring-up stage L6, DUT profile capacitor-100p) on the
+# MFCMU in slot 7: target 7H = the High terminal pair (Hc/Hp; DC bias and AC drive), 7L = the Low pair (Lc/Lp; the
+# virtual ground the current is measured at). A cmu_high role binds only to an H side and a cmu_low role only to an L
+# side (rule R-PIN-01); recipe roles bind to the terminal of the same name, so a capacitor recipe uses the roles `a`
+# (cmu_high) and `b` (cmu_low). The simulator scenario capacitor_100p wires the standard (and the fixture
+# parasitics) the same way.
+#
+# certainty: unverified (every plan needs confirmation, unverified_pin_map). The visa backend never reads this file.
+
+description: 100 pF reference capacitor; a on CMU1 High (7H), b on CMU1 Low (7L).
+certainty: unverified
+terminals:
+  a: 7H
+  b: 7L
+notes:
+  - Corrections (phase, open, short) are measured with this landing and pin map; a re-landing makes them stale.
+  - Uncorrected the reading carries the fixture's open capacitance (about +0.3 pF in the simulator); after phase
+    compensation and open/short correction it should match the standard within its tolerance.

@@ -1,0 +1,54 @@
+# Golden FLEX strings of the MFCMU and SCUU builders (driver/flex/cmu.py, driver/flex/switch.py; WP8.1), read by
+# tests/unit/test_driver_flex_cmu.py. Each entry: the builder, its arguments, the exact string it must return, the
+# manual statement it reproduces (Keysight B1500 Series Programming Guide, Edition 15, physical PDF page) and, where
+# the builder writes a number differently from the manual's example, the example text (`manual`; compared value by
+# value: the builders write the shortest round-trip decimal and always send the parameters the manual defaults; a
+# parameter only one side writes must equal `defaults`, 0 unless given).
+- {builder: imp, args: [10], expect: "IMP 10", source: "PDF 441 example"}
+- {builder: imp, args: [100], expect: "IMP 100", source: "PDF 255 example (Cp-G, initial setting)"}
+- {builder: fc, args: [7, 1000000], expect: "FC 7,1000000", source: "PDF 435 example"}
+- {builder: acv, args: [7, 0.01], expect: "ACV 7,0.01", source: "PDF 355 example"}
+- {builder: dcv, args: [7, 1], expect: "DCV 7,1", source: "PDF 391 example"}
+- {builder: rc, args: [8, 0], expect: "RC 8,0", source: "PDF 500 example"}
+- {builder: rc, args: [8, 2, 10000], expect: "RC 8,2,10000", source: "PDF 500 example"}
+- {builder: act, args: [0, 1], expect: "ACT 0,1", source: "PDF 354 example"}
+- {builder: act, args: [2, 2], expect: "ACT 2,2", source: "PDF 354 example"}
+- {builder: lmn, args: [1], expect: "LMN 1", source: "PDF 446 example"}
+- {builder: wdcv, args: [8, 1, 5, -5, 101], expect: "WDCV 8,1,5,-5,101", source: "PDF 550 example"}
+- {builder: wtdcv, args: [5, 0.1, 0.1, 0.1, 0.1], expect: "WTDCV 5,0.1,0.1,0.1,0.1", source: "PDF 567 example"}
+- {builder: wtdcv, args: [5, 0.2], expect: "WTDCV 5,0.2", source: "PDF 567 example"}
+- {builder: wmdcv, args: [2, 2], expect: "WMDCV 2,2", source: "PDF 555 example"}
+- {builder: wmdcv, args: [2, 1], expect: "WMDCV 2,1", source: "PDF 259 example (WMDCV 2, 1)"}
+- {builder: wfc, args: [9, 1, 100000, 5000000, 50], expect: "WFC 9,1,100000,5000000,50", source: "PDF 551 example"}
+- {builder: wtfc, args: [5, 0.1, 0.1, 0.1, 0.1], expect: "WTFC 5,0.1,0.1,0.1,0.1", source: "PDF 568 example"}
+- {builder: wtfc, args: [5, 0.2], expect: "WTFC 5,0.2", source: "PDF 568 example"}
+- {builder: wmfc, args: [2, 2], expect: "WMFC 2,2", source: "PDF 556 example"}
+- {builder: wacv, args: [9, 1, 0.001, 0.1, 100], expect: "WACV 9,1,0.001,0.1,100", manual: "WACV 9,1,0.001,0.100,100", source: "PDF 547 example"}
+- {builder: wtacv, args: [5, 0.1, 0.1, 0.1, 0.1], expect: "WTACV 5,0.1,0.1,0.1,0.1", source: "PDF 566 example"}
+- {builder: wtacv, args: [5, 0.2], expect: "WTACV 5,0.2", source: "PDF 566 example"}
+- {builder: wmacv, args: [2, 2], expect: "WMACV 2,2", source: "PDF 554 example"}
+- {builder: pdcv, args: [9, 0, 1], expect: "PDCV 9,0,1", source: "PDF 485 example"}
+- {builder: ptdcv, args: [1, 0.01], expect: "PTDCV 1,0.01,0", manual: "PTDCV 1,0.01", source: "PDF 485 example (period 0 = automatic, the default; always sent)"}
+- {builder: ptdcv, args: [1, 0.01, 0.02], expect: "PTDCV 1,0.01,0.02", source: "PDF 490 example"}
+- {builder: pwdcv, args: [9, 1, 0, -5, 5, 101], expect: "PWDCV 9,1,0,-5,5,101", source: "PDF 490 example"}
+- {builder: mdcv, args: [9, 0, 5], expect: "MDCV 9,0,5", source: "PDF 468 example"}
+- {builder: mdcv, args: [9, 0, 5, 0], expect: "MDCV 9,0,5,0", source: "PDF 283 example (post 0)"}
+- {builder: mtdcv, args: [0, 0.008, 5000, 0], expect: "MTDCV 0,0.008,5000", manual: "MTDCV 0,0.008,5000,0", source: "PDF 477 example (h_base 0 is the default)"}
+- {builder: mtdcv, args: [0.01, 0.008, 101, 0.1], expect: "MTDCV 0.01,0.008,101,0.1", source: "PDF 477 example"}
+- {builder: adj, args: [9, 1], expect: "ADJ 9,1", source: "PDF 355 example"}
+- {builder: adj_q, args: [9, 1], expect: "ADJ? 9,1", manual: "ADJ? 9", defaults: [1], source: "PDF 355-356 syntax ADJ? chnum[,mode] (an omitted mode is 1; the builder always writes it)"}
+- {builder: corrl, args: [9, 3000000], expect: "CORRL 9,3000000", source: "PDF 385 example"}
+- {builder: clcorr, args: [9, 1], expect: "CLCORR 9,1", source: "PDF 379 example"}
+- {builder: clcorr, args: [9, 2], expect: "CLCORR 9,2", source: "PDF 385 example"}
+- {builder: corr_q, args: [9, load], expect: "CORR? 9,3", source: "PDF 383 example"}
+- {builder: dcorr, args: [9, load, 400, 0.00001, 49.8765], expect: "DCORR 9,3,400,1E-05,49.8765", manual: "DCORR 9,3,400,0.00001,49.8765", source: "PDF 389 example"}
+- {builder: dcorr, args: [9, open, 100, 0, 0], expect: "DCORR 9,1,100,0,0", source: "PDF 254 example (ref_cp = ref_g = 0)"}
+- {builder: corrdt, args: [9, 3000000, 0, 0, 0, 0, 0, 0], expect: "CORRDT 9,3000000,0,0,0,0,0,0", source: "PDF 384 example"}
+- {builder: corrst, args: [9, load, true], expect: "CORRST 9,3,1", source: "PDF 388 example"}
+- {builder: corrst, args: [9, short, false], expect: "CORRST 9,2,0", source: "PDF 254 example"}
+- {builder: corrst_q, args: [9, load], expect: "CORRST? 9,3", source: "PDF 388 example"}
+- {builder: ssp, args: [9, 4], expect: "SSP 9,4", source: "PDF 520 example"}
+- {builder: ssl, args: [9, false], expect: "SSL 9,0", source: "PDF 519 example"}
+- {builder: mm, args: [17, [7]], expect: "MM 17,7", source: "PDF 255 example (MM 17, chnum)"}
+- {builder: mm, args: [18, [7, 3]], expect: "MM 18,7,3", source: "PDF 470-471 (MM 18: the MFCMU first, then SMUs)"}
+- {builder: mm, args: [26, [7]], expect: "MM 26,7", source: "PDF 283 example"}

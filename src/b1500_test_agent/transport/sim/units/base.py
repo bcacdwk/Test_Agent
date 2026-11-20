@@ -5,8 +5,11 @@
   ``SimInstrument`` dispatches each parsed command through that table.
 - ``Unsupported``: a supported command used with a form the simulator does not implement (error 100, logged
   ``unsupported``).
+- ``learns(*types)`` marks a unit method as the answer of ``*LRN?`` types (``learn_table(cls)``), so each family
+  answers its own settings groups (WP8.1: the MFCMU types 70-73, 90 and the SCUU types 80, 81).
 - ``Measurement``: a triggered measurement (per-step formatted data and completion times), produced by a unit at
-  ``XE`` and completed, aborted or rolled back by the dispatcher.
+  ``XE`` and completed, aborted or rolled back by the dispatcher; ``on_end`` lets a family apply its own
+  post-measurement output (the MFCMU sources, WP8.1).
 - Module-type sets and instrument constants shared by several units.
 """
 
@@ -24,6 +27,9 @@ if TYPE_CHECKING:
 
 HANDLES_ATTR = "_sim_handles"
 """Attribute ``handles`` sets on a handler function: the tuple of mnemonics it handles."""
+
+LEARNS_ATTR = "_sim_learns"
+"""Attribute ``learns`` sets on a ``*LRN?`` answer function: the tuple of types it answers."""
 
 DEFAULT_ICOMP = 1e-4
 """Current compliance after ``CN``/``CL``: 100 uA (PG PDF 378)."""
@@ -68,6 +74,38 @@ def handler_table(cls: type) -> dict[str, str]:
     return table
 
 
+def learns(*types: int) -> Callable[[F], F]:
+    """Register the decorated unit method (``(self, kind) -> str``) as the ``*LRN?`` answer of ``types``."""
+    if not types:
+        raise ValueError("learns() needs at least one *LRN? type")
+
+    def mark(function: F) -> F:
+        setattr(function, LEARNS_ATTR, tuple(types))
+        return function
+
+    return mark
+
+
+def learn_table(cls: type) -> dict[int, str]:
+    """``{*LRN? type: method name}`` of every ``@learns`` method of ``cls`` and its bases.
+
+    Raises:
+        TypeError: If two methods claim the same type.
+    """
+    table: dict[int, str] = {}
+    seen: set[str] = set()
+    for klass in cls.__mro__:
+        for name, value in vars(klass).items():
+            if name in seen:
+                continue
+            seen.add(name)
+            for kind in getattr(value, LEARNS_ATTR, ()):
+                if kind in table:
+                    raise TypeError(f"{cls.__name__}: *LRN? {kind} is answered by both {table[kind]} and {name}")
+                table[kind] = name
+    return table
+
+
 class Unsupported(flex.FlexError):
     """A supported command used with a form the v1 simulator does not implement (error 100, logged unsupported)."""
 
@@ -96,3 +134,5 @@ class Measurement:
     (their base values)."""
     post_at_stop: bool = False
     """After a normal end, the sweep sources keep their stop values (``WM`` post 2); otherwise their start values."""
+    on_end: Callable[[bool], None] | None = None
+    """Called once when the measurement ends (``True`` = aborted): a family's post-measurement output."""

@@ -13,8 +13,8 @@ Strictly in order; a stage starts only after the previous one is signed off. Not
 |---|---|---|---|
 | S0 | interlock, shield box, cables, EasyEXPERT records, GPIB 17, EasyEXPERT exited | [s0-physical](../.agents/skills/b1500-bringup/stages/s0-physical.md) | `stage-s0` |
 | L0 | read-only probe, station proposal, configuration adopted by the human | [l0-probe-config](../.agents/skills/b1500-bringup/stages/l0-probe-config.md) | `stage-l0` |
-| L1 | 0 V per SMU, cleanup verified, mid-run stop, CLI and MCP coexist, self-test/cal | [l1-smu-zero](../.agents/skills/b1500-bringup/stages/l1-smu-zero.md) | `stage-l1`, `system.self_test`, `system.self_cal` |
-| L2 | known resistors against a DMM | [l2-resistors](../.agents/skills/b1500-bringup/stages/l2-resistors.md) | `basic.contact_resistor` |
+| L1 | zero check (0 V per SMU, floor per range), cleanup verified, mid-run stop, CLI and MCP coexist, self-test/cal | [l1-smu-zero](../.agents/skills/b1500-bringup/stages/l1-smu-zero.md) | `stage-l1`, `system.zero_check`, `system.self_test`, `system.self_cal` |
+| L2 | known resistors against a DMM (sweep and spot), 1 Ohm four-wire | [l2-resistors](../.agents/skills/b1500-bringup/stages/l2-resistors.md) | `basic.contact_resistor`, `generic.smu_spot`, `resistor.kelvin_4w` |
 | L3 | known diode | [l3-diode](../.agents/skills/b1500-bringup/stages/l3-diode.md) | `basic.diode_iv` |
 | L4 | known-good MOSFET against EasyEXPERT | [l4-mosfet](../.agents/skills/b1500-bringup/stages/l4-mosfet.md) | `mosfet.idvg`, `mosfet.idvd`, `mosfet.gate_leakage` |
 | L5-L9 | SMU advanced, CMU, SPGU + selector, WGFMU, long runs | arrive with their module work packages | - |

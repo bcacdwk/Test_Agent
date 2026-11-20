@@ -1,0 +1,57 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# SMU zero check (bring-up stage L1, card zero-check): every SMU the pin map names holds 0 V with its terminal open
+# (probes lifted, nothing connected) and is read repeatedly on fixed current ranges; analysis zero_floor gives the
+# offset (mean) and the noise floor (standard deviation) per SMU and range. One role per slot (smu1 .. smu10, all
+# optional), so one pin map that lists the station's SMUs (example: open-smus, smu3..smu6 = SMU3..SMU6) checks them
+# all in one run; the DUT profile open-circuit describes the open terminals. Range survey (kind smu_spot, catalog/
+# kinds/ranging.py): each entry of `ranges` is measured on the smallest range of the SMU at or above it (an MPSMU
+# asked for 10 pA uses its 1 nA range; the 1 pA ASU range only with a declared, present ASU), recorded per row in
+# <role>_range. 0 V with a small compliance never stresses anything, so no confirmation beyond the hardware ones.
+# status: sim_validated by tests/integration/test_recipes_spot.py (lab_station: floor per SMU and range = the
+# scenario noise floor +-20 %); hw_validated only through a reviewed validation record (stage L1).
+id: system.zero_check
+version: 1
+title: SMU zero check - every SMU at 0 V on open terminals; offset and noise floor per current range
+family: system
+kind: smu_spot
+status: sim_validated
+card: .agents/skills/b1500-test/cards/system/zero-check.md
+device_types: []
+roles:
+  smu1: {function: measure_only, measure: [I], optional: true, settings: {icomp: $icomp, ranges: $ranges}}
+  smu2: {function: measure_only, measure: [I], optional: true, settings: {icomp: $icomp, ranges: $ranges}}
+  smu3: {function: measure_only, measure: [I], optional: true, settings: {icomp: $icomp, ranges: $ranges}}
+  smu4: {function: measure_only, measure: [I], optional: true, settings: {icomp: $icomp, ranges: $ranges}}
+  smu5: {function: measure_only, measure: [I], optional: true, settings: {icomp: $icomp, ranges: $ranges}}
+  smu6: {function: measure_only, measure: [I], optional: true, settings: {icomp: $icomp, ranges: $ranges}}
+  smu7: {function: measure_only, measure: [I], optional: true, settings: {icomp: $icomp, ranges: $ranges}}
+  smu8: {function: measure_only, measure: [I], optional: true, settings: {icomp: $icomp, ranges: $ranges}}
+  smu9: {function: measure_only, measure: [I], optional: true, settings: {icomp: $icomp, ranges: $ranges}}
+  smu10: {function: measure_only, measure: [I], optional: true, settings: {icomp: $icomp, ranges: $ranges}}
+params:
+  ranges:
+    type: float_list
+    unit: A
+    default: [1.0e-11, 1.0e-9, 1.0e-7, 1.0e-5, 1.0e-3]
+    range: [1.0e-12, 0.1]
+    doc: Current ranges to read (full scale); each SMU uses its smallest range at or above each entry.
+  samples: {type: int, default: 100, recommended: [50, 200], range: [10, 1000], doc: Readings per range (floor statistics).}
+  icomp:
+    unit: A
+    default: 1.0e-4
+    recommended: [1.0e-6, 1.0e-4]
+    range: [1.0e-9, 1.0e-3]
+    doc: Current compliance of every SMU at 0 V (the open terminal draws nothing; a hit means something is connected).
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset; the floor scales with it (short 3x, medium 1x, long 0.3x of the 1 PLC floor on the simulator).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: zero_floor}
+provenance:
+  sources:
+    - blueprint v2 3.1 (system.zero_check, stage L1), 7.4 (L1 floors recorded per SMU)
+    - Programming Guide Ed. 15 MM 1 (PDF 470-471), RI (PDF 501, Table 4-3 PDF 337), DV (PDF 396)
+  validation_runs: []

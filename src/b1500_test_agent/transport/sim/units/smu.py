@@ -17,7 +17,8 @@ multi-channel sweep 102-103; errors 220, 223, 224 (PDF 578-579).
 Current sources (``DI``, ``WI``, ``WSI``, ``WNX`` mode 2): the channel's voltage is solved so that its current equals
 the programmed current, unless that needs more than the voltage compliance (then the channel sits at ±Vcomp and
 reports ``C``). Voltage readings are noiseless (simulator convention); a current reading of a current source carries
-the usual current noise.
+the usual current noise. An SMU whose scenario slot declares an ASU (``SimSlot.asu``, WP7.1) accepts the ASU current
+ranges (``flex.I_CODES_ASU``) in ``RI``, ``DV``, ``DI`` and the sweep sources; its ``SAP`` path is ``units/switch.py``.
 """
 
 from __future__ import annotations
@@ -152,14 +153,19 @@ class SmuUnit:
 
     # -- ranges and modes ----------------------------------------------------------------------------------------------
 
+    def _i_codes(self, channel: int) -> range:
+        """Current range codes of ``channel``'s module, with the ASU ranges when its slot has an ASU (WP7.1)."""
+        module = self._channel_type(channel) or ""
+        table = flex.I_CODES_ASU if self._has_asu(channel) else flex.I_CODES
+        return table.get(module, range(0))
+
     @handles("RI")
     def _cmd_ri(self, cmd: flex.Command) -> None:
         flex.arity(cmd, 2, 2)
         channel = self._smu(cmd.args[0])
         code = flex.integer(cmd.args[1])
-        module = self._channel_type(channel) or ""
-        if code != 0 and abs(code) not in flex.I_CODES.get(module, range(0)):
-            raise flex.FlexError(flex.ERR_RANGE, f"RI {code} on {module}")
+        if code != 0 and abs(code) not in self._i_codes(channel):
+            raise flex.FlexError(flex.ERR_RANGE, f"RI {code} on {self._channel_type(channel)}")
         self._ri[channel] = code
 
     @handles("RV")
@@ -219,8 +225,7 @@ class SmuUnit:
         if polarity not in (0, 1):
             raise flex.FlexError(flex.ERR_PARAMETER)
         irange = flex.integer(cmd.args[5]) if len(cmd.args) > 5 else 0
-        module = self._channel_type(channel) or ""
-        if irange != 0 and irange not in flex.I_CODES.get(module, range(0)):
+        if irange != 0 and irange not in self._i_codes(channel):
             raise flex.FlexError(flex.ERR_RANGE, f"irange {irange}")
         self._check_interlock(voltage)
         force_source(state, "V", voltage, icomp)
@@ -252,9 +257,8 @@ class SmuUnit:
     def _output_irange(self, channel: int, arg: str) -> int:
         """A current output ranging code of ``channel``'s module (Table 4-5, PDF 340): 0 or the module's ranges."""
         code = flex.integer(arg)
-        module = self._channel_type(channel) or ""
-        if code != 0 and code not in flex.I_CODES.get(module, range(0)):
-            raise flex.FlexError(flex.ERR_RANGE, f"irange {code} on {module}")
+        if code != 0 and code not in self._i_codes(channel):
+            raise flex.FlexError(flex.ERR_RANGE, f"irange {code} on {self._channel_type(channel)}")
         return code
 
     @handles("WV")

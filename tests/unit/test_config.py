@@ -42,10 +42,11 @@ def test_committed_examples_validate(repo_paths: Paths) -> None:
     assert bundle.backend == "sim"
     assert "example" in bundle.backend_reason
     assert set(bundle.pin_maps) == {"mosfet-4t", "diode-2t", "resistor-2t", "mosfet-3t-lab", "fefet-sel",
-                                    "fecap-wgfmu", "moscap-cmu", "mosfet-4t-body"}
+                                    "fecap-wgfmu", "moscap-cmu", "mosfet-4t-body", "resistor-4w",
+                                    "open-smus"}  # WP7.1: the last two
     assert set(bundle.dut_profiles) == {"nmos-generic", "fefet-generic", "diode-generic", "resistor-generic",
                                         "fefet-lab", "fecap-generic", "moscap-generic", "capacitor-100p",
-                                        "dielectric-generic"}
+                                        "dielectric-generic", "resistor-1r", "open-circuit"}
     assert bundle.sim_scenario is not None and bundle.sim_scenario.name == "nmos_basic"
     assert {f.source for f in bundle.files.values()} == {"example"}
     assert bundle.warnings == []
@@ -289,13 +290,15 @@ def test_pin_map_channel_without_module_warns(repo: Path, repo_paths: Paths) -> 
 
 def test_lab_example_is_unverified(repo_paths: Paths) -> None:
     """The lab-shaped examples claim no wiring the lab code does not prove: every switch and every lab pin map is
-    ``unverified`` (only the v1 maps that match the simulator scenarios are ``verified``)."""
+    ``unverified`` (only the maps that match the simulator scenarios are ``verified``: the v1 maps, WP7.1's
+    four-wire resistor and open-terminal zero-check maps)."""
     bundle = load_config(repo_paths)
     assert bundle.station.switches and all(s.certainty == "unverified" for s in bundle.station.switches)
     assert all(ch is None for s in bundle.station.switches if s.kind == "selector_16440a"
                for port in s.ports.values() for ch in port.inputs.values())
-    lab = {name: pm.certainty for name, pm in bundle.pin_maps.items() if name not in {"mosfet-4t", "diode-2t",
-                                                                                       "resistor-2t", "mosfet-4t-body"}}
+    simulated = {"mosfet-4t", "diode-2t", "resistor-2t", "mosfet-4t-body", "resistor-4w", "open-smus"}
+    assert all(bundle.pin_maps[name].certainty == "verified" for name in simulated)
+    lab = {name: pm.certainty for name, pm in bundle.pin_maps.items() if name not in simulated}
     assert lab == dict.fromkeys(["mosfet-3t-lab", "fefet-sel", "fecap-wgfmu", "moscap-cmu"], "unverified")
 
 

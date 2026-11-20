@@ -11,7 +11,7 @@ bringup_stage: L4
 status: sim_validated
 confirmation: conditional
 knowledge: [knowledge/05-reliability-defects.md#gate-leakage-and-tddb-safe-envelope, knowledge/06-analysis-extraction.md#leakage-at-bias, knowledge/03-probe-station-wiring.md#guard-for-low-current, knowledge/03-probe-station-wiring.md#asu-and-the-1-pa-range, knowledge/05-reliability-defects.md#oxide-traps-silc-and-charge-trapping]
-manual: [PG p568-569 (4-250) "WV", PG p564 (4-246) "WT", PG p552 (4-234) "WM"]
+manual: [PG p568-569 (4-250) "WV", PG p564 (4-246) "WT", PG p552 (4-234) "WM", PG p505 (4-187) "SAP", PG p337 (4-19) "1 pA limited auto"]
 debug: [compliance-hit, current-too-high, noisy-data, errx-codes, cleanup-failed-fault]
 sources: [blueprint 6.4, deck slide 14]
 version: 1
@@ -42,7 +42,9 @@ gate compliance, automatic abort on compliance, gate range inside the DUT profil
 
 - Example pin map `mosfet-4t` (gate SMU4 = HRSMU) with DUT profile `nmos-generic`. A pin map with the gate on an
   MPSMU is blocked (R-PIN-01); ask the human for an HRSMU gate map instead of changing modules in a plan.
-- Routes: none in every phase (direct SMU and GNDU wiring; no selector, SCUU, ASU or RSU in the path).
+- ASU option (`asu_1pa: true`): the gate SMU's ASU (station `switches`, e.g. `ASU4`, `kind: asu`) must be declared
+  `present: true` by the human (R-ASU-01 blocks otherwise; the example station says `null`). It stays on its SMU side.
+- Routes: none in every phase (direct SMU and GNDU wiring; no selector, SCUU or RSU; an ASU path is never switched).
 
 ## 3. Pre-run checklist
 
@@ -65,6 +67,7 @@ gate compliance, automatic abort on compliance, gate range inside the DUT profil
 | `v_op` | 1.5 V | 0.5..3 V | -10..10 V | operating bias of the judgement (analysis only) | must lie inside the sweep |
 | `leak_limit_a` | 1 nA | 1 pA..100 nA | 1 fA..100 uA | pass/fail limit (analysis only) | below the floor it cannot pass meaningfully |
 | `integration` | `long` | `long` | `short`, `medium`, `long` | pA currents need 16 PLC | shorter: noisier floor |
+| `asu_1pa` | false | - | - | sub-pA gate leakage on an SMU with an ASU | gate read from the 1 pA range up (`RI gate,8`) |
 
 Example plan (validated on the simulator by `b1500 dev lint-skills`):
 
@@ -85,6 +88,8 @@ sim_scenario: nmos_basic
 - On hardware: `unverified_pin_map`, `first_hw_run`. Destructive: no, as long as the gate stays inside the profile
   and `icomp_gate` stays small. After a compliance hit never re-run with more voltage or compliance on your own: a
   suspected breakdown goes to the human.
+- `asu_1pa: true` without a declared, present ASU on the gate SMU: blocked (R-ASU-01); never edit the station
+  profile, ask the human. A missing ASU on the instrument aborts the run before `XE` (`RI` error).
 
 ## 6. Quality criteria
 

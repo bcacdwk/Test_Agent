@@ -31,7 +31,8 @@ M1 = {"quality_report", "vth_linear_extrapolation"}
 M2 = {"vth_constant_current", "vth_max_gm", "subthreshold_swing", "gm_max", "ion_ioff", "output_metrics",
       "resistance", "diode_fit", "leakage_at", "memory_window", "plot_iv"}
 M5 = {"plot_timeseries"}
-M7 = {"sampling_summary", "time_to_breakdown", "dibl", "body_effect", "forward_voltage"}  # WP7.4, WP7.2
+M7 = {"sampling_summary", "time_to_breakdown", "dibl", "body_effect", "forward_voltage",  # WP7.4, WP7.2
+      "kelvin_resistance", "zero_floor"}  # WP7.1
 
 
 def idvg_run(recipe_id: str = "mosfet.idvg", drain_status: list[str] | None = None) -> RunData:
@@ -182,7 +183,9 @@ def test_every_method_carries_valid_family_tags() -> None:
     for name, method in ANALYSIS_METHODS.items():
         assert method.families and set(method.families) <= families, name
         assert len(set(method.families)) == len(method.families), name
-        assert "system" not in method.families, name  # system runs archive no table
+    # system.zero_check (WP7.1) archives a table: the table methods serve family system too
+    assert {m.name for m in ANALYSIS_METHODS.values() if "system" in m.families} == {
+        "quality_report", "plot_iv", "plot_timeseries", "zero_floor"}
     with pytest.raises(ValueError, match="families"):
         AnalysisMethod(name="x", status="declared", output="extraction", summary="x", fn=_declared("x", "M7"),
                        families=())
@@ -197,7 +200,8 @@ def test_methods_for_a_family() -> None:
     assert {m.name for m in methods_for("nvm")} >= {"memory_window", "quality_report", "plot_timeseries"}
     assert "resistance" not in {m.name for m in methods_for("nvm")}
     assert {m.name for m in methods_for("cmu")} == {"quality_report", "plot_timeseries"}
-    assert methods_for("system") == []
+    assert {m.name for m in methods_for("system")} == {"quality_report", "plot_iv", "plot_timeseries", "zero_floor"}
+    assert {"kelvin_resistance", "zero_floor"} <= {m.name for m in methods_for("smu")}
     with pytest.raises(InvalidInputError, match="family"):
         methods_for("optics")  # type: ignore[arg-type]
 

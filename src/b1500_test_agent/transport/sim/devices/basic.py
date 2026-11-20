@@ -33,13 +33,17 @@ class OpenDevice:
 
 
 class ResistorDevice:
-    """``resistor``/``short``: ``I_a = (V_a - V_b) / R``, ``I_b = -I_a``; zero if either terminal floats."""
+    """``resistor``/``short``: ``I_a = (V_a - V_b) / R``, ``I_b = -I_a``; zero if either terminal floats.
+
+    ``R`` is what the channels see: for a ``resistor`` its ``r_ohm`` plus the force-path ``lead_ohm`` of every
+    terminal without a landed Sense line (``ResistorParams.seen_ohm``, four-wire sensing), for a ``short`` its
+    ``r_ohm``."""
 
     def __init__(self, name: str, model: str, params: ResistorParams | ShortParams) -> None:
         self.name = name
         self.model = model
         self.params = params
-        self.r_ohm = params.r_ohm
+        self.r_ohm = params.seen_ohm() if isinstance(params, ResistorParams) else params.r_ohm
 
     def terminal_currents(self, v: Voltages) -> dict[str, float]:
         va, vb = v.get("a"), v.get("b")

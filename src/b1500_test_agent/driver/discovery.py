@@ -25,6 +25,12 @@ Formats from the Keysight B1500 Series Programming Guide, Edition 15 ("PG"; PDF 
   0 completed, 1 failed, 2 aborted, 3 not performed). Each answers one integer; a leading ``+`` is accepted (the
   lab firmware signs ``ERRX?`` codes, so it may sign these too). TODO(verify) raw captures at bring-up L0.
 
+- ASU state (WP7.1): ``*LRN? 62`` (PDF 451, printed 4-133) answers ``SAP chnum,path[;SAP chnum,path]...`` (path 0
+  SMU, 1 AUX) and ``*LRN? 63`` ``SAR chnum,mode[;SAR chnum,mode]...`` (mode 0 = 1 pA auto ranging enabled, 1 =
+  disabled), one item per SMU with an ASU. The manual prints no example and does not say what a mainframe without an
+  ASU answers; the parser takes an empty answer (or the bare mnemonic) as "no ASU". TODO(verify) raw captures at
+  bring-up L1/L2 (ATV-28, ASU presence).
+
 ATV-1 (``LOP?`` usable for cleanup verification) holds per the manual for SMU and MFCMU slots: after ``CL`` every
 slot must read ``00``. Table 4-26 has no SPGU/WGFMU codes and reports per slot, not per subchannel, so those modules
 (never sourced in v1) would need the ``*LRN? 0`` fallback (output-switch list). Hardware confirmation: M4 L1.
@@ -37,12 +43,19 @@ import re
 from b1500_test_agent.driver.errors import FlexParseError
 from b1500_test_agent.driver.flex import (
     ADJ_RESULTS,
+    ASU_PATHS,
     ERMOD_MAX,
     ERMOD_Q,
     ERSSP_STATES,
     LOP_RESPONSE_PREFIX,
+    LRN_ASU_1PA,
+    LRN_ASU_PATH,
     LRN_AUTO_CALIBRATION,
     LRN_SETTINGS,
+    SAP_RESPONSE,
+    SAR_DISABLE_1PA,
+    SAR_ENABLE_1PA,
+    SAR_RESPONSE,
     SPST_Q,
     SPST_STATES,
     lrn_q,
@@ -78,6 +91,7 @@ OUTPUT_OFF_CODE = "00"
 _LOP_RE = re.compile(rf"^{LOP_RESPONSE_PREFIX}\s?(?P<codes>\d{{2}}(?:,\d{{2}}){{{SLOTS - 1}}})$")
 _LRN_ITEM_RE = re.compile(r"^(?P<mnemonic>\*?[A-Z]+)\s?(?P<params>[-+0-9.,Ee\s]*)$")
 _SMALL_INT_RE = re.compile(r"^\+?(?P<value>\d{1,3})$")
+_ASU_ITEM_RE = re.compile(r"^(?P<mnemonic>[A-Z]+)\s?\+?(?P<channel>\d{1,4}),\+?(?P<value>\d)$")
 
 
 def parse_idn(text: str) -> Identity:
@@ -235,3 +249,42 @@ def parse_adj(text: str) -> int:
         FlexParseError: If the answer is not 0, 1, 2 or 3.
     """
     return _small_int(text, set(ADJ_RESULTS), "phase compensation result (ADJ?)")
+
+
+def _asu_items(text: str, mnemonic: str, kind: int, allowed: set[int]) -> dict[int, int]:
+    """``{channel: value}`` of a ``*LRN? 62|63`` answer (``<mnemonic> chnum,value`` items separated by ``;``)."""
+    stripped = text.strip()
+    if stripped in ("", mnemonic):
+        return {}
+    found: dict[int, int] = {}
+    for item in (part.strip() for part in stripped.split(";")):
+        match = _ASU_ITEM_RE.match(item)
+        if match is None or match.group("mnemonic") != mnemonic:
+            raise FlexParseError(f"{lrn_q(kind)} item {item!r} is not '{mnemonic} chnum,value': {text!r}", raw=text)
+        channel, value = int(match.group("channel")), int(match.group("value"))
+        channel = channel // 100 if channel > 10 and channel % 100 == 1 else channel
+        if value not in allowed or channel in found:
+            raise FlexParseError(f"{lrn_q(kind)} answer has a bad or repeated item {item!r}: {text!r}", raw=text)
+        found[channel] = value
+    return found
+
+
+def parse_asu_paths(text: str) -> dict[int, SwitchState]:
+    """``*LRN? 62`` -> ``{smu channel: "smu" | "cmu"}``, one entry per SMU with an ASU (path 0 = SMU, 1 = AUX, written
+    ``cmu``; PG PDF 451, 505-506). An empty answer means no ASU (module docstring).
+
+    Raises:
+        FlexParseError: If an item is not ``SAP chnum,0|1`` or a channel repeats.
+    """
+    return {ch: ASU_PATHS[path] for ch, path in _asu_items(text, SAP_RESPONSE, LRN_ASU_PATH, set(ASU_PATHS)).items()}
+
+
+def parse_asu_1pa(text: str) -> dict[int, bool]:
+    """``*LRN? 63`` -> ``{smu channel: 1 pA auto ranging enabled}``, one entry per SMU with an ASU (``SAR`` mode 0 =
+    enabled, 1 = disabled; PG PDF 451, 506).
+
+    Raises:
+        FlexParseError: If an item is not ``SAR chnum,0|1`` or a channel repeats.
+    """
+    items = _asu_items(text, SAR_RESPONSE, LRN_ASU_1PA, {SAR_ENABLE_1PA, SAR_DISABLE_1PA})
+    return {ch: mode == SAR_ENABLE_1PA for ch, mode in items.items()}

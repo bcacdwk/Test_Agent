@@ -1,0 +1,21 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Zero check (recipe system.zero_check, bring-up stage L1): the recipe has one role per slot (smu1 .. smu10, all
+# optional) and every terminal named here is an SMU that holds 0 V with its output open (probes lifted, nothing
+# connected). This example lists the four SMUs of the lab-shaped station (HRSMU in slots 3 and 4, MPSMU in 5 and 6);
+# a station with other SMUs needs its own copy naming exactly its SMU slots (a human writes it; terminal smuN = slot
+# N). The GNDU and non-SMU modules are never listed.
+#
+# certainty: verified here because nothing is wired in the simulator scenario lab_station (every terminal open). On
+# a real station set `unverified` until a human has confirmed that the terminals are open; every plan using an
+# unverified map needs confirmation (unverified_pin_map, rule R-PIN-02). The visa backend never reads this file.
+
+description: Zero check of the lab station's SMUs (slots 3-6), terminals open.
+certainty: verified
+terminals:
+  smu3: 3
+  smu4: 4
+  smu5: 5
+  smu6: 6
+notes:
+  - The floor of an SMU depends on its cable and on what touches the terminal; lift the probes (or open the socket)
+    and close the shield box before the run.

@@ -216,8 +216,10 @@ def dut_envelope(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 def explicit_compliance(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     """Every connected channel has a non-zero compliance in the envelope; voltage-forcing roles (``sweep_v``,
     ``bias_v``, ``step_v``, ``sync_v``, ``pulse_v``) set ``icomp`` explicitly, current-forcing roles (``sweep_i``,
-    ``bias_i``, ``step_i``, ``sync_i``) set ``vcomp``. Sources without compliance (``pgu``, ``wgfmu``) are exempt:
-    R-PULSE-*, R-SPGU-01 and R-WG-* bound them."""
+    ``bias_i``, ``step_i``, ``sync_i``) set ``vcomp``. The envelope's compliance is ``max_abs_i`` for a
+    voltage-forcing channel and ``max_abs_v`` for a current-forcing one (whose ``max_abs_i`` is the forced current,
+    which may be 0 A: a voltmeter). Sources without compliance (``pgu``, ``wgfmu``) are exempt: R-PULSE-*, R-SPGU-01
+    and R-WG-* bound them."""
     recipe, plan = ctx.recipe, ctx.plan
     for role_name, spec in sorted(recipe.roles.items()):
         bound = plan.binding.roles.get(role_name)
@@ -240,10 +242,12 @@ def explicit_compliance(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
                             f"(settings.{key} = {value!r})", subject=role_name,
                             source=env.recipe(recipe, f"roles.{role_name}.settings.{key}"),
                             observed=scalar(value), limit="non-zero compliance")
-        if entry.max_abs_i is not None and entry.max_abs_i <= 0:
+        forces_current = spec.function in CURRENT_SOURCING_FUNCTIONS
+        compliance = entry.max_abs_v if forces_current else entry.max_abs_i
+        if compliance is not None and compliance <= 0:
+            field = "max_abs_v" if forces_current else "max_abs_i"
             yield block(f"{role_name} (channel {channel}): compliance is zero", subject=role_name,
-                        source=env.plan(f"envelope.channels.{channel}.max_abs_i"), observed=entry.max_abs_i,
-                        limit="> 0")
+                        source=env.plan(f"envelope.channels.{channel}.{field}"), observed=compliance, limit="> 0")
 
 
 # -- R-IL-01 ---------------------------------------------------------------------------------------------------------

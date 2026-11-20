@@ -37,7 +37,8 @@ def test_vertical_path_status_validate_run_get_analyze(world: World, monkeypatch
     assert all(m.match for m in status.modules) and status.fault is None and status.lock_holder is None
     assert status.pin_maps == {"mosfet-4t": "verified", "diode-2t": "verified", "resistor-2t": "verified",
                                "mosfet-3t-lab": "unverified", "fefet-sel": "unverified", "fecap-wgfmu": "unverified",
-                               "moscap-cmu": "unverified", "mosfet-4t-body": "verified"}
+                               "moscap-cmu": "unverified", "mosfet-4t-body": "verified", "resistor-4w": "verified",
+                               "open-smus": "verified"}
     assert "nmos-generic" in status.dut_profiles
     assert status.config is not None and status.config.ok and status.limits is not None
 
@@ -207,14 +208,18 @@ def test_admin_lock_status(world: World) -> None:
 
 
 def test_recipe_index_stays_within_the_response_budget(world: World) -> None:
-    """Every recipe is listed, or (over the budget) a ``not_implemented`` one is named in the message; a filtered
-    index that fits lists every match, reserved recipes included."""
+    """Every recipe id is visible: listed, or (over the budget) named in the message: the ``not_implemented`` ones,
+    then (since WP7.1's three recipes, 20 runnable) the runnable ones trimmed from the end of the registry order;
+    a filtered index that fits lists every match, reserved recipes included."""
     service = world.service()
     index = service.list_recipes()
     assert index.ok and approx_tokens(index.model_dump_json()) <= TRIM_TARGET
     every = service.executor.registry().list(backend="sim")
     listed = {r.id for r in index.recipes}
-    assert {r.id for r in every if r.status != "not_implemented"} <= listed
+    runnable = [r.id for r in every if r.status != "not_implemented"]
+    assert [r.id for r in index.recipes] == runnable[:len(index.recipes)] and len(index.recipes) >= 10
+    if len(index.recipes) < len(runnable):
+        assert f"showing {len(index.recipes)} of {len(runnable)} (not shown: " in index.message
     assert all(r.id in listed or r.id in index.message for r in every)
     assert index.message.startswith(f"{len(every)} recipes, ")
     fefet = service.list_recipes(device_type="fefet")
@@ -224,7 +229,8 @@ def test_recipe_index_stays_within_the_response_budget(world: World) -> None:
 
 def test_recipe_index_trimming_order(world: World) -> None:
     """Small: everything. Large with reserved recipes: the runnable ones listed, the reserved ones named. Larger
-    still: the runnable ones trimmed like ``list_runs`` (``showing N of M``), always within the budget."""
+    still: the runnable ones trimmed like ``list_runs`` (``showing N of M``) and named while the names fit, always
+    within the budget."""
     service = world.service()
 
     def entry(n: int, status: str) -> RecipeSummary:
@@ -242,6 +248,13 @@ def test_recipe_index_trimming_order(world: World) -> None:
     assert [r.id for r in result.recipes] == [r.id for r in runnable]
     assert "not_implemented (not listed): generic.r100, " in result.message and "showing" not in result.message
     assert len(result.next_steps) == 2 and approx_tokens(result.model_dump_json()) <= TRIM_TARGET
+    more = [entry(n, "sim_validated") for n in range(24)]
+    result = service._recipe_index(more + reserved, "sim", "")
+    shown = len(result.recipes)
+    assert 1 <= shown < 24 and [r.id for r in result.recipes] == [r.id for r in more[:shown]]
+    assert f"showing {shown} of 24 (not shown: generic.r{shown:03d}, " in result.message
+    assert all(r.id in result.message for r in more[shown:] + reserved)  # every id stays visible
+    assert approx_tokens(result.model_dump_json()) <= TRIM_TARGET
     many = [entry(n, "sim_validated") for n in range(200)]
     result = service._recipe_index(many + reserved, "sim", "")
     assert 1 <= len(result.recipes) < 200 and f"showing {len(result.recipes)} of 200" in result.message

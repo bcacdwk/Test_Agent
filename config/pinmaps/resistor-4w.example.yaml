@@ -1,0 +1,20 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Four-wire (Kelvin) resistor on the lab-shaped example station: terminal `a` on SMU3 with its Force AND Sense lines
+# landed on pad a (two probes, or a Kelvin probe), terminal `b` on the GNDU with Force and Sense landed on pad b.
+# Recipe resistor.kelvin_4w binds its Kelvin roles a and b here (rule R-PIN-01); a Kelvin role never goes through a
+# 16440A selector (R-ROUTE-01). A pin map names channels only: whether the Sense lines are really landed is a
+# physical fact a human checks (card smu-spot-kelvin, station profile topology.cables.<alias>.kelvin).
+#
+# certainty: verified here because this map matches the wiring of the simulator scenario resistor_1r_kelvin. On a
+# real station set `unverified` until a human has checked the wiring and the sense landings; every plan using an
+# unverified map needs confirmation (unverified_pin_map, rule R-PIN-02). The visa backend never reads this file.
+
+description: 4-wire resistor; a on SMU3 (HRSMU) Force + Sense, b on GNDU Force + Sense.
+certainty: verified
+terminals:
+  a: 3
+  b: GNDU
+notes:
+  - Without the Sense lines landed the SMU senses at its own output, so R includes cables, probes and contacts (two
+    times the force-path resistance); the card's two-wire comparison shows it.
+  - SMU4 (HRSMU) or an MPSMU (SMU5/SMU6) may take a instead; keep b on the GNDU or an SMU with Sense landed.

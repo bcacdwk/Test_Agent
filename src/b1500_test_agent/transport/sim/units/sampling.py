@@ -172,8 +172,7 @@ class SamplingUnit:
         flex.arity(cmd, 4, 5)
         channel = self._smu(cmd.args[0])
         irange = flex.integer(cmd.args[1])
-        module = self._channel_type(channel) or ""
-        if irange != 0 and irange not in flex.I_CODES.get(module, range(0)):
+        if irange != 0 and irange not in self._i_codes(channel):  # the ASU ranges too (WP7.1)
             raise flex.FlexError(flex.ERR_RANGE, f"irange {irange}")
         base, bias = flex.number(cmd.args[2]), flex.number(cmd.args[3])
         if base * bias < 0 or max(abs(base), abs(bias)) > MAX_SMU_CURRENT_A:

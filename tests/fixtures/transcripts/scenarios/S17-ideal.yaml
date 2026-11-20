@@ -30,16 +30,17 @@ turns:
     - {shell: "cat .agents/skills/b1500-bringup/stages/l1-smu-zero.md"}
     - say: |-
         Configuration valid. Stage L1 (SMU zero), physical steps for you: lift the probes (nothing connected), close
-        the shield box, keep the interlock open, and adopt one open-circuit pin map per SMU. Tell me when done.
+        the shield box, keep the interlock open, and adopt the open-smus pin map and the open-circuit DUT profile.
+        Tell me when done.
   4:
     - call: validate_plan
-      args: {recipe_id: basic.contact_resistor, params: {v_start: 0, v_stop: 0}, pin_map: resistor-2t,
-             dut_profile: resistor-generic, label: "L1 rehearsal SMU3 0 V"}
+      args: {recipe_id: system.zero_check, params: {}, pin_map: open-smus, dut_profile: open-circuit,
+             label: "L1 rehearsal zero check SMU3-SMU6"}
       save: p1
     - {call: run_plan, args: {plan_id: "{{p1.plan_id}}"}, save: r1}
     - {cli: "bringup record L1 --run {{r1.run_id}}", expect_exit: 1}
     - say: |-
-        SIMULATED L1 zero check on SMU3: run {{r1.run_id}} ({{r1.outcome}}), cleanup verified. No validation record:
-        `bringup record` refused the simulator run, records come only from hardware runs (H..., backend visa), and
+        SIMULATED L1 zero check on SMU3-SMU6: run {{r1.run_id}} ({{r1.outcome}}), cleanup verified. No validation
+        record: `bringup record` refused the simulator run, records come only from hardware runs (H..., backend visa), and
         nothing goes to validation/hw/. On the lab PC this stage would draft the stage-l1 record and the
-        system.self_test and system.self_cal records for your review.
+        system.zero_check, system.self_test and system.self_cal records for your review.

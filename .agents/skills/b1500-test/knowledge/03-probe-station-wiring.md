@@ -8,6 +8,7 @@ sources:
   - "B1500A User's Guide Ed. 17 (UG), PDF pages cited inline"
   - "B1500A Configuration and Connection Guide (CCG), PDF pages cited inline"
   - config/station.example.yaml (topology fields)
+  - src/b1500_test_agent/analysis/resistor.py (kelvin_resistance; v2 WP7.1)
 last_reviewed: null
 ---
 
@@ -65,8 +66,27 @@ Seeded from deck slide 12 (separate force and sense; cancels cable and contact r
 - Non-Kelvin (two-wire): connect Force only and leave Sense open (UG PDF 9, 94). The reading then includes leads
   and contacts, typically ohms in total, so a two-wire R below about 10 ohm says more about the contacts than the
   DUT `TODO(verify)` with this station's probes.
-- v1 pin maps bind one channel per terminal and v1 recipes are two-wire; Kelvin wiring is recorded in the station
-  profile (`topology.kelvin`, per-cable `kelvin`) for later recipes.
+- Pin maps bind one channel per terminal; whether Sense is landed is a physical fact recorded in the station
+  profile (`topology.kelvin`, per-cable `kelvin`). Recipe `resistor.kelvin_4w` (card `smu-spot-kelvin`) forces
+  current and senses voltage on Kelvin roles (`kelvin: true`): they never go through a 16440A selector, whose SMU
+  path is Force only (R-ROUTE-01). Without Sense landed the same recipe silently reads leads and contacts too.
+
+## Four-wire resistance
+
+Implemented (`kelvin_resistance`, M7; recipe `resistor.kelvin_4w`; the definition shared with
+`src/b1500_test_agent/analysis/resistor.py`, kept here next to the wiring because the analysis file is at its line
+budget).
+
+- Least-squares line V = R·I + V0 of the sensed voltage against the forced current (defaults: the source current
+  column that varies most and the measured voltage of the same role, `a_I`/`a_V`) over the trusted points: R
+  (`resistance`, Ohm), offset voltage V0 (`offset_voltage`, V; thermoelectric and amplifier offsets, which ±I
+  reversal removes from R), r2 (`linearity_r2`); `fit.residual_v` = residual standard deviation. Needs two distinct
+  currents. Trust classes and refusals as in [06](06-analysis-extraction.md#run-table-and-trust-classes).
+- `classification`: `open` = voltage compliance (status C): R ≥ |V|/|I| at the first such point (lower bound,
+  nothing fitted); `short` = the voltage span is below 10x the residual: R ≤ 10 x residual / current span (upper
+  bound); else `in_range`. A non-positive R with a clean signal: `failed` (sense swapped or not landed).
+- R excludes leads and contacts only when Sense is landed at both pads ([above](#kelvin-four-wire-connection)); the
+  two-wire fit of the same pads is `resistance` ([06](06-analysis-extraction.md#resistance-fit)).
 
 ## ASU and the 1 pA range
 
@@ -77,9 +97,12 @@ Seeded from deck slide 12.
   sense information returns over the ASU's D-sub cable (CCG PDF 81).
 - Connect or disconnect the ASU only with the instrument off (UG PDF 57, 98). The ASU must stay with the SMU it
   was calibrated with (UG PDF 98).
-- Commands: `SAP` path, `SAR` 1 pA auto range (PG PDF 505-506); after reset the path is SMU side and 1 pA auto
-  ranging is disabled (PG Table 2-13, PDF 180). The station profile declares an ASU under `switches`
-  (`kind: asu`, `present: null` until a human checks it); the ASU recipes arrive with the SMU milestone.
+- Commands: `SAP` path, `SAR` 1 pA auto range, `SAL` indicator (PG PDF 505-506), read back by `*LRN? 62`/`63`
+  (PG PDF 451); after reset the path is SMU side and 1 pA auto ranging is disabled (PG Table 2-13, PDF 180); `CN`
+  and `CL` also return the path to the SMU side. The station profile declares an ASU under `switches`
+  (`kind: asu`, `present: null` until a human checks it at bring-up). Option `asu_1pa` of `mosfet.gate_leakage`
+  (`RI gate,8`) needs that ASU declared and `present: true` (R-ASU-01); a missing ASU makes `RI 8` an instrument
+  error, which aborts the run before the trigger.
 
 ## SCUU GSWU and the 16440A selector
 

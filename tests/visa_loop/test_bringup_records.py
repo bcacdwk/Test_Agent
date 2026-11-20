@@ -27,6 +27,8 @@ from tests.visa_loop.helpers import MEASUREMENT_CASES, REPO_ROOT, VisaWorld, run
 
 CONTACT = next(c for c in MEASUREMENT_CASES if c["recipe_id"] == "basic.contact_resistor")
 MULTI = next(c for c in MEASUREMENT_CASES if c["recipe_id"] == "generic.smu_multi_sweep")  # L2 too (WP7.2)
+SPOT = next(c for c in MEASUREMENT_CASES if c["recipe_id"] == "generic.smu_spot")  # L2 too (WP7.1)
+ZERO = next(c for c in MEASUREMENT_CASES if c["recipe_id"] == "system.zero_check")
 SIM_RUN = "S20261118T092102Z-2de7"
 
 
@@ -90,24 +92,35 @@ def test_status_follows_drafts_and_reviewed_records(stages: VisaWorld) -> None:
     draft = bringup.record(service, "L2", [run_id], references=[f"r_dmm={_resistance(world, run_id)}"])
     assert draft.ok and draft.record is not None
     l2 = next(s for s in bringup.bringup_status(service).stages if s.stage == "L2")
+    # L2 signs off four recipe records: contact check, multi-channel sweep (WP7.2), spot and four-wire (WP7.1)
+    assert [r.recipe_id for r in l2.records] == ["basic.contact_resistor", "generic.smu_multi_sweep",
+                                                 "generic.smu_spot", "resistor.kelvin_4w"]
     assert l2.state == "in_progress" and l2.records[0].state == "draft" and l2.records[0].path == draft.path
+    assert [r.state for r in l2.records[1:]] == ["missing", "missing", "missing"]
     multi = run_case(service, MULTI)  # the stage's second recipe record (generic.smu_multi_sweep)
     assert multi.ok and multi.run_id is not None and multi.run_id.startswith("H"), multi.message
-    analysis = service.analyze_run(multi.run_id, "resistance", {"x": "a_V", "y": "a_I"})  # stage L2 agent step 6
+    analysis = service.analyze_run(multi.run_id, "resistance", {"x": "a_V", "y": "a_I"})  # stage L2 agent step 5
     assert analysis.ok, analysis.message
     multi_draft = bringup.record(service, "L2", [multi.run_id], references=["multi_r=1e5"])
     assert multi_draft.ok and multi_draft.record is not None, multi_draft.message
+    spot = run_case(service, SPOT)  # the third (generic.smu_spot; default analysis resistance)
+    assert spot.ok and spot.run_id is not None and spot.run_id.startswith("H"), spot.message
+    spot_draft = bringup.record(service, "L2", [spot.run_id], references=["r_spot=1e5"])
+    assert spot_draft.ok and spot_draft.record is not None, spot_draft.message
+    assert spot_draft.record.recipe_id == "generic.smu_spot" and spot_draft.record.result == "pass"
     l2 = next(s for s in bringup.bringup_status(service).stages if s.stage == "L2")
-    assert l2.state == "review" and {r.state for r in l2.records} == {"draft"}
+    assert l2.state == "in_progress" and [r.state for r in l2.records] == ["draft", "draft", "draft", "missing"]
     (world.root / "validation" / "hw").mkdir(parents=True)
-    for item in (draft.record, multi_draft.record):
+    for item in (draft.record, multi_draft.record, spot_draft.record):
         reviewed = item.model_copy(update={"reviewer": "owner", "reviewed_on": date(2026, 12, 2)})
         target = world.root / "validation" / "hw" / reviewed.file_name()
         target.write_text(yaml.safe_dump(reviewed.model_dump(mode="json"), sort_keys=False), encoding="utf-8")
     after = bringup.bringup_status(service)
     l2 = next(s for s in after.stages if s.stage == "L2")
-    assert l2.state == "signed" and after.reviewed == ["validation/hw/basic.contact_resistor.yaml",
-                                                       "validation/hw/generic.smu_multi_sweep.yaml"]
+    assert after.reviewed == ["validation/hw/basic.contact_resistor.yaml", "validation/hw/generic.smu_multi_sweep.yaml",
+                              "validation/hw/generic.smu_spot.yaml"]
+    assert [r.state for r in l2.records] == ["reviewed", "reviewed", "reviewed", "missing"]
+    assert l2.state == "in_progress"  # signed only when the four-wire record is reviewed too
     assert after.next_stage == "S0"  # the stages before L2 are still open
     (world.root / "validation" / "hw" / "stage-s0.yaml").write_text("stage: S0\nreviewer: x\n", encoding="utf-8")
     noted = bringup.bringup_status(service)
@@ -168,13 +181,30 @@ def test_record_rules_for_recipe_and_stage_records(stages: VisaWorld) -> None:
     assert "not CHECK=VALUE" in bringup.record(service, "L2", [run_id], references=["r_dmm"]).message
     assert "unknown stage" in bringup.record(service, "L11", [run_id]).message
     assert "has no stage file yet" in bringup.record(service, "L5", [run_id]).message
-    stage = bringup.record(service, "L1", [run_id])  # the zero-check runs of L1 form the stage record
+    assert "does not run basic.contact_resistor" in bringup.record(service, "L1", [run_id],
+                                                                   recipe_id="basic.contact_resistor").message
+
+
+def test_l1_stage_and_recipe_records_from_a_zero_check_run(stages: VisaWorld) -> None:
+    """WP7.1: L1 runs ``system.zero_check``; its hardware run drafts the stage record (cleanup, one floor per SMU)
+    and, asked for, the recipe record of ``system.zero_check``."""
+    world = stages
+    zero = world.service(world.bus(ZERO["scenario"]))
+    result = run_case(zero, ZERO)
+    assert result.ok and result.run_id is not None and result.run_id.startswith("H"), result.message
+    stage = bringup.record(zero, "L1", [result.run_id])  # the zero-check runs of L1 form the stage record
     assert stage.ok and stage.record is not None and stage.record.recipe_id is None
     assert stage.record.key == "stage-l1" and stage.path is not None and "L1-stage-" in stage.path
     checks = {m.check: m for m in stage.record.measurements if m.check}
-    assert checks["cleanup_lop"].passed is True and checks["floor"].value is not None
+    assert checks["cleanup_lop"].passed is True
+    floors = {slot: checks[f"floor_smu{slot}"] for slot in (3, 4, 5, 6)}
+    assert all(m.value is not None and m.method.startswith("zero_floor") for m in floors.values())
+    assert floors[3].value < 1e-12 and floors[5].value < 1e-10  # HRSMU / MPSMU sanity bounds of the stage
     assert checks["shutdown_drill"].observed == "not measured in the given runs"
     assert stage.record.result == "pass"  # the judged check (cleanup) passed; observations are the reviewer's
+    recipe = bringup.record(zero, "L1", [result.run_id], recipe_id="system.zero_check")
+    assert recipe.ok and recipe.record is not None and recipe.record.key == "system.zero_check"
+    assert {m.quantity for m in recipe.record.measurements} >= {"smu3_floor", "smu6_floor"}
 
 
 def test_probe_record_and_capture_on_hardware(stages: VisaWorld) -> None:

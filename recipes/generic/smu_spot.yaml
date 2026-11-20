@@ -1,0 +1,55 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Generic SMU spot measurement (card smu-spot-kelvin): MM 1 spot readings of every measured terminal at once.
+# Terminal `a` steps through a list of voltages (one spot point per level, in the given order) and measures its
+# current; `b` is the return (GNDU or an SMU at 0 V); optional `c` holds a constant voltage and measures its current;
+# optional `d` forces a constant current and measures its voltage (d_i = 0 makes it a voltmeter: the sense side of a
+# four-terminal structure). Roles bind to pin-map terminals of the same name (resistor-2t gives a and b). On hardware
+# every plan needs confirmation (adhoc_recipe, plus first_hw_run until hw_validated). Default analysis: resistance
+# of a's I-V points (needs three distinct levels).
+# status: sim_validated by tests/integration/test_recipes_spot.py (resistor_100k: R +-1 % of the model truth).
+id: generic.smu_spot
+version: 1
+title: Generic SMU spot measurement (ad-hoc; one terminal stepped through voltage levels, optional bias and current source)
+family: smu
+kind: smu_spot
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/smu-spot-kelvin.md
+device_types: []
+roles:
+  a:
+    function: bias_v
+    measure: [I]
+    settings: {values: $a_levels, icomp: $a_icomp}
+  b: {function: ground, allow_gndu: true}
+  c:
+    function: bias_v
+    measure: [I]
+    optional: true
+    settings: {v: $c_v, icomp: $c_icomp}
+  d:
+    function: bias_i
+    measure: [V]
+    optional: true
+    settings: {i: $d_i, vcomp: $d_vcomp}
+params:
+  a_levels:
+    type: float_list
+    unit: V
+    default: [-0.1, -0.05, 0.0, 0.05, 0.1]
+    range: [-42.0, 42.0]
+    doc: Voltages of terminal a, one spot point each, in this order.
+  a_icomp: {unit: A, default: 1.0e-3, recommended: [1.0e-9, 1.0e-3], range: [1.0e-12, 0.1], doc: Current compliance of a.}
+  c_v: {unit: V, default: 0.0, range: [-42.0, 42.0], doc: Constant voltage of the optional terminal c.}
+  c_icomp: {unit: A, default: 1.0e-4, range: [1.0e-12, 0.1], doc: Current compliance of c.}
+  d_i: {unit: A, default: 0.0, range: [-0.1, 0.1], doc: Constant current of the optional terminal d (0 = voltmeter).}
+  d_vcomp: {unit: V, default: 1.0, recommended: [0.1, 10.0], range: [0.001, 42.0], doc: Voltage compliance of d.}
+  samples: {type: int, default: 1, recommended: [1, 10], range: [1, 1000], doc: Spot readings per level for averaging.}
+  integration: {type: enum, choices: [short, medium, long], default: medium, doc: ADC preset.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: resistance, options: {r_short_ohm: 100.0, r_open_ohm: 1.0e+9}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind smu_spot), 3.1 (generic.smu_spot); v0.2 C spot flow, DV/DI atoms
+    - Programming Guide Ed. 15 MM 1 (PDF 470-471), DV (PDF 396), DI (PDF 391-392), CMM (PDF 380)
+  validation_runs: []

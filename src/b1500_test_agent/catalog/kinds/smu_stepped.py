@@ -207,7 +207,7 @@ class SmuSteppedKind:
         sweep_estimate = base.estimate.duration_s
         step_column = f"{step_name}_{source}"
         staircase = StaircaseProgram.model_validate({
-            **sweep.model_dump(mode="json"),
+            **sweep.dump(),
             "biases": [b.model_dump(mode="json") for b in sweep.biases if b.role != step_name],
             "source_columns": {c: v for c, v in sweep.source_columns.items() if c != step_column},
         })
@@ -218,7 +218,8 @@ class SmuSteppedKind:
         estimate = Estimate(points=program.points, duration_s=round(duration, 6),
                             max_segment_s=round(sweep_estimate + STEP_OVERHEAD_S, 6))
         return CompiledKindPlan(envelope=envelope, estimate=estimate, flex_preview=self.preview(program),
-                                program=program.model_dump(mode="json"))
+                                program=program.model_dump(mode="json", exclude=None if program.staircase.ranges
+                                                           else {"staircase": {"ranges"}}))
 
     @staticmethod
     def preview(program: SteppedProgram) -> list[str]:

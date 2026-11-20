@@ -3,10 +3,11 @@
 One module per instrument family: ``core`` (system queries, output switches, ``FMT``, ``MM``,
 ``XE``/``AB``/``*RST``), ``smu`` (``CMM``, ``AAD``/``AIT``, ``RI``/``RV``, ``WV``/``WI``/``WSV``/``WSI``/``WNX``,
 ``WT``/``WM``, ``DV``/``DI``), ``cmu``
-(``CORRST?``, ``ADJ?``), ``spgu`` (``SPST?``) and ``switch`` (``ERMOD?``, ``ERSSP?``); the CMU, SPGU and switch
-work packages (M8, M9) add their setting commands to the same modules. This package re-exports every public
-builder and constant, so callers import the package (``from b1500_test_agent.driver import flex``) and write
-``flex.dv(...)``. Builders are pure (syntax and domain checks only, never policy) and return one command per string.
+(``CORRST?``, ``ADJ?``), ``spgu`` (``SPST?``) and ``switch`` (``ERMOD?``, ``ERSSP?``; ASU ``SAP``, ``SAR``,
+``SAL``); the CMU, SPGU and switch work packages (M8, M9) add their setting commands to the same modules. This
+package re-exports every public builder and constant, so callers import the package
+(``from b1500_test_agent.driver import flex``) and write ``flex.dv(...)``. Builders are pure (syntax and domain
+checks only, never policy) and return one command per string.
 WP7.4: ``core`` also builds the time stamps ``TSC``/``TSR``; ``sampling`` holds the SMU sampling (``MM 10``) setup
 ``MCC``, ``ML``, ``MT``, ``MSC``, ``MV``, ``MI``.
 """
@@ -87,12 +88,31 @@ from b1500_test_agent.driver.flex.smu import (
     wv,
 )
 from b1500_test_agent.driver.flex.spgu import SPST_Q, SPST_STATES
-from b1500_test_agent.driver.flex.switch import ERMOD_MAX, ERMOD_Q, ERMOD_SELECTOR, ERSSP_STATES, erssp_q
+from b1500_test_agent.driver.flex.switch import (
+    ASU_PATH_CODES,
+    ASU_PATHS,
+    ERMOD_MAX,
+    ERMOD_Q,
+    ERMOD_SELECTOR,
+    ERSSP_STATES,
+    LRN_ASU_1PA,
+    LRN_ASU_PATH,
+    SAP_RESPONSE,
+    SAR_DISABLE_1PA,
+    SAR_ENABLE_1PA,
+    SAR_RESPONSE,
+    erssp_q,
+    sal,
+    sap,
+    sar,
+)
 
 __all__ = [
     "AB",
     "ADJ_READ_LAST",
     "ADJ_RESULTS",
+    "ASU_PATHS",
+    "ASU_PATH_CODES",
     "CAL_Q",
     "CORRECTION_CODES",
     "ERMOD_MAX",
@@ -109,6 +129,8 @@ __all__ = [
     "LOG_SAMPLING_DENSITY",
     "LOP_Q",
     "LOP_RESPONSE_PREFIX",
+    "LRN_ASU_1PA",
+    "LRN_ASU_PATH",
     "LRN_AUTO_CALIBRATION",
     "LRN_SETTINGS",
     "LRN_TYPES",
@@ -129,6 +151,10 @@ __all__ = [
     "SAMPLING_ABORT",
     "SAMPLING_MODE",
     "SAMPLING_POST",
+    "SAP_RESPONSE",
+    "SAR_DISABLE_1PA",
+    "SAR_ENABLE_1PA",
+    "SAR_RESPONSE",
     "SER_SETTING",
     "SPST_Q",
     "SPST_STATES",
@@ -161,6 +187,9 @@ __all__ = [
     "mv",
     "ri",
     "rv",
+    "sal",
+    "sap",
+    "sar",
     "tsc",
     "tsr",
     "wi",

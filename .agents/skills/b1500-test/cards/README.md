@@ -20,7 +20,7 @@ SMU I-V with HRSMU/MPSMU and the GNDU: contact and resistance, diode, MOSFET DC,
 | smu | output curves, Id-Vd, Ron, gds, saturation | [mosfet-idvd](smu/mosfet-idvd.md) | `mosfet.idvd` | sim_validated | HRSMU, MPSMU, GNDU | L4 |
 | smu | Vth, gm, SS, Ion/Ioff, Id-Vg, transfer curve, DIBL, body effect, Vth vs Vd, saturation Vth | [mosfet-idvg](smu/mosfet-idvg.md) | `mosfet.idvg`, `mosfet.idvg_family`, `mosfet.idvg_sync`, `mosfet.body_effect` | sim_validated | HRSMU, MPSMU, GNDU | L4 |
 | smu | sampling, I(t), Id(t), transient, time dependence, bias-stress drift, IGZO, relaxation, tau | [smu-sampling](smu/smu-sampling.md) | `mosfet.id_t_sampling`, `generic.smu_sampling` | sim_validated | HRSMU, MPSMU, GNDU | L5 |
-| smu | multi-channel sweep, MM 16, several sweep terminals, simultaneous sweep, generic sweep, WNX | [smu-spot-kelvin](smu/smu-spot-kelvin.md) | `generic.smu_multi_sweep` | sim_validated | HRSMU, MPSMU, GNDU | L2 |
+| smu | spot measurement, single bias point, bias list, current forcing, Kelvin, 4-wire, low resistance, milliohm, multi-channel sweep, MM 16, several sweep terminals, WNX | [smu-spot-kelvin](smu/smu-spot-kelvin.md) | `generic.smu_spot`, `resistor.kelvin_4w`, `generic.smu_multi_sweep` | sim_validated | HRSMU, MPSMU, GNDU | L2 |
 | smu | Generic SMU staircase sweep (ad-hoc; one swept, one optional biased, one ground terminal) | no card by design: ask the human first | `generic.smu_staircase` | sim_validated | - | - |
 | smu | reserved: Compare a measured run with an HSPICE simulation | [reserved](reserved/README.md) | `hspice.compare` | not_implemented | - | - |
 
@@ -78,3 +78,4 @@ Instrument maintenance: self-test, self-calibration, zero check.
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
 | system | self-test, self-calibration, \*TST?, \*CAL?, module check, recalibrate | [self-test-cal](system/self-test-cal.md) | `system.self_test`, `system.self_cal` | sim_validated | all installed | L1 |
+| system | zero check, noise floor, offset current, open terminals, SMU floor, baseline | [zero-check](system/zero-check.md) | `system.zero_check` | sim_validated | HRSMU, MPSMU | L1 |

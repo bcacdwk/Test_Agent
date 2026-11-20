@@ -1,13 +1,14 @@
-"""SMU operations: A/D converter, ranging, guarded DC force and staircase sweep setup (blueprint 2.5).
+"""SMU operations: A/D converter, ranging, guarded DC force (voltage and current), spot measurement and staircase
+sweep setup (blueprint 2.5).
 
 ``SmuOps`` is a mixin of ``B1500Driver``. Source operations (``force_v``, ``force_i``, ``staircase``) refuse without
 an ``OutputGuard`` and check every channel and value against it before the first byte is written; command texts come
-from ``driver/flex/smu.py`` and ``driver/flex/core.py`` (``MM``).
+from ``driver/flex/smu.py`` and ``driver/flex/core.py`` (``MM``). ``spot_setup`` (``MM 1``, ``CMM``) sets no level.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
@@ -196,8 +197,8 @@ class StaircaseSetup(StrictModel):
 
 
 class SmuOps(DriverBase):
-    """SMU operations of ``B1500Driver``: integration, ranging, guarded ``DV``/``DI`` and the staircase sweep setup
-    (``WV``/``WI`` primary, ``WSV``/``WSI`` synchronous or ``WNX`` multi-channel sources)."""
+    """SMU operations of ``B1500Driver``: integration, ranging, guarded ``DV``/``DI``, the spot setup (``MM 1``) and
+    the staircase sweep setup (``WV``/``WI`` primary, ``WSV``/``WSI`` synchronous or ``WNX`` multi-channel sources)."""
 
     def set_integration(self, adc: int, mode: int, n: float, *, chs: Sequence[int] = ()) -> None:
         """``AAD ch,adc`` for each of ``chs``, then ``AIT adc,mode,n`` (PG PDF 351, 356-359)."""
@@ -228,6 +229,16 @@ class SmuOps(DriverBase):
         voltage compliance against its voltage envelope."""
         self._require_guard("force_i", ch).check(ch, "I", i, vcomp)
         self._write(flex.di(ch, rng, i, vcomp))
+
+    def spot_setup(self, measure: Sequence[int], operation: Mapping[int, int]) -> None:
+        """Spot measurement setup: ``MM 1,<measure>`` and ``CMM`` per ``operation`` (PG PDF 470-471, 380). Not a
+        source command (the channels' levels were set by ``force_v``/``force_i``); ``XE`` is sent by
+        ``execute_and_read``. ``operation`` may only name measured channels."""
+        if not set(operation) <= set(measure):
+            raise ValueError("operation names a channel that is not measured")
+        self._write(flex.mm(1, measure))
+        for ch, op in operation.items():
+            self._write(flex.cmm(ch, op))
 
     def staircase(self, setup: StaircaseSetup) -> None:
         """Guarded staircase sweep setup (``StaircaseSetup.commands``: ``MM 2|16``, ``CMM``, ``WV``/``WI``,

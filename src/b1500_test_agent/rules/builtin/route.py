@@ -19,12 +19,13 @@ from collections.abc import Iterator
 from b1500_test_agent.driver.modules import SPEC_SYMBOL, module_spec
 from b1500_test_agent.models.routing import Route, SwitchSpec
 from b1500_test_agent.rules.builtin.common import (
+    ASU_1PA_SETTING,
     MEASURE_RANGE_SETTING,
     PlanRoute,
     is_real,
+    measure_range_a,
     plan_routes,
     scalar,
-    setting_value,
 )
 from b1500_test_agent.rules.engine import Finding, RuleContext, RuleEnv, block, confirm, rule
 
@@ -192,15 +193,18 @@ def topology_verified(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 
 @rule("R-ASU-01", {"plan"})
 def asu_ranges(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
-    """A role's current measurement range (setting ``irange``, full scale in A) exists on its SMU; a range that needs
-    an ASU (1 pA on an HRSMU, 1-100 pA on an MPSMU) is allowed only on an SMU with a declared ASU recorded
-    ``present: true`` (PG p505 (4-187) "SAP")."""
+    """A role's current measurement range (setting ``irange``, full scale in A, or setting ``asu_1pa`` true = the
+    1 pA range; ``common.measure_range_a``) exists on its SMU; a range that needs an ASU (1 pA on an HRSMU, 1-100 pA
+    on a B1511B MPSMU) is allowed only on an SMU with a declared ASU recorded ``present: true`` (PG p505 (4-187)
+    "SAP"). On the instrument the ASU's presence shows again before the trigger: without it ``RI ch,8`` is an
+    instrument error, which the kinds' ``ERRX?`` drain turns into an abort before ``XE``."""
     for role, spec in sorted(ctx.recipe.roles.items()):
-        value = setting_value(spec, MEASURE_RANGE_SETTING, ctx.plan.resolved_params)
+        value = measure_range_a(spec, ctx.plan.resolved_params)
         bound = ctx.plan.binding.roles.get(role)
         if value is None or bound is None or bound.channel is None:
             continue
-        source = env.recipe(ctx.recipe, f"roles.{role}.settings.{MEASURE_RANGE_SETTING}")
+        key = MEASURE_RANGE_SETTING if MEASURE_RANGE_SETTING in spec.settings else ASU_1PA_SETTING
+        source = env.recipe(ctx.recipe, f"roles.{role}.settings.{key}")
         module = ctx.station.module_for_channel(bound.channel)
         if module is None:
             continue  # R-PIN-01 blocks

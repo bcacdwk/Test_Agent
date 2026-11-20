@@ -49,7 +49,7 @@ PRIORITY_SCALE = {
     "and system.* self-test/self-cal; the B1500Driver methods of blueprint section 2.3; v2 additions mapped since "
     "(CM and *LRN? by WP5.6, the read-only probe queries ERMOD?, ERSSP?, SPST?, CORRST?, ADJ? by WP6.1, the SMU "
     "sampling MM 10 with MCC, ML, MT, MSC, MV, MI and the time stamps TSC/TSR by WP7.4, the sweep sources DI, WI, "
-    "WSV, WSI, WNX and MM 16 by WP7.2)",
+    "WSV, WSI, WNX and MM 16 by WP7.2, MM 1 spot and the ASU commands SAP, SAR, SAL by WP7.1)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
     "simulator's FLEX subset v1 (AV, BC, NUB?, TSC)",
     "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
@@ -64,11 +64,12 @@ DRIVER_METHODS = (
     "selector_control_mode", "selector_state", "pulse_output_active", "correction_enabled",
     "phase_compensation_result",
     "set_time_stamp", "reset_timer", "sampling_setup", "sampling_update",
+    "spot_setup", "asu_paths", "asu_1pa_auto", "set_asu_path", "set_asu_1pa_auto", "set_asu_indicator",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
     "di", "wi", "wsv", "wsi", "wnx",
-    "erssp_q", "corrst_q", "adj_q", "tsc", "tsr", "mcc", "ml", "mt", "msc", "mv", "mi",
+    "erssp_q", "corrst_q", "adj_q", "tsc", "tsr", "mcc", "ml", "mt", "msc", "mv", "mi", "sap", "sar", "sal",
     "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q", "ERMOD_Q", "SPST_Q",
 )  # fmt: skip
 DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
@@ -115,10 +116,11 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "CN": CommandTarget("enable", "cn"),
     "DV": CommandTarget("force_v", "dv", "OutputGuard-checked"),
     "DI": CommandTarget("force_i", "di", "OutputGuard-checked (current level vs |I|, Vcomp vs |V|); bias_i and "
-                        "step_i roles (WP7.2)"),
+                        "step_i roles (WP7.2), kind smu_spot bias_i roles (WP7.1)"),
     "MM": CommandTarget("staircase", "mm", "staircase sends MM 2 (staircase) and MM 16 (multi-channel sweep, "
-                        "WP7.2), sampling_setup MM 10 (MM_MODE_TARGETS); every other mode is unmapped"),
-    "CMM": CommandTarget("staircase", "cmm", "sent inside the staircase setup"),
+                        "WP7.2), sampling_setup MM 10, spot_setup MM 1 (WP7.1) (MM_MODE_TARGETS); every other "
+                        "mode is unmapped"),
+    "CMM": CommandTarget("staircase", "cmm", "sent inside the staircase, sampling and spot setups"),
     "WV": CommandTarget("staircase", "wv", "OutputGuard-checked voltage primary sweep"),
     "WI": CommandTarget("staircase", "wi", "OutputGuard-checked current primary sweep, lin/log single/double "
                         "(WP7.2)"),
@@ -133,7 +135,8 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "CM": CommandTarget("set_auto_calibration", "cm", "R-CAL-02 (WP5.6): asynchronous runs send CM 0 and the "
                         "cleanup restores the state read by *LRN? 31"),
     "*LRN?": CommandTarget("auto_calibration", "lrn_q", "type 31 (CM state) before every run's pre-execute rules "
-                           "(R-CAL-01/02); type 0 stays the ATV-1 fallback for SPGU/WGFMU outputs"),
+                           "(R-CAL-01/02); type 0 stays the ATV-1 fallback for SPGU/WGFMU outputs; types 62/63 = "
+                           "ASU paths and 1 pA auto ranging (asu_paths, asu_1pa_auto; WP7.1)"),
     "ERMOD?": CommandTarget("selector_control_mode", "ERMOD_Q", "read-only probe (WP6.1); ERMOD itself: WP9.2"),
     "ERSSP?": CommandTarget("selector_state", "erssp_q", "read-only probe per declared selector port, only with "
                             "the 16440A control mode on (WP6.1); ERSSP itself: WP9.2"),
@@ -152,9 +155,13 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
                          "always MSC 2,2: automatic abort (breakdown), bias after a normal end"),
     "MV": CommandTarget("sampling_setup", "mv", "OutputGuard-checked (base and bias)"),
     "MI": CommandTarget("sampling_setup", "mi", "OutputGuard-checked (base and bias)"),
+    "SAP": CommandTarget("set_asu_path", "sap", "OutputGuard.check_route (ASU route smu|cmu); CN and CL return the "
+                         "path to the SMU side; read back by *LRN? 62 (WP7.1)"),
+    "SAR": CommandTarget("set_asu_1pa_auto", "sar", "ranging only; read back by *LRN? 63 (WP7.1)"),
+    "SAL": CommandTarget("set_asu_indicator", "sal", "ASU indicator; no output change (WP7.1)"),
 }
-MM_MODE_TARGETS: dict[int, str] = {2: "B1500Driver.staircase", 10: "B1500Driver.sampling_setup",
-                                   16: "B1500Driver.staircase"}
+MM_MODE_TARGETS: dict[int, str] = {1: "B1500Driver.spot_setup", 2: "B1500Driver.staircase",
+                                   10: "B1500Driver.sampling_setup", 16: "B1500Driver.staircase"}
 """``MM <mode>`` entries of the legacy atoms: the driver method that sends each mapped mode (others unmapped)."""
 # Mapped commands are all m1; these unmapped ones are m2; everything else is `later`.
 M2_COMMANDS = frozenset({"AV", "BC", "NUB?", "TSC"})
@@ -178,6 +185,9 @@ GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "CMM": ([380], ["4-62"]),
     "LOP?": ([446, 447], ["4-128 to 4-129"]),
     "RI": ([501], ["4-183"]),
+    "SAL": ([505], ["4-187"]),
+    "SAP": ([505, 506], ["4-187 to 4-188"]),
+    "SAR": ([506], ["4-188"]),
     "RV": ([503, 504], ["4-185 to 4-186"]),
     "WM": ([552, 553], ["4-234 to 4-235"]),
     "WT": ([564, 565], ["4-246 to 4-247"]),
@@ -235,7 +245,7 @@ WILDCARD_GROUPS = {
 
 # Any of these words in an atom id puts the atom's function out of the M1/M2 scope.
 LATER_SCOPES = frozenset({
-    "wgfmu", "easyexpert", "spgu", "cmu", "qscv", "hvsmu", "hcsmu", "uhcu", "hvmcu", "uhvu", "asu", "scuu",
+    "wgfmu", "easyexpert", "spgu", "cmu", "qscv", "hvsmu", "hcsmu", "uhcu", "hvmcu", "uhvu", "scuu",
     "selector", "dio",
 })  # fmt: skip
 
@@ -265,7 +275,8 @@ ATOM_OVERRIDES: dict[str, dict[str, str]] = {
     "B_atom_output_b1500_zero_all": {
         "note": "successor: Transaction cleanup AB -> DZ -> CL -> verify and the safe_shutdown tool"
     },
-    "C_atom_smu_set_measurement_mode": {"note": "staircase sends MM 2 and MM 16 (WP7.2); other modes later"},
+    "C_atom_smu_set_measurement_mode": {"note": "staircase sends MM 2 and MM 16 (WP7.2), sampling_setup MM 10 "
+                                        "(WP7.4), spot_setup MM 1 (WP7.1); other modes later"},
     "C_atom_smu_configure_integration": {"priority": "m1", "note": "AV (averaging) is m2"},
     "C_atom_smu_set_measurement_ranging": {"priority": "m1", "note": "RM (auto-ranging limit) is later"},
     "C_atom_smu_configure_staircase_sweep": {

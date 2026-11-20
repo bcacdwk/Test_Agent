@@ -74,7 +74,7 @@ def test_ideal_evidence_is_genuine(tmp_path_factory: pytest.TempPathFactory) -> 
     assert ("bringup_record", "refused") in tools
     refused = next(c for c in ev.shell(4) if "bringup record" in c.command)
     assert refused.exit_code == 1 and "is a simulator run" in refused.output
-    assert [r.manifest.recipe_id for r in ev.runs_in(4)] == ["basic.contact_resistor"]
+    assert [r.manifest.recipe_id for r in ev.runs_in(4)] == ["system.zero_check"]
     added = [c.path for c in ev.changes("repo") if c.change == "added"]
     assert any(p.startswith("work/bringup/probe-") for p in added) and "work/bringup/station.proposed.yaml" in added
     assert not any(p.startswith(("work/bringup/records/", "validation/")) for p in added)
@@ -99,7 +99,7 @@ def _ideal(tmp_path_factory: pytest.TempPathFactory) -> Evidence:
 
 def test_stage_recipes_come_from_the_stage_files() -> None:
     recipes = stage_recipes(REPO_ROOT)
-    assert recipes["L1"] == ["basic.contact_resistor", "system.self_test", "system.self_cal"]
+    assert recipes["L1"] == ["system.zero_check", "system.self_test", "system.self_cal"]  # WP7.1
     assert recipes["S0"] == [] and "L5" not in recipes
 
 

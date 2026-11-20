@@ -36,6 +36,14 @@ MEASURE_RANGE_SETTING = "irange"
 """Role-settings key with the full scale (A) of a role's fixed or limited-auto current measurement range; a range that
 needs an ASU (1 pA) is allowed only on an SMU with a declared, present ASU (R-ASU-01)."""
 
+ASU_1PA_SETTING = "asu_1pa"
+"""Role-settings key (a bool, usually ``$asu_1pa``): when true the role measures its current with limited auto
+ranging down to the 1 pA range (``RI ch,8``), which only an SMU with an ASU has (R-ASU-01); the kinds
+``smu_staircase`` and ``smu_spot`` read it through ``measure_range_a``."""
+
+ASU_1PA_FULL_SCALE_A = 1e-12
+"""Full scale of the ASU's 1 pA range (PG Table 4-3, PDF 337)."""
+
 PULSE_FUNCTIONS = frozenset({"pulse_v", "pgu"})
 """Role functions that apply pulse trains (SMU pulse source, HV-SPGU output); WGFMU channels are pulse channels when
 their envelope carries a pulse envelope (R-PULSE-*)."""
@@ -212,3 +220,16 @@ def scalar(value: object) -> str | int | float | bool | None:
     return repr(value)
 
 
+
+
+def measure_range_a(role: RoleSpec, params: Mapping[str, Quantity]) -> object:
+    """The current measurement range a role asks for (full scale in A): setting ``irange`` when given, else the 1 pA
+    range when setting ``asu_1pa`` is true, else ``None`` (auto ranging). The value is returned unchecked
+    (R-ASU-01 judges it; a non-bool ``asu_1pa`` comes back as given)."""
+    explicit = setting_value(role, MEASURE_RANGE_SETTING, params)
+    if explicit is not None:
+        return explicit
+    asu = setting_value(role, ASU_1PA_SETTING, params)
+    if asu is None or asu is False:
+        return None
+    return ASU_1PA_FULL_SCALE_A if asu is True else asu

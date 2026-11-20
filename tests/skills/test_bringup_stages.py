@@ -27,8 +27,8 @@ HUMAN_ONLY = ("con" + "fig init", "con" + "fig adopt", "run " + "--confirm", "fa
 """Human-only CLI verbs, assembled at run time (the harness guard blocks shell commands that spell them)."""
 RECIPES = {
     "S0": [], "L0": [], "L10": [],
-    "L1": ["basic.contact_resistor", "system.self_test", "system.self_cal"],
-    "L2": ["basic.contact_resistor", "generic.smu_multi_sweep"],
+    "L1": ["system.zero_check", "system.self_test", "system.self_cal"],  # WP7.1: the zero-check recipe
+    "L2": ["basic.contact_resistor", "generic.smu_multi_sweep", "generic.smu_spot", "resistor.kelvin_4w"],
     "L3": ["basic.diode_iv", "basic.iv_force_i"],
     "L4": ["mosfet.idvg", "mosfet.idvd", "mosfet.gate_leakage", "mosfet.idvg_family", "mosfet.idvg_sync",
            "mosfet.body_effect"],
@@ -68,10 +68,15 @@ def test_stage_file_shape(stage: str) -> None:
     assert StageFrontmatter.model_validate(frontmatter(text)) == front
 
 
-def test_l1_uses_the_contact_check_at_zero_volt_as_the_interim_zero_check() -> None:
+def test_l1_runs_the_zero_check_recipe() -> None:
+    """WP7.1 switched L1 from the M6 interim (``basic.contact_resistor`` at 0 V) to ``system.zero_check``; L2 runs
+    the spot and four-wire recipes with their commands and expected values."""
     agent = _section("L1", "Agent steps")
-    assert "`basic.contact_resistor`" in agent and "`params {v_start: 0, v_stop: 0}`" in agent
-    assert "`system.zero_check`" in (STAGE_DIR / "l1-smu-zero.md").read_text(encoding="utf-8")
+    assert "`system.zero_check`" in agent and "`open-smus`" in agent and "`open-circuit`" in agent
+    assert "`basic.contact_resistor`" not in agent
+    assert "zero_floor" in _section("L1", "Expected values")
+    l2 = _section("L2", "Agent steps")
+    assert "`generic.smu_spot`" in l2 and "`resistor.kelvin_4w`" in l2 and "kelvin_resistance" in l2
 
 
 def _check(stage: str, check_id: str):
@@ -82,8 +87,11 @@ def test_pass_criteria_are_the_blueprint_defaults() -> None:
     """Blueprint v2 7.4: L1 verified lop every run and floors recorded; L2 +-1 % vs DMM; L4 Vth +-10 mV and SS +-5 %
     vs EasyEXPERT on the same die."""
     assert _check("L1", "cleanup_lop").quantity == "cleanup"
-    floor = _check("L1", "floor")
-    assert floor.tolerance is None and floor.quantity == "noise_a_I"
+    floor = _check("L1", "floor_smu3")
+    assert floor.tolerance is None and (floor.quantity, floor.method) == ("smu3_floor", "zero_floor")
+    kelvin = _check("L2", "r_kelvin")
+    assert (kelvin.recipe, kelvin.method, kelvin.tolerance and kelvin.tolerance.rel) == (
+        "resistor.kelvin_4w", "kelvin_resistance", 0.01)
     r = _check("L2", "r_dmm")
     assert (r.recipe, r.quantity, r.tolerance and r.tolerance.rel) == ("basic.contact_resistor", "resistance", 0.01)
     vth, ss = _check("L4", "vth"), _check("L4", "ss")
@@ -97,7 +105,8 @@ def test_pass_criteria_are_the_blueprint_defaults() -> None:
 def test_record_keys_of_each_stage() -> None:
     assert _front("S0").record_keys() == [None] and _front("L0").record_keys() == [None]
     assert _front("L1").record_keys() == ["system.self_test", "system.self_cal", None]
-    assert _front("L2").record_keys() == ["basic.contact_resistor", "generic.smu_multi_sweep"]
+    assert _front("L2").record_keys() == ["basic.contact_resistor", "generic.smu_multi_sweep", "generic.smu_spot",
+                                          "resistor.kelvin_4w"]
     assert _front("L3").record_keys() == ["basic.diode_iv", "basic.iv_force_i"]
     assert _front("L4").record_keys() == ["mosfet.idvg", "mosfet.idvd", "mosfet.gate_leakage", "mosfet.idvg_family",
                                           "mosfet.idvg_sync", "mosfet.body_effect"]

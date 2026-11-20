@@ -29,8 +29,9 @@ gate-keeper on every fresh landing and the first safe check of skill `b1500-debu
 - Transistor or diode landings: catches shorts. A transistor's drain-source path with the gate off and a diode
   below turn-on read `open` by design; there the landing is proven by the real measurement (Id rising with Vg,
   forward diode current), not by this check.
-- Not for: precise low resistance (two-wire includes probes and cables; no Kelvin recipe in v1), diode or
-  transistor parameters (cards [diode-iv](diode-iv.md), [mosfet-idvg](mosfet-idvg.md)).
+- Not for: precise low resistance (two-wire includes probes and cables; use the four-wire
+  [smu-spot-kelvin](smu-spot-kelvin.md)), diode or transistor parameters (cards [diode-iv](diode-iv.md),
+  [mosfet-idvg](mosfet-idvg.md)).
 
 ## 2. Wiring, pin map, modules
 

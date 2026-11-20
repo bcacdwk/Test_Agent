@@ -29,6 +29,7 @@ from b1500_test_agent.analysis.dataset import RunData
 from b1500_test_agent.analysis.diode import diode_fit, forward_voltage
 from b1500_test_agent.analysis.errors import MethodNotImplementedError
 from b1500_test_agent.analysis.fefet import memory_window
+from b1500_test_agent.analysis.floor import zero_floor
 from b1500_test_agent.analysis.leakage import leakage_at
 from b1500_test_agent.analysis.mosfet import (
     gm_max,
@@ -43,7 +44,7 @@ from b1500_test_agent.analysis.mosfet_family import body_effect, dibl
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv_method
 from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.reliability import plot_timeseries_method, sampling_summary, time_to_breakdown
-from b1500_test_agent.analysis.resistor import resistance
+from b1500_test_agent.analysis.resistor import kelvin_resistance, resistance
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport, TrustPolicy
 from b1500_test_agent.models.recipe import RecipeFamily
@@ -59,13 +60,16 @@ _RESERVED_ARGS = frozenset({"d", "criteria"})
 _TRANSFER = ("mosfet.idvg", "mosfet.idvg_sync", "fefet.dual_sweep_mw", "generic.*")
 _STAIRCASE = ("smu_staircase",)
 _SWEEPS = ("smu_staircase", "smu_stepped")
+_SPOT = ("smu_spot",)
 _SMU: tuple[RecipeFamily, ...] = ("smu",)
 _SMU_NVM: tuple[RecipeFamily, ...] = ("smu", "nvm")
 _SMU_RELIABILITY: tuple[RecipeFamily, ...] = ("smu", "reliability")
 _SAMPLING = ("generic.smu_sampling", "mosfet.id_t_sampling", "reliability.tddb_cvs", "generic.*")
 _SAMPLING_KINDS = ("smu_sampling",)
-_TABLES: tuple[RecipeFamily, ...] = ("smu", "cmu", "spgu", "wgfmu", "nvm", "reliability")
-"""Families whose runs archive a measurement table (``system`` runs archive none)."""
+_SYSTEM: tuple[RecipeFamily, ...] = ("system",)
+_TABLES: tuple[RecipeFamily, ...] = ("smu", "cmu", "spgu", "wgfmu", "nvm", "reliability", "system")
+"""Families whose runs archive a measurement table (``system`` since ``system.zero_check``; self-test and
+self-calibration runs still archive none)."""
 
 
 @dataclass(frozen=True)
@@ -178,7 +182,13 @@ _METHODS = [
             ("mosfet.idvd", "generic.*"), _SWEEPS, families=_SMU),
     _method("resistance", "extraction", resistance,
             "Resistance, linearity and offset of an I-V line; classification open|short|in_range.",
-            ("basic.contact_resistor", "generic.*"), families=_SMU),
+            ("basic.contact_resistor", "generic.*"), (*_STAIRCASE, *_SPOT), families=_SMU),
+    _method("kelvin_resistance", "extraction", kelvin_resistance,
+            "Four-wire R = slope of sensed V vs forced I, offset voltage, linearity; open|short|in_range.",
+            ("resistor.kelvin_4w", "generic.*"), _SPOT, families=_SMU, milestone="M7"),
+    _method("zero_floor", "extraction", zero_floor,
+            "Zero check: offset and noise floor of every measured current per range; optional pass/fail limits.",
+            ("system.zero_check", "generic.*"), _SPOT, families=(*_SYSTEM, *_SMU), milestone="M7"),
     _method("diode_fit", "extraction", diode_fit,
             "Diode ideality n, saturation current Is and series resistance Rs from the forward branch.",
             ("basic.diode_iv", "basic.iv_force_i", "generic.*"), families=_SMU),
@@ -198,7 +208,7 @@ _METHODS = [
             ("fefet.dual_sweep_mw", "generic.*"), families=_SMU_NVM),
     _method("plot_iv", "plots", plot_iv_method,
             "I-V plots (linear and/or log scale) stored as PNG files under the run folder's plots/.", ("*",),
-            ("*",), families=("smu", "spgu", "wgfmu", "nvm", "reliability")),
+            ("*",), families=("smu", "spgu", "wgfmu", "nvm", "reliability", "system")),
     _method("plot_timeseries", "plots", plot_timeseries_method,
             "Measured values against time t_s (else cycle or step), per phase, linear/log; PNGs under plots/.",
             ("*",), ("*",), families=_TABLES, milestone="M5"),

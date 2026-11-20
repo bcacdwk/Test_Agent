@@ -1,0 +1,20 @@
+# DUT profile (example; committed). Schema: b1500_test_agent.models.policy.DutProfile; name = file name.
+# No DUT: every SMU terminal open (probes lifted, socket empty), for the zero check (system.zero_check, pin map
+# open-smus) at bring-up stage L1. Terminals smu1 .. smu10 = the SMU in that slot. The envelope is the zero check's:
+# 0 V with at most 1 mA compliance (a reading at that compliance means the terminal is not open).
+
+device_type: open
+description: Open terminals (no DUT) for the SMU zero check; one terminal per SMU slot.
+terminals:
+  smu1: {max_abs_v: 0.1, max_abs_i: 1.0e-3}
+  smu2: {max_abs_v: 0.1, max_abs_i: 1.0e-3}
+  smu3: {max_abs_v: 0.1, max_abs_i: 1.0e-3}
+  smu4: {max_abs_v: 0.1, max_abs_i: 1.0e-3}
+  smu5: {max_abs_v: 0.1, max_abs_i: 1.0e-3}
+  smu6: {max_abs_v: 0.1, max_abs_i: 1.0e-3}
+  smu7: {max_abs_v: 0.1, max_abs_i: 1.0e-3}
+  smu8: {max_abs_v: 0.1, max_abs_i: 1.0e-3}
+  smu9: {max_abs_v: 0.1, max_abs_i: 1.0e-3}
+  smu10: {max_abs_v: 0.1, max_abs_i: 1.0e-3}
+notes:
+  - Nothing is connected, so nothing can be stressed; the limits only bound the zero check's own settings.

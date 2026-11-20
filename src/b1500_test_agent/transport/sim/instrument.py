@@ -77,7 +77,7 @@ SCALED_TIME_FACTOR = SIM_SCALED_DEFAULT
 POLL_ADVANCE_S = 0.01
 """Virtual time a serial poll takes (so polling loops see measurements finish)."""
 
-DC_COMMIT_COMMANDS = frozenset({"CN", "CL", "DZ", "DV", "DI", "*RST", "*TST?", "*CAL?"})
+DC_COMMIT_COMMANDS = frozenset({"CN", "CL", "DZ", "DV", "DI", "SAP", "*RST", "*TST?", "*CAL?"})
 """Commands after which the DC output levels are committed to stateful devices."""
 
 
@@ -440,7 +440,13 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
     # -- circuit and measurement lifecycle -----------------------------------------------------------------------------
 
     def _current(self, levels: dict[int, float]) -> dict[int, float]:
-        return self.circuit.channel_currents(levels)
+        """Channel currents for the channel voltages ``levels``; an SMU whose ASU is switched to the AUX input
+        (``SAP`` path 1) is not connected to the DUT: its terminal floats and it carries no current."""
+        cut = [ch for ch in levels if self._asu_on_aux(ch)]
+        if not cut:
+            return self.circuit.channel_currents(levels)
+        currents = self.circuit.channel_currents({ch: v for ch, v in levels.items() if ch not in cut})
+        return {**currents, **{ch: 0.0 for ch in cut}}
 
     def _on_levels(self) -> dict[int, float]:
         """Programmed voltages of the switched-on SMUs that force voltage."""

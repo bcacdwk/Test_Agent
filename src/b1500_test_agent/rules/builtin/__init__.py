@@ -40,17 +40,22 @@ from b1500_test_agent.rules.builtin import cmu as cmu
 
 # isort: split
 from b1500_test_agent.rules.builtin.common import (
+    ASU_1PA_FULL_SCALE_A,
+    ASU_1PA_SETTING,
     COMPLIANCE_SETTING,
     CURRENT_SOURCING_FUNCTIONS,
     INTERLOCK_ERRORS,
     MEASURE_RANGE_SETTING,
     SOURCING_FUNCTIONS,
     VOLTAGE_COMPLIANCE_SETTING,
+    measure_range_a,
 )
 from b1500_test_agent.rules.builtin.limits import interlock_errors
 from b1500_test_agent.rules.builtin.run import cmu_status_letter, quality_findings, wgfmu_status_letter
 
 __all__ = [
+    "ASU_1PA_FULL_SCALE_A",
+    "ASU_1PA_SETTING",
     "COMPLIANCE_SETTING",
     "CURRENT_SOURCING_FUNCTIONS",
     "INTERLOCK_ERRORS",
@@ -62,6 +67,7 @@ __all__ = [
     "core",
     "interlock_errors",
     "limits",
+    "measure_range_a",
     "pulse",
     "quality_findings",
     "route",

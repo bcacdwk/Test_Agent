@@ -1,0 +1,10 @@
+# Golden FLEX strings of the ASU builders added by WP7.1 (driver/flex/switch.py), with the Programming Guide Ed. 15
+# page of each syntax (physical PDF page, printed page); the manual examples are copied verbatim. Loaded by
+# tests/unit/test_driver_spot_asu.py.
+- {builder: sal, args: [1, 0], expected: "SAL 1,0", page: "PG p505 (4-187)", note: manual example}
+- {builder: sap, args: [1, 1], expected: "SAP 1,1", page: "PG p506 (4-188)", note: manual example}
+- {builder: sap, args: [4, 0], expected: "SAP 4,0", page: "PG p506 (4-188)", note: back to the SMU side}
+- {builder: sar, args: [1, 0], expected: "SAR 1,0", page: "PG p506 (4-188)", note: manual example (enable 1 pA auto ranging)}
+- {builder: sar, args: [3, 1], expected: "SAR 3,1", page: "PG p506 (4-188)", note: disable (initial setting)}
+- {builder: lrn_q, args: [62], expected: "*LRN? 62", page: "PG p451 (4-133)", note: ASU paths}
+- {builder: lrn_q, args: [63], expected: "*LRN? 63", page: "PG p451 (4-133)", note: 1 pA auto ranging modes}

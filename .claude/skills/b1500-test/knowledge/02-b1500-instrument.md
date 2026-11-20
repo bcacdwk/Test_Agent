@@ -9,6 +9,7 @@ sources:
   - "B1500A User's Guide Ed. 17 (UG), PDF pages cited inline"
   - references/manuals/structured (command parameters, command summary, error codes, initial settings)
   - code tables in src/b1500_test_agent/driver/modules.py and models/station.py
+  - src/b1500_test_agent/analysis/floor.py (zero_floor; v2 WP7.1)
 last_reviewed: null
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
@@ -66,12 +67,13 @@ Deck slide 11, corrected against the User's Guide. DC values; v1 sources DC only
 ## Measurement modes
 
 Folded from the former mode-map stub and checked against PG Chapter 2 (PDF 91-132) and the `XE` required-command
-table (PDF 571-572). Implemented: modes 2, 10 and 16 (WP7.2 added the current, synchronous and multi-channel sweeps).
+table (PDF 571-572). Implemented: modes 1, 2, 10 and 16 (WP7.2 added the current, synchronous and multi-channel
+sweeps; WP7.1 the spot, mode 1).
 
 | MM | Mode | Modules | v1 |
 |---|---|---|---|
 | — | high-speed spot (`TI`, `TV`, no `MM`/`XE`) | SMU | not used |
-| 1 | spot | SMU | not used (no spot kind yet) |
+| 1 | spot | SMU | `smu_spot` (all measured roles at once; host list of levels, range survey) |
 | 2 | staircase sweep (`WV`/`WI` lin/log, single/double; one synchronous `WSV`/`WSI` source) | SMU | `smu_staircase`, `smu_stepped` (host loop over a stepped V or I bias) |
 | 3, 4, 5 | pulsed spot, pulsed sweep, staircase with pulsed bias | SMU | reserved |
 | 9 | quasi-pulsed spot | SMU | reserved |
@@ -158,7 +160,7 @@ measurement as `mosfet.idvg` on pin map `mosfet-3t-lab` with these deliberate di
 | `XE`, `AB`, `*OPC?`, `NUB?` | trigger; abort; wait for completion; data count | 570, 351, 479, 478 |
 | `ERRX?`, `LOP?` | oldest error code and message; per-slot output state | 431, 446-447 |
 | `*TST?`, `*CAL?`, `CM` | self-test; self-calibration; auto-calibration on/off | 540, 376, 379 |
-| `SAP`, `SAR`, `SSP` | ASU path; ASU 1 pA auto range; SCUU path | 505, 506, 519 |
+| `SAP`, `SAR`, `SAL`, `SSP` | ASU path; ASU 1 pA auto range; ASU indicator; SCUU path | 505, 506, 505, 519 |
 
 ## Data status codes
 
@@ -195,9 +197,23 @@ Measurement status letter `A` of each data element (PG Table 1-10, PDF 53):
   need it most (PG PDF 80). Raising the preset is an autonomous re-measure knob (skill part 7) as long as the
   new plan stays `ok` and inside the run-time limit.
 - Ranging: auto (initial), limited auto (never below a given range) or fixed; fewer range changes are faster
-  (PG PDF 80). Low-current points need settling time after a range change; slow settling shows as `X` or drift.
+  (PG PDF 80). Recipes choose it per role: `irange` (limited auto from that range, `RI ch,+code`), `asu_1pa`
+  (limited auto from the ASU's 1 pA range, R-ASU-01) or a `ranges` survey (fixed ranges, the zero check). Low-current points need settling time after a range change; slow settling shows as `X` or drift.
 - The wait before a measurement grows with cable and DUT capacitance; slow-response devices need longer hold and
   delay times (PG PDF 81).
+
+## Zero check floor
+
+Implemented (`zero_floor`, M7; recipe `system.zero_check`; the definition shared with
+`src/b1500_test_agent/analysis/floor.py`, kept here next to the ranging because the analysis file is at its line
+budget).
+
+- Every SMU at 0 V, terminals open: per measured current and range label (`<role>_range`) the offset = mean and the
+  floor = sample standard deviation of the trusted readings (3 significant digits). One result per role:
+  `<role>_floor` = floor on its lowest range; `fit` = the floor of every range (`10pA`, `1nA` ...), `offset` (lowest
+  range) and `max_abs_offset`. Options `max_floor_a`, `max_offset_a` give `pass`/`fail`. C/T readings at 0 V are
+  excluded and warned: the terminal is not open. Trust classes as in
+  [06](06-analysis-extraction.md#run-table-and-trust-classes).
 
 ## Status byte errors and interlock
 

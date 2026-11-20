@@ -70,6 +70,10 @@ def test_committed_statuses() -> None:
     for recipe_id in ("generic.smu_sampling", "mosfet.id_t_sampling", "reliability.tddb_cvs"):
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
     assert registry.get("reliability.tddb_cvs").always_confirm == ["destructive"]
+    # WP7.1: kind smu_spot (tests/integration/test_recipes_spot.py)
+    for recipe_id in ("system.zero_check", "generic.smu_spot", "resistor.kelvin_4w"):
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+        assert registry.get(recipe_id).kind == "smu_spot"
     assert registry.get("mosfet.idvd").kind == "smu_stepped"
     cards = {"mosfet.idvg": "smu/mosfet-idvg", "mosfet.idvd": "smu/mosfet-idvd",
              "mosfet.gate_leakage": "smu/gate-leakage", "basic.contact_resistor": "smu/contact-resistor-check",
@@ -79,7 +83,9 @@ def test_committed_statuses() -> None:
              "reliability.tddb_cvs": "reliability/tddb-bdv",  # WP7.4
              "basic.iv_force_i": "smu/diode-iv", "mosfet.idvg_family": "smu/mosfet-idvg",
              "mosfet.idvg_sync": "smu/mosfet-idvg", "mosfet.body_effect": "smu/mosfet-idvg",
-             "generic.smu_multi_sweep": "smu/smu-spot-kelvin"}  # WP7.2
+             "generic.smu_multi_sweep": "smu/smu-spot-kelvin",  # WP7.2
+             "system.zero_check": "system/zero-check", "generic.smu_spot": "smu/smu-spot-kelvin",
+             "resistor.kelvin_4w": "smu/smu-spot-kelvin"}  # WP7.1
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):
@@ -97,7 +103,8 @@ def test_kinds() -> None:
     assert kinds["smu_stepped"].implemented_on == {"sim", "visa"} and "smu_stepped" not in UNIMPLEMENTED_KINDS
     assert kinds["system"].implemented_on == {"sim", "visa"}  # WP6.2: self-test/cal on hardware
     assert kinds["smu_sampling"].implemented_on == {"sim", "visa"} and "smu_sampling" not in UNIMPLEMENTED_KINDS
-    for kind_id in ("smu_spot", "smu_pulsed", "wgfmu_pulsed_iv", "spgu_program_read", "cmu_cv"):
+    assert kinds["smu_spot"].implemented_on == {"sim", "visa"} and "smu_spot" not in UNIMPLEMENTED_KINDS  # WP7.1
+    for kind_id in ("smu_pulsed", "wgfmu_pulsed_iv", "spgu_program_read", "cmu_cv"):
         assert kind_id in UNIMPLEMENTED_KINDS and kinds[kind_id].implemented_on == frozenset()
 
 
@@ -142,7 +149,7 @@ def test_existing_card_and_listing(tmp_path: Path) -> None:
         "basic/thing.yaml": minimal(card="cards/c.md", device_types=["nmos"]),
         "basic/other.yaml": minimal("basic.other", device_types=["diode"]),
         "generic/any.yaml": minimal("generic.any"),
-        "basic/later.yaml": minimal("basic.later", kind="smu_spot"),
+        "basic/later.yaml": minimal("basic.later", kind="smu_pulsed"),
     })
     assert registry.problems() == []
     # recipes without device types (basic.later, generic.any) match every device type

@@ -10,8 +10,8 @@ skill's rules, a card, a recipe, the policy or a DUT profile, and it never autho
 | Domain | Scope | When to load |
 |---|---|---|
 | [01 device physics](01-device-physics.md) | resistor (contact vs bulk), capacitor models, PN and Schottky diodes, MOSFET Vth/gm/SS/Ion-Ioff/Id-Vd, MOS-C | interpreting a curve's physics; choosing bias regions; explaining a derived value |
-| [02 B1500A instrument](02-b1500-instrument.md) | modules and limits, channel numbering, `UNT?`, measurement modes, status letters, integration time, errors, interlock, self-test/cal, FLEX glossary | choosing modules or presets; reading status counts, errors, a plan's FLEX preview or an audit log |
-| [03 probe station and wiring](03-probe-station-wiring.md) | signal path, triax, guard, Kelvin, ASU/SCUU/selector, shielding and grounding, probe contact, contact checks | low-current or low-resistance work; a fresh landing; suspect wiring or noise |
+| [02 B1500A instrument](02-b1500-instrument.md) | modules and limits, channel numbering, `UNT?`, measurement modes, status letters, integration time, zero-check floor, errors, interlock, self-test/cal, FLEX glossary | choosing modules or presets; reading status counts, errors, a plan's FLEX preview or an audit log |
+| [03 probe station and wiring](03-probe-station-wiring.md) | signal path, triax, guard, Kelvin and four-wire R, ASU/SCUU/selector, shielding and grounding, probe contact, contact checks | low-current or low-resistance work; a fresh landing; suspect wiring or noise |
 | [04 ferroelectric and oxide](04-ferroelectric-oxide.md) | Ec/Pr/Ps, FeFET operation, memory window by dual sweep, read disturb, pulse write (reserved), PUND (reserved), IGZO TFTs | FeFET or FeCap requests; oxide TFT measurements |
 | [05 reliability and defects](05-reliability-defects.md) | gate leakage safe envelope, BTI/HCI/TDDB (reserved), Dit, SILC and trapping, IGZO instability, wake-up/imprint/fatigue | gate leakage; drift or hysteresis; any stress request |
 | [06 analysis and extraction](06-analysis-extraction.md) | run table and trust, quality gate, gm, Vth (3 methods), SS, Ion/Ioff, Ron/gds, R, diode fit, leakage, MW, plots, reporting rules | before `analyze_run`; writing the report; ad-hoc analysis |
@@ -49,6 +49,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [FLEX glossary for reading plans and audit logs](02-b1500-instrument.md#flex-glossary-for-reading-plans-and-audit-logs)
 - [Data status codes](02-b1500-instrument.md#data-status-codes)
 - [Integration time and ranging](02-b1500-instrument.md#integration-time-and-ranging)
+- [Zero check floor](02-b1500-instrument.md#zero-check-floor)
 - [Status byte errors and interlock](02-b1500-instrument.md#status-byte-errors-and-interlock)
 - [Self-test self-calibration and auto calibration](02-b1500-instrument.md#self-test-self-calibration-and-auto-calibration)
 - [Manual extracts and page conventions](02-b1500-instrument.md#manual-extracts-and-page-conventions)
@@ -59,6 +60,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Triaxial cables and terminals](03-probe-station-wiring.md#triaxial-cables-and-terminals)
 - [Guard for low current](03-probe-station-wiring.md#guard-for-low-current)
 - [Kelvin four-wire connection](03-probe-station-wiring.md#kelvin-four-wire-connection)
+- [Four-wire resistance](03-probe-station-wiring.md#four-wire-resistance)
 - [ASU and the 1 pA range](03-probe-station-wiring.md#asu-and-the-1-pa-range)
 - [SCUU GSWU and the 16440A selector](03-probe-station-wiring.md#scuu-gswu-and-the-16440a-selector)
 - [Shielding grounding and interlock](03-probe-station-wiring.md#shielding-grounding-and-interlock)

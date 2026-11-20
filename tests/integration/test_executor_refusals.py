@@ -28,11 +28,11 @@ def assert_refused(world: World, before: tuple[int, int, int, bool], result, *, 
 
 
 def test_not_implemented_recipes_never_touch_the_instrument(world: World, tmp_path: Path) -> None:
-    # A draft recipe outside reserved/ whose kind has no implementation (smu_spot), next to two reserved slots.
+    # A draft recipe outside reserved/ whose kind has no implementation (smu_pulsed), next to two reserved slots.
     recipes = tmp_path / "recipes"
     shutil.copytree(REPO_ROOT / "recipes", recipes)
     spot = (recipes / "mosfet" / "idvg.yaml").read_text(encoding="utf-8").replace("id: mosfet.idvg", "id: mosfet.spot")
-    spot = spot.replace("kind: smu_staircase", "kind: smu_spot").replace("status: sim_validated", "status: draft")
+    spot = spot.replace("kind: smu_staircase", "kind: smu_pulsed").replace("status: sim_validated", "status: draft")
     (recipes / "mosfet" / "spot.yaml").write_text(spot, encoding="utf-8")
     world.recipes = recipes
     executor = world.executor()

@@ -24,7 +24,7 @@ SMU = {"RI", "RV", "MM", "CMM", "DV", "WV", "WT", "WM", "XE", "DI", "WI", "WSV",
 SAMPLING = {"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"}
 CMU = {"CORRST?", "ADJ?"}
 SPGU = {"SPST?"}
-SWITCH = {"ERMOD?", "ERSSP?"}
+SWITCH = {"ERMOD?", "ERSSP?", "SAP", "SAR", "SAL"}
 
 
 def test_every_supported_mnemonic_has_exactly_one_handler() -> None:

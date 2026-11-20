@@ -38,9 +38,24 @@ class OpenParams(StrictModel):
 
 
 class ResistorParams(StrictModel):
-    """``resistor``: ``I = (V_a - V_b) / r_ohm`` between terminals ``a`` and ``b``."""
+    """``resistor``: ``I = (V_a - V_b) / r_ohm`` between terminals ``a`` and ``b`` as seen at the pads.
+
+    v2 (WP7.1, four-wire sensing): ``lead_ohm`` is the force-path resistance of each terminal (cable, probe and
+    contact); ``kelvin`` names the terminals whose Sense line is landed at the pad as well (``none``, ``a``, ``b``,
+    ``both``). An instrument channel regulates and measures the voltage at its sense point, so a Kelvin terminal's
+    lead drop is outside the reading and a two-wire terminal's is inside it: the channel sees
+    ``r_ohm + lead_ohm x (two-wire terminals)``. Truth for a four-wire measurement is ``r_ohm``; with the defaults
+    (no lead resistance) the model is the v1 resistor.
+    """
 
     r_ohm: PositiveFloat
+    lead_ohm: float = Field(default=0.0, ge=0.0, le=1.0e3)
+    kelvin: Literal["none", "a", "b", "both"] = "none"
+
+    def seen_ohm(self) -> float:
+        """The resistance the instrument channels see (``r_ohm`` plus the lead of every two-wire terminal)."""
+        two_wire = {"none": 2, "a": 1, "b": 1, "both": 0}[self.kelvin]
+        return self.r_ohm + self.lead_ohm * two_wire
 
 
 class ShortParams(StrictModel):

@@ -90,11 +90,13 @@ SUPPORTED = QUERIES | SAMPLING_COMMANDS | frozenset({
     "*RST", "FMT", "BC", "TSC", "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "RI", "RV",
     "MM", "CMM", "DV", "WV", "WT", "WM", "XE", "CM",
     "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
+    "SAP", "SAR", "SAL",
 })  # fmt: skip
 """Every mnemonic the simulator executes (the v1 subset plus ``CM`` and ``*LRN?`` types 0 and 31, v2 2.6, the family
 state queries of the bring-up probe, v2 7.1: ``ERMOD?``, ``ERSSP?``, ``SPST?``, ``CORRST?``, ``ADJ?`` mode 0, the
 sampling commands of WP7.4 and the v2 sweep sources of WP7.2: ``DI``, ``WI``, ``WSV``/``WSI``, ``WNX``/``WNCC`` with
-``MM 16``); anything else is error 100 and logged ``unsupported``."""
+``MM 16``) and the ASU commands of WP7.1 (``SAP``, ``SAR``, ``SAL`` with ``*LRN?`` types 62 and 63); anything else is
+error 100 and logged ``unsupported``."""
 
 ALONE_ONLY = frozenset({"AB", "*RST", "FMT", "BC"})
 """Mnemonics that must be sent alone: the simulator rejects the whole line (error 103) otherwise (PDF 44, 364,
@@ -179,6 +181,10 @@ V_MEAS_CODES = frozenset({0} | {c for code in (5, 11, 20, 50, 12, 200, 13, 400, 
 
 I_CODES = {"MPSMU": range(11, 20), "HRSMU": range(9, 20)}
 """Current range codes without the ASU: 1 nA (11) or 10 pA (9) to 100 mA (19) (Tables 4-3 and 4-5, PDF 337/340)."""
+
+I_CODES_ASU = {"MPSMU": range(8, 20), "HRSMU": range(8, 20)}
+"""Current range codes of an SMU with an ASU: the HRSMU gains 1 pA (8), the B1511B MPSMU 1 pA, 10 pA and 100 pA
+(8-10) (Tables 4-3 and 4-5 footnotes, PDF 337/340; ``SimSlot.asu`` admits only those models)."""
 
 
 def current_range(code: int) -> float:

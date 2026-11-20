@@ -656,7 +656,7 @@ class Executor(RunningRuns):
                      "manifest": f"{run_dir}/{MANIFEST_FILE}",
                      "audit": f"{run_dir}/{RUN_AUDIT_FILE}",
                      **{name: f"{run_dir}/{rel}" for name, rel in artifacts.items()},
-                     **{rel: f"{run_dir}/{rel}" for rel in folder.raw_files}}
+                     **_raw_artifacts(run_dir, folder.raw_files)}
         if (folder.path / PARTIAL_FILE).is_file() and "data" not in artifacts:
             artifacts["partial"] = f"{run_dir}/{PARTIAL_FILE}"
         if (folder.path / PROGRESS_FILE).is_file():
@@ -756,6 +756,22 @@ class Executor(RunningRuns):
 
 def _is_plan_id(value: str | None) -> bool:
     return isinstance(value, str) and _PLAN_ID.match(value) is not None
+
+
+RAW_ARTIFACTS_LISTED = 8
+"""Raw measurement files a run result names one by one; a run with more (a spot survey reads one block per spot
+point, a long stepped run one per step) names the folder and the count instead, so ``run_plan`` stays within its
+token budget (blueprint 5.1)."""
+
+
+def _raw_artifacts(run_dir: str, raw_files: list[str]) -> dict[str, str]:
+    """The raw-block entries of a run's artifacts: each file up to ``RAW_ARTIFACTS_LISTED``, else one ``raw`` entry
+    with the folder, the count and the first and last file name."""
+    if len(raw_files) <= RAW_ARTIFACTS_LISTED:
+        return {rel: f"{run_dir}/{rel}" for rel in raw_files}
+    first, last = raw_files[0].rsplit("/", 1)[-1], raw_files[-1].rsplit("/", 1)[-1]
+    folder = raw_files[0].rsplit("/", 1)[0]
+    return {folder: f"{run_dir}/{folder}/ ({len(raw_files)} files {first} .. {last})"}
 
 
 def _checkpoint_total(kind: Any, plan: PlanRecord) -> int:

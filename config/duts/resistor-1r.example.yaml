@@ -1,0 +1,16 @@
+# DUT profile (example; committed). Schema: b1500_test_agent.models.policy.DutProfile; name = file name.
+# 1 Ohm four-wire resistance standard (bring-up stage L2) or a low-ohmic metal line; example values, not a real
+# device. Per terminal: max |V| (V) and max |I| (A; also the largest compliance). A plan outside this envelope needs
+# confirmation (dut_envelope, rule R-DUT-01). Nominal values are typical numbers for choosing parameters, never
+# measurements.
+
+device_type: resistor
+description: 1 Ohm resistance standard for four-wire (Kelvin) checks (example envelope; 10 mA dissipates 0.1 mW).
+terminals:
+  a: {max_abs_v: 1.0, max_abs_i: 0.02}
+  b: {max_abs_v: 1.0, max_abs_i: 0.02}
+nominal:
+  r: {value: 1.0, unit: Ohm}
+notes:
+  - The recipe's default +-5 and +-10 mA give 5-10 mV across 1 Ohm; a two-wire landing adds the lead and contact
+    resistance (typically ohms) to that.

@@ -28,6 +28,13 @@ CASES = [
      "leakage_at"),
     ("fefet_basic", {"recipe_id": "fefet.dual_sweep_mw", "pin_map": "mosfet-4t", "dut_profile": "fefet-generic"},
      "memory_window"),
+    # WP7.1: kind smu_spot
+    ("resistor_100k", {"recipe_id": "generic.smu_spot", "pin_map": "resistor-2t", "dut_profile": "resistor-generic"},
+     "resistance"),
+    ("resistor_1r_kelvin", {"recipe_id": "resistor.kelvin_4w", "pin_map": "resistor-4w",
+                            "dut_profile": "resistor-1r"}, "kelvin_resistance"),
+    ("lab_station", {"recipe_id": "system.zero_check", "pin_map": "open-smus", "dut_profile": "open-circuit"},
+     "zero_floor"),
 ]
 
 

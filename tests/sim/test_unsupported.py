@@ -36,7 +36,7 @@ def test_supported_commands_are_exactly_the_v1_subset() -> None:
     """Blueprint 3 table: identity/status, buffer/format, channel, ADC/range, mode/source rows; v2 2.6 adds the
     auto-calibration switch ``CM`` and its read-back ``*LRN?`` (types 0 and 31); v2 7.1 (WP6.1) the family state
     queries of the read-only probe; WP7.4 the SMU sampling setup and the timer reset; WP7.2 the current, synchronous
-    and multi-channel sweep sources."""
+    and multi-channel sweep sources; WP7.1 the ASU commands."""
     assert flex.SUPPORTED == {
         "*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "*RST", "LOP?", "*TST?", "*CAL?",
         "FMT", "BC", "NUB?", "TSC",
@@ -47,6 +47,7 @@ def test_supported_commands_are_exactly_the_v1_subset() -> None:
         "ERMOD?", "ERSSP?", "SPST?", "CORRST?", "ADJ?",
         "MCC", "ML", "MT", "MSC", "MV", "MI", "TSR",
         "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
+        "SAP", "SAR", "SAL",
     }  # fmt: skip
 
 

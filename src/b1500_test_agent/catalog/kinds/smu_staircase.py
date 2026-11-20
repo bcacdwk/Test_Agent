@@ -26,7 +26,9 @@ Roles (recipe ``roles``, bound to channels through the pin map):
   SPGU, WGFMU and MFCMU roles belong to their own kinds).
 
 Each role's ``measure`` (``[I]`` or ``[V]``; both at once is not supported) puts its channel into the ``MM`` list
-(primary sweep role first, then recipe order) with ``CMM`` 1 (current) or 2 (voltage). The recipe parameter
+(primary sweep role first, then recipe order) with ``CMM`` 1 (current) or 2 (voltage). A current-measuring role may
+set ``irange`` (full scale in A) or ``asu_1pa`` (bool): limited auto ranging that never goes below that range (``RI``
+after ``WM``; ``catalog/kinds/ranging.py``, rule R-ASU-01 for the ASU's 1 pA range). The recipe parameter
 ``integration`` (``short``|``medium``|``long``, default ``medium``) selects the ADC preset for every measured
 channel. The sweep always uses ``WM 2,1``: automatic abort on compliance (voltage or current), overflow or
 oscillation (later steps then read ``199.999E+99`` with status ``V``) and a return of every sweep source to its
@@ -35,9 +37,10 @@ start value.
 Acquisition (through the transaction's guarded driver, nothing else): ``FMT 1,1`` (each step also returns the
 primary sweep source value), ``AAD``/``AIT``, ``CN``, ``ERRX?`` drain (an interlock error 202/203 or any other error
 aborts: ATV-10 fallback), on hardware the ``LOP?`` positive control (v2 WP6.2), ``DV``/``DI`` per bias/ground SMU,
-``MM``/``CMM``/``WV``|``WI``/``WSV``|``WSI``|``WNX``/``WT``/``WM``, ``ERRX?`` drain (any error aborts), ``XE`` and one
-read of ``steps × (measured channels + 1)`` elements with a timeout of ``2 × estimate + 10 s`` (blueprint 7). The
-FLEX preview lists exactly these writes in this order (queries are not listed).
+``MM``/``CMM``/``WV``|``WI``/``WSV``|``WSI``|``WNX``/``WT``/``WM``, ``RI`` per ranged role, ``ERRX?`` drain (any
+error aborts: also a range the SMU lacks, e.g. 1 pA without an ASU), ``XE`` and one read of
+``steps × (measured channels + 1)`` elements with a timeout of ``2 × estimate + 10 s`` (blueprint 7). The FLEX
+preview lists exactly these writes in this order (queries are not listed).
 
 Table columns (``analysis/dataset.py`` contract): ``step``, ``segment`` (double sweeps), the primary source
 ``<role>_V``|``<role>_I`` (the value the instrument returns with each step), the synchronous or ``WNX`` sources'
@@ -57,6 +60,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 import pandas as pd
 from pydantic import Field
 
+from b1500_test_agent.catalog.kinds.ranging import RangeSetting, limited_range
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError, RawAcquisition, setting_value
 from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.b1500 import ADC_MODE_CODES, ADC_TYPE_CODES, RawBlock, StaircaseSetup, SweepSource
@@ -195,6 +199,12 @@ class StaircaseProgram(StrictModel):
     source_columns: dict[str, float] = Field(default_factory=dict)
     """Constant programmed levels of bias roles written as source columns (``drain_V``, ``base_I``), unless the role
     measures that quantity."""
+    ranges: list[RangeSetting] = Field(default_factory=list)
+    """``RI`` limited auto ranging of the roles with ``irange``/``asu_1pa`` (WP7.1); empty = auto ranging."""
+
+    def dump(self) -> dict[str, object]:
+        """The JSON program; without ranges there is no ``ranges`` key, so plans without ranging keep their hash."""
+        return self.model_dump(mode="json", exclude={"ranges"} if not self.ranges else None)
 
     @property
     def width(self) -> int:
@@ -273,7 +283,7 @@ def configure_staircase(tx: Transaction, program: StaircaseProgram) -> None:
     """Everything before ``XE`` through the guarded driver: ``FMT``, ``AAD``/``AIT``, ``CN``, ``ERRX?`` drain, on
     hardware the ``LOP?`` positive control (``Transaction.lop_positive_control``: the switched-on SMUs must not read
     ``00``), ``DV``/``DI`` per bias/ground SMU, the sweep setup (``MM``/``CMM``/``WV``|``WI``/``WSV``|``WSI``|
-    ``WNX``/``WT``/``WM``), ``ERRX?`` drain (any error aborts)."""
+    ``WNX``/``WT``/``WM``), ``RI`` per ranged role, ``ERRX?`` drain (any error aborts)."""
     driver = tx.driver
     driver.set_format(*program.data_format)
     driver.apply_integration(program.integration, [m.channel for m in program.measure])
@@ -284,6 +294,8 @@ def configure_staircase(tx: Transaction, program: StaircaseProgram) -> None:
     for bias in program.biases:
         force_bias(tx, bias)
     driver.staircase(program.sweep)
+    for ranged in program.ranges:
+        driver.set_range(ranged.channel, "I", ranged.code)
     drain_or_raise(tx, "the sweep setup")
     tx.mark("configured")
 
@@ -462,10 +474,29 @@ class SmuStaircaseKind:
             measure=measure,
             source_columns={b.column: b.level for b in biases
                             if recipe.roles[b.role].function in BIAS_FUNCTIONS and b.column not in measured},
+            ranges=self._ranges(recipe, params, binding, measure),
         )
         estimate = Estimate(points=program.steps, duration_s=self._duration(program))
         return CompiledKindPlan(envelope=envelope, estimate=estimate, flex_preview=self.preview(program),
-                                program=program.model_dump(mode="json"))
+                                program=program.dump())
+
+    @staticmethod
+    def _ranges(recipe: Recipe, params: dict[str, Quantity], binding: ChannelBinding,
+                measure: list[MeasureColumn]) -> list[RangeSetting]:
+        """``RI`` limited auto ranging of the current-measuring roles with ``irange``/``asu_1pa`` (``ranging.py``)."""
+        measures_i = {m.role for m in measure if m.quantity == "I"}
+        found: list[RangeSetting] = []
+        for name, role in recipe.roles.items():
+            bound = binding.roles.get(name)
+            if bound is None or bound.channel is None:
+                continue
+            ranged = limited_range(name, role, params, bound)
+            if ranged is None:
+                continue
+            if name not in measures_i:
+                raise CompileError(f"role {name} sets a current measurement range but does not measure I")
+            found.append(ranged)
+        return found
 
     def _check_roles(self, recipe: Recipe) -> tuple[list[str], list[str]]:
         """Sweep and synchronous role names (recipe order) after the role-function checks (CompileError)."""
@@ -582,6 +613,7 @@ class SmuStaircaseKind:
         lines.append(flex.cn(program.enable))
         lines += [bias_command(b) for b in program.biases]
         lines += program.sweep.commands()
+        lines += [flex.ri(r.channel, r.code) for r in program.ranges]
         lines.append(flex.XE)
         return lines
 

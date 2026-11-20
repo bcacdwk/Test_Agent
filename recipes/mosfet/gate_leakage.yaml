@@ -6,6 +6,9 @@
 # stressed; the gate range stays inside the DUT profile. A gate-drain short reaches the compliance at the first
 # non-zero step.
 # Analysis: leakage_at (|Ig| at v_op against leak_limit_a; a compliance stop before v_op is a fail with a lower bound).
+# ASU option (v2 WP7.1): asu_1pa: true reads the gate current with limited auto ranging down to the 1 pA range
+# (RI gate,8), which only an SMU with an ASU has: rule R-ASU-01 blocks the plan unless the station declares an ASU on
+# the gate SMU recorded present: true, and on the instrument a missing ASU makes RI 8 an error that aborts before XE.
 # status: sim_validated by tests/integration/test_recipes_mosfet.py (nmos_basic: Ig at v_op vs gate_leak_s x v_op;
 # gd_short: compliance -> fail); hw_validated only through an M4 validation record. card: set by WP2.5.
 id: mosfet.gate_leakage
@@ -23,7 +26,7 @@ roles:
     module_types: [HRSMU]
     low_current: true
     settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, icomp: $icomp_gate, hold: $hold_s,
-               delay: $delay_s}
+               delay: $delay_s, asu_1pa: $asu_1pa}
   drain:
     function: measure_only
     measure: [I]
@@ -60,6 +63,10 @@ params:
     choices: [short, medium, long]
     default: long
     doc: ADC preset (long = 16 power-line cycles, the low-noise default for pA currents).
+  asu_1pa:
+    type: bool
+    default: false
+    doc: Read the gate current down to the 1 pA range of an ASU on the gate SMU (declared and present; R-ASU-01).
 quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
 analysis_defaults:
   - {method: leakage_at}
@@ -67,4 +74,5 @@ provenance:
   sources:
     - blueprint 6.4 (gate-leakage card)
     - Programming Guide Ed. 15 WV (PDF 568-569), WT (PDF 564-565), WM (PDF 552-553), FMT (PDF 436-438)
+    - Programming Guide Ed. 15 RI (PDF 501), Table 4-3 (PDF 337, 1 pA range with an ASU), SAP and SAR (PDF 505-506)
   validation_runs: []

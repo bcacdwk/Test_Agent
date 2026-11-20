@@ -85,17 +85,17 @@ def run_on_visa(world: VisaWorld, case: dict[str, Any], **bus_kwargs: Any) -> tu
 def test_the_suite_covers_every_v1_runnable_recipe() -> None:
     assert sorted(c["recipe_id"] for c in MEASUREMENT_CASES) == [
         "basic.contact_resistor", "basic.diode_iv", "basic.iv_force_i", "fefet.dual_sweep_mw",
-        "generic.smu_multi_sweep", "generic.smu_staircase", "mosfet.body_effect", "mosfet.gate_leakage",
-        "mosfet.idvd", "mosfet.idvg", "mosfet.idvg_family", "mosfet.idvg_sync", "system.self_cal",
-        "system.self_test"]  # v1 + the WP7.2 sweeps
+        "generic.smu_multi_sweep", "generic.smu_spot", "generic.smu_staircase", "mosfet.body_effect",
+        "mosfet.gate_leakage", "mosfet.idvd", "mosfet.idvg", "mosfet.idvg_family", "mosfet.idvg_sync",
+        "resistor.kelvin_4w", "system.self_cal", "system.self_test", "system.zero_check"]  # v1 + WP7.2 + WP7.1
     assert sorted(c["recipe_id"] for c in SYSTEM_CASES) == ["system.self_cal", "system.self_test"]
-    assert len(DATA_CASES) == 12
+    assert len(DATA_CASES) == 15
 
 
 @pytest.mark.parametrize("case", DATA_CASES, ids=[c["recipe_id"] for c in DATA_CASES])
 def test_v1_recipe_completes_on_backend_visa_with_cleanup_verified(case: dict[str, Any], world: VisaWorld,
                                                                    tmp_path: Path) -> None:
-    bus, _, result = run_on_visa(world, case, chunk_size=CHUNK)
+    bus, _, result = run_on_visa(world, case, chunk_size=case.get("chunk", CHUNK))
     assert bus.stats.max_chunks > 1  # multi-chunk data reads
     sent = [r.mnemonic for r in bus.instrument.command_log if r.outcome == "ok"]
     assert sent[-3:] == ["CL", "ERRX?", "LOP?"] and "XE" in sent and "DZ" in sent

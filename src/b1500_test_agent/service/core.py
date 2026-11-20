@@ -322,8 +322,9 @@ class B1500Service:
 
     def _recipe_index(self, recipes: list[RecipeSummary], backend: Backend, warning: str) -> RecipeList:
         """The index within the response budget: every recipe while it fits; else the ``not_implemented`` ones are
-        named in the message instead of listed, then the runnable ones are trimmed (``showing N``, like
-        ``list_runs``)."""
+        named in the message instead of listed, then the runnable ones are trimmed from the end (``showing N of M``,
+        like ``list_runs``) and named in the message (``not shown: ...``) while the names fit, so every recipe id
+        stays visible."""
         runnable = [r for r in recipes if r.status != "not_implemented"]
         reserved = [r.id for r in recipes if r.status == "not_implemented"]
 
@@ -344,10 +345,21 @@ class B1500Service:
         listed, hidden = (runnable, f"; not_implemented (not listed): {', '.join(reserved)}") if reserved else (
             recipes, "")
         result = build(listed, hidden)
-        count = len(listed)
-        while count > 1 and not fits(result):
-            count = count * 3 // 4
-            result = build(listed[:count], f"; showing {count} of {len(listed)}{hidden}")
+        if fits(result):
+            return result
+
+        def trimmed(count: int, named: bool) -> RecipeList:
+            rest = [r.id for r in listed[count:]]
+            names = f" (not shown: {', '.join(rest)})" if named and rest else ""
+            return build(listed[:count], f"; showing {count} of {len(listed)}{names}{hidden}")
+
+        for named in (True, False):
+            count = len(listed)
+            while count > 1:
+                count = count * 3 // 4
+                result = trimmed(count, named)
+                if fits(result):
+                    return result
         return result
 
     # == validate_plan ===============================================================================================

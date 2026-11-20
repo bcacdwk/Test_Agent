@@ -380,4 +380,5 @@ def test_family_modules_hold_disjoint_builders() -> None:
         _own_functions(flex_smu))
     assert {"corrst_q", "adj_q"} == set(_own_functions(flex_cmu))
     assert set() == set(_own_functions(flex_spgu)) and "SPST_Q" in _own_constants(flex_spgu)
-    assert {"erssp_q"} == set(_own_functions(flex_switch)) and "ERMOD_Q" in _own_constants(flex_switch)
+    assert {"erssp_q", "sap", "sar", "sal"} == set(_own_functions(flex_switch))
+    assert {"ERMOD_Q", "ASU_PATHS", "LRN_ASU_PATH", "LRN_ASU_1PA"} <= set(_own_constants(flex_switch))

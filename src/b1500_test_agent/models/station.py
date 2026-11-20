@@ -68,6 +68,9 @@ SWITCH_INPUT_TYPES: Final[dict[str, frozenset[str]]] = {
 ASU_SCUU_SMU_TYPES: Final = frozenset({"HRSMU", "MPSMU"})
 """SMU types an ASU or SCUU works with (UG PDF 44-45, 103; PG p390 (4-72) DCV: SCUU with MPSMU or HRSMU)."""
 
+ASU_SMU_MODELS: Final = frozenset({"B1517A", "B1511B"})
+"""SMU models an ASU adds the 1 pA range to (PG p337 (4-19) Table 4-3: HRSMU, and the B1511B MPSMU only)."""
+
 Slot = Annotated[int, Field(ge=1, le=10)]
 
 PinTarget = Channel | Literal["GNDU"] | None
@@ -505,15 +508,23 @@ class PinMap(StrictModel):
 
 
 class SimSlot(StrictModel):
-    """One module the simulated mainframe reports in ``UNT?``."""
+    """One module the simulated mainframe reports in ``UNT?``.
+
+    ``asu``: an atto sense and switch unit is connected to this SMU (WP7.1): only a B1517A HRSMU or a B1511B MPSMU
+    can carry one (PG Tables 4-3/4-5 footnotes); it adds the 1 pA range (B1511B also 10 and 100 pA) and the ``SAP``,
+    ``SAR`` and ``SAL`` commands. ``UNT?`` does not report it.
+    """
 
     slot: Slot
     model: str
     revision: str = "0"
+    asu: bool = False
 
     @model_validator(mode="after")
     def _known_model(self) -> SimSlot:
         _check_model(self.model)
+        if self.asu and self.model not in ASU_SMU_MODELS:
+            raise ValueError(f"An ASU works only with {', '.join(sorted(ASU_SMU_MODELS))}, not {self.model}.")
         return self
 
 

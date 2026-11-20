@@ -34,15 +34,31 @@ from tests.visa_loop.loop import DEFAULT_RESOURCE, LoopBus
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-MEASUREMENT_CASES: list[dict[str, Any]] = [*CASES, *SWEEP_CASES]
+SPOT_CASES: list[dict[str, Any]] = [
+    {"recipe_id": "system.zero_check", "scenario": "lab_station", "source": "card zero-check", "chunk": 8,
+     "request": {"params": {}, "pin_map": "open-smus", "dut_profile": "open-circuit"}},
+    {"recipe_id": "generic.smu_spot", "scenario": "resistor_100k", "source": "card smu-spot-kelvin", "chunk": 8,
+     "request": {"params": {}, "pin_map": "resistor-2t", "dut_profile": "resistor-generic"}},
+    {"recipe_id": "resistor.kelvin_4w", "scenario": "resistor_1r_kelvin", "source": "card smu-spot-kelvin",
+     "chunk": 8, "request": {"params": {}, "pin_map": "resistor-4w", "dut_profile": "resistor-1r"}},
+]
+"""The kind ``smu_spot`` recipes of WP7.1 with their card example requests and scenarios. A spot read is one
+element per measured channel (16 to 64 bytes), so these cases read through 8-byte VISA chunks to keep the chunked
+path exercised."""
+
+MEASUREMENT_CASES: list[dict[str, Any]] = [*CASES, *SWEEP_CASES, *SPOT_CASES]
 """The nine v1 runnable recipes with their card example requests (or recipe defaults) and v1 scenarios: the seven
 measurement recipes (WP5.5) and ``system.self_test``/``system.self_cal`` (kind ``system`` on visa, WP6.2); plus the
-five WP7.2 sweep recipes (``tests/integration/sweep_cases.CASES``: WI, WSV, MM 16, the two stepped families)."""
+five WP7.2 sweep recipes (``tests/integration/sweep_cases.CASES``: WI, WSV, MM 16, the two stepped families) and the
+three WP7.1 spot recipes (``SPOT_CASES``)."""
 
-DATA_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES if not c["recipe_id"].startswith("system.")]
-"""The cases that write a run table (every recipe but ``system.*``)."""
+SYSTEM_RECIPES = frozenset({"system.self_test", "system.self_cal"})
+"""The recipes of kind ``system`` (no output, no run table; ``system.zero_check`` is a measurement)."""
 
-SYSTEM_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES if c["recipe_id"].startswith("system.")]
+DATA_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES if c["recipe_id"] not in SYSTEM_RECIPES]
+"""The cases that write a run table (every recipe but the kind ``system`` ones)."""
+
+SYSTEM_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES if c["recipe_id"] in SYSTEM_RECIPES]
 
 
 def bus_factory(bus: LoopBus) -> BusFactory:

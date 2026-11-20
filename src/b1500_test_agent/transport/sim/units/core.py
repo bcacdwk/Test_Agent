@@ -211,15 +211,19 @@ class CoreUnit:
 
     @handles("CN")
     def _cmd_cn(self, cmd: flex.Command) -> None:
-        for channel in self._channels_arg(cmd):
+        channels = self._channels_arg(cmd)
+        for channel in channels:
             state = self.state.channels[channel]
             if not state.output_on:
                 self.state.channels[channel] = ChannelState(output_on=True, voltage=0.0, icomp=DEFAULT_ICOMP)
+        self._asu_to_smu_side(channels)
 
     @handles("CL")
     def _cmd_cl(self, cmd: flex.Command) -> None:
-        for channel in self._channels_arg(cmd):
+        channels = self._channels_arg(cmd)
+        for channel in channels:
             self._close_channel(channel)
+        self._asu_to_smu_side(channels)
 
     @handles("DZ")
     def _cmd_dz(self, cmd: flex.Command) -> None:
@@ -282,8 +286,9 @@ class CoreUnit:
 
     @handles("*LRN?")
     def _cmd_lrn(self, cmd: flex.Command) -> str:
-        """``*LRN? type`` (PG p447-450 (4-129 to 4-132)): type 0 = output switches (``CN ch,...`` or ``CL``), type 31
-        = ``TM``/``AV``/``CM``/``FMT``/``MM`` settings; any other type is not simulated (error 100, unsupported)."""
+        """``*LRN? type`` (PG p447-451 (4-129 to 4-133)): type 0 = output switches (``CN ch,...`` or ``CL``), type 31
+        = ``TM``/``AV``/``CM``/``FMT``/``MM`` settings, types 62/63 = ASU paths and 1 pA auto ranging (switch unit);
+        any other type is not simulated (error 100, unsupported)."""
         flex.arity(cmd, 1, 1)
         kind = flex.integer(cmd.args[0])
         if not 0 <= kind <= 110:
@@ -293,6 +298,8 @@ class CoreUnit:
             return "CN" + ",".join(str(ch) for ch in on) if on else "CL"
         if kind == 31:
             return self._lrn_settings()
+        if kind in (62, 63):
+            return self._lrn_asu(kind)
         raise Unsupported(f"*LRN? {kind} is not simulated (types 0 and 31 are)")
 
     # -- A/D converters ------------------------------------------------------------------------------------------------

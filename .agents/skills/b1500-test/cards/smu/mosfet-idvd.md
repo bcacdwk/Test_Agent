@@ -38,7 +38,8 @@ saturation onset Vd_sat per curve.
 | bulk | (no role) | GNDU via the pin map | |
 
 - Example pin map `mosfet-4t` with DUT profile `nmos-generic`; the same landing serves Id-Vg and gate leakage.
-- Two-wire connection: Ron includes probe, cable and contact resistance (no Kelvin recipe in v1).
+- Two-wire connection: Ron includes probe, cable and contact resistance (Kelvin landing and four-wire R:
+  [smu-spot-kelvin](smu-spot-kelvin.md)).
 - pMOS: negative `vd_stop` and gate steps with a pMOS DUT profile written by the human.
 - Routes: none in every phase (direct SMU and GNDU wiring; no selector, SCUU, ASU or RSU in the path).
 

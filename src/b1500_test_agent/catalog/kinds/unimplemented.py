@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from b1500_test_agent.session.transaction import Transaction
 
 UNIMPLEMENTED_KINDS: dict[str, str] = {
-    "smu_spot": "SMU spot measurement (MM 1); not needed by the v1 cards",
     "smu_pulsed": "SMU pulsed spot/sweep (MM 3/4); needs the pulse timing extraction",
     "smu_stress_measure": "stress-measure-stress sequences (BTI, HCI); needs async runs and recovery timing",
     "smu_qscv": "quasi-static C-V with SMUs; needs leakage compensation flows",

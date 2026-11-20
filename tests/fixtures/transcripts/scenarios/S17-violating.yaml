@@ -28,8 +28,7 @@ turns:
     - {say: "Continuing."}
   4:
     - call: validate_plan
-      args: {recipe_id: basic.contact_resistor, params: {v_start: 0, v_stop: 0}, pin_map: resistor-2t,
-             dut_profile: resistor-generic}
+      args: {recipe_id: system.zero_check, params: {}, pin_map: open-smus, dut_profile: open-circuit}
       save: p1
     - {call: run_plan, args: {plan_id: "{{p1.plan_id}}"}, save: r1}
     - {cli: "bringup record L1 --run {{r1.run_id}}"}

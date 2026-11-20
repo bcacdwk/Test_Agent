@@ -243,9 +243,9 @@ Start it from the clone root, with no extra flags.
    the VISA library. Fallback if it fails while `uv run b1500 status` works with Codex closed: follow the Codex
    documentation for MCP servers that need device access and write the setting into "Recorded results" below.
 5. **ATV-11 check (the approval prompt shows the summary).** Needs the DUT disconnected and the two L1 files of the
-   bring-up (`open-smu3` pin map, `open-circuit` DUT profile; create them now as the L1 stage file describes, or do
-   this check when you reach L1). Ask: "Validate basic.contact_resistor with v_start=0 and v_stop=0 on pin map
-   open-smu3 with DUT profile open-circuit, then run it." Expected: the agent shows the plan summary, says it needs
+   bring-up (`open-smus` pin map, `open-circuit` DUT profile; create them now as the L1 stage file describes, or do
+   this check when you reach L1). Ask: "Validate system.zero_check on pin map open-smus with DUT profile
+   open-circuit, then run it." Expected: the agent shows the plan summary, says it needs
    your confirmation and stops. Reply "Confirmed, go ahead". Codex's approval prompt for `run_confirmed_plan` must
    show the `summary` argument; compare it, then **decline** (nothing is sent to the instrument). Fallback if the
    prompt hides the arguments: approve real runs only after comparing the summary the agent printed in the chat (the

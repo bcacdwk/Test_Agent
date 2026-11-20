@@ -1,0 +1,54 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Four-wire (Kelvin) resistance (card smu-spot-kelvin; bring-up stage L2, 1 Ohm standard): terminal `a` forces a
+# list of currents (default a reversal -10, -5, +5, +10 mA) and senses its voltage on its own Sense line landed at
+# the pad; `b` returns through the GNDU (or an SMU at 0 V), also with Force and Sense landed. Both roles are Kelvin
+# roles: they never go through a 16440A selector, whose SMU path carries Force only (R-ROUTE-01). Analysis
+# kelvin_resistance fits V = R I + V0, so the current reversal cancels thermoelectric offsets from R. A small vcomp
+# limits the voltage if a landing is open (the run stops at the compliance point: classification open).
+# status: sim_validated by tests/integration/test_recipes_spot.py (resistor_1r_kelvin: R +-0.5 % of the 1 Ohm
+# truth; the same landing without sense lines reads the leads too).
+id: resistor.kelvin_4w
+version: 1
+title: Four-wire (Kelvin) resistance - force current, sense voltage; R, offset voltage, linearity
+family: smu
+kind: smu_spot
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/smu-spot-kelvin.md
+device_types: [resistor]
+roles:
+  a:
+    function: bias_i
+    measure: [V]
+    kelvin: true
+    module_types: [HRSMU, MPSMU, HPSMU]
+    prefer: HRSMU
+    settings: {values: $currents, vcomp: $vcomp}
+  b: {function: ground, allow_gndu: true, kelvin: true}
+params:
+  currents:
+    type: float_list
+    unit: A
+    default: [-0.01, -0.005, 0.005, 0.01]
+    range: [-0.05, 0.05]
+    doc: Forced currents of a, in this order (keep +I and -I pairs; |I| x R well inside vcomp).
+  vcomp:
+    unit: V
+    default: 1.0
+    recommended: [0.1, 2.0]
+    range: [0.01, 10.0]
+    doc: Voltage compliance of a; an open landing stops at this voltage.
+  samples: {type: int, default: 4, recommended: [1, 16], range: [1, 100], doc: Spot readings per current (averaging).}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: long
+    doc: ADC preset (long = 16 power-line cycles, lowest noise for millivolt signals).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: kelvin_resistance}
+provenance:
+  sources:
+    - blueprint v2 3.1 (resistor.kelvin_4w, stage L2), 2.7 (kind smu_spot)
+    - Programming Guide Ed. 15 DI (PDF 391-392), MM 1 (PDF 470-471), CMM (PDF 380); Configuration Guide Kelvin
+      connection (CCG PDF 78-79)
+  validation_runs: []

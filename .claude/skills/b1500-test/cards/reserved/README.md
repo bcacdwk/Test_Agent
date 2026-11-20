@@ -17,12 +17,10 @@ When a request needs one of them:
 | recipe | measurement | validated alternative today |
 |---|---|---|
 | `wgfmu.pulsed_iv` | WGFMU fast pulsed I-V (Id-Vg/Id-Vd with short pulses) | DC staircase: [mosfet-idvg](../smu/mosfet-idvg.md), [mosfet-idvd](../smu/mosfet-idvd.md) |
-| `wgfmu.fast_bti` | WGFMU fast BTI with on-the-fly Vth monitoring (destructive) | Id-Vg before and after a stress the human runs |
+| `wgfmu.fast_bti` | WGFMU fast BTI with on-the-fly Vth monitoring (destructive) | SMU stress-measure-stress (slower reads): [bti-stress-measure](../reliability/bti-stress-measure.md) |
 | `spgu.program_smu_read` | SPGU/HV-SPGU program pulse, then SMU read via the 16440A selector | none |
 | `fefet.pulse_write_read` | FeFET pulse write/read, endurance, retention (destructive) | [fefet-dual-sweep-mw](../nvm/fefet-dual-sweep-mw.md) |
 | `fecap.pund` | Ferroelectric capacitor PUND (Pr, Ec) | none (FeFET: [fefet-dual-sweep-mw](../nvm/fefet-dual-sweep-mw.md)) |
-| `reliability.bti_sms` | BTI stress-measure-stress with SMUs (destructive) | [mosfet-idvg](../smu/mosfet-idvg.md) before/after a human-run stress |
-| `reliability.hci` | Hot-carrier injection stress with periodic Id-Vg reads (destructive) | as above |
 | `cmu.correction` | MFCMU phase compensation and open/short/load correction | none |
 | `moscap.cv` | MOS capacitor C-V with the MFCMU | none |
 | `moscap.qscv` | Quasi-static C-V with SMUs | none |
@@ -50,10 +48,6 @@ change, a card from [the template](../_TEMPLATE.md), a passing `b1500 dev lint-s
   envelope reviewed against film thickness and coercive field (DUT profile); sim and hardware validation.
 - `fecap.pund`: WGFMU pulse sequences with fast current sampling; PUND charge-integration analysis (Pr, Ec)
   documented in knowledge 04; capacitor DUT profiles with field limits; sim model; sim and hardware validation.
-- `reliability.bti_sms`: asynchronous runs for long stresses; a stress-measure-stress kind with recovery-time control
-  and its safety-matrix rows; a stress budget in DUT profiles; knowledge 05 reviewed; sim and hardware validation.
-- `reliability.hci`: the stress-measure-stress kind (`reliability.bti_sms`) implemented and validated; drain-stress
-  envelope rules; asynchronous runs; sim and hardware validation.
 - `cmu.correction`: MFCMU correction commands extracted from the manual; SCUU path and correction records in the
   station profile (rule R-CORR-01); a human-guided open/short/load procedure with fixtures and its validation.
 - `moscap.cv`: `cmu.correction` implemented with corrections covering the frequencies (R-CORR-01); SCUU switching

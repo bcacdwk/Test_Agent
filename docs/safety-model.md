@@ -252,6 +252,19 @@ never triggered and the transaction's cleanup zeroes and verifies as for any run
 confirmed. Residual: a continuation block holds the stress as its base value (no drop to 0 V between blocks), so after
 an automatic abort in such a block the stress stays on, current-limited, until the cleanup's `DZ` milliseconds later.
 
+**Stress-measure (`stress_measure`, WP7.6).** The composite kind (BTI, IGZO bias stress, HCI, SILC) is built from the
+guarded blocks of `catalog/blocks.py`: every stress, recovery and read level is a `DV` through the guard, and the
+compiled envelope covers every phase (the stress level widens the channel's |V|; the compliance is the role's
+`icomp` in every phase), so a stress beyond the DUT profile needs confirmation (`dut_envelope`) and beyond the hard
+limits is blocked like any level. Every stress recipe is destructive and always confirmed; the plan summary names the
+stress level per channel and the stress schedule (`stress 30 min x11 reads`), so the human confirms the stress, not
+only the envelope. The holds are timed by the instrument (sampling blocks of at most 25 s with one monitor sample and
+`MSC 2,2`); a compliance, overflow or oscillation in a hold block or a read ends the run (a gate breakdown is limited
+by the gate compliance), and every block and read is a checkpoint (cancel latency ≤ one block). Residuals: the
+outputs stay at the stress level between hold blocks and from a hold to the next read's trigger (host round trips,
+milliseconds); a hold's monitor sample never forces anything, so an automatic abort in a hold leaves the DC stress on,
+current-limited, until the cleanup.
+
 ## Cleanup and fault latch
 
 Every instrument action runs inside one transaction. On any exit, including errors, interrupts and guard

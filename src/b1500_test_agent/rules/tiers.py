@@ -21,11 +21,14 @@ v2 channel forms (blueprint 2.9)::
     gate=CMU1:H 1 MHz 30 mVrms DC -2..2 V corr 2h; bulk=CMU1:L low
     top=WGFMU1:201 via RSU201.OUT dc_sample 0.5 V 504000 pts @100 ns
     force=SMU3(HRSMU) bias I<=1 mA Vcomp 5 V
+    gate=SMU4(HRSMU) sweep -0.2..1.5 V (max 2 V) stress 2 V Icomp 1 uA
 
+(the stress-measure form: the read levels, then the stress level and ``rec <V> V`` for a non-zero recovery level),
 followed, when they apply, by ``routes SEL1.OUT1->smu,pgu`` (routes no role uses) and, after the backend,
-``async ~42 min``. Channels are sorted by role name; flags follow the rule-table order, one per (rule, reason) pair,
-``blocked`` for a block. The result is printable ASCII and at most 400 characters: when the full form is too long the
-channels are written compactly, then the flags are reduced to their distinct reasons, and only then is the text cut.
+``async ~42 min`` and the stress schedule ``stress 30 min x11 reads`` (``, recovery 10 min x9 reads``). Channels are
+sorted by role name; flags follow the rule-table order, one per (rule, reason) pair, ``blocked`` for a block. The
+result is printable ASCII and at most 400 characters: when the full form is too long the channels are written
+compactly, then the flags are reduced to their distinct reasons, and only then is the text cut.
 """
 
 from __future__ import annotations
@@ -266,13 +269,44 @@ def _channel(plan: PlanRecord, channel: int, entry: ChannelEnvelope, ctx: _Conte
         return (f"{head} I<={i_text} Vc{_volts(entry.max_abs_v)}V" if compact
                 else f"{head} {_ACTION[function]} I<={i_text} Vcomp {_volts(entry.max_abs_v)} V")
     else:
-        body = _levels(entry, compact=compact)
+        body = _levels(entry, compact=compact) + _dc_stress(ctx.sources, channel, compact=compact)
     if entry.max_abs_i is None:
         if function in ("pgu", "wgfmu"):
             return f"{head} {body}"
         return f"{head} {body} {'noIcomp' if compact else 'no Icomp'}"
     current = _amps(entry.max_abs_i, space=False) if compact else f"Icomp {_amps(entry.max_abs_i)}"
     return f"{head} {body} {current}"
+
+
+def _dc_stress(sources: SourcePlan, channel: int, *, compact: bool) -> str:
+    """`` stress 2 V`` (compact `` st2V``) and `` rec 0.5 V`` for a channel's non-zero stress-measure levels."""
+    stress = sources.dc_stress(channel)
+    if stress is None:
+        return ""
+    parts = []
+    if stress.level_v != 0:
+        parts.append(f"st{_volts(stress.level_v)}V" if compact else f"stress {_volts(stress.level_v)} V")
+    if stress.recovery_v != 0:
+        parts.append(f"rec{_volts(stress.recovery_v)}V" if compact else f"rec {_volts(stress.recovery_v)} V")
+    return "".join(" " + part for part in parts)
+
+
+def _hold_time(seconds: float) -> str:
+    return f"{_num(seconds)} s" if seconds < 120 else _duration(seconds)
+
+
+def _schedule(plan: PlanRecord) -> str:
+    """``stress 30 min x11 reads`` (``, recovery 10 min x9 reads``) of a stress-measure plan ("" otherwise)."""
+    try:
+        schedule = source_plan(plan.program).schedule
+    except ValidationError:
+        return ""
+    if schedule is None:
+        return ""
+    text = f"stress {_hold_time(schedule.stress_s)} x{schedule.reads} reads"
+    if schedule.recovery_s > 0:
+        text += f", recovery {_hold_time(schedule.recovery_s)} x{schedule.recovery_reads} reads"
+    return text
 
 
 def _channels(plan: PlanRecord, *, compact: bool, findings: Sequence[RuleFinding] = ()) -> str:
@@ -319,6 +353,9 @@ def plan_summary(plan: PlanRecord, findings: Sequence[RuleFinding]) -> str:
     tail = [f"DUT {plan.request.dut_profile or 'none'}", f"pins {plan.binding.pin_map}", plan.backend]
     if plan.mode == "async":
         tail.append(f"async ~{_duration(plan.estimate.duration_s)}")
+    schedule = _schedule(plan)
+    if schedule:
+        tail.append(schedule)
     routes = _routes(plan)
     flags = summary_flags(findings)
     full_flags = ", ".join(f"{rule_id} {label}" for rule_id, label in flags)

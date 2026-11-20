@@ -16,8 +16,8 @@ from tests.unit.helpers import REPO_ROOT
 
 RECIPES = REPO_ROOT / "recipes"
 RESERVED_SLOTS = {"wgfmu.pulsed_iv", "wgfmu.fast_bti", "spgu.program_smu_read", "fefet.pulse_write_read",
-                  "fecap.pund", "reliability.bti_sms", "reliability.hci", "cmu.correction",
-                  "moscap.cv", "moscap.qscv", "hspice.compare", "mosfet.cgd_cv"}
+                  "fecap.pund", "cmu.correction", "moscap.cv", "moscap.qscv", "hspice.compare", "mosfet.cgd_cv"}
+"""Reserved ids still waiting for their kinds (WP7.6 implemented reliability.bti_sms and reliability.hci)."""
 
 
 def minimal(recipe_id: str = "basic.thing", **changes: Any) -> dict[str, Any]:
@@ -75,6 +75,11 @@ def test_committed_statuses() -> None:
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
         assert registry.get(recipe_id).kind == "smu_spot"
     assert registry.get("mosfet.idvd").kind == "smu_stepped"
+    # WP7.6: kind stress_measure (tests/integration/test_recipes_stress.py); destructive, always confirmed
+    for recipe_id in ("reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "reliability.silc"):
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+        assert registry.get(recipe_id).kind == "stress_measure"
+        assert registry.get(recipe_id).always_confirm == ["destructive"]
     cards = {"mosfet.idvg": "smu/mosfet-idvg", "mosfet.idvd": "smu/mosfet-idvd",
              "mosfet.gate_leakage": "smu/gate-leakage", "basic.contact_resistor": "smu/contact-resistor-check",
              "basic.diode_iv": "smu/diode-iv", "fefet.dual_sweep_mw": "nvm/fefet-dual-sweep-mw",
@@ -85,7 +90,10 @@ def test_committed_statuses() -> None:
              "mosfet.idvg_sync": "smu/mosfet-idvg", "mosfet.body_effect": "smu/mosfet-idvg",
              "generic.smu_multi_sweep": "smu/smu-spot-kelvin",  # WP7.2
              "system.zero_check": "system/zero-check", "generic.smu_spot": "smu/smu-spot-kelvin",
-             "resistor.kelvin_4w": "smu/smu-spot-kelvin"}  # WP7.1
+             "resistor.kelvin_4w": "smu/smu-spot-kelvin",  # WP7.1
+             "reliability.bti_sms": "reliability/bti-stress-measure",
+             "igzo.bias_stress": "reliability/igzo-bias-stress",
+             "reliability.hci": "reliability/hci-silc", "reliability.silc": "reliability/hci-silc"}  # WP7.6
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):
@@ -104,6 +112,8 @@ def test_kinds() -> None:
     assert kinds["system"].implemented_on == {"sim", "visa"}  # WP6.2: self-test/cal on hardware
     assert kinds["smu_sampling"].implemented_on == {"sim", "visa"} and "smu_sampling" not in UNIMPLEMENTED_KINDS
     assert kinds["smu_spot"].implemented_on == {"sim", "visa"} and "smu_spot" not in UNIMPLEMENTED_KINDS  # WP7.1
+    assert kinds["stress_measure"].implemented_on == {"sim", "visa"}  # WP7.6
+    assert "stress_measure" not in UNIMPLEMENTED_KINDS and "smu_stress_measure" not in kinds
     for kind_id in ("smu_pulsed", "wgfmu_pulsed_iv", "spgu_program_read", "cmu_cv"):
         assert kind_id in UNIMPLEMENTED_KINDS and kinds[kind_id].implemented_on == frozenset()
 

@@ -5,7 +5,10 @@ sources:
   - deck slide 14 (domain 5 seed)
   - deck text PPT_slides_content.md (domain 5 page; BTI log-spaced read times, TDDB Weibull)
   - deck slide 17 (IGZO Vth drift case)
-  - recipes/reserved (reliability.bti_sms, reliability.hci, wgfmu.fast_bti); recipes/reliability/tddb_cvs.yaml (WP7.4)
+  - recipes/reliability/tddb_cvs.yaml (WP7.4); recipes/reliability/{bti_sms,hci,silc}.yaml, recipes/igzo/bias_stress.yaml
+    and src/b1500_test_agent/analysis/stress.py (WP7.6); recipes/reserved (wgfmu.fast_bti)
+  - "Kaczer et al., IRPS 2008 (BTI power law and recovery); Takeda & Suzuki, IEEE EDL 4, 111, 1983 (HCI)"
+  - "DiMaria & Cartier, J. Appl. Phys. 78, 3883, 1995 (SILC)"
   - "D. K. Schroder, Semiconductor Material and Device Characterization, 3rd ed. (not page-checked)"
   - "JEDEC reliability test methods for BTI, HCI and TDDB (not consulted yet; TODO(verify))"
 last_reviewed: null
@@ -15,18 +18,22 @@ last_reviewed: null
 # Reliability and defect physics (knowledge domain 5)
 
 Seeded from deck slide 14; the deck plans to extend it from EDTM tutorial and IRPS material. Stress tests change
-or destroy the device, so in v1 every stress method is a reserved recipe (`not_implemented`, destructive, always
-confirmed once implemented). What v1 can do is non-destructive: gate leakage inside a safe envelope, Id-Vg before
-and after a human-run stress, and dual sweeps. Numbers marked `TODO(verify)` are literature typicals, not limits.
+or destroy the device: every stress recipe is destructive and always confirmed (`destructive`), long ones also
+`long_run` and asynchronous. The SMU stress recipes share the composite kind `stress_measure` (WP7.6): a reference
+read, then stress holds timed by the instrument and reads at log-spaced (or listed) cumulative stress times, then
+optional recovery reads. Numbers marked `TODO(verify)` are literature typicals, not limits.
 
 ## Scope and v1 status
 
 | Topic | v1 | Recipe |
 |---|---|---|
 | Gate leakage Ig(Vg), non-destructive | yes | `mosfet.gate_leakage` (card `gate-leakage`) |
-| BTI stress-measure-stress | reserved | `reliability.bti_sms`, `wgfmu.fast_bti` |
-| HCI | reserved | `reliability.hci` |
+| BTI stress-measure-stress (SMU) | yes (WP7.6, destructive) | `reliability.bti_sms` (card `bti-stress-measure`) |
+| Fast BTI (WGFMU, µs reads) | reserved | `wgfmu.fast_bti` (M10) |
+| HCI | yes (WP7.6, destructive) | `reliability.hci` (card `hci-silc`) |
+| SILC | yes (WP7.6, destructive) | `reliability.silc` (card `hci-silc`) |
 | TDDB constant-voltage stress | yes (WP7.4, destructive) | `reliability.tddb_cvs` (card `tddb-bdv`) |
+| IGZO bias stress dVth(t) (PBS/NBS) | yes (WP7.6, destructive) | `igzo.bias_stress` (card `igzo-bias-stress`) |
 | IGZO bias-stress transient Id(t) | yes (WP7.4) | `mosfet.id_t_sampling` (card `smu-sampling`) |
 | Dit by C-V or charge pumping | reserved | `moscap.cv`, `moscap.qscv` |
 
@@ -68,26 +75,34 @@ The gate-leakage card measures Ig(Vg) with drain and source grounded; it must no
 
 ## BTI stress-measure-stress
 
-Reserved. Seeded from deck slide 14 and the deck text.
+Implemented (`reliability.bti_sms`, kind `stress_measure`, card `bti-stress-measure`; WP7.6). Seeded from deck
+slide 14 and the deck text.
 
 - Bias temperature instability: gate stress (negative for PMOS NBTI, positive for NMOS PBTI) with drain and source
   grounded, usually at elevated temperature; Vth shifts by charge trapping and interface-state generation.
-- Stress-measure-stress: interrupt the stress, measure a fast Id-Vg (or Id at one Vg) to get Vth, resume. Read
-  times log-spaced, for example 1, 3, 10, 30, 100, 300, 1000 s (deck text).
+- Stress-measure-stress: a reference Id-Vg before the stress, then interrupt the stress for a short Id-Vg (or Id at
+  one Vg) at log-spaced cumulative stress times (for example 3 per decade: 1, 2.15, 4.64, 10 ... s; deck text:
+  1, 3, 10, 30 ... s), resume. The stress clock (`t_s`) excludes the reads.
 - Delta Vth(t) usually follows a power law A t^n (n about 0.1-0.3) `TODO(verify)`. Recovery starts the moment the
-  stress is removed, so slow SMU reads underestimate the shift: fast reads need the WGFMU (`wgfmu.fast_bti`).
-- Needs asynchronous long runs, a stress-budget field in DUT profiles and a stress-measure kind (reserved
-  preconditions).
+  stress is removed: every read and its setup lets the device relax, so slow SMU reads underestimate the shift
+  (fewer points, `short` integration and spot reads shorten the read; the µs reads need the WGFMU,
+  `wgfmu.fast_bti`). Report the read duration with n.
+- The kind holds the stress with instrument-timed sampling blocks (one gate/drain current sample each, 25 s per
+  block at most): the gate leakage during the stress is recorded too, and a gate breakdown (compliance) stops the
+  run.
 
 ## Hot-carrier injection HCI
 
-Reserved. Seeded from deck slide 14.
+Implemented (`reliability.hci`, kind `stress_measure`, card `hci-silc`; WP7.6). Seeded from deck slide 14.
 
 - Stress with high gate and drain voltages at the same time; energetic carriers near the drain damage the
   interface and the oxide. Monitor Vth shift, gm (peak) degradation and Ioff or Idsat change at periodic reads.
 - Worst-case stress bias depends on the technology (classically Vg about Vd/2 for long-channel NMOS, Vg about Vd for
   short channels) `TODO(verify)`. Damage is local to the drain end: forward and reverse (source/drain swapped)
   reads differ.
+- The linear-region drain current degrades as a power law |dId/Id0| = b t^m (m about 0.3-0.6) `TODO(verify)`; keep
+  the gate stress below the BTI onset when the HCI part alone is wanted (a BTI shift adds -gm dVth to dId). The
+  drain current under stress is recorded at every hold block.
 
 ## TDDB constant-voltage stress
 
@@ -120,7 +135,10 @@ Seeded from deck slide 14 (high Dit stretches C-V curves and increases SS).
 Seeded from deck slide 14.
 
 - Stress-induced leakage current (SILC): leakage at low field rises after a high-field stress because the stress
-  created traps that assist tunnelling. It is a damage indicator for the gate-leakage card.
+  created traps that assist tunnelling. It is a damage indicator for the gate-leakage card and the measurement of
+  `reliability.silc` (card `hci-silc`; WP7.6): a high-field gate stress interrupted by low-field leakage reads at
+  `v_sense`; the SILC ratio (Ig - Ig0)/Ig0 grows with the injected charge (q_inj, from the stress current) and
+  usually sub-linearly in time (exponent 0.3-1) `TODO(verify)`; a sudden jump is soft or hard breakdown (TDDB).
 - Charge trapping in the oxide or high-k bulk shifts Vth and causes Id-Vg hysteresis. For an n-channel device,
   electron trapping at positive gate voltage moves the reverse branch to higher Vth (opposite to ferroelectric
   switching, [04](04-ferroelectric-oxide.md#fefet-memory-window-by-dual-sweep)).
@@ -141,6 +159,35 @@ Seeded from deck slide 14 and the deck slide 17 case "IGZO TFT Vth differs every
   beta of the relaxing current (linear region: the same tau and beta as Vth).
 - Deck triage for drifting Vth: control temperature and humidity, then reduce the sweep range, then shorten the
   measurement time. The full runbook is `vth-drift-igzo` in skill `b1500-debug`.
+- Bias-stress test (`igzo.bias_stress`, card `igzo-bias-stress`; WP7.6): PBS (positive gate stress) and NBS
+  (negative), Id-Vg reads at log-spaced stress times, dVth(t) fitted with the stretched exponential (tau, beta,
+  dV_inf); recovery reads show how much relaxes. NBS under light (NBIS) is the stronger instability; the station is
+  dark unless the human says otherwise.
+
+## Stress-measure analysis
+
+Implemented (`analysis/stress.py`, WP7.6; the docstring there is the definition, this section repeats it):
+
+- Reads: the rows with `phase` `read` grouped by `cycle`; cycle 0 is the reference read (`t_s` 0); a later read is a
+  stress or a recovery read by the phase of its cycle's hold rows. `t_s` of a stress read = cumulative stress time;
+  recovery time = `t_s` - the last stress read's `t_s`. Hold rows (`phase` `stress`/`recovery`) hold the monitor
+  current at the end of each block.
+- Per read: `vth` (staircase reads; `vth_method` `constant_current`, default 100 nA x `w_over_l`, or
+  `linear_extrapolation`, both as in [06](06-analysis-extraction.md#vth-constant-current)); `id`/`ig` (a spot read's
+  mean over its trusted samples, or a sweep's value at `at_v`). A read with untrusted points is refused (left out
+  with a warning) unless `force`; a refused reference read refuses every result.
+- Change dX = X(t) - X(0); `relative` divides by |X(0)|. Power law |dX| = b t^m: least squares of log|dX| on log t
+  over the stress reads with the majority sign and |dX| >= `min_change` (at least 3 reads). Stretched exponential
+  (IGZO): dX = dX_inf (1 - exp(-(t/tau)^beta)), the `sampling_summary` fit, at least 8 reads.
+- Recovery: `recovery` = 1 - dX(last recovery read)/dX(last stress read); `recovery_rate` = minus the slope of
+  dX/dX_end against log10(t_rec) (fraction per decade).
+- `bti_power_law`: `n`, `a` (V, |dVth| at 1 s), `dvth` (signed, last stress read) [+ `recovery`, `recovery_rate`].
+  `degradation_vs_time`: `quantity` `id` (relative, default; HCI), `vth` or `ig`; `delta` + `b`, `m` (power law) or
+  `tau`, `beta`, `delta_inf` (stretched) [+ `recovery`]. `silc`: |Ig| at `v_sense`; `silc_ratio` (last stress read),
+  `silc_exponent` (reads above max(`min_ratio` 2 %, 3 sqrt2 x the reference read's standard error)), `ig0`, `q_inj`
+  (C, trapezoid integral of the stress monitor current over `t_s`).
+- Report measured reads (counts, status letters, read duration) and derived values with method, Vth criterion and
+  the reads used; a simulated run is SIMULATED.
 
 ## Ferroelectric wake-up imprint and fatigue
 

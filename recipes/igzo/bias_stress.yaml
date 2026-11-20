@@ -1,0 +1,74 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# IGZO TFT gate bias stress (PBS: vg_stress > 0, NBS: vg_stress < 0; dark, at the station temperature): the gate is
+# held at vg_stress (drain and source at 0 V) and interrupted for an Id-Vg read at log-spaced cumulative stress times
+# (from first_read on, reads_per_decade per decade), after a reference read; with recovery_time > 0 the gate rests at
+# vg_recovery and is read at log-spaced recovery times. Vth per read (constant current at i_crit 1 nA: TFT currents
+# are small), dVth(t) = Vth(t) - Vth(0) fitted with the stretched exponential dV_inf (1 - exp(-(t/tau)^beta)) (Libsch
+# & Kanicki, APL 62, 1286, 1993) by degradation_vs_time; bti_power_law gives the power-law view of the same reads. The
+# stress is timed by the instrument (25 s sampling blocks with one gate/drain current sample each); every block and
+# read is a checkpoint. DESTRUCTIVE (bias stress changes the film, partly permanently): every plan is confirmed.
+# Defaults: 300 s at 4 reads per decade from 0.1 s (15 reads): enough to resolve tau of seconds to minutes; longer
+# stresses for slow films. Use mosfet.id_t_sampling (card smu-sampling) for the continuous Id(t) at a fixed bias.
+# status: sim_validated by tests/integration/test_recipes_stress.py (igzo_transient: tau +-15 %, beta +-0.1 vs the
+# model truth, PBS and NBS); hw_validated only through a validation record (stage L9).
+id: igzo.bias_stress
+version: 1
+title: IGZO TFT gate bias stress (PBS/NBS) with Id-Vg reads at log times, dVth(t) stretched exponential (destructive)
+family: reliability
+kind: stress_measure
+status: sim_validated
+card: .agents/skills/b1500-test/cards/reliability/igzo-bias-stress.md
+device_types: [igzo_tft, nmos]
+roles:
+  gate:
+    function: sweep_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, v: $vg_read, icomp: $icomp_gate,
+               stress: $vg_stress, recovery: $vg_recovery}
+  drain:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {v: $vd, icomp: $icomp_drain, stress: 0.0, recovery: 0.0}
+  source: {function: ground, allow_gndu: true}
+params:
+  vg_stress: {unit: V, range: [-20, 20],
+              doc: "Gate stress voltage (required): positive = PBS (Vth up), negative = NBS (Vth down)."}
+  stress_time: {unit: s, default: 300.0, recommended: [100.0, 10000.0], range: [0.1, 86400.0],
+                doc: "Total stress time (the last read)."}
+  schedule: {type: enum, choices: [log, list], default: log,
+             doc: "log: reads at first_read x 10^(k/reads_per_decade) and at stress_time; list: at read_times."}
+  first_read: {unit: s, default: 0.1, recommended: [0.1, 1.0], range: [0.02, 3600.0],
+               doc: "First read after this much stress (also the first recovery read)."}
+  reads_per_decade: {type: int, default: 4, recommended: [3, 6], range: [1, 20],
+                     doc: "Log schedule density (the stretched-exponential fit needs at least 8 reads)."}
+  read_times: {type: float_list, unit: s, default: [0.1, 1.0, 10.0, 100.0, 300.0], range: [0.02, 86400.0],
+               doc: "Cumulative stress times of the reads when schedule is list (ignored for log)."}
+  recovery_time: {unit: s, default: 0.0, recommended: [0.0, 3600.0], range: [0.0, 86400.0],
+                  doc: "Recovery after the stress, read at log times (0 = no recovery)."}
+  vg_recovery: {unit: V, default: 0.0, range: [-20, 20], doc: Gate level during the recovery.}
+  read_kind: {type: enum, choices: [staircase, spot], default: staircase,
+              doc: "staircase: Id-Vg per read (Vth); spot: Id at vg_read, vd."}
+  vg_start: {unit: V, default: -1.0, recommended: [-3, 0], range: [-20, 20], doc: Read sweep start.}
+  vg_stop: {unit: V, default: 3.0, recommended: [2, 10], range: [-20, 20], doc: Read sweep stop.}
+  vg_points: {type: int, default: 41, recommended: [21, 81], range: [11, 401],
+              doc: "Read sweep points (a short read disturbs the stress least)."}
+  vg_read: {unit: V, default: 2.0, range: [-20, 20], doc: Gate level of a spot read.}
+  vd: {unit: V, default: 0.1, recommended: [0.05, 0.5], range: [-20, 20], doc: Drain bias of the reads (linear region).}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance in every phase.}
+  icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-2], doc: Drain current compliance.}
+  samples: {type: int, default: 1, range: [1, 100], doc: Spot measurements per spot read (averaged).}
+  integration: {type: enum, choices: [short, medium, long], default: medium,
+                doc: ADC preset of the reads (the monitor samples shorten it to 20 ms).}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: degradation_vs_time, options: {quantity: vth, fit: stretched_exp, i_crit_a: 1.0e-9}}
+always_confirm: [destructive]
+provenance:
+  sources:
+    - blueprint v2 3.1 row igzo.bias_stress, 2.7 kind stress_measure, 4.2 igzo transient
+    - knowledge 05 (IGZO instability mechanisms); deck slide 17 (IGZO Vth drift case)
+    - Libsch & Kanicki, APL 62, 1286 (1993) (stretched-exponential bias-stress shift)
+  validation_runs: []

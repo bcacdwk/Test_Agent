@@ -9,14 +9,16 @@ Ad-hoc use from agent scripts in ``work/``::
     pngs = plot_iv(d, scale="log")             # PNGs under work/<run_id>/plots/
     pngs = plot_timeseries(d, log_time=True)   # time-series runs (t_s, cycle or step on x)
     lives = weibull_fit([load_run(r) for r in tddb_run_ids])   # Weibull beta/eta over TDDB runs (library only)
+    bti = bti_power_law(load_run(bti_run_id))  # stress-measure runs: dVth = A t^n (+ recovery)
     out_dir = work_dir_for(d.run_id)           # never write into the run folder
 
 Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_for(family)``; definitions in the
-``mosfet.py``, ``mosfet_family.py``, ``resistor.py``, ``diode.py``, ``leakage.py``, ``fefet.py``, ``plots.py`` and
-``reliability.py`` docstrings): ``quality_report``, ``vth_linear_extrapolation``, ``vth_constant_current``,
-``vth_max_gm``, ``subthreshold_swing``, ``gm_max``, ``ion_ioff``, ``output_metrics``, ``dibl``, ``body_effect``,
-``resistance``, ``diode_fit``, ``forward_voltage``, ``leakage_at``, ``memory_window``, ``plot_iv``,
-``plot_timeseries``, ``sampling_summary``, ``time_to_breakdown``; library helper over a run list: ``weibull_fit``.
+``mosfet.py``, ``mosfet_family.py``, ``resistor.py``, ``diode.py``, ``leakage.py``, ``fefet.py``, ``plots.py``,
+``reliability.py`` and ``stress.py`` docstrings): ``quality_report``, ``vth_linear_extrapolation``,
+``vth_constant_current``, ``vth_max_gm``, ``subthreshold_swing``, ``gm_max``, ``ion_ioff``, ``output_metrics``,
+``dibl``, ``body_effect``, ``resistance``, ``diode_fit``, ``forward_voltage``, ``leakage_at``, ``memory_window``,
+``plot_iv``, ``plot_timeseries``, ``sampling_summary``, ``time_to_breakdown``, ``bti_power_law``,
+``degradation_vs_time``, ``silc``; library helper over a run list: ``weibull_fit``.
 The run-table contract (``data.csv`` or ``data.npz`` +
 ``preview.csv``, columns) is defined in ``dataset.py``.
 
@@ -86,6 +88,7 @@ from b1500_test_agent.analysis.reliability import (
     weibull_fit,
 )
 from b1500_test_agent.analysis.resistor import resistance
+from b1500_test_agent.analysis.stress import bti_power_law, degradation_vs_time, silc, stress_reads
 
 __all__ = [
     "ANALYSIS_METHODS",
@@ -110,7 +113,9 @@ __all__ = [
     "RunNotFoundError",
     "assess_quality",
     "body_effect",
+    "bti_power_law",
     "column_unit",
+    "degradation_vs_time",
     "dibl",
     "diode_fit",
     "find_run",
@@ -140,8 +145,10 @@ __all__ = [
     "run_table_path",
     "sampling_summary",
     "signal_to_noise",
+    "silc",
     "source_columns",
     "status_column",
+    "stress_reads",
     "subthreshold_swing",
     "time_to_breakdown",
     "trust_levels",

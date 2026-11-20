@@ -1,0 +1,66 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Stress-induced leakage current (SILC): the gate is stressed at a high field (vg_stress; drain, source and bulk at
+# 0 V) and interrupted for a low-field leakage read at log-spaced (or listed) cumulative stress times after a reference
+# read: spot Ig at v_sense (read_kind spot, the default; `samples` averaged) or a gate I-V sweep (read_kind staircase;
+# the analysis interpolates at v_sense). The stress is timed by the instrument (25 s sampling blocks, one gate current
+# sample each: the injected current, integrated to q_inj). Analysis: silc = (Ig - Ig0)/Ig0 at v_sense, its power-law
+# exponent, Ig0 and q_inj. The stress may break the oxide: the gate compliance (icomp_gate) is the breakdown current
+# limit and a compliance stops the run (TDDB itself is reliability.tddb_cvs). DESTRUCTIVE: every plan confirmed.
+# status: sim_validated by tests/integration/test_recipes_stress.py (nmos_bti gate oxide: SILC ratio +-10 % and
+# exponent +-0.1 vs the model truth); hw_validated only through a validation record (stage L9).
+id: reliability.silc
+version: 1
+title: Stress-induced leakage current (high-field gate stress, low-field Ig reads at log times; destructive)
+family: reliability
+kind: stress_measure
+status: sim_validated
+card: .agents/skills/b1500-test/cards/reliability/hci-silc.md
+device_types: [nmos, pmos, moscap, dielectric]
+roles:
+  gate:
+    function: sweep_v
+    measure: [I]
+    module_types: [HRSMU, MPSMU, HPSMU]
+    prefer: HRSMU
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, v: $v_sense, icomp: $icomp_gate,
+               stress: $vg_stress, recovery: 0.0}
+  drain: {function: ground, allow_gndu: true, optional: true}
+  source: {function: ground, allow_gndu: true, optional: true}
+  bulk: {function: ground, allow_gndu: true}
+params:
+  vg_stress: {unit: V, range: [-40, 40],
+              doc: "Gate stress voltage (required; a high field, below the breakdown voltage of the film)."}
+  stress_time: {unit: s, default: 1000.0, recommended: [100.0, 10000.0], range: [0.1, 86400.0],
+                doc: "Total stress time (the last read)."}
+  schedule: {type: enum, choices: [log, list], default: log,
+             doc: "log: reads at first_read x 10^(k/reads_per_decade) and at stress_time; list: at read_times."}
+  first_read: {unit: s, default: 1.0, recommended: [0.1, 10.0], range: [0.02, 3600.0],
+               doc: "First read after this much stress (also the first recovery read)."}
+  reads_per_decade: {type: int, default: 3, recommended: [2, 5], range: [1, 20], doc: Log schedule density.}
+  read_times: {type: float_list, unit: s, default: [1.0, 10.0, 100.0, 1000.0], range: [0.02, 86400.0],
+               doc: "Cumulative stress times of the reads when schedule is list (ignored for log)."}
+  recovery_time: {unit: s, default: 0.0, recommended: [0.0, 600.0], range: [0.0, 86400.0],
+                  doc: "Rest at 0 V after the stress, read at log times (0 = none)."}
+  read_kind: {type: enum, choices: [spot, staircase], default: spot,
+              doc: "spot: Ig at v_sense; staircase: a gate I-V sweep per read (interpolated at v_sense)."}
+  v_sense: {unit: V, default: 1.5, recommended: [0.5, 2.0], range: [-40, 40],
+            doc: "Low-field sense voltage of the leakage reads (same polarity as the stress)."}
+  vg_start: {unit: V, default: 0.0, range: [-40, 40], doc: Read sweep start (read_kind staircase).}
+  vg_stop: {unit: V, default: 2.0, range: [-40, 40], doc: Read sweep stop (read_kind staircase).}
+  vg_points: {type: int, default: 21, range: [11, 401], doc: Read sweep points (read_kind staircase).}
+  icomp_gate: {unit: A, default: 1.0e-4, recommended: [1.0e-6, 1.0e-3], range: [1.0e-12, 1.0e-2],
+               doc: "Gate current compliance in every phase = the breakdown current limit of the stress."}
+  samples: {type: int, default: 5, range: [1, 100], doc: "Spot measurements per read (averaged; the reference read's
+    scatter sets the significance threshold)."}
+  integration: {type: enum, choices: [short, medium, long], default: long,
+                doc: "ADC preset of the reads (long: pA leakage); the monitor samples shorten it to 20 ms."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: silc}
+always_confirm: [destructive]
+provenance:
+  sources:
+    - blueprint v2 3.1 row reliability.silc, 2.7 kind stress_measure, 4.2 dielectric (SILC damage term)
+    - knowledge 05 (oxide traps, SILC and charge trapping)
+    - DiMaria & Cartier, J. Appl. Phys. 78, 3883 (1995) (SILC from trap-assisted tunnelling)
+  validation_runs: []

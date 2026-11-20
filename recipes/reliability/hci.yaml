@@ -1,0 +1,73 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Hot-carrier injection (HCI): gate at vg_stress and drain at vd_stress at the same time (channel on, high lateral
+# field; source and bulk at 0 V), interrupted for a read at log-spaced (or listed) cumulative stress times after a
+# reference read: spot Id at vg_read, vd_read in the linear region (read_kind spot, the default; `samples` averaged)
+# or an Id-Vg sweep (read_kind staircase: also Vth and the gm loss). The stress is timed by the instrument (25 s
+# sampling blocks, one gate/drain current sample each: the drain current under stress); every block and read is a
+# checkpoint. Analysis: degradation_vs_time, dId/Id0 = b t^m (Takeda/Hu power law). Stress choice: classically
+# Vg ~ Vd/2 for long-channel NMOS (maximum substrate current), Vg ~ Vd for short channels (TODO(verify) per
+# technology); keep vg_stress below the BTI onset when only HCI is wanted. Damage sits at the drain end: forward and
+# reverse reads differ (swap drain and source in the pin map for a reverse read). DESTRUCTIVE: every plan confirmed.
+# Implements the reserved id reliability.hci (blueprint v2 3.1).
+# status: sim_validated by tests/integration/test_recipes_stress.py (nmos_bti: m +-0.03 vs the model truth);
+# hw_validated only through a validation record (stage L9).
+id: reliability.hci
+version: 1
+title: Hot-carrier injection stress (gate + drain) with Id reads at log times, dId/Id0 = b t^m (destructive)
+family: reliability
+kind: stress_measure
+status: sim_validated
+card: .agents/skills/b1500-test/cards/reliability/hci-silc.md
+device_types: [nmos, pmos]
+roles:
+  gate:
+    function: sweep_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, v: $vg_read, icomp: $icomp_gate,
+               stress: $vg_stress, recovery: 0.0}
+  drain:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {v: $vd_read, icomp: $icomp_drain, stress: $vd_stress, recovery: 0.0}
+  source: {function: ground, allow_gndu: true}
+  bulk: {function: ground, allow_gndu: true, optional: true}
+params:
+  vg_stress: {unit: V, range: [-10, 10], doc: "Gate stress voltage (required; NMOS long channel: about vd_stress/2)."}
+  vd_stress: {unit: V, range: [-10, 10], doc: "Drain stress voltage (required; the hot-carrier field)."}
+  stress_time: {unit: s, default: 1000.0, recommended: [100.0, 10000.0], range: [0.1, 86400.0],
+                doc: "Total stress time (the last read)."}
+  schedule: {type: enum, choices: [log, list], default: log,
+             doc: "log: reads at first_read x 10^(k/reads_per_decade) and at stress_time; list: at read_times."}
+  first_read: {unit: s, default: 1.0, recommended: [0.1, 10.0], range: [0.02, 3600.0],
+               doc: "First read after this much stress (also the first recovery read)."}
+  reads_per_decade: {type: int, default: 3, recommended: [2, 5], range: [1, 20], doc: Log schedule density.}
+  read_times: {type: float_list, unit: s, default: [1.0, 10.0, 100.0, 1000.0], range: [0.02, 86400.0],
+               doc: "Cumulative stress times of the reads when schedule is list (ignored for log)."}
+  recovery_time: {unit: s, default: 0.0, recommended: [0.0, 600.0], range: [0.0, 86400.0],
+                  doc: "Rest at 0 V after the stress, read at log times (0 = none; HCI damage hardly recovers)."}
+  read_kind: {type: enum, choices: [spot, staircase], default: spot,
+              doc: "spot: Id at vg_read, vd_read (linear-region current); staircase: Id-Vg per read."}
+  vg_read: {unit: V, default: 1.5, recommended: [1.0, 3.0], range: [-10, 10], doc: Gate level of a spot read.}
+  vd_read: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [-5, 5], doc: Drain bias of the reads.}
+  vg_start: {unit: V, default: -0.2, range: [-10, 10], doc: Read sweep start (read_kind staircase).}
+  vg_stop: {unit: V, default: 1.5, range: [-10, 10], doc: Read sweep stop (read_kind staircase).}
+  vg_points: {type: int, default: 35, range: [11, 401], doc: Read sweep points (read_kind staircase).}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance in every phase.}
+  icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-2],
+                doc: "Drain current compliance in every phase (above the stress current)."}
+  samples: {type: int, default: 3, range: [1, 100], doc: Spot measurements per read (averaged).}
+  integration: {type: enum, choices: [short, medium, long], default: medium,
+                doc: ADC preset of the reads (the monitor samples shorten it to 20 ms).}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: degradation_vs_time, options: {quantity: id, y: drain_I, fit: power_law}}
+always_confirm: [destructive]
+provenance:
+  sources:
+    - blueprint v2 3.1 row reliability.hci, 2.7 kind stress_measure, 4.2 mosfet + hci
+    - deck slide 14; knowledge 05 (hot-carrier injection)
+    - Takeda & Suzuki, IEEE EDL 4, 111 (1983); Hu et al., IEEE TED 32, 375 (1985) (power-law HCI lifetime)
+  validation_runs: []

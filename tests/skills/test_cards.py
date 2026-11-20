@@ -36,11 +36,15 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "reliability/tddb-bdv": ["reliability.tddb_cvs"],  # WP7.4 (CVS part; WP7.5 adds the BDV recipes)
     "smu/smu-spot-kelvin": ["generic.smu_spot", "resistor.kelvin_4w", "generic.smu_multi_sweep"],  # WP7.1, WP7.2
     "system/zero-check": ["system.zero_check"],  # WP7.1
+    "reliability/bti-stress-measure": ["reliability.bti_sms"],  # WP7.6 (WP10.7 adds wgfmu.fast_bti)
+    "reliability/igzo-bias-stress": ["igzo.bias_stress"],  # WP7.6
+    "reliability/hci-silc": ["reliability.hci", "reliability.silc"],  # WP7.6
 }
 STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfet-idvg": "L4", "smu/mosfet-idvd": "L4",
             "smu/gate-leakage": "L4", "nvm/fefet-dual-sweep-mw": "L7", "system/self-test-cal": "L1",
             "smu/smu-sampling": "L5", "reliability/tddb-bdv": "L9", "smu/smu-spot-kelvin": "L2",
-            "system/zero-check": "L1"}
+            "system/zero-check": "L1", "reliability/bti-stress-measure": "L9", "reliability/igzo-bias-stress": "L9",
+            "reliability/hci-silc": "L9"}
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault"}

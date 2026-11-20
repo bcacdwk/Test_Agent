@@ -12,6 +12,10 @@ it back):
 - ``waveform``: the WGFMU ``WaveformProgram`` (channel setups, patterns of ``(dt, v)`` vectors, measure and range
   events, per-channel sequences) that R-WG-02 checks against the module limits and the policy and that the WGFMU
   driver loads (the builders of ``catalog/waveforms.py`` produce it).
+- ``stress``/``schedule`` (WP7.6, kind ``stress_measure``): the DC level each channel holds during the stress and the
+  recovery (``DcStress``) and the stress schedule (``StressSchedule``: total stress and recovery hold times, number of
+  reads). The levels lie inside the channel envelope already (the guard enforces it); the plan summary shows them so
+  that the human confirms the stress itself, not only the envelope.
 
 Arithmetic shared by the rules, the guard and the kinds (one function each, so they can never disagree):
 
@@ -358,12 +362,35 @@ class WaveformProgram(StrictModel):
 # -- Source plan -----------------------------------------------------------------------------------------------------
 
 
+class DcStress(StrictModel):
+    """The DC levels a channel holds during the stress and the recovery holds of a stress-measure plan (V)."""
+
+    level_v: float
+    recovery_v: float = 0.0
+
+
+class StressSchedule(StrictModel):
+    """A stress-measure schedule: total stress and recovery hold times (s) and the reads after the reference read."""
+
+    stress_s: float = Field(gt=0)
+    reads: int = Field(ge=1)
+    recovery_s: float = Field(default=0.0, ge=0)
+    recovery_reads: int = Field(default=0, ge=0)
+
+
 class SourcePlan(StrictModel):
-    """The typed source part of a kind's program (``plan.program["sources"]``): pulse trains per channel and the
-    WGFMU waveform program."""
+    """The typed source part of a kind's program (``plan.program["sources"]``): pulse trains per channel, the
+    WGFMU waveform program and the DC stress of a stress-measure plan."""
 
     pulses: dict[Channel, list[PulseTrain]] = Field(default_factory=dict)
     waveform: WaveformProgram | None = None
+    stress: dict[Channel, DcStress] = Field(default_factory=dict)
+    schedule: StressSchedule | None = None
+
+    def dc_stress(self, ch: int) -> DcStress | None:
+        """The DC stress of channel ``ch`` (``None`` when it holds none)."""
+        key = _norm(ch)
+        return next((s for own, s in self.stress.items() if _norm(own) == key), None)
 
     def trains(self, ch: int) -> list[PulseTrain]:
         """The pulse trains of channel ``ch`` (``1`` and ``101`` are the same channel, PG Table 4-1)."""

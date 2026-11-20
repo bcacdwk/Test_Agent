@@ -1,6 +1,7 @@
 """Measurement kinds (blueprint 2.6, v2 2.7): ``smu_staircase``, ``smu_stepped``, ``smu_sampling`` and ``smu_spot``
-(sim + visa), ``system`` (sim + visa) and the declared ``UnimplementedKind`` ids. ``default_kinds()`` is the mapping
-the recipe registry loads against."""
+(sim + visa), the composite ``stress_measure`` (sim + visa; built from ``catalog/blocks.py``, so it is imported after
+the kinds those blocks use), ``system`` (sim + visa) and the declared ``UnimplementedKind`` ids. ``default_kinds()`` is
+the mapping the recipe registry loads against."""
 
 from b1500_test_agent.catalog.kinds.base import MeasurementKind, implemented_on
 from b1500_test_agent.catalog.kinds.smu_sampling import SamplingProgram, SmuSamplingKind
@@ -10,11 +11,14 @@ from b1500_test_agent.catalog.kinds.smu_stepped import SmuSteppedKind, SteppedPr
 from b1500_test_agent.catalog.kinds.system import SystemKind
 from b1500_test_agent.catalog.kinds.unimplemented import UNIMPLEMENTED_KINDS, UnimplementedKind, unimplemented_kinds
 
+from b1500_test_agent.catalog.kinds.stress_measure import StressMeasureKind, StressProgram  # isort: skip  # after smu_*
+
 
 def default_kinds() -> dict[str, MeasurementKind]:
     """Every registered kind by id: the implemented ones plus one ``UnimplementedKind`` per declared id."""
     kinds: dict[str, MeasurementKind] = dict(unimplemented_kinds())
-    for kind in (SmuStaircaseKind(), SmuSteppedKind(), SmuSamplingKind(), SystemKind(), SmuSpotKind()):
+    for kind in (SmuStaircaseKind(), SmuSteppedKind(), SmuSamplingKind(), SystemKind(), SmuSpotKind(),
+                 StressMeasureKind()):
         kinds[kind.kind_id] = kind
     return kinds
 
@@ -30,6 +34,8 @@ __all__ = [
     "SpotProgram",
     "StaircaseProgram",
     "SteppedProgram",
+    "StressMeasureKind",
+    "StressProgram",
     "SystemKind",
     "UnimplementedKind",
     "default_kinds",

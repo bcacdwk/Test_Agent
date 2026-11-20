@@ -45,6 +45,7 @@ from b1500_test_agent.analysis.plots import PlotSet, plot_iv_method
 from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.reliability import plot_timeseries_method, sampling_summary, time_to_breakdown
 from b1500_test_agent.analysis.resistor import kelvin_resistance, resistance
+from b1500_test_agent.analysis.stress import bti_power_law, degradation_vs_time, silc
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport, TrustPolicy
 from b1500_test_agent.models.recipe import RecipeFamily
@@ -66,6 +67,8 @@ _SMU_NVM: tuple[RecipeFamily, ...] = ("smu", "nvm")
 _SMU_RELIABILITY: tuple[RecipeFamily, ...] = ("smu", "reliability")
 _SAMPLING = ("generic.smu_sampling", "mosfet.id_t_sampling", "reliability.tddb_cvs", "generic.*")
 _SAMPLING_KINDS = ("smu_sampling",)
+_STRESS_KINDS = ("stress_measure",)
+_RELIABILITY: tuple[RecipeFamily, ...] = ("reliability",)
 _SYSTEM: tuple[RecipeFamily, ...] = ("system",)
 _TABLES: tuple[RecipeFamily, ...] = ("smu", "cmu", "spgu", "wgfmu", "nvm", "reliability", "system")
 """Families whose runs archive a measurement table (``system`` since ``system.zero_check``; self-test and
@@ -218,6 +221,18 @@ _METHODS = [
     _method("time_to_breakdown", "extraction", time_to_breakdown,
             "Time to breakdown under constant stress (compliance, current jump or threshold); censored if none.",
             _SAMPLING, _SAMPLING_KINDS, families=_SMU_RELIABILITY, milestone="M7"),
+    _method("bti_power_law", "extraction", bti_power_law,
+            "BTI threshold shift |dVth| = A t^n over the stress reads (exponent n, A at 1 s); recovered fraction.",
+            ("reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "generic.*"), _STRESS_KINDS,
+            families=_RELIABILITY, milestone="M7"),
+    _method("degradation_vs_time", "extraction", degradation_vs_time,
+            "Change of Id, Vth or Ig against stress time: power law b t^m or stretched exponential tau, beta.",
+            ("reliability.*", "igzo.bias_stress", "generic.*"), _STRESS_KINDS, families=_RELIABILITY,
+            milestone="M7"),
+    _method("silc", "extraction", silc,
+            "Stress-induced leakage: (Ig - Ig0)/Ig0 at v_sense, its power-law exponent, Ig0 and injected charge.",
+            ("reliability.silc", "reliability.bti_sms", "reliability.hci", "generic.*"), _STRESS_KINDS,
+            families=_RELIABILITY, milestone="M7"),
 ]
 
 ANALYSIS_METHODS: Mapping[str, AnalysisMethod] = MappingProxyType({m.name: m for m in _METHODS})

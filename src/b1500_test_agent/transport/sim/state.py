@@ -54,11 +54,15 @@ class CommandRecord(_Mutable):
 
 
 class ChannelState(_Mutable):
-    """Output state of one channel. ``voltage``/``icomp`` are the programmed DC levels (V, A)."""
+    """Output state of one channel. ``mode`` is what it forces: ``V`` (``voltage`` with current compliance ``icomp``,
+    V and A) or ``I`` (``current`` with voltage compliance ``vcomp``, A and V; ``voltage`` is then unused and 0)."""
 
     output_on: bool = False
+    mode: Literal["V", "I"] = "V"
     voltage: float = 0.0
     icomp: float | None = None
+    current: float = 0.0
+    vcomp: float | None = None
     comp_polarity: int = 0
     vrange: int = 0
     irange: int = 0

@@ -185,28 +185,46 @@ def acquire(tx: Transaction, hook: HookTransport) -> RawBlock:
 
 
 def source_levels(record: CommandRecord) -> tuple[int, list[float], float | None]:
-    """Channel, forced levels and compliance of a ``DV``/``WV``/``MV``/``MI`` record (PG PDF 396, 568, 477, 468;
-    ``MI`` levels are currents and its compliance a voltage: ``assert_within_envelope`` swaps the limits)."""
+    """Channel, forced levels and compliance of a source record (``source_request`` without the quantity)."""
+    channel, _, levels, compliance = source_request(record)
+    return channel, levels, compliance
+
+
+def source_request(record: CommandRecord) -> tuple[int, str, list[float], float | None]:
+    """Channel, forced quantity (``V``/``I``), forced levels and compliance of a source record: ``DV``/``DI`` (PG PDF
+    396, 391), ``WV``/``WI`` (568, 551), ``WSV``/``WSI`` (561-562, 560), ``WNX`` (557: mode 1 V, 2 I) and the
+    sampling sources ``MV``/``MI`` (477, 468; levels base and bias)."""
     args = record.args
-    channel = int(args[0])
-    if record.mnemonic == "DV":
-        return channel, [float(args[2])], float(args[3]) if len(args) > 3 else None
-    if record.mnemonic in ("MV", "MI"):
-        return channel, [float(args[2]), float(args[3])], float(args[4]) if len(args) > 4 else None
-    return channel, [float(args[3]), float(args[4])], float(args[6]) if len(args) > 6 else None
+    mnemonic = record.mnemonic
+
+    def comp(index: int) -> float | None:
+        return float(args[index]) if len(args) > index else None
+
+    if mnemonic in ("DV", "DI"):
+        return int(args[0]), mnemonic[1], [float(args[2])], comp(3)
+    if mnemonic in ("WV", "WI"):
+        return int(args[0]), mnemonic[1], [float(args[3]), float(args[4])], comp(6)
+    if mnemonic in ("WSV", "WSI"):
+        return int(args[0]), mnemonic[2], [float(args[2]), float(args[3])], comp(4)
+    if mnemonic == "WNX":
+        return int(args[1]), "V" if int(args[2]) == 1 else "I", [float(args[4]), float(args[5])], comp(6)
+    if mnemonic in ("MV", "MI"):
+        return int(args[0]), mnemonic[1], [float(args[2]), float(args[3])], comp(4)
+    raise AssertionError(f"source command the invariant does not know: {record.command}")
 
 
 def assert_within_envelope(log: list[CommandRecord], envelope: CompiledEnvelope = ENVELOPE) -> None:
-    """No source command outside ``envelope`` ever reached the transport (every record, dropped ones included)."""
+    """No source command outside ``envelope`` ever reached the transport (every record, dropped ones included): a
+    voltage source within |V| and its Icomp within |I|, a current source within |I| and its Vcomp within |V|."""
     for record in log:
         if not record.source:
             continue
-        channel, levels, compliance = source_levels(record)
+        channel, quantity, levels, compliance = source_request(record)
         channel = channel // 100 if channel > 10 else channel
         env = envelope.channels.get(channel)
         assert env is not None, f"source command on a channel outside the allowlist: {record.command}"
-        level_limit, comp_limit = (env.max_abs_i, env.max_abs_v) if record.mnemonic == "MI" else (env.max_abs_v,
-                                                                                                     env.max_abs_i)
+        level_limit, comp_limit = (env.max_abs_v, env.max_abs_i) if quantity == "V" else (env.max_abs_i,
+                                                                                          env.max_abs_v)
         assert level_limit is not None and comp_limit is not None, f"source without compliance: {record.command}"
         assert all(abs(level) <= level_limit for level in levels), f"level outside the envelope: {record.command}"
         assert compliance is not None and 0 < abs(compliance) <= comp_limit, f"bad compliance: {record.command}"

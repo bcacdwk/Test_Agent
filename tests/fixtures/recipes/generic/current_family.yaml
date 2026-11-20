@@ -1,0 +1,32 @@
+# Test-only recipe (never in recipes/; WP7.2): a voltage sweep on terminal a for each current step (DI) of
+# terminal b (kind smu_stepped, step_i), terminal g on the GNDU. On the two-resistor test scenario: b_V = I_step x R_b
+# per curve, a_I = V/R_a. Four steps of 11 points match the stepped safety matrix (sweep on SMU3, step on SMU5).
+id: generic.current_family
+version: 1
+title: Test-only stepped current family (step_i)
+family: smu
+kind: smu_stepped
+status: sim_validated
+card: null
+device_types: []
+roles:
+  a:
+    function: sweep_v
+    measure: [I]
+    settings: {start: 0.0, stop: 1.0, points: $points, icomp: 1.0e-3}
+  b:
+    function: step_i
+    measure: [V]
+    settings: {values: $i_steps, vcomp: 2.0}
+  g: {function: ground, allow_gndu: true}
+params:
+  points: {type: int, default: 11, range: [2, 1001], doc: "Sweep points per curve."}
+  i_steps: {type: float_list, unit: A, default: [1.0e-6, 2.0e-6, 3.0e-6, 4.0e-6], range: [-1.0e-4, 1.0e-4],
+            doc: "Currents forced on b, one curve each."}
+  integration: {type: enum, choices: [short, medium, long], default: medium, doc: "ADC preset."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults: []
+provenance:
+  sources:
+    - tests (WP7.2 step_i)
+  validation_runs: []

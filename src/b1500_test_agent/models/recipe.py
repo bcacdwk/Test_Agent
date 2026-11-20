@@ -32,15 +32,16 @@ PARAM_REF = re.compile(r"^\$([a-z][a-z0-9_]{0,63})$")
 
 RoleFunction = Literal[
     "sweep_v", "bias_v", "step_v", "ground", "measure_only",
-    "sweep_i", "bias_i", "step_i", "sync_v", "pulse_v", "pgu", "wgfmu", "cmu_high", "cmu_low",
+    "sweep_i", "bias_i", "step_i", "sync_v", "sync_i", "pulse_v", "pgu", "wgfmu", "cmu_high", "cmu_low",
 ]  # fmt: skip
 """What a recipe role does on its channel (v1 blueprint 2.6, v2 2.1): voltage sweep, constant voltage bias,
 host-stepped voltage list, 0 V reference, measurement only; v2: current sweep, current bias, host-stepped current
-list, synchronous voltage sweep (``WSV``), SMU pulse source, HV-SPGU pulse output, WGFMU channel, MFCMU High and Low
-side."""
+list, synchronous voltage sweep (``WSV``), synchronous current sweep (``WSI``, after a current primary sweep; WP7.2),
+SMU pulse source, HV-SPGU pulse output, WGFMU channel, MFCMU High and Low side."""
 
 SMU_FUNCTIONS: Final[frozenset[str]] = frozenset({
-    "sweep_v", "bias_v", "step_v", "ground", "measure_only", "sweep_i", "bias_i", "step_i", "sync_v", "pulse_v",
+    "sweep_v", "bias_v", "step_v", "ground", "measure_only", "sweep_i", "bias_i", "step_i", "sync_v", "sync_i",
+    "pulse_v",
 })  # fmt: skip
 """Role functions served by an SMU."""
 

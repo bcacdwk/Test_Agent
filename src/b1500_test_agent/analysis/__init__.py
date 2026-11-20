@@ -12,11 +12,12 @@ Ad-hoc use from agent scripts in ``work/``::
     out_dir = work_dir_for(d.run_id)           # never write into the run folder
 
 Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_for(family)``; definitions in the
-``mosfet.py``, ``resistor.py``, ``diode.py``, ``leakage.py``, ``fefet.py``, ``plots.py`` and ``reliability.py``
-docstrings): ``quality_report``, ``vth_linear_extrapolation``, ``vth_constant_current``, ``vth_max_gm``,
-``subthreshold_swing``, ``gm_max``, ``ion_ioff``, ``output_metrics``, ``resistance``, ``diode_fit``, ``leakage_at``,
-``memory_window``, ``plot_iv``, ``plot_timeseries``, ``sampling_summary``, ``time_to_breakdown``; library helper over
-a run list: ``weibull_fit``. The run-table contract (``data.csv`` or ``data.npz`` +
+``mosfet.py``, ``mosfet_family.py``, ``resistor.py``, ``diode.py``, ``leakage.py``, ``fefet.py``, ``plots.py`` and
+``reliability.py`` docstrings): ``quality_report``, ``vth_linear_extrapolation``, ``vth_constant_current``,
+``vth_max_gm``, ``subthreshold_swing``, ``gm_max``, ``ion_ioff``, ``output_metrics``, ``dibl``, ``body_effect``,
+``resistance``, ``diode_fit``, ``forward_voltage``, ``leakage_at``, ``memory_window``, ``plot_iv``,
+``plot_timeseries``, ``sampling_summary``, ``time_to_breakdown``; library helper over a run list: ``weibull_fit``.
+The run-table contract (``data.csv`` or ``data.npz`` +
 ``preview.csv``, columns) is defined in ``dataset.py``.
 
 Errors: exceptions mean the call cannot be served (``RunNotFoundError``, ``RunFormatError``, ``InvalidInputError``,
@@ -57,7 +58,7 @@ from b1500_test_agent.analysis.dataset import (
     write_run_table,
     write_table,
 )
-from b1500_test_agent.analysis.diode import diode_fit
+from b1500_test_agent.analysis.diode import diode_fit, forward_voltage
 from b1500_test_agent.analysis.errors import MethodNotImplementedError, RunFormatError, RunNotFoundError
 from b1500_test_agent.analysis.fefet import memory_window
 from b1500_test_agent.analysis.leakage import leakage_at
@@ -72,6 +73,7 @@ from b1500_test_agent.analysis.mosfet import (
     vth_linear_extrapolation,
     vth_max_gm,
 )
+from b1500_test_agent.analysis.mosfet_family import body_effect, dibl
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv, render_iv
 from b1500_test_agent.analysis.quality import MIN_SNR, assess_quality, noise_sigma, signal_to_noise
 from b1500_test_agent.analysis.registry import ANALYSIS_METHODS, AnalysisMethod, methods_for, run_method
@@ -107,10 +109,13 @@ __all__ = [
     "RunFormatError",
     "RunNotFoundError",
     "assess_quality",
+    "body_effect",
     "column_unit",
+    "dibl",
     "diode_fit",
     "find_run",
     "fit_stretched_exponential",
+    "forward_voltage",
     "gm",
     "gm_max",
     "ion_ioff",

@@ -1,7 +1,8 @@
 """FLEX command builders and constants, the only home of FLEX mnemonics in string literals (blueprint 2.1, 2.5).
 
 One module per instrument family: ``core`` (system queries, output switches, ``FMT``, ``MM``,
-``XE``/``AB``/``*RST``), ``smu`` (``CMM``, ``AAD``/``AIT``, ``RI``/``RV``, ``WV``/``WT``/``WM``, ``DV``), ``cmu``
+``XE``/``AB``/``*RST``), ``smu`` (``CMM``, ``AAD``/``AIT``, ``RI``/``RV``, ``WV``/``WI``/``WSV``/``WSI``/``WNX``,
+``WT``/``WM``, ``DV``/``DI``), ``cmu``
 (``CORRST?``, ``ADJ?``), ``spgu`` (``SPST?``) and ``switch`` (``ERMOD?``, ``ERSSP?``); the CMU, SPGU and switch
 work packages (M8, M9) add their setting commands to the same modules. This package re-exports every public
 builder and constant, so callers import the package (``from b1500_test_agent.driver import flex``) and write
@@ -64,7 +65,27 @@ from b1500_test_agent.driver.flex.sampling import (
     mt,
     mv,
 )
-from b1500_test_agent.driver.flex.smu import I_RANGE_CODES, V_RANGE_CODES, aad, ait, cmm, dv, ri, rv, wm, wt, wv
+from b1500_test_agent.driver.flex.smu import (
+    I_OUTPUT_RANGE_CODES,
+    I_RANGE_CODES,
+    MAX_SWEEP_STEPS,
+    SWEEP_SOURCE_MODES,
+    V_RANGE_CODES,
+    aad,
+    ait,
+    cmm,
+    di,
+    dv,
+    ri,
+    rv,
+    wi,
+    wm,
+    wnx,
+    wsi,
+    wsv,
+    wt,
+    wv,
+)
 from b1500_test_agent.driver.flex.spgu import SPST_Q, SPST_STATES
 from b1500_test_agent.driver.flex.switch import ERMOD_MAX, ERMOD_Q, ERMOD_SELECTOR, ERSSP_STATES, erssp_q
 
@@ -81,6 +102,7 @@ __all__ = [
     "ERSSP_STATES",
     "FORMATS",
     "IDN_Q",
+    "I_OUTPUT_RANGE_CODES",
     "I_RANGE_CODES",
     "LINEAR_SAMPLING",
     "LOG_SAMPLING_DECADES",
@@ -93,6 +115,7 @@ __all__ = [
     "MAX_CHANNELS_CN_CL_DZ",
     "MAX_CHANNELS_MCC",
     "MAX_CHANNELS_MM",
+    "MAX_SWEEP_STEPS",
     "MEASUREMENT_MODES",
     "MT_FAST_INTERVAL_S",
     "MT_HOLD_RESOLUTION_S",
@@ -110,6 +133,7 @@ __all__ = [
     "SPST_Q",
     "SPST_STATES",
     "STB_Q",
+    "SWEEP_SOURCE_MODES",
     "TST_Q",
     "UNT_Q",
     "V_RANGE_CODES",
@@ -122,6 +146,7 @@ __all__ = [
     "cmm",
     "cn",
     "corrst_q",
+    "di",
     "dv",
     "dz",
     "erssp_q",
@@ -138,7 +163,11 @@ __all__ = [
     "rv",
     "tsc",
     "tsr",
+    "wi",
     "wm",
+    "wnx",
+    "wsi",
+    "wsv",
     "wt",
     "wv",
 ]

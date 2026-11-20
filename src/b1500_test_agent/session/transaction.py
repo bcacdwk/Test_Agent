@@ -201,6 +201,8 @@ def sim_instrument(transport: object) -> Any | None:
 
 def _sim_output_text(state: Any) -> str:
     on = "on" if state.output_on else "off"
+    if getattr(state, "mode", "V") == "I":
+        return f"{on} {state.current:g} A"
     return on if state.voltage == 0 else f"{on} {state.voltage:g} V"
 
 

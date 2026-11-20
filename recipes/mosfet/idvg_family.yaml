@@ -1,0 +1,56 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOSFET transfer family: a gate staircase (Id-Vg) at each drain bias of the drain step list (host loop over the
+# drain role, kind smu_stepped), source on the GNDU. The lowest drain bias is the linear-region curve, the highest the
+# saturation curve; DIBL is the threshold shift between them per volt of drain bias. Defaults: Vd 0.1 V (the lab's
+# Id-Vg drain bias, lwp test_IdVg.m) to 1 V, gate 0..1.2 V in 10 mV steps so the subthreshold region is resolved
+# and the top of the sweep stays below the 1 mA drain compliance at Vd 1 V. The loop stops after a curve in
+# compliance (later drain steps drive harder).
+# Analysis: dibl (constant-current Vth per curve; DIBL = -(Vth(Vd_high) - Vth(Vd_low)) / (Vd_high - Vd_low) in mV/V).
+# status: sim_validated by tests/integration/test_recipes_sweeps.py (nmos_basic: long channel, DIBL 0 +- 5 mV/V; a
+# copy with dibl 0.06 V/V: 60 +- 5 mV/V); hw_validated only through a reviewed validation record (bring-up stage L4).
+id: mosfet.idvg_family
+version: 1
+title: MOSFET transfer family (Id-Vg at several drain biases) for DIBL and Vth(Vd)
+family: smu
+kind: smu_stepped
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
+device_types: [nmos, pmos, igzo_tft]
+roles:
+  gate:
+    function: sweep_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, icomp: $icomp_gate}
+  drain:
+    function: step_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {values: $vd_values, icomp: $icomp_drain}
+  source: {function: ground, allow_gndu: true}
+params:
+  vg_start: {unit: V, default: 0.0, recommended: [-1.0, 0.0], range: [-10, 10],
+             doc: "Gate sweep start (below threshold; the 100 nA Vth criterion needs subthreshold points)."}
+  vg_stop: {unit: V, default: 1.2, recommended: [1.0, 3.0], range: [-10, 10], doc: "Gate sweep stop."}
+  vg_points: {type: int, default: 121, recommended: [61, 301], range: [11, 1001],
+              doc: "Gate sweep points (121 = 10 mV steps over the default range)."}
+  vd_values: {type: float_list, unit: V, default: [0.1, 0.55, 1.0], range: [-5, 5],
+              doc: "Drain biases, one transfer curve each (lowest |Vd| = linear, highest = saturation)."}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: "Gate current compliance."}
+  icomp_drain: {unit: A, default: 1.0e-3, recommended: [1.0e-4, 1.0e-2], range: [1.0e-12, 1.0e-2],
+                doc: "Drain current compliance."}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset (short = fastest/noisiest, long = 16 power-line cycles).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: dibl}
+provenance:
+  sources:
+    - blueprint v2 3.1 (mosfet.idvg_family, smu_stepped), 10.3 row 7.2 (DIBL +-5 mV/V)
+    - lwp test_IdVg.m (drain 0.1 V); v0.2 biased-sweep flow
+    - Programming Guide Ed. 15 WV (PDF 568-569), DV (PDF 396), WM (PDF 552-553), FMT (PDF 436-438)
+  validation_runs: []

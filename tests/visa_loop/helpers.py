@@ -27,15 +27,17 @@ from b1500_test_agent.service import B1500Service
 from b1500_test_agent.transport.audit import AuditSink
 from b1500_test_agent.transport.base import Bus
 from b1500_test_agent.transport.factory import make_bus
+from tests.integration.sweep_cases import CASES as SWEEP_CASES
 from tests.integration.test_plan_goldens import CASES, GENERIC_3T
 from tests.sim.helpers import load_scenario
 from tests.visa_loop.loop import DEFAULT_RESOURCE, LoopBus
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-MEASUREMENT_CASES: list[dict[str, Any]] = list(CASES)
+MEASUREMENT_CASES: list[dict[str, Any]] = [*CASES, *SWEEP_CASES]
 """The nine v1 runnable recipes with their card example requests (or recipe defaults) and v1 scenarios: the seven
-measurement recipes (WP5.5) and ``system.self_test``/``system.self_cal`` (kind ``system`` on visa, WP6.2)."""
+measurement recipes (WP5.5) and ``system.self_test``/``system.self_cal`` (kind ``system`` on visa, WP6.2); plus the
+five WP7.2 sweep recipes (``tests/integration/sweep_cases.CASES``: WI, WSV, MM 16, the two stepped families)."""
 
 DATA_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES if not c["recipe_id"].startswith("system.")]
 """The cases that write a run table (every recipe but ``system.*``)."""

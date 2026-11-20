@@ -22,7 +22,7 @@ from b1500_test_agent.rules.engine import RuleContext, RuleEnv
 SOURCING_FUNCTIONS = frozenset({"sweep_v", "bias_v", "step_v", "sync_v", "pulse_v"})
 """Role functions that force a programmed voltage and therefore need an explicit current compliance (R-COMP-01)."""
 
-CURRENT_SOURCING_FUNCTIONS = frozenset({"sweep_i", "bias_i", "step_i"})
+CURRENT_SOURCING_FUNCTIONS = frozenset({"sweep_i", "bias_i", "step_i", "sync_i"})
 """Role functions that force a programmed current and therefore need an explicit voltage compliance (R-COMP-01);
 their envelope's ``max_abs_i`` is the forced current and ``max_abs_v`` the compliance (R-LIM-01: I-source corners)."""
 

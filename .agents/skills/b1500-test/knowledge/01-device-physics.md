@@ -115,7 +115,9 @@ Seeded from deck slides 6, 10 and 15 ("three common extraction methods").
 - Methods differ by tens to hundreds of mV on the same curve; compare devices only with the same method, window,
   Vd and temperature.
 - Short-channel and body effects: Vth falls with Vd (DIBL), rises with source-body reverse bias (body effect,
-  Delta Vth = gamma (sqrt(2 phiF + Vsb) - sqrt(2 phiF))). Use the same Vd and bulk bias for comparisons.
+  Delta Vth = gamma (sqrt(2 phiF + Vsb) - sqrt(2 phiF))). Use the same Vd and bulk bias for comparisons. A
+  constant-current Vth at very small Vd also carries the weak-inversion drain factor 1 - exp(-|Vd|/U_T) (about
+  +0.7 mV at Vd 0.1 V, +5 mV at 50 mV), which a two-point DIBL counts as barrier lowering: keep Vd_lo ≥ 0.1 V.
 - PMOS: Vth negative, currents negative; the extraction uses |gm| and works for both polarities.
 
 ## MOSFET transconductance and mobility

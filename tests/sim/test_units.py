@@ -20,7 +20,7 @@ from b1500_test_agent.transport.sim.units.switch import SwitchUnit
 
 CORE = {"*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "*RST", "LOP?", "*TST?", "*CAL?", "NUB?", "FMT", "BC", "TSC",
         "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "CM", "*LRN?"}
-SMU = {"RI", "RV", "MM", "CMM", "DV", "WV", "WT", "WM", "XE"}
+SMU = {"RI", "RV", "MM", "CMM", "DV", "WV", "WT", "WM", "XE", "DI", "WI", "WSV", "WSI", "WNX", "WNCC"}
 SAMPLING = {"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"}
 CMU = {"CORRST?", "ADJ?"}
 SPGU = {"SPST?"}

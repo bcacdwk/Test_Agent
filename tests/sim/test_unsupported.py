@@ -10,7 +10,7 @@ from tests.sim.helpers import errx_all, run
 
 @pytest.mark.parametrize(
     "command",
-    ["DI 1,0,1E-6,1", "WI 1,1,0,0,1E-6,5,1", "ERR?", "EMG? 100", "TSR 1", "PV 1,0,0,1", "SSP 1,4", "WSV 2,0,0,1",
+    ["ERR?", "EMG? 100", "TSR 1", "PV 1,0,0,1", "SSP 1,4", "PWV 1,1,0,0,0,1,5,1E-3", "MCPWS 1,5",
      "ACV 7,0.03", "*LRN? 33", "INTLKVTH 0", "IN", "RZ 1", "FOO", "*SRE 32"],
 )  # fmt: skip
 def test_unsupported_command_queues_error_100_and_is_logged(make_sim, command: str) -> None:
@@ -35,7 +35,8 @@ def test_unsupported_command_stops_the_rest_of_its_line(make_sim) -> None:
 def test_supported_commands_are_exactly_the_v1_subset() -> None:
     """Blueprint 3 table: identity/status, buffer/format, channel, ADC/range, mode/source rows; v2 2.6 adds the
     auto-calibration switch ``CM`` and its read-back ``*LRN?`` (types 0 and 31); v2 7.1 (WP6.1) the family state
-    queries of the read-only probe; WP7.4 the SMU sampling setup and the timer reset."""
+    queries of the read-only probe; WP7.4 the SMU sampling setup and the timer reset; WP7.2 the current, synchronous
+    and multi-channel sweep sources."""
     assert flex.SUPPORTED == {
         "*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "*RST", "LOP?", "*TST?", "*CAL?",
         "FMT", "BC", "NUB?", "TSC",
@@ -45,6 +46,7 @@ def test_supported_commands_are_exactly_the_v1_subset() -> None:
         "CM", "*LRN?",
         "ERMOD?", "ERSSP?", "SPST?", "CORRST?", "ADJ?",
         "MCC", "ML", "MT", "MSC", "MV", "MI", "TSR",
+        "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
     }  # fmt: skip
 
 

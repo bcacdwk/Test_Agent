@@ -1,7 +1,7 @@
 """SMU operations: A/D converter, ranging, guarded DC force and staircase sweep setup (blueprint 2.5).
 
-``SmuOps`` is a mixin of ``B1500Driver``. Source operations (``force_v``, ``staircase_v``) refuse without an
-``OutputGuard`` and check every channel and value against it before the first byte is written; command texts come
+``SmuOps`` is a mixin of ``B1500Driver``. Source operations (``force_v``, ``force_i``, ``staircase``) refuse without
+an ``OutputGuard`` and check every channel and value against it before the first byte is written; command texts come
 from ``driver/flex/smu.py`` and ``driver/flex/core.py`` (``MM``).
 """
 
@@ -25,27 +25,85 @@ ADC_MODE_CODES: dict[str, int] = {"auto": 0, "manual": 1, "plc": 2}
 
 CmmMode = Annotated[int, Field(ge=0, le=4)]
 
+MULTI_CHANNEL_SWEEP = 16
+"""``MM 16``: multi-channel sweep, a ``WV``/``WI`` primary plus up to nine ``WNX`` sources (PG PDF 102, 471)."""
+
+MAX_WNX_SOURCES = 9
+"""``WNX`` sources besides the primary in MM 16 (``N`` = 2 to 10, PG PDF 557)."""
+
+
+def _norm(channel: int) -> int:
+    return channel * 100 + 1 if channel <= 10 else channel
+
+
+def _same_polarity(start: float, stop: float) -> bool:
+    return start != 0 and stop != 0 and (start > 0) == (stop > 0)
+
+
+class SweepSource(StrictModel):
+    """A sweep source that follows the primary sweep step by step (PG PDF 97, 102): the synchronous ``WSV``/``WSI``
+    source of an MM 2 sweep (same output mode as the primary) or a ``WNX`` source of an MM 16 sweep (either mode).
+
+    ``source`` is what the channel forces (``V`` or ``I``); it goes from ``start`` to ``stop`` in the primary's steps
+    and sweep mode (linear/log, single/double); ``start`` = ``stop`` is a constant source. ``comp`` is the compliance
+    (A for a voltage source, V for a current source; non-zero, polarity automatic), ``range`` the output ranging code
+    (Table 4-4 for V, Table 4-5 for I; 0 = auto).
+    """
+
+    channel: Channel
+    source: Literal["V", "I"]
+    start: float
+    stop: float
+    comp: float
+    range: int = 0
+
+    @model_validator(mode="after")
+    def _consistent(self) -> SweepSource:
+        if self.comp == 0:
+            raise ValueError("comp must be non-zero.")
+        codes = flex.V_RANGE_CODES if self.source == "V" else flex.I_OUTPUT_RANGE_CODES
+        if self.range not in codes:
+            raise ValueError(f"range {self.range} is not an output ranging code of a {self.source} source.")
+        return self
+
+    def levels(self) -> tuple[float, float]:
+        """``(start, stop)``."""
+        return self.start, self.stop
+
 
 class StaircaseSetup(StrictModel):
-    """One staircase voltage sweep (``MM 2``, ``CMM``, ``WV``, ``WT``, ``WM``; PG PDF 470, 380, 568-569, 564-565,
+    """One staircase sweep: ``MM 2`` or ``MM 16``, ``CMM``, the primary ``WV``/``WI``, a synchronous ``WSV``/``WSI``
+    (MM 2) or ``WNX`` sources (MM 16), ``WT``, ``WM`` (PG PDF 470-471, 380, 568-569, 551-552, 556-563, 564-565,
     552-553).
 
-    ``channel`` sweeps from ``start`` to ``stop`` (V) in ``points`` steps with current compliance ``icomp`` (A,
-    non-zero; polarity follows the output) on voltage output range code ``vrange`` (Table 4-4; 0 = auto).
-    ``measure`` lists the measurement channels in measurement order (data order in each step). ``operation`` sets
-    ``CMM`` for some of them (0 compliance side, 1 current, 2 voltage, 3 force side, 4 synchronous I/V); unlisted
-    channels keep their mode. ``auto_abort`` enables ``WM`` abort (stop on compliance, overflow or oscillation; data
-    after the abort read ``199.999E+99``) and ``post`` chooses the output after a normal end.
+    The primary ``channel`` forces ``source`` (``V``: ``WV`` with current compliance ``icomp`` (A) on voltage output
+    range code ``vrange``; ``I``: ``WI`` with voltage compliance ``vcomp`` (V) on current output range code
+    ``irange``) from ``start`` to ``stop`` in ``points`` steps, ``sweep`` linear or log, ``double`` (start-stop-start,
+    2 x points steps). ``sync`` is the one synchronous source of an MM 2 sweep (output mode = the primary's, PG PDF
+    97); ``multi_channel`` selects MM 16, whose ``sources`` are the ``WNX`` sources ``N`` = 2, 3, ... in this order
+    (either output mode; MM 16 without them is a legal one-source multi-channel sweep, PG Table 3-13). Every source
+    follows the primary's steps and sweep mode; log sweeps need every source's start and stop non-zero and of one
+    polarity. ``measure`` lists the measurement channels in measurement order (data order in each step).
+    ``operation`` sets ``CMM`` for some of them (0 compliance side, 1 current, 2 voltage, 3 force side, 4
+    synchronous I/V); unlisted channels keep their mode. ``auto_abort`` enables ``WM`` abort (stop on compliance,
+    overflow or oscillation; data after the abort read ``199.999E+99``) and ``post`` chooses the output after a
+    normal end.
     """
 
     channel: Channel
     start: float
     stop: float
-    points: int = Field(ge=1, le=10001)
-    icomp: float
+    points: int = Field(ge=1, le=flex.MAX_SWEEP_STEPS)
+    source: Literal["V", "I"] = "V"
+    icomp: float | None = None
+    vcomp: float | None = None
     vrange: int = 0
+    irange: int = 0
     sweep: Literal["linear", "log"] = "linear"
     double: bool = False
+    sync: SweepSource | None = None
+    multi_channel: bool = False
+    sources: tuple[SweepSource, ...] = Field(default=(), max_length=MAX_WNX_SOURCES)
     measure: tuple[Channel, ...] = Field(min_length=1, max_length=flex.MAX_CHANNELS_MM)
     operation: dict[Channel, CmmMode] = Field(default_factory=dict)
     timing: SweepTiming = Field(default_factory=SweepTiming)
@@ -54,27 +112,92 @@ class StaircaseSetup(StrictModel):
 
     @model_validator(mode="after")
     def _consistent(self) -> StaircaseSetup:
-        if self.icomp == 0:
-            raise ValueError("icomp must be non-zero.")
-        if self.vrange not in flex.V_RANGE_CODES:
-            raise ValueError(f"vrange {self.vrange} is not a PG Table 4-4 voltage output ranging code.")
+        if self.source == "V":
+            if self.icomp is None or self.icomp == 0:
+                raise ValueError("a voltage sweep (WV) needs a non-zero icomp.")
+            if self.vcomp is not None or self.irange != 0:
+                raise ValueError("vcomp and irange belong to a current sweep (WI).")
+            if self.vrange not in flex.V_RANGE_CODES:
+                raise ValueError(f"vrange {self.vrange} is not a PG Table 4-4 voltage output ranging code.")
+        else:
+            if self.vcomp is None or self.vcomp == 0:
+                raise ValueError("a current sweep (WI) needs a non-zero vcomp.")
+            if self.icomp is not None or self.vrange != 0:
+                raise ValueError("icomp and vrange belong to a voltage sweep (WV).")
+            if self.irange not in flex.I_OUTPUT_RANGE_CODES:
+                raise ValueError(f"irange {self.irange} is not a PG Table 4-5 current output ranging code.")
         if len(set(self.measure)) != len(self.measure):
             raise ValueError("A measurement channel is listed twice.")
         if not set(self.operation) <= set(self.measure):
             raise ValueError("operation names a channel that is not measured.")
-        if self.sweep == "log" and (self.start == 0 or self.stop == 0 or (self.start > 0) != (self.stop > 0)):
-            raise ValueError("A log sweep needs non-zero start and stop of the same polarity.")
+        if self.sync is not None and self.multi_channel:
+            raise ValueError("a multi-channel sweep (MM 16) takes WNX sources, not a WSV/WSI synchronous source.")
+        if self.sources and not self.multi_channel:
+            raise ValueError("WNX sources need multi_channel (MM 16).")
+        if self.sync is not None and self.sync.source != self.source:
+            raise ValueError("the synchronous source must use the primary's output mode (WSV after WV, WSI after WI).")
+        sources = [s.channel for s in self.followers]
+        if len({_norm(ch) for ch in [self.channel, *sources]}) != len(sources) + 1:
+            raise ValueError("a sweep source channel is listed twice.")
+        if self.sweep == "log":
+            for start, stop in [(self.start, self.stop), *(s.levels() for s in self.followers)]:
+                if not _same_polarity(start, stop):
+                    raise ValueError("A log sweep needs non-zero start and stop of the same polarity on every source.")
         return self
 
     @property
+    def followers(self) -> list[SweepSource]:
+        """The sources that follow the primary: the synchronous source or the ``WNX`` sources (in ``N`` order)."""
+        return [self.sync] if self.sync is not None else list(self.sources)
+
+    @property
+    def mode(self) -> int:
+        """``MM`` mode: 2 (staircase sweep) or 16 (multi-channel sweep)."""
+        return MULTI_CHANNEL_SWEEP if self.multi_channel else 2
+
+    @property
+    def comp(self) -> float:
+        """Compliance of the primary source (A for ``WV``, V for ``WI``)."""
+        value = self.icomp if self.source == "V" else self.vcomp
+        assert value is not None  # the validator guarantees it
+        return value
+
+    @property
     def wv_mode(self) -> int:
-        """``WV`` mode: 1 linear, 2 log, 3 linear double, 4 log double."""
+        """``WV``/``WI`` mode: 1 linear, 2 log, 3 linear double, 4 log double."""
         return (1 if self.sweep == "linear" else 2) + (2 if self.double else 0)
 
+    def commands(self) -> list[str]:
+        """The setup commands in sending order: ``MM``, ``CMM`` per ``operation``, ``WV``/``WI``, ``WSV``/``WSI`` or
+        ``WNX`` (after the primary, which clears them), ``WT``, ``WM``. ``XE`` is not part of the setup."""
+        timing = self.timing
+        if self.source == "V":
+            primary = flex.wv(self.channel, self.wv_mode, self.vrange, self.start, self.stop, self.points,
+                              self.comp)
+        else:
+            primary = flex.wi(self.channel, self.wv_mode, self.irange, self.start, self.stop, self.points,
+                              self.comp)
+        followers: list[str] = []
+        if self.sync is not None:
+            build = flex.wsv if self.sync.source == "V" else flex.wsi
+            followers.append(build(self.sync.channel, self.sync.range, self.sync.start, self.sync.stop,
+                                   self.sync.comp))
+        for n, item in enumerate(self.sources, start=2):
+            followers.append(flex.wnx(n, item.channel, item.source, item.range, item.start, item.stop, item.comp))
+        return [
+            flex.mm(self.mode, self.measure),
+            *(flex.cmm(ch, op) for ch, op in self.operation.items()),
+            primary,
+            *followers,
+            flex.wt(timing.hold_s, timing.delay_s, timing.step_delay_s, timing.trigger_delay_s,
+                    timing.measure_delay_s),
+            flex.wm(2 if self.auto_abort else 1, 1 if self.post == "start" else 2),
+        ]
 
 
 class SmuOps(DriverBase):
-    """SMU operations of ``B1500Driver``: integration, ranging, guarded ``DV`` and staircase ``WV`` setup."""
+    """SMU operations of ``B1500Driver``: integration, ranging, guarded ``DV``/``DI`` and the staircase sweep setup
+    (``WV``/``WI`` primary, ``WSV``/``WSI`` synchronous or ``WNX`` multi-channel sources)."""
 
     def set_integration(self, adc: int, mode: int, n: float, *, chs: Sequence[int] = ()) -> None:
         """``AAD ch,adc`` for each of ``chs``, then ``AIT adc,mode,n`` (PG PDF 351, 356-359)."""
@@ -100,22 +223,27 @@ class SmuOps(DriverBase):
         self._require_guard("force_v", ch).check(ch, "V", v, icomp)
         self._write(flex.dv(ch, rng, v, icomp))
 
-    def staircase_v(self, setup: StaircaseSetup) -> None:
-        """Guarded staircase voltage sweep setup: ``MM 2,<measure>``, ``CMM`` per ``operation``, ``WV``, ``WT``,
-        ``WM`` (PG PDF 470, 380, 568-569, 564-565, 552-553). Both sweep end points are checked before anything is
-        written; ``XE`` is sent by ``execute_and_read``."""
-        guard = self._require_guard("staircase_v", setup.channel)
-        guard.check(setup.channel, "V", setup.start, setup.icomp)
-        guard.check(setup.channel, "V", setup.stop, setup.icomp)
-        timing = setup.timing
-        cmds = [
-            flex.mm(2, setup.measure),
-            *(flex.cmm(ch, op) for ch, op in setup.operation.items()),
-            flex.wv(setup.channel, setup.wv_mode, setup.vrange, setup.start, setup.stop, setup.points, setup.icomp),
-            flex.wt(
-                timing.hold_s, timing.delay_s, timing.step_delay_s, timing.trigger_delay_s, timing.measure_delay_s
-            ),
-            flex.wm(2 if setup.auto_abort else 1, 1 if setup.post == "start" else 2),
-        ]
-        for cmd in cmds:
+    def force_i(self, ch: int, i: float, *, vcomp: float, rng: int = 0) -> None:
+        """Guarded ``DI ch,rng,i,vcomp`` (PG PDF 391-392): the current against the channel's current envelope, the
+        voltage compliance against its voltage envelope."""
+        self._require_guard("force_i", ch).check(ch, "I", i, vcomp)
+        self._write(flex.di(ch, rng, i, vcomp))
+
+    def staircase(self, setup: StaircaseSetup) -> None:
+        """Guarded staircase sweep setup (``StaircaseSetup.commands``: ``MM 2|16``, ``CMM``, ``WV``/``WI``,
+        ``WSV``/``WSI`` or ``WNX``, ``WT``, ``WM``). Both end points of every source are checked against the guard
+        before anything is written; ``XE`` is sent by ``execute_and_read``."""
+        guard = self._require_guard("staircase", setup.channel)
+        guard.check(setup.channel, setup.source, setup.start, setup.comp)
+        guard.check(setup.channel, setup.source, setup.stop, setup.comp)
+        for follower in setup.followers:
+            for level in follower.levels():
+                guard.check(follower.channel, follower.source, level, follower.comp)
+        for cmd in setup.commands():
             self._write(cmd)
+
+    def staircase_v(self, setup: StaircaseSetup) -> None:
+        """The v1 entry point: a staircase sweep with a voltage (``WV``) primary; see ``staircase``."""
+        if setup.source != "V":
+            raise ValueError("staircase_v sets a voltage primary sweep; use staircase for a WI primary.")
+        self.staircase(setup)

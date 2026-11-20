@@ -16,11 +16,12 @@ SMU I-V with HRSMU/MPSMU and the GNDU: contact and resistance, diode, MOSFET DC,
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
 | smu | contact check, landing, resistance, open/short, 2-wire R | [contact-resistor-check](smu/contact-resistor-check.md) | `basic.contact_resistor` | sim_validated | HRSMU, MPSMU, GNDU | L2 |
-| smu | diode, Is, ideality, Rs, reverse leakage, forward I-V | [diode-iv](smu/diode-iv.md) | `basic.diode_iv` | sim_validated | HRSMU, GNDU | L3 |
+| smu | diode, Is, ideality, Rs, reverse leakage, forward I-V, forward voltage, Vf, current forcing | [diode-iv](smu/diode-iv.md) | `basic.diode_iv`, `basic.iv_force_i` | sim_validated | HRSMU, GNDU | L3 |
 | smu | gate leakage, Ig, oxide, Ig-Vg | [gate-leakage](smu/gate-leakage.md) | `mosfet.gate_leakage` | sim_validated | HRSMU, MPSMU, GNDU | L4 |
 | smu | output curves, Id-Vd, Ron, gds, saturation | [mosfet-idvd](smu/mosfet-idvd.md) | `mosfet.idvd` | sim_validated | HRSMU, MPSMU, GNDU | L4 |
-| smu | Vth, gm, SS, Ion/Ioff, Id-Vg, transfer curve | [mosfet-idvg](smu/mosfet-idvg.md) | `mosfet.idvg` | sim_validated | HRSMU, MPSMU, GNDU | L4 |
+| smu | Vth, gm, SS, Ion/Ioff, Id-Vg, transfer curve, DIBL, body effect, Vth vs Vd, saturation Vth | [mosfet-idvg](smu/mosfet-idvg.md) | `mosfet.idvg`, `mosfet.idvg_family`, `mosfet.idvg_sync`, `mosfet.body_effect` | sim_validated | HRSMU, MPSMU, GNDU | L4 |
 | smu | sampling, I(t), Id(t), transient, time dependence, bias-stress drift, IGZO, relaxation, tau | [smu-sampling](smu/smu-sampling.md) | `mosfet.id_t_sampling`, `generic.smu_sampling` | sim_validated | HRSMU, MPSMU, GNDU | L5 |
+| smu | multi-channel sweep, MM 16, several sweep terminals, simultaneous sweep, generic sweep, WNX | [smu-spot-kelvin](smu/smu-spot-kelvin.md) | `generic.smu_multi_sweep` | sim_validated | HRSMU, MPSMU, GNDU | L2 |
 | smu | Generic SMU staircase sweep (ad-hoc; one swept, one optional biased, one ground terminal) | no card by design: ask the human first | `generic.smu_staircase` | sim_validated | - | - |
 | smu | reserved: Compare a measured run with an HSPICE simulation | [reserved](reserved/README.md) | `hspice.compare` | not_implemented | - | - |
 

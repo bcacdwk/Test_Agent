@@ -83,13 +83,14 @@ MAX_CHANNELS_CN_CL_DZ = 15
 """``CN``, ``CL`` and ``DZ`` take at most 15 channels (PDF 378, 381, 397)."""
 
 MAX_CHANNELS_MM = 10
-"""``MM`` modes 1 and 2 take at most ten channels (PDF 470)."""
+"""``MM`` modes 1, 2, 10 and 16 take at most ten channels (PDF 470)."""
 
 FORMATS = frozenset({1, 5})
 """``FMT`` formats this driver sends: ASCII with header, CR/LF (1) or comma (5) terminated (Table 4-24, PDF 437)."""
 
-MEASUREMENT_MODES = frozenset({1, 2, 10})
-"""``MM`` modes this driver sends: 1 spot, 2 staircase sweep, 10 sampling (Table 4-28, PDF 471-472)."""
+MEASUREMENT_MODES = frozenset({1, 2, 10, 16})
+"""``MM`` modes this driver sends: 1 spot, 2 staircase sweep, 10 sampling, 16 multi-channel sweep (Table 4-28,
+PDF 471-472)."""
 
 LRN_TYPES = range(111)
 """``*LRN?`` type parameter: 0 to 110 (some numbers unused; PG PDF 447, printed 4-129)."""
@@ -207,8 +208,10 @@ def mm(mode: int, chs: Sequence[int]) -> str:
     """``MM mode,chnum[,chnum...]``: measurement mode and measurement channels (PG PDF 470-471, printed 4-152 to
     4-153; Table 4-28).
 
-    ``mode`` 1 (spot), 2 (staircase sweep) or 10 (sampling) with one to ten channels; with several channels they
-    measure in the given order. Other modes are refused until a measurement kind implements them.
+    ``mode`` 1 (spot), 2 (staircase sweep), 10 (sampling) or 16 (multi-channel sweep: ``WV``/``WI`` primary plus
+    ``WNX`` sources) with one to ten channels; with several channels they measure in the given order (MM 16:
+    channels on the high-speed ADC with fixed ranging first, simultaneously, PDF 471). Other modes are refused until
+    a measurement kind implements them.
     """
     _choice(mode, MEASUREMENT_MODES, "MM mode")
     return f"MM {mode},{','.join(str(ch) for ch in _channels(chs, limit=MAX_CHANNELS_MM, required=True))}"

@@ -58,7 +58,8 @@ def test_idvd_compiles_to_envelope_estimate_preview_and_program() -> None:
         "DV 5,0,0.5,1E-06", "XE", "DV 5,0,1,1E-06", "XE", "DV 5,0,1.5,1E-06", "XE", "DV 5,0,2,1E-06", "XE",
     ]
     program = SteppedProgram.model_validate(json.loads(json.dumps(compiled.program)))
-    assert program.step_values == [0.5, 1.0, 1.5, 2.0] and program.step_channel == 5 and program.step_icomp == 1e-6
+    assert program.step_values == [0.5, 1.0, 1.5, 2.0] and program.step_channel == 5 and program.step_comp == 1e-6
+    assert program.step_source == "V"
     assert program.step_role == "gate" and program.step_column == "gate_V"
     assert program.staircase.biases == [] and program.staircase.source_columns == {}  # the step is not a bias
     assert [m.role for m in program.staircase.measure] == ["drain", "gate"] and program.staircase.width == 3
@@ -102,8 +103,8 @@ def test_unbound_step_or_sweep_compiles_to_no_program() -> None:
 
 @pytest.mark.parametrize(("data", "message"), [
     ({**IDVD, "roles": {**IDVD["roles"], "gate": {**IDVD["roles"]["gate"], "function": "bias_v"}}},
-     "exactly one step_v role"),
-    ({**IDVD, "roles": {**IDVD["roles"], "bulk": {**IDVD["roles"]["gate"]}}}, "exactly one step_v role"),
+     "exactly one step_v or step_i role"),
+    ({**IDVD, "roles": {**IDVD["roles"], "bulk": {**IDVD["roles"]["gate"]}}}, "exactly one step_v or step_i role"),
     ({**IDVD, "roles": {**IDVD["roles"], "gate": {**IDVD["roles"]["gate"], "measure": ["V"]}}}, "must not measure V"),
     (with_gate(start=1.0, stop=1.0, points=3, icomp="$icomp_gate"), "distinct"),
     (with_gate(start=0.0, stop=1.0, icomp="$icomp_gate"), "points must be a positive integer"),

@@ -26,18 +26,19 @@ ROOT = Path(__file__).resolve().parents[2]
 SKILL_DIR = ROOT / ".agents" / "skills" / "b1500-test"
 CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system card, blueprint 6.3)
     "smu/contact-resistor-check": ["basic.contact_resistor"],
-    "smu/diode-iv": ["basic.diode_iv"],
-    "smu/mosfet-idvg": ["mosfet.idvg"],
+    "smu/diode-iv": ["basic.diode_iv", "basic.iv_force_i"],
+    "smu/mosfet-idvg": ["mosfet.idvg", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect"],
     "smu/mosfet-idvd": ["mosfet.idvd"],
     "smu/gate-leakage": ["mosfet.gate_leakage"],
     "nvm/fefet-dual-sweep-mw": ["fefet.dual_sweep_mw"],
     "system/self-test-cal": ["system.self_test", "system.self_cal"],
     "smu/smu-sampling": ["mosfet.id_t_sampling", "generic.smu_sampling"],  # WP7.4
     "reliability/tddb-bdv": ["reliability.tddb_cvs"],  # WP7.4 (CVS part; WP7.5 adds the BDV recipes)
+    "smu/smu-spot-kelvin": ["generic.smu_multi_sweep"],  # WP7.2: the multi-channel sweep part (WP7.1: spot, Kelvin)
 }
 STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfet-idvg": "L4", "smu/mosfet-idvd": "L4",
             "smu/gate-leakage": "L4", "nvm/fefet-dual-sweep-mw": "L7", "system/self-test-cal": "L1",
-            "smu/smu-sampling": "L5", "reliability/tddb-bdv": "L9"}
+            "smu/smu-sampling": "L5", "reliability/tddb-bdv": "L9", "smu/smu-spot-kelvin": "L2"}
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault"}

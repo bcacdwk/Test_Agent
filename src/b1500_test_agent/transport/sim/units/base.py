@@ -94,3 +94,5 @@ class Measurement:
     abort_source_levels: dict[int, tuple[float, float]] | None = None
     """Sampling: what the synchronous sources hold after an ``AB`` or device clear ends the measurement early
     (their base values)."""
+    post_at_stop: bool = False
+    """After a normal end, the sweep sources keep their stop values (``WM`` post 2); otherwise their start values."""

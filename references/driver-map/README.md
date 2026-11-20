@@ -66,28 +66,31 @@ naming it), `note`.
 | `*IDN?` / `UNT?` / `ERRX?` / `*STB?` / `LOP?` | `identify` / `modules` / `errors` / `status_byte` / `output_state` | `IDN_Q` / `UNT_Q` / `ERRX_Q` / `STB_Q` / `LOP_Q` |
 | `AB` / `DZ` / `CL` | `abort` / `zero` / `disconnect` | `AB` / `dz` / `cl` |
 | `*RST` / `*TST?` / `*CAL?` | `reset` / `self_test` / `self_calibrate` | `RST` / `TST_Q` / `CAL_Q` (added by WP1.3) |
-| `FMT` / `AAD`, `AIT` / `RI`, `RV` / `CN` / `DV` | `set_format` / `set_integration` / `set_range` / `enable` / `force_v` | `fmt` / `aad`, `ait` / `ri`, `rv` / `cn` / `dv` |
-| `MM` (mode 2 only), `CMM`, `WV`, `WT`, `WM` | `staircase_v` | `mm`, `cmm`, `wv`, `wt`, `wm` |
+| `FMT` / `AAD`, `AIT` / `RI`, `RV` / `CN` / `DV` / `DI` | `set_format` / `set_integration` / `set_range` / `enable` / `force_v` / `force_i` | `fmt` / `aad`, `ait` / `ri`, `rv` / `cn` / `dv` / `di` |
+| `MM` (modes 2 and 16), `CMM`, `WV`, `WI`, `WSV`, `WSI`, `WNX`, `WT`, `WM` | `staircase` (`staircase_v`: the v1 voltage-primary entry) | `mm`, `cmm`, `wv`, `wi`, `wsv`, `wsi`, `wnx`, `wt`, `wm` |
 | `MM 10`, `MCC`, `ML`, `MT`, `MSC`, `MV`, `MI` (sampling; WP7.4) | `sampling_setup` (`MT`, `MV`/`MI` also `sampling_update`) | `mm`, `mcc`, `ml`, `mt`, `msc`, `mv`, `mi` |
 | `TSC` / `TSR` (time stamps; WP7.4) | `set_time_stamp` / `reset_timer` | `tsc` / `tsr` |
 | `XE` + output-buffer read | `execute_and_read` | `XE` |
 | `*OPC?` | `wait_complete` (added by WP1.3) | `OPC_Q` |
 
-Every other mnemonic is `unmapped`: 255 of the 280 command entries, and 239 of the 282 atoms (all 42 D atoms
-among them). Of the 43 mapped atoms, 19 are partial. Some partial atoms share only `XE` with the driver, such
-as the CMU, pulsed and sampling execute atoms, because their `MM` mode is not supported.
+Mapped since: `CM`, `*LRN?` (WP5.6); the probe queries `ERMOD?`, `ERSSP?`, `SPST?`, `CORRST?`, `ADJ?` (WP6.1); the
+sampling setup `MM 10`, `MCC`, `ML`, `MT`, `MSC`, `MV`, `MI` and the time stamps `TSC`, `TSR` (WP7.4); `DI`, `WI`,
+`WSV`, `WSI`, `WNX` and `MM 16` (WP7.2). Every other mnemonic is `unmapped`: 235 of the 280 command entries, and 225
+of the 282 atoms (all 42 D atoms among them). Of the 57 mapped atoms, 18 are partial. Some partial atoms share only
+`XE` with the driver, such as the CMU (C-t sampling included), pulsed and QSCV execute atoms, because their `MM` mode
+is not supported.
 
 ## Priority scale
 
 | Priority | Meaning | Atoms |
 |---|---|---|
-| `m1` | M1 vertical path (status → validate → staircase Id-Vg → archive → Vth), `safe_shutdown` cleanup and `system.*` self-test/self-cal. These are the §2.3 driver methods plus the M1 analysis/archive successors of D atoms | 44 |
-| `m2` | M2 SMU recipe pack: the six cards, stepped and double sweeps, and the M2 analysis methods. Also the rest of the simulator's FLEX subset v1 (`AV`, `BC`, `NUB?`, `TSC`), plus `DI`/`WI` only if a card needs them | 14 |
-| `later` | Reserved, `not_implemented` or M4+: pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC units and expanders, ASU/SCUU, selectors and DIO, EasyEXPERT, timestamps, program memory and the like | 224 |
+| `m1` | M1 vertical path (status → validate → staircase Id-Vg → archive → Vth), `safe_shutdown` cleanup and `system.*` self-test/self-cal. These are the §2.3 driver methods plus the M1 analysis/archive successors of D atoms; v2 additions that map (above) count here too | 53 |
+| `m2` | M2 SMU recipe pack: the six cards, stepped and double sweeps, and the M2 analysis methods. Also the rest of the simulator's FLEX subset v1 (`AV`, `BC`, `NUB?`, `TSC`) | 12 |
+| `later` | Reserved, `not_implemented` or M4+: pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC units and expanders, ASU/SCUU, selectors and DIO, EasyEXPERT, timestamps, program memory and the like | 217 |
 
 How a priority is set:
 1. A mapped FLEX entry counts as `m1`. An unmapped one counts as `m2` if it is in `M2_COMMANDS`, else `later`.
-   An `MM <n>` entry of a mode without a driver method (`MM_MODE_TARGETS`: 2, 10) is `later`. Host tokens: the output-buffer read and `session.close` are `m1`.
+   An `MM <n>` entry of a mode without a driver method (`MM_MODE_TARGETS`: 2, 10, 16) is `later`. Host tokens: the output-buffer read and `session.close` are `m1`.
    WGFMU and EasyEXPERT tokens are `later`. An atom starts at the latest priority among its entries.
 2. If the atom id names a later-scope unit (`wgfmu`, `easyexpert`, `spgu`, `cmu`, `qscv`, `hvsmu`, `hcsmu`,
    `uhcu`, `hvmcu`, `uhvu`, `asu`, `scuu`, `selector`, `dio`), the atom is `later` even if `XE` maps.

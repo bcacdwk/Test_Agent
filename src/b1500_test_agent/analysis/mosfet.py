@@ -1,5 +1,6 @@
-"""MOSFET extraction (blueprint 2.8): transconductance, threshold voltage (three methods), subthreshold swing,
-maximum gm, Ion/Ioff of a transfer curve (Id-Vg) and the output metrics of an Id-Vd family.
+"""MOSFET extraction (blueprint 2.8; v2 2.10): transconductance, threshold voltage (three methods), subthreshold
+swing, maximum gm, Ion/Ioff of a transfer curve (Id-Vg), the output metrics of an Id-Vd family and the threshold
+families of transfer curves at several drain or body biases (DIBL, body effect).
 
 Definitions (the single source of knowledge file ``06-analysis-extraction.md`` of skill ``b1500-test``; change both
 together). Transfer-curve methods default to ``x="gate_V"``, ``y="drain_I"`` and analyse one sweep segment
@@ -46,6 +47,8 @@ together). Transfer-curve methods default to ``x="gate_V"``, ``y="drain_I"`` and
   The results are those of one curve (``curve`` = its step level; default the strongest drive, the largest |step|,
   in ``fit["step_v"]``); each also lists that quantity for every curve of the family in ``fit`` under
   ``<step>=<level>`` (e.g. ``gate_V=1.5``), and the other curves' refusals or failures as warnings.
+- **Threshold families** (``dibl``, ``body_effect``): transfer curves at several drain or body biases, defined in
+  ``mosfet_family.py`` (constant-current Vth per curve as above).
 
 Trust and refusal (every method; ``criteria``, default ``QualityCriteria()``): a row's level is the worst of its
 measured values. Limited (``C``/``T``) and untrusted rows never enter a derivative, a fit or an interpolation;
@@ -409,18 +412,31 @@ def vth_constant_current(
     if problems and not force:
         return out.refused("vth", "V", problems, excluded=r.excluded())
     out.flag(problems)
+    found = _cc_crossing(r, i_crit, y, f"segment {segment}")
+    if isinstance(found, str):
+        return out.failed("vth", "V", found, excluded=r.excluded())
+    value, (i0, i1), fit, warnings = found
+    r.use([i0, i1])
+    return out.ok("vth", value, "V", excluded=r.excluded(), points_used=2,
+                  window=window_of(np.array([r.xs[i0], r.xs[i1]]), "V"), fit=fit, warnings=warnings)
+
+
+def _cc_crossing(r: Rows, i_crit: float, y: str, where: str
+                 ) -> tuple[float, tuple[int, int], dict[str, float], list[str]] | str:
+    """The constant-current crossing of the usable rows (module docstring): ``(Vth, (i0, i1) positions in xs,
+    fit, warnings)``, or why it failed."""
     xs, ys = r.xs, r.ys
     if xs.size < 2:
-        return out.failed("vth", "V", f"Only {xs.size} trusted point(s) in segment {segment}.", excluded=r.excluded())
+        return f"Only {xs.size} trusted point(s) in {where}."
     order = np.argsort(xs) if increasing_with_x(xs, ys) else np.argsort(xs)[::-1]
     a = np.abs(ys[order])
     below = a < i_crit
     crossings = np.flatnonzero(below[:-1] & ~below[1:])
     if not crossings.size:
-        return out.failed("vth", "V", f"|{y}| never rises through I_crit = {i_crit:.3g} A within the trusted points "
-                          f"(|{y}| spans {a.min():.3g}..{a.max():.3g} A).", excluded=r.excluded())
+        return (f"|{y}| never rises through I_crit = {i_crit:.3g} A within the trusted points of {where} "
+                f"(|{y}| spans {a.min():.3g}..{a.max():.3g} A).")
     k = int(crossings[0])
-    i0, i1 = order[k], order[k + 1]
+    i0, i1 = int(order[k]), int(order[k + 1])
     lo_i, hi_i = max(a[k], 1e-300), a[k + 1]
     frac = (np.log10(i_crit) - np.log10(lo_i)) / (np.log10(hi_i) - np.log10(lo_i)) if hi_i > lo_i else 1.0
     value = float(xs[i0] + frac * (xs[i1] - xs[i0]))
@@ -428,10 +444,7 @@ def vth_constant_current(
     if crossings.size > 1:
         warnings.append(f"|{y}| crosses I_crit {crossings.size} times (noise near I_crit?); the first crossing in "
                         "the direction of increasing current is used.")
-    r.use([i0, i1])
-    return out.ok("vth", value, "V", excluded=r.excluded(), points_used=2,
-                  window=window_of(np.array([xs[i0], xs[i1]]), "V"),
-                  fit={"i_crit": i_crit, "i_below": float(a[k]), "i_above": float(a[k + 1])}, warnings=warnings)
+    return value, (i0, i1), {"i_crit": i_crit, "i_below": float(a[k]), "i_above": float(a[k + 1])}, warnings
 
 
 @validate_call(config=_CALL_CONFIG)

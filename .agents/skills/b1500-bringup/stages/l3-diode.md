@@ -1,21 +1,25 @@
 ---
 stage: L3
 title: Known diode - voltage forcing, compliance flags, Is/n/Rs against the data sheet and EasyEXPERT
-recipes: [basic.diode_iv]
+recipes: [basic.diode_iv, basic.iv_force_i]
 checks:
   - {id: n, recipe: basic.diode_iv, quantity: n, method: diode_fit, reference: 'data sheet / EasyEXPERT fit of the same sweep', text: 'plausible: 1.0 to 2.0 for a Si diode'}
   - {id: is, recipe: basic.diode_iv, quantity: is, method: diode_fit, unit: A, reference: 'data sheet / EasyEXPERT fit of the same sweep', text: recorded (plausible order of magnitude)}
   - {id: rs, recipe: basic.diode_iv, quantity: rs, method: diode_fit, unit: Ohm, reference: data sheet, text: recorded}
   - {id: leakage, recipe: basic.diode_iv, quantity: leakage, method: leakage_at, unit: A, reference: EasyEXPERT reverse current at the same voltage, tolerance: {factor: 2}, text: 'within a factor 2 (both above 10 pA)'}
   - {id: cleanup, recipe: basic.diode_iv, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
+  - {id: vf_1ma, recipe: basic.iv_force_i, quantity: vf, method: forward_voltage, unit: V, reference: 'EasyEXPERT forward voltage at 1 mA (current forcing), same diode', tolerance: {absolute: 0.005}, text: '+-5 mV'}
+  - {id: n_force_i, recipe: basic.iv_force_i, quantity: n, method: diode_fit, reference: 'n of basic.diode_iv on the same diode (this stage)', tolerance: {rel: 0.05}, text: '+-5 % of the voltage-forced n'}
+  - {id: force_i_cleanup, recipe: basic.iv_force_i, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
 version: 1
 ---
 
 # L3 - Known diode
 
 Voltage forcing over five decades of current and the compliance flags. Recipe `basic.diode_iv` (card `diode-iv`):
-reverse then forward staircase, defaults -5 V to 0.8 V, 291 points, 10 mA compliance, leakage limit 1 nA. Current
-forcing (`basic.iv_force_i`) joins this stage with its recipe. Every hardware plan needs consent (`first_hw_run`).
+reverse then forward staircase, defaults -5 V to 0.8 V, 291 points, 10 mA compliance, leakage limit 1 nA. Then
+current forcing, `basic.iv_force_i` (same card): log current sweep 1 nA to 10 mA, 71 points, 2 V voltage compliance,
+Vf at 1 mA. Every hardware plan needs consent (`first_hw_run`).
 
 ## 1. Preconditions
 
@@ -46,7 +50,9 @@ forcing (`basic.iv_force_i`) joins this stage with its recipe. Every hardware pl
    status counts (compliance `C` rows are excluded from the fit), backend visa.
 4. Ask the human for the EasyEXPERT values at the same voltages (forward current at 0.4, 0.5, 0.6 V; reverse
    current at `v_rev`) and compare.
-5. Hardware: the recipe record (section 6).
+5. `basic.iv_force_i` on the same pin map and profile, defaults: same flow; `forward_voltage` (Vf at 1 mA) and
+   `diode_fit`; compare Vf with the EasyEXPERT value at 1 mA and n with step 3.
+6. Hardware: the recipe records (section 6).
 
 ## 4. Expected values
 
@@ -57,6 +63,9 @@ forcing (`basic.iv_force_i`) joins this stage with its recipe. Every hardware pl
 | `rs` | ohms to tens of ohms for a small-signal diode | recorded | `diode_fit` |
 | `leakage` | reverse current at `v_rev` | factor 2 of EasyEXPERT when both above 10 pA, else both below 10 pA | `leakage_at` |
 | `cleanup` | every run `verified: lop` | pass/fail | run manifests |
+| `vf_1ma` | anode voltage at 1 mA (`basic.iv_force_i`) | +-5 mV of EasyEXPERT | `forward_voltage` |
+| `n_force_i` | n of the current-forced sweep | +-5 % of step 3's n | `diode_fit` |
+| `force_i_cleanup` | every run `verified: lop` | pass/fail | run manifests |
 
 - Forward current at 0.4, 0.5 and 0.6 V within +-5 % of the EasyEXPERT export (the reviewer compares the run's
   `data.csv` with the export; record the three deviations).
@@ -74,5 +83,6 @@ forcing (`basic.iv_force_i`) joins this stage with its recipe. Every hardware pl
 
 - Hardware: `uv run b1500 bringup record L3 --run H... --reference leakage=2.3e-11 --operator NAME` (the reference
   is the human's EasyEXPERT value); the human reviews it, adds the forward-current comparison and moves it to
-  `validation/hw/basic.diode_iv.yaml`.
-- Simulator rehearsal: no record; say that hardware drafts the `basic.diode_iv` record.
+  `validation/hw/basic.diode_iv.yaml`. Likewise `uv run b1500 bringup record L3 --run H... --reference vf_1ma=0.652
+  --reference n_force_i=1.04 --operator NAME` → `validation/hw/basic.iv_force_i.yaml`.
+- Simulator rehearsal: no record; say that hardware drafts the `basic.diode_iv` and `basic.iv_force_i` records.

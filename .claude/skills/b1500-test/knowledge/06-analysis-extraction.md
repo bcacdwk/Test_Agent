@@ -5,8 +5,8 @@ sources:
   - deck slide 6 (Vth by linear extrapolation, quality check)
   - deck slide 9 (status codes, report rules)
   - deck slide 15 (domain 6 seed; Vth three methods, SS, gm, gds, on/off, C-V extraction)
-  - src/b1500_test_agent/analysis/mosfet.py (gm, three Vth methods, SS, gm_max, Ion/Ioff, output metrics)
-  - src/b1500_test_agent/analysis/resistor.py, diode.py, leakage.py, fefet.py, plots.py (M2 methods)
+  - src/b1500_test_agent/analysis/mosfet.py, mosfet_family.py (gm, Vth methods, SS, gm_max, Ion/Ioff, output, DIBL)
+  - src/b1500_test_agent/analysis/resistor.py, diode.py, leakage.py, fefet.py, plots.py (M2 methods, forward voltage)
   - src/b1500_test_agent/analysis/reliability.py (plot_timeseries; sampling_summary, time_to_breakdown, weibull_fit)
   - src/b1500_test_agent/analysis/quality.py, dataset.py, registry.py (trust, noise, run table; M1)
   - docs/design/blueprint.md section 2.8 (M2 method names and options)
@@ -17,10 +17,9 @@ last_reviewed: null
 # Analysis and extraction (knowledge domain 6)
 
 Seeded from deck slide 15. Definitions here are identical to the docstrings of the code in
-`src/b1500_test_agent/analysis/` (`quality.py`, `dataset.py`, `mosfet.py`, `resistor.py`, `diode.py`, `leakage.py`,
-`fefet.py`, `plots.py`, `reliability.py`); the code wins on any difference and a change to either must change both.
-Synced with the M2 code in WP2.5 and the v2 run table in WP5.7. `list_recipes` and `analyze_run` say which methods
-apply to a run.
+`src/b1500_test_agent/analysis/` (`quality.py`, `dataset.py`, `mosfet.py`, `mosfet_family.py`, `resistor.py`,
+`diode.py`, `leakage.py`, `fefet.py`, `plots.py`, `reliability.py`); the code wins on any difference and a change to
+either must change both (synced in WP2.5, WP5.7). `list_recipes` and `analyze_run` say which methods apply to a run.
 
 ## Run table and trust classes
 
@@ -32,9 +31,8 @@ apply to a run.
   Optional context columns: `t_s` (s since the run's time origin), `cycle`, `segment` (`fwd`/`rev` of a double
   sweep), `phase` (`stress`, `read`, `program`, `erase`, `recovery`, `correction`), `event` (WGFMU measure event),
   `range`/`<role>_range` (range label), `freq_hz`, `ac_vrms`, `dc_v` (MFCMU conditions).
-- Trust per value from the recipe's `quality` block: `N` ok; `C`, `T` limited; `V X F D G S U` and any unknown
-  letter untrusted (letters: [02](02-b1500-instrument.md#data-status-codes)). A row's trust is the worst of its
-  measured values.
+- Trust per value from the recipe's `quality` block: `N` ok; `C`, `T` limited; `V X F D G S U` and any unknown letter
+  untrusted (letters: [02](02-b1500-instrument.md#data-status-codes)); a row takes its worst value's trust.
 - Limited and untrusted rows never enter a derivative, a fit or an interpolation. An extraction is refused
   (`outcome` `refused`, no value) when the analysed segment (curve) holds any untrusted row or its trusted response
   is noise-dominated (range < 10x noise), unless `force=true`: then it uses the trusted rows and is flagged
@@ -65,8 +63,7 @@ Implemented (`gm`, used inside the Vth methods):
 - gm = dId/dVg per row: slope at each point of a local quadratic least-squares fit over `smooth` neighbouring
   trusted points (default 5; odd, 3-101; window shifted inward at the ends). `smooth=1` = central differences.
   Equivalent to Savitzky-Golay on a uniform grid, exact on a non-uniform one.
-- Computed per segment on trusted rows only; other rows are NaN. Unit S for A over V. Vg must be strictly
-  monotonic within a segment.
+- Per segment on trusted rows only (other rows NaN; unit S); Vg strictly monotonic within a segment.
 - Dense or noisy sweeps: raise `smooth` (and `fit_points` for Vth).
 
 ## Vth linear extrapolation
@@ -77,14 +74,13 @@ Implemented (`vth_linear_extrapolation`, M1; default of `mosfet.idvg`; deck slid
   Vth = Vg0 - Vd/2 when `subtract_half_vd` (default true), because linear-region Id is proportional to
   (Vg - Vth - Vd/2) Vd ([01](01-device-physics.md#mosfet-threshold-voltage-definitions)).
 - Window `max_gm` (default): the `fit_points` (default 5) trusted points centred on the maximum of |gm| (the first
-  of maxima equal within 1e-9 relative; clamped at the sweep ends), i.e. the tangent at maximum gm. Or an explicit `window: [lo, hi]` in volts (all trusted points
-  inside).
+  of maxima equal within 1e-9 relative; clamped at the sweep ends), i.e. the tangent at maximum gm. Or an explicit
+  `window: [lo, hi]` in volts (all trusted points inside).
 - Vd: the `vd` option if given, else the run plan's parameter `vd` (`vd_param`); missing gives an error (pass `vd`
   or `subtract_half_vd: false`).
 - `segment` `fwd` by default (`rev` for the reverse branch of a double sweep).
-- Fails (no value) with fewer than max(`fit_points`, 3) trusted points, fewer than 2 points in an explicit window,
-  or a flat fitted line. Warnings: r2 < 0.99, |gm| maximum at a sweep end, Vth outside the swept range, too many
-  limited points in the window.
+- Fails with fewer than max(`fit_points`, 3) trusted points, fewer than 2 in an explicit window, or a flat fitted line.
+  Warnings: r2 < 0.99, |gm| maximum at a sweep end, Vth outside the swept range, too many limited points in the window.
 - `fit` holds `slope`, `intercept`, `r2`, `x_intercept`, `vd`, and for `max_gm` also `gm_max`, `x_at_gm_max`.
 - Deck slide 15's sketch uses `np.gradient` and a fixed 5-point slice; the code differs on purpose (local
   quadratic derivative, |gm| for PMOS, Vd/2 correction, trust exclusion).
@@ -138,9 +134,8 @@ Implemented (`ion_ioff`, M2): results `ion`, `ioff` (A) and `on_off_ratio`.
 - Ion = |Id| at `v_on`, Ioff = |Id| at `v_off`, each linearly interpolated between the bracketing trusted points;
   on/off ratio = Ion/Ioff. Defaults: `v_on` = the sweep end with the larger |Id|, `v_off` = the other end. Report
   both bias points and Vd.
-- A current at the noise floor (log10|Id| rough around the point) is reported as an upper bound of 3 noise
-  standard deviations (`bound: upper`); the ratio is then a lower bound
-  ([01](01-device-physics.md#mosfet-on-off-current-ratio)).
+- A current at the noise floor (log10|Id| rough around the point) is reported as an upper bound of 3 noise standard
+  deviations (`bound: upper`); the ratio is then a lower bound ([01](01-device-physics.md#mosfet-on-off-current-ratio)).
 
 ## Output metrics Ron and gds
 
@@ -156,6 +151,18 @@ column `step` (default the other varying source voltage, `gate_V`).
   strongest drive (largest |step|, in `fit.step_v`). Each result lists that quantity for every curve in `fit` under
   `<step>=<level>` (for example `gate_V=1.5`), and the other curves' refusals or failures as warnings.
 - Physics: [01](01-device-physics.md#mosfet-output-characteristics).
+
+## DIBL and body effect
+
+Implemented (`dibl`, `body_effect`, M7; recipes `mosfet.idvg_family`, `mosfet.body_effect`): curves x `gate_V`, y
+`drain_I` per level of the step column (default the other varying source voltage: `drain_V`, `bulk_V`), each with its
+constant-current Vth ([above](#vth-constant-current)); a curve without one is left out with a warning (two needed).
+
+- **DIBL** (mV/V) = s·(Vth(Vd_lo) - Vth(Vd_hi))/(|Vd_hi| - |Vd_lo|), lowest- vs highest-|Vd| curve (s = +1 n-type,
+  -1 p-type; an end curve without Vth refuses or fails it), plus `vth_lin`, `vth_sat`; `fit`: every Vth and, from
+  three curves, `slope_mv_per_v`. Keep Vd_lo ≥ 0.1 V ([01](01-device-physics.md#mosfet-threshold-voltage-definitions)).
+- **Body effect** (V/V) = least-squares dVth/dVsb, Vsb = V_source - V_bulk (`source_v`, default 0 V), positive under
+  reverse body bias, plus `vth_vsb0` at Vsb = 0; r2 < 0.99 warns that the square-root law bends.
 
 ## Resistance fit
 
@@ -187,6 +194,13 @@ Implemented (`diode_fit`, M2; recipe `basic.diode_iv`): results `n` (1), `is` (A
   The window needs at least 5 points spanning at least one decade of current; else `failed`.
 - Compliance points (C/T) are excluded; the reverse branch, and with it any breakdown, never enters the fit.
 - Physics: [01](01-device-physics.md#pn-diode-shockley-equation-and-ideality-factor).
+- Current-forced runs (`basic.iv_force_i`): x = the measured anode voltage, y = the forced current (default columns).
+
+## Forward voltage
+
+Implemented (`forward_voltage`, M7; recipes `basic.iv_force_i`, `basic.diode_iv`): `vf` (V) where the forward current
+reaches `i_a` (default parameter `i_param`, else 1 mA), log10 I interpolated between the bracketing trusted forward
+points, else `failed`. Columns as for the diode fit; rows after a compliance stop are `aborted`.
 
 ## Leakage at bias
 
@@ -239,9 +253,8 @@ Implemented (`plot_timeseries`, WP5.7; never refuses, never extracts).
   column (`y`, default all measured columns) against `x` = `t_s` (default when present), else `cycle`, else `step`
   (the figure then says the run has no time base); `log_time=true` puts time on a log axis (log-time stress and
   retention schedules). One curve per `phase` (else per `segment`, else per WGFMU `event`). Trust markers and
-  left-out points as in `plot_iv` (on log axes also times <= 0). Curves longer than `max_points` (default 5,000)
-  keep the min and max of each of `max_points/2` index buckets, so spikes and steps stay visible (noted on the
-  figure).
+  left-out points as in `plot_iv` (on log axes also times <= 0). Curves longer than `max_points` (default 5,000) keep
+  the min and max of each of `max_points/2` index buckets, so spikes and steps stay visible (noted on the figure).
 
 ## Sampling summary and relaxation fit
 
@@ -274,8 +287,7 @@ used; separate measured from derived).
   analysis method (`derived: true`) with method, window or criterion, points used and excluded, warnings.
 - Name the method and window, for example "Vth = 0.43 V (linear extrapolation at max gm, Vd/2 corrected,
   window 0.55-0.63 V, 5 points)"; deck slide 9 example: "Vth by linear extrapolation, fit Vgs 0.5-1.5 V".
-- A `refused` or `failed` result is no value: report the reason, never a guess. Forced results carry the flag and
-  the reason they were forced.
+- A `refused` or `failed` result is no value: report the reason, never a guess; forced results carry the flag and why.
 - Backend `sim`: every value is SIMULATED; say so in the first line of the report.
 - Ad-hoc analysis (skill part 9) is derived too: cite the script path in `work/<run_id>/` and the method.
 

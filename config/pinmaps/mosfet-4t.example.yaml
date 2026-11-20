@@ -4,7 +4,9 @@
 # (SEL1.OUT1), or null (not connected).
 #
 # certainty: verified here because this map matches the wiring of the simulator scenarios nmos_basic, fefet_basic,
-# open_drain_noisy, gd_short, igzo_transient and dielectric_tddb (gate and bulk only). On a real station set `unverified` until a human has checked the wiring (contact
+# open_drain_noisy, gd_short, igzo_transient and dielectric_tddb (gate and bulk only); nmos_basic wires the bulk to
+# SMU5 for mosfet-4t-body, and this map never switches SMU5 on, so the simulated bulk floats at the source potential,
+# as on the GNDU. On a real station set `unverified` until a human has checked the wiring (contact
 # check); every plan using an unverified map needs confirmation (unverified_pin_map, rule R-PIN-02). The visa
 # backend never reads this example file.
 
@@ -18,5 +20,6 @@ terminals:
 notes:
   - Gate and drain sit on the two HRSMUs (slots 3 and 4 of the lab station), so one landing serves Id-Vg, Id-Vd, gate
     leakage (its gate role needs an HRSMU, rule R-PIN-01 low_current) and the FeFET dual sweep.
-  - Source and bulk share the ground unit; move bulk to an SMU channel (SMU5/SMU6) for body-bias measurements.
+  - Source and bulk share the ground unit; body-bias measurements (mosfet.body_effect) use mosfet-4t-body, the same
+    landing with the bulk on SMU5.
   - The lab's own scripts ground the source with SMU5 instead of the GNDU; that wiring is pin map mosfet-3t-lab.

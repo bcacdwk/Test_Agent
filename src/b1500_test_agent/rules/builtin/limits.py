@@ -52,10 +52,10 @@ NON_DC_LIMITS: dict[str, tuple[str, float, str, frozenset[str]]] = {
 @rule("R-LIM-01", {"plan"})
 def module_spec_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     """Every envelope channel lies within its module's spec (``driver/modules.py``): an SMU's |V|, |I| and V-I
-    corners (voltage forcing: |V| with |Icomp|; current forcing ``sweep_i``/``bias_i``/``step_i``: |I| with |Vcomp|,
-    the I-source corners); an HV-SPGU's open-load 40 V, a WGFMU's 10 V and an MFCMU's 25 V DC bias. A role function
-    the module cannot serve is refused. The GNDU must sink the summed compliance of all channels when a role uses it
-    (R-GNDU-01 adds the currents of sources without compliance)."""
+    corners (voltage forcing: |V| with |Icomp|; current forcing ``sweep_i``/``bias_i``/``step_i``/``sync_i``: |I|
+    with |Vcomp|, the I-source corners); an HV-SPGU's open-load 40 V, a WGFMU's 10 V and an MFCMU's 25 V DC bias. A
+    role function the module cannot serve is refused. The GNDU must sink the summed compliance of all channels when a
+    role uses it (R-GNDU-01 adds the currents of sources without compliance)."""
     total_i = 0.0
     for channel, entry in envelope_items(ctx):
         current = entry.max_abs_i if entry.max_abs_i is not None else 0.0
@@ -216,8 +216,8 @@ def dut_envelope(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 def explicit_compliance(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     """Every connected channel has a non-zero compliance in the envelope; voltage-forcing roles (``sweep_v``,
     ``bias_v``, ``step_v``, ``sync_v``, ``pulse_v``) set ``icomp`` explicitly, current-forcing roles (``sweep_i``,
-    ``bias_i``, ``step_i``) set ``vcomp``. Sources without compliance (``pgu``, ``wgfmu``) are exempt: R-PULSE-*,
-    R-SPGU-01 and R-WG-* bound them."""
+    ``bias_i``, ``step_i``, ``sync_i``) set ``vcomp``. Sources without compliance (``pgu``, ``wgfmu``) are exempt:
+    R-PULSE-*, R-SPGU-01 and R-WG-* bound them."""
     recipe, plan = ctx.recipe, ctx.plan
     for role_name, spec in sorted(recipe.roles.items()):
         bound = plan.binding.roles.get(role_name)

@@ -1,0 +1,12 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 48 (staircase block Data,Source_data per step), PDF 50-55 (Tables 1-6 to 1-12: V = voltage data, I = current data, W/E source status), PDF 551-552 (WI current sweep), PDF 437 (FMT 1)
+# kind: fmt1
+# command: FMT 1,1; MM 2,3; CMM 3,2; WI 3,2,0,1E-06,1E-04,3,0.5; XE
+# terminator: crlf
+# note: assembled field by field from the tables: a log current sweep on SMU3 into 10 kOhm with a 0.5 V compliance (WP7.2): the measured voltage (type V) of the swept channel, then the source current (type I) with W/E status; the last step needs 1 V and reads the compliance value with status C
+# point: N C V +10.0000E-03
+# point: W C I +1.00000E-06
+# point: N C V +100.000E-03
+# point: W C I +10.0000E-06
+# point: C C V +500.000E-03
+# point: E C I +100.000E-06
+NCV+10.0000E-03,WCI+1.00000E-06,NCV+100.000E-03,WCI+10.0000E-06,CCV+500.000E-03,ECI+100.000E-06

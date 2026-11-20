@@ -65,19 +65,19 @@ Deck slide 11, corrected against the User's Guide. DC values; v1 sources DC only
 ## Measurement modes
 
 Folded from the former mode-map stub and checked against PG Chapter 2 (PDF 91-132) and the `XE` required-command
-table (PDF 571-572). Implemented: modes 2 and 10.
+table (PDF 571-572). Implemented: modes 2, 10 and 16 (WP7.2 added the current, synchronous and multi-channel sweeps).
 
 | MM | Mode | Modules | v1 |
 |---|---|---|---|
 | — | high-speed spot (`TI`, `TV`, no `MM`/`XE`) | SMU | not used |
 | 1 | spot | SMU | not used (no spot kind yet) |
-| 2 | staircase sweep | SMU | `smu_staircase`, `smu_stepped` (host loop over a stepped bias) |
+| 2 | staircase sweep (`WV`/`WI` lin/log, single/double; one synchronous `WSV`/`WSI` source) | SMU | `smu_staircase`, `smu_stepped` (host loop over a stepped V or I bias) |
 | 3, 4, 5 | pulsed spot, pulsed sweep, staircase with pulsed bias | SMU | reserved |
 | 9 | quasi-pulsed spot | SMU | reserved |
 | 10 | sampling | SMU | `smu_sampling` (I(t) transients, TDDB; section below) |
 | 13 | quasi-static C-V | SMU | reserved |
 | 14, 15 | linear / binary search | SMU | reserved |
-| 16 | multi-channel sweep | SMU | reserved |
+| 16 | multi-channel sweep (`WV`/`WI` primary + `WNX` sources, either mode; PDF 102) | SMU | `smu_staircase` with two or more sweep roles |
 | 17-20, 22, 23, 26 | spot C, C-V, pulsed C, C-f, C-V(AC level), C-t | MFCMU | reserved (correction, SCUU) |
 | 27, 28 | multi-channel pulsed spot / sweep | SMU | reserved |
 
@@ -91,7 +91,7 @@ measurements PG p112-114 (2-24), `MT` PG p474-476 (4-156).
 
 - On the trigger the synchronous sources (`MV`/`MI`) force their base value, `hold_base` later their bias value
   (the time origin, `t_s = 0`), `hold_bias` later the first sample; then one sample per `interval` (2 ms to 65 s
-  in 1 ms steps; below 2 ms linear only). DC sources (`DV`) are set before the trigger and keep their level.
+  in 1 ms steps; below 2 ms linear only). DC sources (`DV`/`DI`) are set before the trigger and keep their level.
 - Each sample carries its sampling index (`FMT 1,1`) and, with `TSC 1`, a time stamp per channel (time since `TSR`);
   `t_s` comes from the stamps. A sample that would start while the channels are busy is skipped (index gap).
 - `MSC 2,2`: compliance of any channel, overflow or oscillation stops the sampling at once (later data read
@@ -131,8 +131,8 @@ measurement as `mosfet.idvg` on pin map `mosfet-3t-lab` with these deliberate di
   the number, so its compliance and overflow points look like readings.
 - Compliances: drain 1 mA (lab 100 mA for a 0.4 uA device), gate 1 uA (lab 10 mA), source the sum of the two;
   10 mA gate or 100 mA drain is outside the recipe ranges (blocked).
-- Auto ranging (lab: `RI` 1 nA limited, `WV` 20 V limited), `WT 0,0` (lab 10 ms delay), `WM 2,1` automatic abort
-  (lab off), `AAD` written explicitly.
+- Auto ranging (lab: `RI` 1 nA limited, `WV` 20 V limited), `WT 0,0` (lab 10 ms delay; `delay_s: 0.01` matches
+  it), `WM 2,1` automatic abort (lab off), `AAD` written explicitly.
 - No `ERSSP` (the lab sends `ERSSP p,0` = open without `ERMOD 1`); `ERRX?` drained before the trigger and in the
   cleanup, both `0,` and `+0,` read as no error; a verified cleanup instead of a bare `DZ`, `CL`. The lab's SPGU
   script never sends `CL` at all.
@@ -150,6 +150,7 @@ measurement as `mosfet.idvg` on pin map `mosfet-3t-lab` with these deliberate di
 | `CN`, `CL` | output switch on / off for channels | 380, 378 |
 | `DV`, `DI`, `DZ` | force DC voltage / current; set channels to 0 V | 396, 391, 397 |
 | `WV`, `WT`, `WM` | staircase voltage sweep; hold/delay times; abort and post-sweep output | 568, 564, 552 |
+| `WI`, `WSV`, `WSI`, `WNX` | current sweep; synchronous V/I source (MM 2); multi-channel source N (MM 16) | 551, 561, 560, 557 |
 | `MM`, `CMM` | measurement mode and channels; measured quantity per channel | 470, 380 |
 | `RI`, `RV` | current / voltage measurement range | 501, 503 |
 | `AAD`, `AIT` | ADC type; integration time | 351, 356-359 |

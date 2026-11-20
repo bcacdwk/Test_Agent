@@ -25,6 +25,7 @@ from b1500_test_agent.errors import B1500Error, InvalidConfigError, InvalidInput
 from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.common import Backend, ErrorCode, ResultEnvelope
 from b1500_test_agent.models.plan import PlanRecord, PlanRequest, RunProgress
+from b1500_test_agent.models.recipe import RecipeSummary
 from b1500_test_agent.models.results import (
     AnalysisResult,
     GetRunSection,
@@ -46,6 +47,8 @@ from b1500_test_agent.service.common import (
     DEFAULT_MAX_POINTS,
     DEFAULT_RUN_LIMIT,
     ENV_SESSION_TAG,
+    TRIM_TARGET,
+    approx_tokens,
     args_digest,
     clip,
     status_for,
@@ -315,10 +318,37 @@ class B1500Service:
                               message=f"{recipe.id}@{recipe.version}: {effective} on {backend}{warning}",
                               next_steps=next_steps)
         recipes = registry.list(device_type=device_type, backend=backend)
-        runnable = sum(r.status != "not_implemented" for r in recipes)
-        return RecipeList(ok=True, status="ok", **self._envelope(backend), recipes=recipes,
-                          message=f"{len(recipes)} recipes, {runnable} runnable on {backend}{warning}",
-                          next_steps=["list_recipes(recipe_id) for params, roles and the test card"])
+        return self._recipe_index(recipes, backend, warning)
+
+    def _recipe_index(self, recipes: list[RecipeSummary], backend: Backend, warning: str) -> RecipeList:
+        """The index within the response budget: every recipe while it fits; else the ``not_implemented`` ones are
+        named in the message instead of listed, then the runnable ones are trimmed (``showing N``, like
+        ``list_runs``)."""
+        runnable = [r for r in recipes if r.status != "not_implemented"]
+        reserved = [r.id for r in recipes if r.status == "not_implemented"]
+
+        def build(shown: list[RecipeSummary], note: str) -> RecipeList:
+            steps = ["list_recipes(recipe_id) for params, roles and the test card"]
+            if note:
+                steps.append("list_recipes(device_type) for a shorter index")
+            return RecipeList(ok=True, status="ok", **self._envelope(backend), recipes=shown,
+                              message=f"{len(recipes)} recipes, {len(runnable)} runnable on {backend}{note}{warning}",
+                              next_steps=steps)
+
+        def fits(result: RecipeList) -> bool:
+            return approx_tokens(result.model_dump_json()) <= TRIM_TARGET
+
+        result = build(recipes, "")
+        if fits(result):
+            return result
+        listed, hidden = (runnable, f"; not_implemented (not listed): {', '.join(reserved)}") if reserved else (
+            recipes, "")
+        result = build(listed, hidden)
+        count = len(listed)
+        while count > 1 and not fits(result):
+            count = count * 3 // 4
+            result = build(listed[:count], f"; showing {count} of {len(listed)}{hidden}")
+        return result
 
     # == validate_plan ===============================================================================================
 

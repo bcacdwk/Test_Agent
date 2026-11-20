@@ -28,9 +28,10 @@ HUMAN_ONLY = ("con" + "fig init", "con" + "fig adopt", "run " + "--confirm", "fa
 RECIPES = {
     "S0": [], "L0": [], "L10": [],
     "L1": ["basic.contact_resistor", "system.self_test", "system.self_cal"],
-    "L2": ["basic.contact_resistor"],
-    "L3": ["basic.diode_iv"],
-    "L4": ["mosfet.idvg", "mosfet.idvd", "mosfet.gate_leakage"],
+    "L2": ["basic.contact_resistor", "generic.smu_multi_sweep"],
+    "L3": ["basic.diode_iv", "basic.iv_force_i"],
+    "L4": ["mosfet.idvg", "mosfet.idvd", "mosfet.gate_leakage", "mosfet.idvg_family", "mosfet.idvg_sync",
+           "mosfet.body_effect"],
 }
 
 
@@ -96,8 +97,10 @@ def test_pass_criteria_are_the_blueprint_defaults() -> None:
 def test_record_keys_of_each_stage() -> None:
     assert _front("S0").record_keys() == [None] and _front("L0").record_keys() == [None]
     assert _front("L1").record_keys() == ["system.self_test", "system.self_cal", None]
-    assert _front("L2").record_keys() == ["basic.contact_resistor"]
-    assert _front("L4").record_keys() == ["mosfet.idvg", "mosfet.idvd", "mosfet.gate_leakage"]
+    assert _front("L2").record_keys() == ["basic.contact_resistor", "generic.smu_multi_sweep"]
+    assert _front("L3").record_keys() == ["basic.diode_iv", "basic.iv_force_i"]
+    assert _front("L4").record_keys() == ["mosfet.idvg", "mosfet.idvd", "mosfet.gate_leakage", "mosfet.idvg_family",
+                                          "mosfet.idvg_sync", "mosfet.body_effect"]
 
 
 @pytest.mark.parametrize("stage", WRITTEN)

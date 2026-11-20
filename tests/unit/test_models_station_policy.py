@@ -243,6 +243,7 @@ def test_pin_map_example() -> None:
 
 @pytest.mark.parametrize(("name", "terminals", "certainty"), [
     ("mosfet-4t", {"gate": 4, "drain": 3, "source": "GNDU", "bulk": "GNDU"}, "verified"),
+    ("mosfet-4t-body", {"gate": 4, "drain": 3, "source": "GNDU", "bulk": 5}, "verified"),
     ("diode-2t", {"anode": 3, "cathode": "GNDU"}, "verified"),
     ("resistor-2t", {"a": 3, "b": "GNDU"}, "verified"),
     ("mosfet-3t-lab", {"gate": 3, "drain": 4, "source": 5}, "unverified"),
@@ -305,7 +306,7 @@ def test_nmos_basic_scenario() -> None:
     dut = scenario.models["dut"]
     assert dut.model == "mosfet_ekv" and isinstance(dut.params["vth0"], float)
     assert dut.params["polarity"] == "n"
-    assert scenario.wiring["dut"] == {"gate": 4, "drain": 3, "source": "GNDU", "bulk": "GNDU"}
+    assert scenario.wiring["dut"] == {"gate": 4, "drain": 3, "source": "GNDU", "bulk": 5}  # mosfet-4t-body (WP7.2)
     assert set(scenario.noise.floor_a) == {"MPSMU", "HRSMU"} and scenario.noise.seed == 1
     assert_roundtrip(scenario)
 

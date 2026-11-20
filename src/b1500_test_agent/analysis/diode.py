@@ -1,4 +1,4 @@
-"""Diode forward fit (blueprint 2.8 ``diode_fit``; card ``diode-iv``).
+"""Diode forward fit and forward voltage (blueprint 2.8 ``diode_fit``; WP7.2 ``forward_voltage``; card ``diode-iv``).
 
 Definition (the source of knowledge file ``06-analysis-extraction.md``; change both together): on the forward
 branch (``x`` > 0 and ``y`` > 0; defaults: the swept source voltage and the measured current of the same role, e.g.
@@ -17,6 +17,17 @@ branch. Default ``i_max_a``: the largest trusted forward current. The window nee
 spanning at least one decade of current. Compliance (``C``/``T``) points are excluded like everywhere; the reverse
 branch (and with it any breakdown) never enters the fit. Trust and refusal as every method (``mosfet.py`` docstring):
 untrusted points or a noise-dominated current refuse the call unless ``force``.
+
+Both methods take the run's I-V columns by default from the sweep: a voltage sweep (``basic.diode_iv``) gives the
+swept source voltage ``x`` and the measured current ``y`` of the same role; a current sweep (``basic.iv_force_i``,
+``WI``) gives the measured voltage ``x`` and the forced source current ``y`` of the swept role. ``x``/``y`` override.
+
+**Forward voltage** (``forward_voltage``, result ``vf`` in V): the voltage at which the forward current reaches
+``i_a`` (default the plan parameter ``i_param`` when given, else 1 mA), interpolated linearly in log10 I between
+the two trusted forward points (I > 0) that bracket it, walking up in current; ``fit`` names the bracketing currents.
+Fails when no trusted forward point lies on each side of ``i_a``. The dummy rows after an automatic abort (``V`` data
+after the first compliance, e.g. a current sweep reaching its voltage compliance) count as ``aborted``, not as
+untrusted, as in ``leakage_at``: a voltage read before the stop stays valid.
 """
 
 from __future__ import annotations
@@ -34,8 +45,9 @@ from b1500_test_agent.analysis.common import (
     trust_policy,
     window_of,
 )
-from b1500_test_agent.analysis.dataset import RunData, Segment
+from b1500_test_agent.analysis.dataset import RunData, Segment, parse_value_column
 from b1500_test_agent.analysis.quality import noise_sigma
+from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, TrustPolicy
 
 BOLTZMANN_OVER_Q = 8.617333262e-5
@@ -69,7 +81,7 @@ def diode_fit(
     """Ideality n, saturation current Is and series resistance Rs from the forward branch (module docstring).
     Returns ``n``, ``is`` and ``rs``; one non-ok ``n`` result on refusal or failure."""
     policy = trust_policy(criteria)
-    x, y = sweep_columns(d, x, y, "diode_fit")
+    x, y = iv_columns(d, x, y, "diode_fit")
     r = analysed_rows(d, x, y, policy, segment=segment)
     params = {"i_min_a": i_min_a, "i_max_a": i_max_a, "temperature_k": temperature_k, "segment": segment,
               "force": force, "x": x, "y": y, "trust_policy": policy_params(policy)}
@@ -133,3 +145,92 @@ def _lower_edge(xs: np.ndarray, ys: np.ndarray, reverse: np.ndarray, i_min_a: fl
     sigma = noise_sigma(ys[reverse]) or 0.0
     conductance = float(np.median(np.abs(ys[reverse] / xs[reverse])))
     return lambda v: LEAKAGE_MARGIN * np.maximum(sigma, conductance * np.abs(np.asarray(v, dtype=float)))
+
+
+DEFAULT_VF_CURRENT_A = 1e-3
+"""Current at which ``forward_voltage`` reports Vf without ``i_a``/``i_param`` (1 mA)."""
+
+
+def iv_columns(d: RunData, x: str | None, y: str | None, method: str) -> tuple[str, str]:
+    """Voltage ``x`` and current ``y`` columns of a single-terminal I-V (module docstring): the voltage sweep's
+    columns (``sweep_columns``), or, when the run swept a current (a varying ``<role>_I`` source column), that
+    current and the measured voltage of the same role."""
+    if x is None and y is None:
+        forced = [c for c in d.source_columns if c.endswith("_I") and d.table[c].nunique() > 1]
+        if forced:
+            y = max(forced, key=lambda c: int(d.table[c].nunique()))
+            parsed = parse_value_column(y)
+            same = f"{parsed[0]}_V" if parsed else ""
+            voltages = [c for c in d.measured_columns if c.endswith("_V")]
+            if same in voltages:
+                x = same
+            elif len(voltages) == 1:
+                x = voltages[0]
+            else:
+                raise InvalidInputError(f"{method}: cannot choose the voltage column of run {d.run_id} among "
+                                        f"{voltages}; pass x=<column>.")
+    return sweep_columns(d, x, y, method)
+
+
+@validate_call(config=_CALL_CONFIG)
+def forward_voltage(
+    d: RunData,
+    *,
+    i_a: Amps | None = None,
+    i_param: str | None = None,
+    segment: Segment = "fwd",
+    force: bool = False,
+    x: str | None = None,
+    y: str | None = None,
+    criteria: TrustPolicy | None = None,
+) -> ExtractionResult:
+    """Forward voltage at a current (module docstring): one ``ExtractionResult`` ``vf`` (V)."""
+    policy = trust_policy(criteria)
+    x, y = iv_columns(d, x, y, "forward_voltage")
+    target, source = _target_current(d, i_a, i_param)
+    r = analysed_rows(d, x, y, policy, segment=segment, abort_aware=True)
+    out = Results("forward_voltage", {"i_a": target, "i_from": source, "segment": segment, "force": force, "x": x,
+                                      "y": y, "trust_policy": policy_params(policy)})
+    problems = r.problems(f"segment {segment}")
+    if problems and not force:
+        return out.refused("vf", "V", problems, excluded=r.excluded())
+    out.flag(problems)
+    xs, ys = r.xs, r.ys
+    forward = np.flatnonzero(ys > 0)
+    if forward.size < 2:
+        return out.failed("vf", "V", f"Only {forward.size} trusted forward point(s) (I > 0) in segment {segment}.",
+                          excluded=r.excluded())
+    order = forward[np.argsort(ys[forward], kind="stable")]
+    currents = ys[order]
+    above = np.flatnonzero(currents >= target)
+    if not above.size or above[0] == 0:
+        return out.failed("vf", "V", f"The trusted forward current ({currents.min():.3g}..{currents.max():.3g} A) "
+                          f"does not bracket {target:.3g} A; extend the sweep.", excluded=r.excluded())
+    hi = int(above[0])
+    lo = hi - 1
+    i0, i1 = order[lo], order[hi]
+    frac = ((np.log10(target) - np.log10(currents[lo])) / (np.log10(currents[hi]) - np.log10(currents[lo]))
+            if currents[hi] > currents[lo] else 1.0)
+    value = float(xs[i0] + frac * (xs[i1] - xs[i0]))
+    r.use([int(i0), int(i1)])
+    warnings = []
+    if xs[i1] < xs[i0]:
+        warnings.append("The voltage falls between the bracketing points (non-monotonic forward branch).")
+    return out.ok("vf", value, "V", excluded=r.excluded(), points_used=2, window=window_of(xs[[i0, i1]], "V"),
+                  fit={"i_a": target, "i_below": float(currents[lo]), "i_above": float(currents[hi])},
+                  warnings=warnings)
+
+
+def _target_current(d: RunData, i_a: float | None, i_param: str | None) -> tuple[float, str]:
+    if i_a is not None:
+        return i_a, "argument"
+    if i_param is not None:
+        quantity = d.param(i_param)
+        if quantity is None or not quantity.is_number or quantity.unit != "A":
+            raise InvalidInputError(f"forward_voltage: plan parameter {i_param!r} of run {d.run_id} is not a current "
+                                    "in A; pass i_a=<amperes>.")
+        value = quantity.as_float()
+        if not value > 0:
+            raise InvalidInputError(f"forward_voltage: plan parameter {i_param!r} must be a positive current.")
+        return value, f"plan.resolved_params.{i_param}"
+    return DEFAULT_VF_CURRENT_A, "default"

@@ -114,7 +114,7 @@ def test_idvg_compiles_to_envelope_estimate_preview_and_program() -> None:
     assert compiled.estimate.points == 101
     assert compiled.estimate.duration_s == pytest.approx(1.0 + 101 * 2 * 0.02)
     program = StaircaseProgram.model_validate(json.loads(json.dumps(compiled.program)))
-    assert program.width == 3 and program.steps == 101 and program.source_columns == {"drain": 0.05}
+    assert program.width == 3 and program.steps == 101 and program.source_columns == {"drain_V": 0.05}
     assert [m.role for m in program.measure] == ["gate", "drain"]
 
 
@@ -141,11 +141,13 @@ def test_presets_double_sweep_and_unbound_sweep() -> None:
 
 @pytest.mark.parametrize(("base", "roles", "message"), [
     (IDVD, IDVD["roles"], "smu_stepped"),
-    (IDVG, {**IDVG["roles"], "drain": {**IDVG["roles"]["drain"], "function": "sweep_v"}}, "exactly one sweep_v"),
+    (IDVG, {**IDVG["roles"], "gate": {**IDVG["roles"]["gate"], "function": "bias_v"}}, "needs a sweep_v or sweep_i"),
+    (IDVG, {**IDVG["roles"], "drain": {"function": "sync_i", "settings": {"start": 0, "stop": 1e-6, "vcomp": 1}}},
+     "must force what the primary"),
     (IDVG, {**IDVG["roles"], "drain": {**IDVG["roles"]["drain"], "measure": ["I", "V"]}}, "one quantity per channel"),
     (IDVG, {**IDVG["roles"], "gate": {**IDVG["roles"]["gate"], "measure": []},
             "drain": {**IDVG["roles"]["drain"], "measure": []}}, "no bound role measures"),
-    (IDVG, {**IDVG["roles"], "drain": {"function": "bias_i", "measure": ["V"]}}, r"cannot execute role\(s\) drain"),
+    (IDVG, {**IDVG["roles"], "drain": {"function": "pgu"}}, r"cannot execute role\(s\) drain \(pgu\)"),
     (IDVG, {**IDVG["roles"], "drain": {"function": "pulse_v", "measure": ["I"]}}, "pulse_v"),
 ])
 def test_staircase_refuses_what_it_cannot_express(base: dict[str, Any], roles: dict[str, Any], message: str) -> None:

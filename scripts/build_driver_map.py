@@ -48,9 +48,10 @@ PRIORITY_SCALE = {
     "m1": "M1 vertical path (status -> validate -> staircase Id-Vg -> archive -> Vth), safe_shutdown cleanup "
     "and system.* self-test/self-cal; the B1500Driver methods of blueprint section 2.3; v2 additions mapped since "
     "(CM and *LRN? by WP5.6, the read-only probe queries ERMOD?, ERSSP?, SPST?, CORRST?, ADJ? by WP6.1, the SMU "
-    "sampling MM 10 with MCC, ML, MT, MSC, MV, MI and the time stamps TSC/TSR by WP7.4)",
+    "sampling MM 10 with MCC, ML, MT, MSC, MV, MI and the time stamps TSC/TSR by WP7.4, the sweep sources DI, WI, "
+    "WSV, WSI, WNX and MM 16 by WP7.2)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
-    "simulator's FLEX subset v1 (AV, BC, NUB?, TSC); DI/WI only if a card needs them",
+    "simulator's FLEX subset v1 (AV, BC, NUB?, TSC)",
     "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
     "units and expanders, ASU/SCUU, selectors, EasyEXPERT, timestamps, program memory, ...)",
 }
@@ -58,14 +59,15 @@ PRIORITY_SCALE = {
 # --- Target vocabulary (blueprint section 2.3) -------------------------------------------------------------
 DRIVER_METHODS = (
     "identify", "modules", "errors", "status_byte", "output_state", "abort", "zero", "disconnect", "reset",
-    "self_test", "self_calibrate", "set_format", "set_integration", "set_range", "enable", "force_v",
-    "staircase_v", "execute_and_read", "wait_complete", "auto_calibration", "set_auto_calibration",
+    "self_test", "self_calibrate", "set_format", "set_integration", "set_range", "enable", "force_v", "force_i",
+    "staircase_v", "staircase", "execute_and_read", "wait_complete", "auto_calibration", "set_auto_calibration",
     "selector_control_mode", "selector_state", "pulse_output_active", "correction_enabled",
     "phase_compensation_result",
     "set_time_stamp", "reset_timer", "sampling_setup", "sampling_update",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
+    "di", "wi", "wsv", "wsi", "wnx",
     "erssp_q", "corrst_q", "adj_q", "tsc", "tsr", "mcc", "ml", "mt", "msc", "mv", "mi",
     "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q", "ERMOD_Q", "SPST_Q",
 )  # fmt: skip
@@ -112,12 +114,20 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "RV": CommandTarget("set_range", "rv"),
     "CN": CommandTarget("enable", "cn"),
     "DV": CommandTarget("force_v", "dv", "OutputGuard-checked"),
-    "MM": CommandTarget("staircase_v", "mm", "staircase_v sends MM 2, sampling_setup MM 10 (MM_MODE_TARGETS); every "
-                        "other mode is unmapped"),
-    "CMM": CommandTarget("staircase_v", "cmm", "sent inside the staircase setup"),
-    "WV": CommandTarget("staircase_v", "wv", "OutputGuard-checked"),
-    "WT": CommandTarget("staircase_v", "wt"),
-    "WM": CommandTarget("staircase_v", "wm"),
+    "DI": CommandTarget("force_i", "di", "OutputGuard-checked (current level vs |I|, Vcomp vs |V|); bias_i and "
+                        "step_i roles (WP7.2)"),
+    "MM": CommandTarget("staircase", "mm", "staircase sends MM 2 (staircase) and MM 16 (multi-channel sweep, "
+                        "WP7.2), sampling_setup MM 10 (MM_MODE_TARGETS); every other mode is unmapped"),
+    "CMM": CommandTarget("staircase", "cmm", "sent inside the staircase setup"),
+    "WV": CommandTarget("staircase", "wv", "OutputGuard-checked voltage primary sweep"),
+    "WI": CommandTarget("staircase", "wi", "OutputGuard-checked current primary sweep, lin/log single/double "
+                        "(WP7.2)"),
+    "WSV": CommandTarget("staircase", "wsv", "synchronous voltage source after WV, MM 2; sync_v roles (WP7.2)"),
+    "WSI": CommandTarget("staircase", "wsi", "synchronous current source after WI, MM 2; sync_i roles (WP7.2)"),
+    "WNX": CommandTarget("staircase", "wnx", "multi-channel sweep sources N = 2-10 after WV/WI, MM 16; the "
+                         "second and later sweep roles of a recipe (WP7.2)"),
+    "WT": CommandTarget("staircase", "wt"),
+    "WM": CommandTarget("staircase", "wm"),
     "XE": CommandTarget("execute_and_read", "XE"),
     "*OPC?": CommandTarget("wait_complete", "OPC_Q"),
     "CM": CommandTarget("set_auto_calibration", "cm", "R-CAL-02 (WP5.6): asynchronous runs send CM 0 and the "
@@ -143,10 +153,11 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "MV": CommandTarget("sampling_setup", "mv", "OutputGuard-checked (base and bias)"),
     "MI": CommandTarget("sampling_setup", "mi", "OutputGuard-checked (base and bias)"),
 }
-MM_MODE_TARGETS: dict[int, str] = {2: "B1500Driver.staircase_v", 10: "B1500Driver.sampling_setup"}
+MM_MODE_TARGETS: dict[int, str] = {2: "B1500Driver.staircase", 10: "B1500Driver.sampling_setup",
+                                   16: "B1500Driver.staircase"}
 """``MM <mode>`` entries of the legacy atoms: the driver method that sends each mapped mode (others unmapped)."""
 # Mapped commands are all m1; these unmapped ones are m2; everything else is `later`.
-M2_COMMANDS = frozenset({"AV", "BC", "NUB?", "TSC", "DI", "WI"})
+M2_COMMANDS = frozenset({"AV", "BC", "NUB?", "TSC"})
 
 # FLEX commands named in the legacy basis but absent from the command summary YAML (never edit
 # references/manuals/**; the citation is recorded here instead).
@@ -177,6 +188,10 @@ GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "MSC": ([472, 473], ["4-154 to 4-155"]),
     "MT": ([474, 475, 476], ["4-156 to 4-158"]),
     "MV": ([477, 478], ["4-159 to 4-160"]),
+    "WI": ([551, 552], ["4-233 to 4-234"]),
+    "WSV": ([561, 562, 563], ["4-243 to 4-245"]),
+    "WSI": ([560, 561], ["4-242 to 4-243"]),
+    "WNX": ([556, 557, 558, 559], ["4-238 to 4-241"]),
 }
 CHAPTER_4_PDF_OFFSET = 318
 
@@ -250,12 +265,13 @@ ATOM_OVERRIDES: dict[str, dict[str, str]] = {
     "B_atom_output_b1500_zero_all": {
         "note": "successor: Transaction cleanup AB -> DZ -> CL -> verify and the safe_shutdown tool"
     },
-    "C_atom_smu_set_measurement_mode": {"note": "staircase_v sends MM 2 only; other modes later"},
+    "C_atom_smu_set_measurement_mode": {"note": "staircase sends MM 2 and MM 16 (WP7.2); other modes later"},
     "C_atom_smu_configure_integration": {"priority": "m1", "note": "AV (averaging) is m2"},
     "C_atom_smu_set_measurement_ranging": {"priority": "m1", "note": "RM (auto-ranging limit) is later"},
     "C_atom_smu_configure_staircase_sweep": {
         "priority": "m1",
-        "note": "voltage sweep only; WI is m2 if a card needs it",
+        "note": "WV or WI primary, lin/log single/double; WSV/WSI synchronous and WNX multi-channel sources "
+        "(WP7.2)",
     },
 }
 

@@ -1,0 +1,30 @@
+# Test-only recipe (never in recipes/; WP7.2): a multi-channel sweep (MM 16) with a voltage primary on terminal a
+# (WV) and a current source on terminal b (WNX 2, mode 2), terminal g on the GNDU. On the two-resistor test scenario:
+# a_I = V_a/R_a and b_V = I_b x R_b at every step.
+id: generic.multi_mixed
+version: 1
+title: Test-only multi-channel sweep with a voltage and a current source
+family: smu
+kind: smu_staircase
+status: sim_validated
+card: null
+device_types: []
+roles:
+  a:
+    function: sweep_v
+    measure: [I]
+    settings: {start: 0.0, stop: 1.0, points: $points, icomp: 1.0e-3}
+  b:
+    function: sweep_i
+    measure: [V]
+    settings: {start: 0.0, stop: 1.0e-5, vcomp: 2.0}
+  g: {function: ground, allow_gndu: true}
+params:
+  points: {type: int, default: 11, range: [2, 1001], doc: "Sweep points (both sources)."}
+  integration: {type: enum, choices: [short, medium, long], default: medium, doc: "ADC preset."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults: []
+provenance:
+  sources:
+    - tests (WP7.2 MM 16 with a current WNX source)
+  validation_runs: []

@@ -26,6 +26,7 @@ from tests.unit.flex_fixtures import load_fixture
 from tests.visa_loop.helpers import MEASUREMENT_CASES, REPO_ROOT, VisaWorld, run_case
 
 CONTACT = next(c for c in MEASUREMENT_CASES if c["recipe_id"] == "basic.contact_resistor")
+MULTI = next(c for c in MEASUREMENT_CASES if c["recipe_id"] == "generic.smu_multi_sweep")  # L2 too (WP7.2)
 SIM_RUN = "S20261118T092102Z-2de7"
 
 
@@ -89,14 +90,24 @@ def test_status_follows_drafts_and_reviewed_records(stages: VisaWorld) -> None:
     draft = bringup.record(service, "L2", [run_id], references=[f"r_dmm={_resistance(world, run_id)}"])
     assert draft.ok and draft.record is not None
     l2 = next(s for s in bringup.bringup_status(service).stages if s.stage == "L2")
-    assert l2.state == "review" and l2.records[0].state == "draft" and l2.records[0].path == draft.path
-    reviewed = draft.record.model_copy(update={"reviewer": "owner", "reviewed_on": date(2026, 12, 2)})
-    target = world.root / "validation" / "hw" / reviewed.file_name()
-    target.parent.mkdir(parents=True)
-    target.write_text(yaml.safe_dump(reviewed.model_dump(mode="json"), sort_keys=False), encoding="utf-8")
+    assert l2.state == "in_progress" and l2.records[0].state == "draft" and l2.records[0].path == draft.path
+    multi = run_case(service, MULTI)  # the stage's second recipe record (generic.smu_multi_sweep)
+    assert multi.ok and multi.run_id is not None and multi.run_id.startswith("H"), multi.message
+    analysis = service.analyze_run(multi.run_id, "resistance", {"x": "a_V", "y": "a_I"})  # stage L2 agent step 6
+    assert analysis.ok, analysis.message
+    multi_draft = bringup.record(service, "L2", [multi.run_id], references=["multi_r=1e5"])
+    assert multi_draft.ok and multi_draft.record is not None, multi_draft.message
+    l2 = next(s for s in bringup.bringup_status(service).stages if s.stage == "L2")
+    assert l2.state == "review" and {r.state for r in l2.records} == {"draft"}
+    (world.root / "validation" / "hw").mkdir(parents=True)
+    for item in (draft.record, multi_draft.record):
+        reviewed = item.model_copy(update={"reviewer": "owner", "reviewed_on": date(2026, 12, 2)})
+        target = world.root / "validation" / "hw" / reviewed.file_name()
+        target.write_text(yaml.safe_dump(reviewed.model_dump(mode="json"), sort_keys=False), encoding="utf-8")
     after = bringup.bringup_status(service)
     l2 = next(s for s in after.stages if s.stage == "L2")
-    assert l2.state == "signed" and after.reviewed == ["validation/hw/basic.contact_resistor.yaml"]
+    assert l2.state == "signed" and after.reviewed == ["validation/hw/basic.contact_resistor.yaml",
+                                                       "validation/hw/generic.smu_multi_sweep.yaml"]
     assert after.next_stage == "S0"  # the stages before L2 are still open
     (world.root / "validation" / "hw" / "stage-s0.yaml").write_text("stage: S0\nreviewer: x\n", encoding="utf-8")
     noted = bringup.bringup_status(service)

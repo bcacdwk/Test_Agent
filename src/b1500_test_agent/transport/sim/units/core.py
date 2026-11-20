@@ -100,22 +100,30 @@ class CoreUnit:
         """``LOP?``: ``LOP`` + ten two-digit slot codes (Table 4-26, PDF 446-447).
 
         The response is written as in the manual's example ``LOP00,11,00,...`` (PDF 447; the syntax line on PDF 446
-        shows a blank after ``LOP``). SMU: 00 off, 01 forcing voltage, 12/13 positive/negative current compliance;
-        MFCMU on: 40; HVSPGU/WGFMU: 00 (Table 4-26 has no code for them).
+        shows a blank after ``LOP``). SMU: 00 off, 01 forcing voltage, 02/03 forcing positive/negative current, 11
+        voltage compliance, 12/13 positive/negative current compliance; MFCMU on: 40; HVSPGU/WGFMU: 00 (Table 4-26
+        has no code for them).
         """
         flex.arity(cmd, 0, 0)
-        levels = self._on_levels()
-        currents = self._current(levels)
+        forced = self._on_currents()
+        clamped: set[int] | None = None
+        if forced:
+            _, currents, clamped = self.dc_solution()
+        else:  # voltage sources only: compliance where the programmed levels would drive more than Icomp (v1)
+            currents = self._current(self._on_levels())
         codes = []
         for slot in range(1, 11):
             module = self._module_type(slot)
             state = self.state.channels.get(slot)
             if module is None or state is None or not state.output_on:
                 codes.append("00")
+            elif module in SMU_TYPES and slot in forced:
+                codes.append("11" if slot in clamped else ("02" if forced[slot][0] >= 0 else "03"))
             elif module in SMU_TYPES:
                 current = currents.get(slot, 0.0)
                 limit = state.icomp if state.icomp is not None else DEFAULT_ICOMP
-                codes.append(("12" if current > 0 else "13") if abs(current) > limit * (1 + 1e-9) else "01")
+                in_compliance = slot in clamped if clamped is not None else abs(current) > limit * (1 + 1e-9)
+                codes.append(("12" if current > 0 else "13") if in_compliance else "01")
             elif module in CMU_TYPES:
                 codes.append("40")
             else:
@@ -219,8 +227,8 @@ class CoreUnit:
         for channel in self._channels_arg(cmd):
             state = self.state.channels[channel]
             if state.output_on and not self.faults.stuck(channel):
-                state.voltage = 0.0
-                if state.icomp is not None and state.icomp > DEFAULT_ICOMP:
+                state.mode, state.voltage, state.current = "V", 0.0, 0.0  # a current source becomes a 0 V source
+                if state.icomp is None or state.icomp > DEFAULT_ICOMP:
                     state.icomp = DEFAULT_ICOMP
 
     @handles("AB")

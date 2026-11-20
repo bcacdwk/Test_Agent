@@ -1,0 +1,60 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOSFET transfer curve with a synchronous drain sweep: the gate staircase (WV) and the drain as its synchronous
+# source (WSV, MM 2) step together, so step k forces Vd = vd_start + (vd_stop - vd_start)·k/(n-1). The defaults
+# make the drain follow the gate 0.2 V ahead (Vd 0.2 -> 1.2 V while Vg 0 -> 1.2 V): the device is in saturation at
+# every point above threshold, and the weak-inversion drain factor 1 - exp(-Vd/U_T) is saturated from the first
+# point (a drain starting at 0 V, diode-connected Vd = Vg, makes the subthreshold slope look steeper than it is).
+# Source on the GNDU. The drain compliance (1 mA) stays above the drain current at the top of the sweep.
+# Analyses: vth_constant_current (100 nA criterion) and subthreshold_swing on the synchronous curve.
+# status: sim_validated by tests/integration/test_recipes_sweeps.py (nmos_basic: Vth and SS vs the same extractors
+# on the noiseless model curve, SS vs the model's n·U_T·ln10, Id vs the model at the programmed (Vg, Vd));
+# hw_validated only through a reviewed validation record (bring-up stage L4).
+id: mosfet.idvg_sync
+version: 1
+title: MOSFET transfer curve with a synchronous drain sweep (Vd follows Vg; saturation Vth and SS)
+family: smu
+kind: smu_staircase
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
+device_types: [nmos, pmos, igzo_tft]
+roles:
+  gate:
+    function: sweep_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, icomp: $icomp_gate}
+  drain:
+    function: sync_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {start: $vd_start, stop: $vd_stop, icomp: $icomp_drain}
+  source: {function: ground, allow_gndu: true}
+params:
+  vg_start: {unit: V, default: 0.0, recommended: [-1.0, 0.0], range: [-10, 10],
+             doc: "Gate sweep start (below threshold; the 100 nA Vth criterion needs subthreshold points)."}
+  vg_stop: {unit: V, default: 1.2, recommended: [1.0, 3.0], range: [-10, 10], doc: "Gate sweep stop."}
+  vg_points: {type: int, default: 121, recommended: [61, 301], range: [11, 1001],
+              doc: "Gate sweep points (121 = 10 mV steps over the default range)."}
+  vd_start: {unit: V, default: 0.2, recommended: [0.1, 0.5], range: [-5, 5],
+             doc: "Drain value at the first gate step (synchronous source)."}
+  vd_stop: {unit: V, default: 1.2, recommended: [1.0, 3.0], range: [-5, 5],
+            doc: "Drain value at the last gate step."}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: "Gate current compliance."}
+  icomp_drain: {unit: A, default: 1.0e-3, recommended: [1.0e-4, 1.0e-2], range: [1.0e-12, 1.0e-2],
+                doc: "Drain current compliance."}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset (short = fastest/noisiest, long = 16 power-line cycles).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: vth_constant_current}
+  - {method: subthreshold_swing}
+provenance:
+  sources:
+    - blueprint v2 3.1 (mosfet.idvg_sync, smu_staircase WSV), 2.7
+    - v0.2 synchronous sweep flow
+    - Programming Guide Ed. 15 WV (PDF 568-569), WSV (PDF 561-563), synchronous output (PDF 97, 132-133)
+  validation_runs: []

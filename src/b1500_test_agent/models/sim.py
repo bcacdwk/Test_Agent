@@ -56,7 +56,9 @@ class MosfetEkvParams(StrictModel):
     p-channel). ``slope_factor`` n sets the subthreshold swing ``n·ln10·kT/q``; ``beta`` = µ·Cox·W/L (A/V²);
     ``theta`` (1/V) degrades mobility with gate overdrive so gm peaks; ``lambda`` (1/V) is channel-length
     modulation; ``rs_ohm`` is the series resistance at the source and at the drain (each); ``gate_leak_s`` is the
-    gate leakage conductance, split equally between gate-source and gate-drain.
+    gate leakage conductance, split equally between gate-source and gate-drain; ``dibl`` (V/V, default 0 = long
+    channel) is the drain-induced barrier lowering: the threshold falls by ``dibl·|V_DS|`` (the truth of the
+    ``dibl`` analysis, WP7.2).
     """
 
     polarity: Literal["n", "p"] = "n"
@@ -68,6 +70,7 @@ class MosfetEkvParams(StrictModel):
     rs_ohm: float = Field(default=0.0, ge=0.0, le=1.0e6)
     gate_leak_s: float = Field(default=0.0, ge=0.0, le=1.0)
     temperature_k: float = Field(default=300.0, gt=0.0, le=600.0)
+    dibl: float = Field(default=0.0, ge=0.0, le=0.5)
 
     model_config = ConfigDict(
         **StrictModel.model_config, validate_by_name=True, validate_by_alias=True, serialize_by_alias=True

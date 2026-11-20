@@ -73,7 +73,9 @@ from b1500_test_agent.catalog.kinds.smu_staircase import (
     SETUP_OVERHEAD_S,
     BiasOutput,
     MeasureColumn,
+    bias_command,
     drain_or_raise,
+    force_bias,
     measurement_time_s,
 )
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError, RawAcquisition, setting_value
@@ -391,7 +393,7 @@ def _source_columns(sources: list[SourceRole], biases: list[BiasOutput], measure
             columns[f"{item.role}_{quantity}"] = item.source.bias
     for bias in biases:
         if recipe.roles[bias.role].function == "bias_v" and (bias.role, "V") not in measured:
-            columns[f"{bias.role}_V"] = bias.v
+            columns[f"{bias.role}_V"] = bias.level
     return columns
 
 
@@ -430,7 +432,7 @@ class SmuSamplingKind:
                 icomp = _number(setting_value(role, COMPLIANCE_SETTING, params), f"{name}.{COMPLIANCE_SETTING}")
                 base = setting_value(role, "base", params)
                 if base is None:
-                    biases.append(BiasOutput(role=name, channel=channel, v=v, icomp=icomp))
+                    biases.append(BiasOutput(role=name, channel=channel, level=v, comp=icomp))
                     channels[channel] = ChannelEnvelope(role=name, max_abs_v=abs(v), max_abs_i=abs(icomp),
                                                         function="bias_v", v_start=v, v_stop=v)
                 else:
@@ -465,7 +467,7 @@ class SmuSamplingKind:
             channels[channel] = ChannelEnvelope(role=name, max_abs_v=0.0, max_abs_i=abs(icomp),
                                                 function=role.function, v_start=0.0, v_stop=0.0)
             if icomp != 0:
-                biases.append(BiasOutput(role=name, channel=channel, v=0.0, icomp=icomp))
+                biases.append(BiasOutput(role=name, channel=channel, level=0.0, comp=icomp))
         envelope = CompiledEnvelope(channels=channels)
         measure = self._measure(recipe, binding)
         if not measure:
@@ -520,7 +522,7 @@ class SmuSamplingKind:
         lines += [flex.aad(m.channel, adc) for m in program.measure]
         lines.append(flex.ait(adc, ADC_MODE_CODES[integration.mode], integration.n))
         lines.append(flex.cn(program.enable))
-        lines += [flex.dv(b.channel, 0, b.v, b.icomp) for b in program.biases]
+        lines += [bias_command(b) for b in program.biases]
         first = program.setup(program.blocks[0], hold=False)
         lines += [flex.mcc(), flex.ml(first.mode), flex.mt(first.h_bias, first.interval, first.number, first.h_base),
                   flex.msc(first.abort, first.post), *(s.command() for s in first.sources),
@@ -556,7 +558,7 @@ class SmuSamplingKind:
         tx.mark("outputs enabled")
         tx.lop_positive_control(program.enable)
         for bias in program.biases:
-            driver.force_v(bias.channel, bias.v, icomp=bias.icomp)
+            force_bias(tx, bias)
         driver.sampling_setup(program.setup(program.blocks[0], hold=False))
         drain_or_raise(tx, "the sampling setup")
         tx.mark("configured")

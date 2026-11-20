@@ -33,7 +33,7 @@ def clone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_committed_recipes_are_clean(clone: Path) -> None:
     result = runner.invoke(app, ["dev", "recipe-check"])
     assert result.exit_code == 0, result.output
-    assert result.output.startswith("recipes: clean (24 loaded")
+    assert result.output.startswith("recipes: clean (29 loaded")  # 24 (WP7.4) + the five WP7.2 sweep recipes
     assert "mosfet.idvg" in result.output and "sim:sim_validated" in result.output
 
 

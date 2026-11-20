@@ -9,7 +9,9 @@
 # sleeps (time is virtual); `scaled(f)` sleeps f real seconds per virtual second (`scaled` = scaled(0.01)), so a
 # running asynchronous run can be watched. `auto_calibration` (default false): the CM switch at simulator start.
 
-description: Healthy n-channel MOSFET wired like pin map mosfet-4t; interlock open; instant timing.
+description: Healthy n-channel MOSFET wired like pin map mosfet-4t-body (gate SMU4, drain SMU3, source GNDU, bulk
+  SMU5); with SMU5 off the bulk floats at the source potential, so it also matches mosfet-4t; interlock open; instant
+  timing.
 idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101
 slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
   - {slot: 1, model: B1525A}
@@ -25,7 +27,7 @@ wiring:
     gate: 4
     drain: 3
     source: GNDU
-    bulk: GNDU
+    bulk: 5                     # SMU5 (MPSMU): body bias for mosfet.body_effect; floating (= source) while SMU5 is off
 models:
   dut:
     model: mosfet_ekv
@@ -39,6 +41,8 @@ models:
       rs_ohm: 20.0              # series resistance
       gate_leak_s: 1.0e-12      # gate leakage conductance
       temperature_k: 300.0
+      # dibl: 0 (default): a long-channel device; DIBL ~ 0 mV/V is the truth of mosfet.idvg_family's dibl analysis.
+      # Body effect: EKV gives dVth/dVsb = slope_factor - 1 = 0.3 V/V (truth of mosfet.body_effect).
 noise:
   floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
   rel: 1.0e-3

@@ -34,6 +34,7 @@ ERR_HV_SELFTEST = 213
 ERR_NO_MM = 214
 ERR_NO_SWEEP = 220
 ERR_SWEEP_COMPLIANCE = 223
+ERR_SYNC_MODE = 224
 
 ERROR_MESSAGES: dict[int, str] = {
     100: "Undefined GPIB command.",
@@ -56,6 +57,7 @@ ERROR_MESSAGES: dict[int, str] = {
     214: "Send MM before measurement trigger.",
     220: "Send WV or WI to set primary sweep source.",
     223: "Compliance must be set correctly.",
+    224: "Sweep and sync output modes must be the same.",
     227: "Sweep measurement was aborted.",
     305: "Excess current in HPSMU.",
 }
@@ -87,17 +89,19 @@ SAMPLING_COMMANDS = frozenset({"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"})
 SUPPORTED = QUERIES | SAMPLING_COMMANDS | frozenset({
     "*RST", "FMT", "BC", "TSC", "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "RI", "RV",
     "MM", "CMM", "DV", "WV", "WT", "WM", "XE", "CM",
+    "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
 })  # fmt: skip
-"""Every mnemonic the simulator executes (the v1 subset plus ``CM`` and ``*LRN?`` types 0 and 31, v2 2.6, and the
-family state queries of the bring-up probe, v2 7.1: ``ERMOD?``, ``ERSSP?``, ``SPST?``, ``CORRST?``, ``ADJ?`` mode
-0; the sampling commands, WP7.4); anything else is error 100 and logged ``unsupported``."""
+"""Every mnemonic the simulator executes (the v1 subset plus ``CM`` and ``*LRN?`` types 0 and 31, v2 2.6, the family
+state queries of the bring-up probe, v2 7.1: ``ERMOD?``, ``ERSSP?``, ``SPST?``, ``CORRST?``, ``ADJ?`` mode 0, the
+sampling commands of WP7.4 and the v2 sweep sources of WP7.2: ``DI``, ``WI``, ``WSV``/``WSI``, ``WNX``/``WNCC`` with
+``MM 16``); anything else is error 100 and logged ``unsupported``."""
 
 ALONE_ONLY = frozenset({"AB", "*RST", "FMT", "BC"})
 """Mnemonics that must be sent alone: the simulator rejects the whole line (error 103) otherwise (PDF 44, 364,
 437). The real instrument executes ``AB``/``*RST`` and silently drops the rest; the simulator is stricter so a
 driver bug is loud."""
 
-SOURCE_COMMANDS = frozenset({"DV", "WV", "MV", "MI"})
+SOURCE_COMMANDS = frozenset({"DV", "DI", "WV", "WI", "WSV", "WSI", "WNX", "MV", "MI"})
 """Commands that set an output level (the safety spy watches these)."""
 
 ZEROING_COMMANDS = frozenset({"DZ", "CL"})
@@ -194,6 +198,9 @@ def max_icomp(voltage: float) -> float:
 
 SMU_MAX_V = 100.0
 """Largest MP/HRSMU output voltage (Table 4-7, PDF 342)."""
+
+SMU_MAX_I = 0.1
+"""Largest MP/HRSMU output current (Table 4-6, PDF 341)."""
 
 INTERLOCK_OPEN_MAX_V = 42.0
 """Allowable voltage for the interlock open condition (``INTLKVTH`` factory setting 42 V, PDF 442)."""

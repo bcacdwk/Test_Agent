@@ -65,10 +65,10 @@ SETUP_DIFFERENCES: dict[str, Difference] = {
         "as range.3, for the drain current: the lab's off state (+-2e-13 A) is read on the 1 nA range, the "
         "kernel lets the HRSMU range down (10 pA range, 1 fA resolution, UG PDF 69-70)")),
     "timing.delay_s": Difference(0.01, 0.0, (
-        "the lab waits 10 ms per step (WT 0,0.01); mosfet.idvg has no delay parameter in v1 (WT 0,0): at 1 PLC "
-        "the integration itself is 20 ms, and the displacement current the delay would let settle (about "
-        "-0.4 pA in the lab curve's off state) sits at the floor; slow devices use generic.smu_staircase "
-        "(hold/delay settings)")),
+        "the lab waits 10 ms per step (WT 0,0.01); mosfet.idvg's delay_s defaults to 0 (WT 0,0, the v1 sequence): "
+        "at 1 PLC the integration itself is 20 ms, and the displacement current the delay would let settle (about "
+        "-0.4 pA in the lab curve's off state) sits at the floor; delay_s: 0.01 reproduces the lab timing "
+        "(test_the_lab_delay_is_a_recipe_parameter)")),
     "sweep.range": Difference(12, 0, (
         "WV range 12 = 20 V limited auto ranging (PG p339 (4-21) Table 4-4) for a +-2 V sweep: the source never "
         "goes below the 20 V range; the kernel uses auto ranging (initial setting), i.e. the 2 V range with its "
@@ -252,3 +252,19 @@ def test_the_lab_compliances_are_outside_what_the_kernel_would_run_unasked(world
             assert any(f.rule_id == "R-PARAM-01" and f.severity == "block" for f in record.rules.findings), name
     finally:
         executor.close()
+
+
+def test_the_lab_delay_is_a_recipe_parameter(world: World) -> None:
+    """WP7.2 (WP6.2 handoff): ``mosfet.idvg`` takes ``hold_s``/``delay_s``; ``delay_s: 0.01`` removes the
+    ``timing.delay_s`` difference and changes nothing else of the setup."""
+    world.use_scenario("lab_nmos_2025")
+    executor = world.executor()
+    try:
+        request = {**LAB_IDVG_REQUEST, "params": {**LAB_IDVG_REQUEST["params"], "delay_s": 0.01}}
+        record = executor.plan(PlanRequest.model_validate(request))
+    finally:
+        executor.close()
+    assert record.tier == "needs_confirmation" and "WT 0,0.01" in record.flex_preview
+    lab, _ = setup_of(load_sequence("lwp_test_idvg").writes())
+    ours, _ = setup_of(record.flex_preview)
+    assert {key for key in lab if lab[key] != ours[key]} == set(SETUP_DIFFERENCES) - {"timing.delay_s"}

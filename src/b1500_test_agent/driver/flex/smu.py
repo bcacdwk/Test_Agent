@@ -1,4 +1,5 @@
-"""SMU FLEX builders: measurement operation mode, A/D converter, ranging, staircase sweep and DC force (blueprint 2.5).
+"""SMU FLEX builders: measurement operation mode, A/D converter, ranging, staircase sweeps (primary ``WV``/``WI``,
+synchronous ``WSV``/``WSI``, multi-channel ``WNX``) and DC force (``DV``/``DI``) (blueprint 2.5).
 
 Part of ``driver/flex/``, the only package that spells FLEX mnemonics in string literals; see ``core.py`` for the
 conventions (one command per string, syntax-domain checks only, page citations). Source: Keysight B1500 Series
@@ -22,6 +23,17 @@ I_RANGE_CODES = frozenset({0, *range(8, 24)})
 limited auto; ``RI`` also accepts the negated codes (fixed range). Expander-only codes (UHCU 26/28) are not
 accepted."""
 
+I_OUTPUT_RANGE_CODES = frozenset({0, *range(8, 24)})
+"""SMU current output ranging codes (Table 4-5, PDF 340): 0 = auto, 8 (1 pA, ASU) to 23 (40 A) = limited auto ranging
+(the minimum range that covers the output, never below the given one). Output ranging has no fixed (negative) codes;
+expander-only codes (UHCU 26/28) are not accepted."""
+
+SWEEP_SOURCE_MODES: dict[str, int] = {"V": 1, "I": 2}
+"""``WNX`` source type: 1 = voltage sweep source, 2 = current sweep source (PG PDF 557, printed 4-239)."""
+
+MAX_SWEEP_STEPS = 10001
+"""``WV``/``WI`` ``step`` (number of sweep steps): 1 to 10001 (PG PDF 551, 568)."""
+
 _AIT_N_LIMITS: dict[tuple[int, int], tuple[float, float]] = {
     (0, 0): (1, 1023),
     (0, 1): (1, 1023),
@@ -35,6 +47,32 @@ _AIT_N_LIMITS: dict[tuple[int, int], tuple[float, float]] = {
 }
 """``AIT`` N per (ADC type, mode) from Table 4-21 (PDF 358-359): integer coefficient for modes 0-2, measurement time in
 seconds (2 us to 20 ms) for mode 3. Pairs missing here are "not applicable"."""
+
+
+
+def _finite(value: float, name: str) -> float:
+    if isinstance(value, bool) or not math.isfinite(float(value)):
+        raise ValueError(f"{name} must be a finite number, got {value!r}")
+    return float(value)
+
+
+def _compliance(value: float, name: str) -> float:
+    if _finite(value, name) == 0:
+        raise ValueError(f"{name} must not be 0")
+    return float(value)
+
+
+def _steps(points: int, name: str) -> int:
+    _int(points, name)
+    if not 1 <= points <= MAX_SWEEP_STEPS:
+        raise ValueError(f"{name} (number of points) must be 1 to {MAX_SWEEP_STEPS}, got {points}")
+    return points
+
+
+def _log_polarity(mode: int, start: float, stop: float) -> None:
+    if mode in (2, 4) and (float(start) == 0 or float(stop) == 0 or (float(start) > 0) != (float(stop) > 0)):
+        raise ValueError("a log sweep needs non-zero start and stop of the same polarity (PG PDF 551, 569)")
+
 
 # -- Builders ------------------------------------------------------------------------------------------------------
 
@@ -151,6 +189,21 @@ def dv(ch: int, rng: int, v: float, icomp: float) -> str:
     return f"DV {_channel(ch)},{rng},{_num(v)},{_num(icomp)}"
 
 
+def di(ch: int, rng: int, i: float, vcomp: float) -> str:
+    """``DI chnum,irange,current,Vcomp``: force a DC current (PG PDF 391-392, printed 4-73 to 4-74).
+
+    ``rng`` is a current output ranging code from Table 4-5 (PDF 340; 0 = auto, positive = limited auto). Current and
+    voltage compliance limits per module are in Tables 4-6, 4-8 and 4-11 (PDF 341-345; ``driver/modules.py``).
+    Vcomp is always sent (never the previous setting) and must not be 0 V; its polarity stays automatic (the
+    current's polarity). The channel must be enabled by ``CN``; a Vcomp above the interlock-open voltage needs the
+    interlock closed.
+    """
+    _choice(rng, I_OUTPUT_RANGE_CODES, "DI irange")
+    _finite(i, "DI current")
+    _compliance(vcomp, "DI Vcomp")
+    return f"DI {_channel(ch)},{rng},{_num(i)},{_num(vcomp)}"
+
+
 def wv(ch: int, mode: int, rng: int, start: float, stop: float, points: int, icomp: float) -> str:
     """``WV chnum,mode,range,start,stop,step,Icomp``: staircase sweep voltage source (PG PDF 568-569, printed 4-250
     to 4-251; example PDF 570).
@@ -170,3 +223,76 @@ def wv(ch: int, mode: int, rng: int, start: float, stop: float, points: int, ico
     if float(icomp) == 0:
         raise ValueError("WV Icomp must not be 0 A")
     return f"WV {_channel(ch)},{mode},{rng},{_num(start)},{_num(stop)},{points},{_num(icomp)}"
+
+
+def wi(ch: int, mode: int, rng: int, start: float, stop: float, points: int, vcomp: float) -> str:
+    """``WI chnum,mode,range,start,stop,step,Vcomp``: staircase sweep current source (PG PDF 551-552, printed 4-233
+    to 4-234).
+
+    ``mode`` 1 linear single, 2 log single, 3 linear double (start-stop-start), 4 log double; ``rng`` from Table 4-5
+    (PDF 340; the log sweep changes the output range dynamically); ``points`` = the manual's ``step``, 1 to 10001;
+    log sweeps need ``start`` and ``stop`` of the same polarity and non-zero. Vcomp is always sent (its polarity
+    follows the output); power compliance (``Pcomp``) is not used. ``WI`` clears the ``WV``, ``WSV``, ``WSI`` and
+    ``WNX`` settings.
+    """
+    _choice(mode, (1, 2, 3, 4), "WI mode")
+    _choice(rng, I_OUTPUT_RANGE_CODES, "WI range")
+    _steps(points, "WI step")
+    _finite(start, "WI start")
+    _finite(stop, "WI stop")
+    _log_polarity(mode, start, stop)
+    _compliance(vcomp, "WI Vcomp")
+    return f"WI {_channel(ch)},{mode},{rng},{_num(start)},{_num(stop)},{points},{_num(vcomp)}"
+
+
+def wsv(ch: int, rng: int, start: float, stop: float, icomp: float) -> str:
+    """``WSV chnum,range,start,stop,Icomp``: synchronous staircase sweep voltage source of a ``WV`` primary sweep
+    (PG PDF 561-563, printed 4-243 to 4-245).
+
+    Sent after ``WV`` (which clears it; ``WI`` clears it too); the sweep mode (linear/log, single/double) and the
+    number of steps are the primary's, so a log primary needs ``start``/``stop`` of one polarity (checked by the
+    staircase setup, which knows the primary). ``rng`` from Table 4-4 (PDF 339). Icomp is always sent and must not
+    be 0 A; ``Pcomp`` is not used. MM 2 (and MM 4/5).
+    """
+    _choice(rng, V_RANGE_CODES, "WSV range")
+    _finite(start, "WSV start")
+    _finite(stop, "WSV stop")
+    _compliance(icomp, "WSV Icomp")
+    return f"WSV {_channel(ch)},{rng},{_num(start)},{_num(stop)},{_num(icomp)}"
+
+
+def wsi(ch: int, rng: int, start: float, stop: float, vcomp: float) -> str:
+    """``WSI chnum,range,start,stop,Vcomp``: synchronous staircase sweep current source of a ``WI`` primary sweep
+    (PG PDF 560-561, printed 4-242 to 4-243).
+
+    Sent after ``WI`` (which clears it; ``WV`` clears it too); sweep mode and steps are the primary's. ``rng`` from
+    Table 4-5 (PDF 340). Vcomp is always sent and must not be 0 V; ``Pcomp`` is not used. MM 2 (and MM 4/5).
+    """
+    _choice(rng, I_OUTPUT_RANGE_CODES, "WSI range")
+    _finite(start, "WSI start")
+    _finite(stop, "WSI stop")
+    _compliance(vcomp, "WSI Vcomp")
+    return f"WSI {_channel(ch)},{rng},{_num(start)},{_num(stop)},{_num(vcomp)}"
+
+
+def wnx(n: int, ch: int, source: str, rng: int, start: float, stop: float, comp: float) -> str:
+    """``WNX N,chnum,mode,range,start,stop,comp``: sweep source number ``n`` of a multi-channel sweep
+    (PG PDF 556-559, printed 4-238 to 4-241; example PDF 559).
+
+    ``source`` ``"V"`` (mode 1, ``rng`` from Table 4-4, ``comp`` = Icomp in A) or ``"I"`` (mode 2, ``rng`` from
+    Table 4-5, ``comp`` = Vcomp in V); either mode may follow either primary. ``n`` is 2 to 10 for MM 16 (the primary
+    is the ``WV``/``WI`` source, which must be sent first) and 1 to 10 for MM 28; sweep mode and steps are the
+    primary's. ``start`` = ``stop`` makes the channel a constant source. ``comp`` is always sent and must not be 0;
+    ``Pcomp`` is not used. ``WV``/``WI``/``WNCC`` clear every ``WNX`` setting; a repeated ``n`` or channel replaces
+    the earlier setting.
+    """
+    if _int(n, "WNX N") not in range(1, 11):
+        raise ValueError(f"WNX N must be 1 to 10, got {n}")
+    if source not in SWEEP_SOURCE_MODES:
+        raise ValueError(f"WNX source must be 'V' or 'I', got {source!r}")
+    codes = V_RANGE_CODES if source == "V" else I_OUTPUT_RANGE_CODES
+    _choice(rng, codes, f"WNX range ({source} source)")
+    _finite(start, "WNX start")
+    _finite(stop, "WNX stop")
+    _compliance(comp, "WNX comp")
+    return f"WNX {n},{_channel(ch)},{SWEEP_SOURCE_MODES[source]},{rng},{_num(start)},{_num(stop)},{_num(comp)}"

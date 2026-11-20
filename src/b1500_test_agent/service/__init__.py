@@ -20,8 +20,9 @@ abort file reaches a run of any process). ``follow_run`` (CLI foreground runs) a
 shutdown hook, the CLI's Ctrl-C) are the two non-tool lifecycle methods.
 
 Responses stay at or below ``RESPONSE_TOKEN_BUDGET`` (2k) tokens (blueprint 5.1): ``get_run`` downsamples data rows
-and trims audit lines, ``list_runs`` trims entries, both measured with the conservative ``approx_tokens`` estimate (no
-tokenizer download at run time).
+and trims audit lines, ``list_runs`` trims entries, the ``list_recipes`` index names its ``not_implemented`` recipes
+in the message instead of listing them (then trims), all measured with the conservative ``approx_tokens`` estimate
+(no tokenizer download at run time).
 
 Modules: ``core`` (``B1500Service``: tool methods, call plumbing, ``list_recipes``, ``validate_plan``), ``status``
 (``station_status``), ``runs`` (``list_runs``, ``get_run``, ``analyze_run``, ``annotate_run``), ``shutdown``

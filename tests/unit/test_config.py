@@ -42,7 +42,7 @@ def test_committed_examples_validate(repo_paths: Paths) -> None:
     assert bundle.backend == "sim"
     assert "example" in bundle.backend_reason
     assert set(bundle.pin_maps) == {"mosfet-4t", "diode-2t", "resistor-2t", "mosfet-3t-lab", "fefet-sel",
-                                    "fecap-wgfmu", "moscap-cmu"}
+                                    "fecap-wgfmu", "moscap-cmu", "mosfet-4t-body"}
     assert set(bundle.dut_profiles) == {"nmos-generic", "fefet-generic", "diode-generic", "resistor-generic",
                                         "fefet-lab", "fecap-generic", "moscap-generic", "capacitor-100p",
                                         "dielectric-generic"}
@@ -295,7 +295,7 @@ def test_lab_example_is_unverified(repo_paths: Paths) -> None:
     assert all(ch is None for s in bundle.station.switches if s.kind == "selector_16440a"
                for port in s.ports.values() for ch in port.inputs.values())
     lab = {name: pm.certainty for name, pm in bundle.pin_maps.items() if name not in {"mosfet-4t", "diode-2t",
-                                                                                       "resistor-2t"}}
+                                                                                       "resistor-2t", "mosfet-4t-body"}}
     assert lab == dict.fromkeys(["mosfet-3t-lab", "fefet-sel", "fecap-wgfmu", "moscap-cmu"], "unverified")
 
 

@@ -66,9 +66,9 @@ SUMMARY_MAX_CHARS: Final = 400
 
 _ACTION = {
     "sweep_v": "sweep", "step_v": "step", "bias_v": "bias", "ground": "ground", "measure_only": "measure at",
-    "sync_v": "sync", "sweep_i": "sweep", "bias_i": "bias", "step_i": "step",
+    "sync_v": "sync", "sweep_i": "sweep", "bias_i": "bias", "step_i": "step", "sync_i": "sync",
 }  # fmt: skip
-_CURRENT_FUNCTIONS = frozenset({"sweep_i", "bias_i", "step_i"})
+_CURRENT_FUNCTIONS = frozenset({"sweep_i", "bias_i", "step_i", "sync_i"})
 _PULSE_FUNCTIONS = frozenset({"pulse_v", "pgu"})
 _CURRENT_PREFIXES = ((1.0, "A"), (1e-3, "mA"), (1e-6, "uA"), (1e-9, "nA"), (1e-12, "pA"), (1e-15, "fA"))
 _TIME_PREFIXES = ((1.0, "s"), (1e-3, "ms"), (1e-6, "us"), (1e-9, "ns"), (1e-12, "ps"))

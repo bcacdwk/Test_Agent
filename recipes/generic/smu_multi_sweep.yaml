@@ -1,0 +1,55 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe).
+# Generic ad-hoc multi-channel sweep (MM 16, PG p102 (2-14)): terminal a is the primary sweep; terminal c, when the
+# pin map connects it, is a second sweep source (WNX 2) that follows a's steps and sweep mode (equal start and stop
+# make it a constant source); terminal d, when connected, holds a constant bias; terminal b is the return (GNDU, or an
+# SMU at 0 V). Every SMU terminal but b is measured (current). Roles bind to pin-map terminals of the same name: the
+# committed resistor-2t map (a on SMU3, b on GNDU) runs the one-source form, as the Programming Guide's multi-channel
+# example does (Table 3-13, PDF 226-228); a second sweep or bias terminal needs a pin map from the human naming c/d.
+# On hardware every plan needs confirmation (adhoc_recipe, plus first_hw_run until it is hw_validated). Prefer a
+# device-specific recipe whenever one exists.
+# status: sim_validated by tests/integration/test_recipes_sweeps.py (resistor_100k: R +-1 %; nmos_basic: gate and
+# drain swept together = the synchronous sweep and the model) and its FLEX preview of PG Table 3-13.
+id: generic.smu_multi_sweep
+version: 1
+title: Generic multi-channel SMU sweep (MM 16; ad-hoc; sweep a, optional second sweep c and bias d, return b)
+family: smu
+kind: smu_staircase
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/smu-spot-kelvin.md
+device_types: []
+roles:
+  a:
+    function: sweep_v
+    measure: [I]
+    settings: {start: $start, stop: $stop, points: $points, icomp: $icomp, mode: $mode}
+  c:
+    function: sweep_v
+    measure: [I]
+    optional: true
+    settings: {start: $start_c, stop: $stop_c, icomp: $icomp_c}
+  d:
+    function: bias_v
+    measure: [I]
+    optional: true
+    settings: {v: $bias_v, icomp: $bias_icomp}
+  b: {function: ground, allow_gndu: true}
+params:
+  start: {unit: V, default: 0.0, range: [-42, 42], doc: "Terminal a (primary sweep) start."}
+  stop: {unit: V, default: 1.0, range: [-42, 42], doc: "Terminal a (primary sweep) stop."}
+  points: {type: int, default: 51, range: [2, 2001], doc: "Sweep points (every sweep terminal)."}
+  icomp: {unit: A, default: 1.0e-4, range: [1.0e-12, 0.1], doc: "Current compliance of terminal a."}
+  mode: {type: enum, choices: [single, double], default: single, doc: "single = start->stop; double = and back."}
+  start_c: {unit: V, default: 0.0, range: [-42, 42], doc: "Terminal c (second sweep) at the first step."}
+  stop_c: {unit: V, default: 1.0, range: [-42, 42], doc: "Terminal c at the last step (= start_c holds it constant)."}
+  icomp_c: {unit: A, default: 1.0e-4, range: [1.0e-12, 0.1], doc: "Current compliance of terminal c."}
+  bias_v: {unit: V, default: 0.0, range: [-42, 42], doc: "Bias of terminal d."}
+  bias_icomp: {unit: A, default: 1.0e-4, range: [1.0e-12, 0.1], doc: "Current compliance of terminal d."}
+  integration: {type: enum, choices: [short, medium, long], default: medium, doc: "ADC preset."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults: []
+provenance:
+  sources:
+    - blueprint v2 3.1 (generic.smu_multi_sweep, smu_staircase MM 16), 2.7
+    - Programming Guide Ed. 15 MM 16 (PDF 102-103, 470-472), WNX (PDF 556-559), example Table 3-13 (PDF 225-228)
+    - v0.2 multi-channel flow; generic.* recipes are ad-hoc (rule R-REC-01 adhoc_recipe on visa)
+  validation_runs: []

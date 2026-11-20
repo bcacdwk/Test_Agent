@@ -84,10 +84,12 @@ def run_on_visa(world: VisaWorld, case: dict[str, Any], **bus_kwargs: Any) -> tu
 
 def test_the_suite_covers_every_v1_runnable_recipe() -> None:
     assert sorted(c["recipe_id"] for c in MEASUREMENT_CASES) == [
-        "basic.contact_resistor", "basic.diode_iv", "fefet.dual_sweep_mw", "generic.smu_staircase",
-        "mosfet.gate_leakage", "mosfet.idvd", "mosfet.idvg", "system.self_cal", "system.self_test"]
+        "basic.contact_resistor", "basic.diode_iv", "basic.iv_force_i", "fefet.dual_sweep_mw",
+        "generic.smu_multi_sweep", "generic.smu_staircase", "mosfet.body_effect", "mosfet.gate_leakage",
+        "mosfet.idvd", "mosfet.idvg", "mosfet.idvg_family", "mosfet.idvg_sync", "system.self_cal",
+        "system.self_test"]  # v1 + the WP7.2 sweeps
     assert sorted(c["recipe_id"] for c in SYSTEM_CASES) == ["system.self_cal", "system.self_test"]
-    assert len(DATA_CASES) == 7
+    assert len(DATA_CASES) == 12
 
 
 @pytest.mark.parametrize("case", DATA_CASES, ids=[c["recipe_id"] for c in DATA_CASES])

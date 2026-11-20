@@ -2,6 +2,8 @@
 # MOSFET transfer curve in the linear region: staircase sweep of the gate at a small constant drain bias, source on
 # the GNDU (blueprint 2.6 example; defaults from deck slide 6, values reused from the v0.2 idvg example).
 # `range` is the hard recipe envelope (rule R-PARAM-01); policy and DUT profile limits apply on top of it.
+# WP7.2: hold_s/delay_s (WT hold and delay; default 0 = the v1 sequence, byte-identical FLEX preview) for slow
+# devices and the lab script's 10 ms per-step delay.
 # status: sim_validated by the WP1.7 integration test (tests/integration/test_executor_vertical.py); hw_validated
 # only through an M4 validation record. card: set by WP2.5 when the mosfet-idvg card exists.
 id: mosfet.idvg
@@ -17,7 +19,8 @@ roles:
     function: sweep_v
     measure: [I]
     module_types: [MPSMU, HRSMU, HPSMU]
-    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, icomp: $icomp_gate}
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, icomp: $icomp_gate, hold: $hold_s,
+               delay: $delay_s}
   drain:
     function: bias_v
     measure: [I]
@@ -32,6 +35,13 @@ params:
   vd: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [-5, 5], doc: Drain bias (linear region).}
   icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance.}
   icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-2], doc: Drain current compliance.}
+  hold_s: {unit: s, default: 0.0, recommended: [0.0, 1.0], range: [0.0, 30.0], doc: "Hold before the first step (WT hold)."}
+  delay_s:
+    unit: s
+    default: 0.0
+    recommended: [0.0, 0.05]
+    range: [0.0, 10.0]
+    doc: "Delay per step before the measurement (WT delay; the lab script uses 10 ms for slow devices)."
   integration:
     type: enum
     choices: [short, medium, long]

@@ -46,7 +46,9 @@ class MosfetEkv:
     - ``I_DS = I_spec·(i_f - i_r)·(1 + λ|V_DS|)/(1 + θ·V_ov)`` with the smooth overdrive
       ``V_ov = 2nU_T·ln(1 + exp((V_G - V_T0 - n·V_S)/(2nU_T)))``, so gm peaks and then falls;
     - ``rs_ohm`` in series with source and drain (solved self-consistently by bisection);
-    - gate leakage ``g/2·(V_G - V_S) + g/2·(V_G - V_D)``.
+    - gate leakage ``g/2·(V_G - V_S) + g/2·(V_G - V_D)``;
+    - drain-induced barrier lowering: ``V_T0`` falls by ``dibl·|V_DS|`` (internal voltages, after the series
+      resistances), so a constant-current threshold moves by ``-dibl`` volts per volt of drain bias.
 
     A floating gate, drain or source switches the device off (all currents zero); a floating bulk follows the
     source. ``vth`` arguments override ``vth0`` (terminal polarity); the FeFET uses that for its polarization, the v2
@@ -72,7 +74,7 @@ class MosfetEkv:
         """Channel current D→S (A) of the n-type core, voltages already mirrored and referred to the bulk."""
         p = self.params
         n, ut = p.slope_factor, (self.ut if ut is None else ut)
-        vt = (p.vth0 if vth is None else vth) * self.sign
+        vt = (p.vth0 if vth is None else vth) * self.sign - p.dibl * abs(vd - vs)
         vp = (vg - vt) / n
         i_f = softplus((vp - vs) / (2 * ut)) ** 2
         i_r = softplus((vp - vd) / (2 * ut)) ** 2

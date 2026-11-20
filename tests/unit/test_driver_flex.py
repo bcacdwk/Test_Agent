@@ -96,6 +96,18 @@ def _cited_pages(text: str) -> set[int]:
         (flex.wv(2, 1, 0, 0, 20, 101, 0.01), "WV 2,1,0,0,20,101,0.01"),  # PDF 570 example + Icomp
         (flex.wv(1, 2, 12, 1e-6, 10, 100, 0.1), "WV 1,2,12,1E-06,10,100,0.1"),  # PDF 570 example w/o Pcomp
         (flex.wv(1, 3, 0, -1.0, 3.0, 101, 1e-6), "WV 1,3,0,-1,3,101,1E-06"),
+        (flex.mm(16, [1, 2]), "MM 16,1,2"),  # PDF 227 Table 3-13 "MM 16,base,collector"
+        (flex.di(3, 14, 5e-7, 20), "DI 3,14,5E-07,20"),  # PDF 392 example "DI 3,14,5E-7,20,0,0" w/o polarity, vrange
+        (flex.di(1, 0, 1e-6, 2), "DI 1,0,1E-06,2"),  # PDF 392 example "DI 1,0,1E-6" + Vcomp (always sent)
+        (flex.wi(1, 1, 11, 0, 0.1, 100, 10), "WI 1,1,11,0,0.1,100,10"),  # PDF 552 example w/o Pcomp
+        (flex.wi(2, 2, 15, 1e-6, 0.1, 100, 2), "WI 2,2,15,1E-06,0.1,100,2"),  # PDF 552 example + Vcomp
+        (flex.wi(1, 4, 0, -1e-3, -1e-9, 61, 5), "WI 1,4,0,-0.001,-1E-09,61,5"),
+        (flex.wsi(2, 0, 1e-3, 1e-2, 5), "WSI 2,0,0.001,0.01,5"),  # PDF 561 example w/o Pcomp
+        (flex.wsi(1, 16, 0, 4e-5, 1), "WSI 1,16,0,4E-05,1"),  # PDF 561 example "WSI 1,16,0,4E-5" + Vcomp
+        (flex.wsv(1, 0, 1, 100, 0.01), "WSV 1,0,1,100,0.01"),  # PDF 563 example w/o Pcomp
+        (flex.wsv(2, 12, 0, 10, 1e-3), "WSV 2,12,0,10,0.001"),  # PDF 563 example "WSV 2,12,0,10" + Icomp
+        (flex.wnx(2, 3, "V", 12, 0, 3, 1e-3), "WNX 2,3,1,12,0,3,0.001"),  # PDF 559 example w/o Pcomp
+        (flex.wnx(3, 4, "I", 0, 1e-3, 1e-2, 3), "WNX 3,4,2,0,0.001,0.01,3"),  # PDF 559 example
         (flex.cm(0), "CM 0"),  # PDF 379 example
         (flex.cm(1), "CM 1"),  # PDF 379 example
         (flex.lrn_q(1), "*LRN? 1"),  # PDF 447 example
@@ -153,6 +165,11 @@ def test_no_builder_combines_commands() -> None:
         flex.wm(1, 1),
         flex.dv(1, 0, 1, 1e-3),
         flex.wv(1, 1, 0, 0, 1, 11, 1e-3),
+        flex.di(1, 0, 1e-6, 1),
+        flex.wi(1, 2, 0, 1e-9, 1e-3, 61, 2),
+        flex.wsv(2, 0, 0, 1, 1e-3),
+        flex.wsi(2, 0, 0, 1e-6, 1),
+        flex.wnx(2, 2, "V", 0, 0, 1, 1e-3),
     ]
     constants = [value for name, value in vars(flex).items() if name.isupper() and isinstance(value, str)]
     for text in samples + constants:
@@ -182,7 +199,7 @@ def test_numbers_are_round_trip_exact() -> None:
         lambda: flex.dz([103]),
         lambda: flex.fmt(2, 0),  # only FMT 1 and 5
         lambda: flex.fmt(1, 11),
-        lambda: flex.mm(3, [1]),  # only MM 1, 2 and 10
+        lambda: flex.mm(3, [1]),  # only MM 1, 2, 10 and 16
         lambda: flex.mm(2, []),
         lambda: flex.mm(2, list(range(1, 11)) + [101]),  # 11 > 10
         lambda: flex.cmm(1, 5),
@@ -218,6 +235,27 @@ def test_numbers_are_round_trip_exact() -> None:
         lambda: flex.wv(1, 2, 0, 0, 1, 11, 1e-3),  # log sweep through 0
         lambda: flex.wv(1, 4, 0, -1, 1, 11, 1e-3),  # log sweep across polarity
         lambda: flex.wv(1, 1, 0, 0, 1, 11, 0),
+        lambda: flex.mm(4, [1]),  # pulsed sweep: not implemented by a kind yet
+        lambda: flex.di(1, -14, 1e-6, 2),  # output ranging has no fixed codes
+        lambda: flex.di(1, 24, 1e-6, 2),
+        lambda: flex.di(1, 0, 1e-6, 0),  # 0 V Vcomp
+        lambda: flex.di(1, 0, float("nan"), 2),
+        lambda: flex.wi(1, 5, 0, 0, 1e-3, 11, 2),
+        lambda: flex.wi(1, 2, 0, 0, 1e-3, 11, 2),  # log sweep through 0 A
+        lambda: flex.wi(1, 4, 0, -1e-6, 1e-3, 11, 2),  # log sweep across polarity
+        lambda: flex.wi(1, 1, 0, 0, 1e-3, 10002, 2),
+        lambda: flex.wi(1, 1, 7, 0, 1e-3, 11, 2),
+        lambda: flex.wi(1, 1, 0, 0, 1e-3, 11, 0),
+        lambda: flex.wsv(1, 3, 0, 1, 1e-3),  # not a Table 4-4 code
+        lambda: flex.wsv(1, 0, 0, 1, 0),
+        lambda: flex.wsi(1, -11, 0, 1e-6, 1),
+        lambda: flex.wsi(1, 0, 0, 1e-6, 0),
+        lambda: flex.wnx(11, 3, "V", 0, 0, 1, 1e-3),  # N 1-10
+        lambda: flex.wnx(0, 3, "V", 0, 0, 1, 1e-3),
+        lambda: flex.wnx(2, 3, "P", 0, 0, 1, 1e-3),
+        lambda: flex.wnx(2, 3, "I", -12, 0, 1e-3, 1),  # output ranging has no fixed codes
+        lambda: flex.wnx(2, 3, "V", 7, 0, 1, 1e-3),
+        lambda: flex.wnx(2, 3, "V", 0, 0, 1, 0),
         lambda: flex.cm(2),
         lambda: flex.cm(-1),
         lambda: flex.lrn_q(111),
@@ -241,6 +279,9 @@ def test_builders_reject_values_outside_the_manual_domain(call) -> None:
         lambda: flex.cn([True]),
         lambda: flex.mm(2.0, [1]),
         lambda: flex.wv(1, 1, 0, 0, 1, 11.0, 1e-3),
+        lambda: flex.wi(1, 1, 0, 0, 1e-3, 11.0, 2),
+        lambda: flex.wnx(2.0, 3, "V", 0, 0, 1, 1e-3),
+        lambda: flex.di(1, True, 1e-6, 2),
         lambda: flex.dv(1, 0, True, 1e-3),
         lambda: flex.cm(True),
         lambda: flex.lrn_q(31.0),
@@ -335,7 +376,8 @@ def test_family_modules_hold_disjoint_builders() -> None:
     assert not set(_own_functions(flex_core)) & set(_own_functions(flex_smu))
     assert {"cn", "cl", "dz", "fmt", "mm", "cm", "lrn_q", "tsc", "tsr"} == set(_own_functions(flex_core))
     assert {"mcc", "ml", "mt", "msc", "mv", "mi"} == set(_own_functions(flex_sampling))  # WP7.4
-    assert {"cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv"} == set(_own_functions(flex_smu))
+    assert {"cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "di", "wi", "wsv", "wsi", "wnx"} == set(
+        _own_functions(flex_smu))
     assert {"corrst_q", "adj_q"} == set(_own_functions(flex_cmu))
     assert set() == set(_own_functions(flex_spgu)) and "SPST_Q" in _own_constants(flex_spgu)
     assert {"erssp_q"} == set(_own_functions(flex_switch)) and "ERMOD_Q" in _own_constants(flex_switch)

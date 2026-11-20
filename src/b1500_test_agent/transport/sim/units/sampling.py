@@ -7,19 +7,19 @@ engine evaluates the whole measurement at ``XE`` on the scenario circuit, in vir
 468-469; ``ML`` 469-470; ``MSC`` 472-473; ``MV`` 477-478; ``TSR`` 539-540; data format 46, 49):
 
 - trigger at ``t0``: ``MV``/``MI`` sources force their base value, at ``t = t0 + h_base`` their bias value; DC
-  (``DV``) sources keep their level. Samples fall on the grid ``t + h_bias + (index - 1) x interval``; a sample that
-  would start while the channels are still measuring the previous one is skipped (its index is not returned: PDF
-  49), so a slow measurement (``slow`` fault) shows index gaps. Linear mode holds ``number`` samples; log mode
-  (``ML`` 2-7) holds the first ``number`` distinct indices ``round(10^(j/density))`` (TODO(verify) at L5: the
-  instrument's choice of the held points). Intervals below 2 ms measure the channels in parallel and stop at
-  ``h_bias + interval x number`` even with fewer samples.
+  (``DV``/``DI``) sources keep their level. Samples fall on the grid ``t + h_bias + (index - 1) x interval``; a
+  sample that would start while the channels are still measuring the previous one is skipped (its index is not
+  returned: PDF 49), so a slow measurement (``slow`` fault) shows index gaps. Linear mode holds ``number``
+  samples; log mode (``ML`` 2-7) holds the first ``number`` distinct indices ``round(10^(j/density))``
+  (TODO(verify) at L5: the instrument's choice of the held points). Intervals below 2 ms measure the channels in
+  parallel and stop at ``h_bias + interval x number`` even with fewer samples.
 - If the channels' integration time exceeds the interval, the instrument shortens the averaging to keep the
   interval (PDF 475): the simulator measures for at most the interval and raises the noise to that of the shorter
   integration.
 - Dynamic devices evolve between samples (``Circuit.advance`` under the voltages applied, split at the bias step);
-  each sample is a quasi-static solve with compliance (``SmuUnit.solve``); current sources (``MI``) are solved for
-  the voltage that carries their current within Vcomp (status ``C`` when Vcomp is reached). The ``breakdown_at``
-  fault breaks the dielectrics at its time.
+  each sample is a quasi-static solve with compliance (``SmuUnit.solve``); current sources (``MI``, ``DI``) are
+  solved for the voltage that carries their current within Vcomp (status ``C`` when Vcomp is reached). The
+  ``breakdown_at`` fault breaks the dielectrics at its time.
 - ``MSC 2``: compliance (``C``/``T``), overflow (``V``) or oscillation (``X``) on a sample aborts: later samples are
   ``199.999E+99`` with status ``V`` and the sources go to their base value at once; a normal end leaves them at the
   ``MSC`` post value (bias by default). An ``AB`` also returns them to base.
@@ -247,11 +247,13 @@ class SamplingUnit:
             k += 1
         return samples
 
-    def _sampling_levels(self, levels0: dict[int, float], sources: dict[int, SamplingSourceState],
+    def _sampling_levels(self, levels0: dict[int, float], currents0: dict[int, tuple[float, float]],
+                         sources: dict[int, SamplingSourceState],
                          after_step: bool) -> tuple[dict[int, float], dict[int, tuple[float, float]]]:
-        """Voltage levels (DC and ``MV``) and current sources ``{channel: (current, Vcomp)}`` at one moment."""
+        """Voltage levels (``DV`` and ``MV``) and current sources ``{channel: (current, Vcomp)}`` (``DI`` and ``MI``)
+        at one moment."""
         levels = dict(levels0)
-        currents: dict[int, tuple[float, float]] = {}
+        currents = {ch: forced for ch, forced in currents0.items() if ch not in sources}
         for channel, source in sources.items():
             if source.quantity == "V":
                 levels[channel] = source.level(after_step)
@@ -263,8 +265,8 @@ class SamplingUnit:
     def _solve_sampling(self, levels: dict[int, float], icomps: dict[int, float],
                         currents: dict[int, tuple[float, float]]) -> tuple[dict[int, float], dict[int, float],
                                                                              set[int]]:
-        """``SmuUnit.solve`` with current sources: each ``MI`` channel gets the voltage (within Vcomp) that carries
-        its current, by bisection on its own voltage (passive devices: monotonic), then the voltage sources'
+        """``SmuUnit.solve`` with current sources: each ``MI``/``DI`` channel gets the voltage (within Vcomp) that
+        carries its current, by bisection on its own voltage (passive devices: monotonic), then the voltage sources'
         compliance is applied. Returns applied voltages, channel currents and the channels in compliance."""
         trial = dict(levels)
         limited: set[int] = set()
@@ -348,12 +350,13 @@ class SamplingUnit:
         period = factor * (max(tmeas.values()) if fast else sum(tmeas.values()))
         planned = self._sample_times(t_origin, t0, period)
         levels0 = self._on_levels()
+        currents0 = self._on_currents()
         icomps = {ch: self._icomp(ch) for ch in levels0}
         for channel, source in sources.items():
             if source.quantity == "V":
                 icomps[channel] = source.compliance
-        base_levels, base_currents = self._sampling_levels(levels0, sources, after_step=False)
-        bias_levels, bias_currents = self._sampling_levels(levels0, sources, after_step=True)
+        base_levels, base_currents = self._sampling_levels(levels0, currents0, sources, after_step=False)
+        bias_levels, bias_currents = self._sampling_levels(levels0, currents0, sources, after_step=True)
         noise = self.scenario.noise
         rng = random.Random(f"{noise.seed}:{self.state.measurement_count}")
         self.state.measurement_count += 1
@@ -406,19 +409,21 @@ class SamplingUnit:
         at_base = {ch: s.base for ch, s in sources.items()}
         levels_after = at_base if aborted else normal
         measurement = Measurement(t0, end, step_ends, blocks, None, None, zero_at, device_states)
-        measurement.source_levels = self._held_voltages(levels_after, sources, levels0, icomps)
-        measurement.abort_source_levels = self._held_voltages(at_base, sources, levels0, icomps)
+        measurement.source_levels = self._held_voltages(levels_after, sources, levels0, currents0, icomps)
+        measurement.abort_source_levels = self._held_voltages(at_base, sources, levels0, currents0, icomps)
         return measurement
 
     def _held_voltages(self, levels: dict[int, float], sources: dict[int, SamplingSourceState],
-                       levels0: dict[int, float], icomps: dict[int, float]) -> dict[int, tuple[float, float]]:
+                       levels0: dict[int, float], currents0: dict[int, tuple[float, float]],
+                       icomps: dict[int, float]) -> dict[int, tuple[float, float]]:
         """``{channel: (voltage, compliance)}`` each synchronous source holds after the measurement: an ``MV`` its
-        level; an ``MI`` the voltage its current produces (within Vcomp)."""
+        level; an ``MI`` the voltage its current produces (within Vcomp, with the ``DI`` outputs at their current)."""
         held: dict[int, tuple[float, float]] = {}
         dc = {ch: v for ch, v in levels0.items() if ch not in sources}
+        dc_amps = {ch: forced for ch, forced in currents0.items() if ch not in sources}
         volts = {ch: levels[ch] for ch, s in sources.items() if s.quantity == "V"}
         amps = {ch: (levels[ch], s.compliance) for ch, s in sources.items() if s.quantity == "I"}
-        applied = self._solve_sampling({**dc, **volts}, icomps, amps)[0] if amps else {}
+        applied = self._solve_sampling({**dc, **volts}, icomps, {**dc_amps, **amps})[0] if amps else {}
         for channel, source in sources.items():
             if source.quantity == "V":
                 held[channel] = (levels[channel], source.compliance)

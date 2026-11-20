@@ -1,0 +1,30 @@
+# Test-only recipe (never in recipes/; WP7.2): a log current sweep (WI) on terminal a with a synchronous current
+# source (WSI) on terminal b, both measuring their voltage, terminal g on the GNDU. On the two-resistor test scenario:
+# a_V = I_a x R_a, b_V = I_b x R_b at every step.
+id: generic.sync_current
+version: 1
+title: Test-only current sweep with a synchronous current source (sweep_i + sync_i)
+family: smu
+kind: smu_staircase
+status: sim_validated
+card: null
+device_types: []
+roles:
+  a:
+    function: sweep_i
+    measure: [V]
+    settings: {start: 1.0e-6, stop: 1.0e-4, points: $points, vcomp: 2.0, scale: log}
+  b:
+    function: sync_i
+    measure: [V]
+    settings: {start: 1.0e-7, stop: 1.0e-5, vcomp: 2.0}
+  g: {function: ground, allow_gndu: true}
+params:
+  points: {type: int, default: 11, range: [2, 1001], doc: "Sweep points (both sources)."}
+  integration: {type: enum, choices: [short, medium, long], default: medium, doc: "ADC preset."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults: []
+provenance:
+  sources:
+    - tests (WP7.2 WSI)
+  validation_runs: []

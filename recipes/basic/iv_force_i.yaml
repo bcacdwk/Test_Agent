@@ -1,0 +1,51 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Diode forward I-V by current forcing: a log current staircase (WI) on the anode from i_start to i_stop, the anode
+# voltage measured at each step, the cathode on the GNDU. Forcing the current covers many decades in equal
+# logarithmic steps and reads the forward voltage directly at a chosen current (Vf at 1 mA), without the exponential
+# current overshoot of a voltage sweep. The voltage compliance vcomp bounds the anode voltage: an open or a broken
+# contact drives the anode to vcomp, which stops the sweep (WM 2,1) with status C.
+# Analyses: forward_voltage (V at i_vf, interpolated in log current) and diode_fit on the forced current (n, Is, Rs).
+# status: sim_validated by tests/integration/test_recipes_sweeps.py (diode_basic: Vf at 1 mA within 5 mV and n, Is,
+# Rs vs the model truth); hw_validated only through a reviewed validation record (bring-up stage L3).
+id: basic.iv_force_i
+version: 1
+title: Diode forward I-V by current forcing (log I sweep, V measured) - Vf at a current, n, Is, Rs
+family: smu
+kind: smu_staircase
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/diode-iv.md
+device_types: [diode]
+roles:
+  anode:
+    function: sweep_i
+    measure: [V]
+    module_types: [HRSMU, MPSMU, HPSMU]
+    prefer: HRSMU
+    settings: {start: $i_start, stop: $i_stop, points: $points, vcomp: $vcomp, scale: log}
+  cathode: {function: ground, allow_gndu: true}
+params:
+  i_start: {unit: A, default: 1.0e-9, recommended: [1.0e-10, 1.0e-8], range: [1.0e-12, 1.0e-3],
+            doc: "First (smallest) forward current of the log sweep."}
+  i_stop: {unit: A, default: 1.0e-2, recommended: [1.0e-3, 1.0e-2], range: [1.0e-9, 1.0e-1],
+           doc: "Last (largest) forward current; the top decade shows the series resistance."}
+  points: {type: int, default: 71, recommended: [41, 141], range: [11, 1001],
+           doc: "Sweep points over the log range (71 = 10 per decade from 1 nA to 10 mA)."}
+  vcomp: {unit: V, default: 2.0, recommended: [1.0, 3.0], range: [0.1, 10.0],
+          doc: "Voltage compliance of the anode; an open or a broken contact stops the sweep here."}
+  i_vf: {unit: A, default: 1.0e-3, recommended: [1.0e-6, 1.0e-2], range: [1.0e-12, 1.0e-1],
+         doc: "Current at which the forward voltage Vf is reported (analysis only; inside the sweep)."}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset (short = fastest/noisiest, long = 16 power-line cycles).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: forward_voltage, options: {i_param: i_vf}}
+  - {method: diode_fit}
+provenance:
+  sources:
+    - blueprint v2 3.1 (basic.iv_force_i, smu_staircase WI), 10.3 row 7.2
+    - Programming Guide Ed. 15 WI (PDF 551-552), Table 4-6 (PDF 341), WM (PDF 552-553), FMT (PDF 436-438)
+    - lwp WI/DI atoms (legacy driver map)
+  validation_runs: []

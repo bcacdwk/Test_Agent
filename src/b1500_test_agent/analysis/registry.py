@@ -26,7 +26,7 @@ from typing import Any, Literal, get_args
 from pydantic import ValidationError
 
 from b1500_test_agent.analysis.dataset import RunData
-from b1500_test_agent.analysis.diode import diode_fit
+from b1500_test_agent.analysis.diode import diode_fit, forward_voltage
 from b1500_test_agent.analysis.errors import MethodNotImplementedError
 from b1500_test_agent.analysis.fefet import memory_window
 from b1500_test_agent.analysis.leakage import leakage_at
@@ -39,6 +39,7 @@ from b1500_test_agent.analysis.mosfet import (
     vth_linear_extrapolation,
     vth_max_gm,
 )
+from b1500_test_agent.analysis.mosfet_family import body_effect, dibl
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv_method
 from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.reliability import plot_timeseries_method, sampling_summary, time_to_breakdown
@@ -55,7 +56,7 @@ MethodResult = list[ExtractionResult] | QualityReport | PlotSet
 
 _RESERVED_ARGS = frozenset({"d", "criteria"})
 
-_TRANSFER = ("mosfet.idvg", "fefet.dual_sweep_mw", "generic.*")
+_TRANSFER = ("mosfet.idvg", "mosfet.idvg_sync", "fefet.dual_sweep_mw", "generic.*")
 _STAIRCASE = ("smu_staircase",)
 _SWEEPS = ("smu_staircase", "smu_stepped")
 _SMU: tuple[RecipeFamily, ...] = ("smu",)
@@ -180,7 +181,16 @@ _METHODS = [
             ("basic.contact_resistor", "generic.*"), families=_SMU),
     _method("diode_fit", "extraction", diode_fit,
             "Diode ideality n, saturation current Is and series resistance Rs from the forward branch.",
-            ("basic.diode_iv", "generic.*"), families=_SMU),
+            ("basic.diode_iv", "basic.iv_force_i", "generic.*"), families=_SMU),
+    _method("forward_voltage", "extraction", forward_voltage,
+            "Diode forward voltage Vf at a current (i_a or the plan parameter i_param; default 1 mA).",
+            ("basic.diode_iv", "basic.iv_force_i", "generic.*"), families=_SMU, milestone="M7"),
+    _method("dibl", "extraction", dibl,
+            "DIBL in mV/V from constant-current Vth of transfer curves at the lowest and highest drain bias.",
+            ("mosfet.idvg_family", "generic.*"), ("smu_stepped",), families=_SMU, milestone="M7"),
+    _method("body_effect", "extraction", body_effect,
+            "Body-effect coefficient dVth/dVsb from constant-current Vth of transfer curves at several body biases.",
+            ("mosfet.body_effect", "generic.*"), ("smu_stepped",), families=_SMU, milestone="M7"),
     _method("leakage_at", "extraction", leakage_at, "|I| at bias v against limit_a; classification pass|fail.",
             ("mosfet.gate_leakage", "basic.diode_iv", "generic.*"), families=_SMU),
     _method("memory_window", "extraction", memory_window,

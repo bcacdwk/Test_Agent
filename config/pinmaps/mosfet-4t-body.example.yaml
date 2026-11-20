@@ -1,0 +1,23 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Four-terminal MOSFET with a biased bulk on the lab-shaped example station (config/station.example.yaml): the
+# mosfet-4t landing (gate SMU4, drain SMU3, both HRSMU; source on the GNDU) with the bulk (substrate or well contact,
+# or the chuck) on SMU5 (MPSMU), so recipes can step the body bias (mosfet.body_effect). Recipe roles bind to the
+# terminal of the same name (rule R-PIN-01).
+#
+# certainty: verified here because this map matches the wiring of the simulator scenario nmos_basic. On a real
+# station set `unverified` until a human has checked the wiring; every plan using an unverified map needs
+# confirmation (unverified_pin_map, rule R-PIN-02). The visa backend never reads this example file.
+
+description: 4-terminal MOSFET; gate SMU4, drain SMU3 (HRSMU), source GNDU, bulk SMU5 (MPSMU) for body bias.
+certainty: verified
+terminals:
+  gate: 4
+  drain: 3
+  source: GNDU
+  bulk: 5
+notes:
+  - The bulk SMU forces the body bias against the grounded source (Vbs = bulk_V); keep it within the DUT profile's
+    bulk envelope (nmos-generic 1 V) and reverse-biased (Vbs <= 0 for n-channel, >= 0 for p-channel) so the
+    source/drain junctions stay off.
+  - When the bulk is the chuck, the chuck cable goes to SMU5 instead of the GNDU; the other terminals land as in
+    mosfet-4t, so Id-Vg, Id-Vd and the families run on the same landing.

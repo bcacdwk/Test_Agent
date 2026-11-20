@@ -17,7 +17,7 @@ from b1500_test_agent.models.common import StrictModel
 
 Unit = Literal[
     "V", "A", "s", "Hz", "F", "S", "Ohm", "H", "rad", "deg", "1",
-    "A/m", "A/m^2", "F/m^2", "V/dec", "mV/dec",
+    "A/m", "A/m^2", "F/m^2", "V/dec", "mV/dec", "mV/V",
 ]  # fmt: skip
 """Closed unit vocabulary; ``"1"`` marks a dimensionless ratio. Units are never inferred from magnitude."""
 

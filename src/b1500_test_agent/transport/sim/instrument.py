@@ -20,7 +20,8 @@ sleeps ``f`` real seconds per virtual second waited (``scaled`` = ``SCALED_TIME_
 
 Simulator conventions (not from the manual): STB bit 3 tracks the interlock state continuously (the blueprint's
 reading, verified on hardware as ATV-10; the PG describes a latched bit, PDF 76); compliance is symmetric
-(|I| ≤ |Icomp|); a fixed current range overflows above 115 % of full scale; voltage measurements are noiseless.
+(|I| ≤ |Icomp|, |V| ≤ |Vcomp|); a fixed current range overflows above 115 % of full scale; voltage measurements are
+noiseless.
 
 Device state (FeFET polarization): the voltages actually applied are committed to the circuit after every DC output
 change (``DC_COMMIT_COMMANDS``) and after every measured sweep step (all steps are evaluated at ``XE``; an ``AB`` or
@@ -66,7 +67,7 @@ from b1500_test_agent.transport.sim.units.base import DEFAULT_ICOMP, FOREVER, Me
 from b1500_test_agent.transport.sim.units.cmu import CmuUnit
 from b1500_test_agent.transport.sim.units.core import CoreUnit
 from b1500_test_agent.transport.sim.units.sampling import SamplingUnit
-from b1500_test_agent.transport.sim.units.smu import SmuUnit
+from b1500_test_agent.transport.sim.units.smu import SmuUnit, force_source
 from b1500_test_agent.transport.sim.units.spgu import SpguUnit
 from b1500_test_agent.transport.sim.units.switch import SwitchUnit
 
@@ -76,7 +77,7 @@ SCALED_TIME_FACTOR = SIM_SCALED_DEFAULT
 POLL_ADVANCE_S = 0.01
 """Virtual time a serial poll takes (so polling loops see measurements finish)."""
 
-DC_COMMIT_COMMANDS = frozenset({"CN", "CL", "DZ", "DV", "*RST", "*TST?", "*CAL?"})
+DC_COMMIT_COMMANDS = frozenset({"CN", "CL", "DZ", "DV", "DI", "*RST", "*TST?", "*CAL?"})
 """Commands after which the DC output levels are committed to stateful devices."""
 
 
@@ -442,7 +443,19 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         return self.circuit.channel_currents(levels)
 
     def _on_levels(self) -> dict[int, float]:
-        return {ch: st.voltage for ch, st in self.state.channels.items() if st.output_on and self._is_smu(ch)}
+        """Programmed voltages of the switched-on SMUs that force voltage."""
+        return {ch: st.voltage for ch, st in self.state.channels.items()
+                if st.output_on and st.mode == "V" and self._is_smu(ch)}
+
+    def _on_currents(self) -> dict[int, tuple[float, float]]:
+        """Programmed (current, |Vcomp|) of the switched-on SMUs that force current."""
+        return {ch: (st.current, st.vcomp if st.vcomp is not None else 0.0) for ch, st in self.state.channels.items()
+                if st.output_on and st.mode == "I" and self._is_smu(ch)}
+
+    def dc_solution(self) -> tuple[dict[int, float], dict[int, float], set[int]]:
+        """Applied voltages, currents and channels in compliance of the present DC outputs (``solve``)."""
+        levels = self._on_levels()
+        return self.solve(levels, {ch: self._icomp(ch) for ch in levels}, self._on_currents())
 
     def _icomp(self, channel: int) -> float:
         icomp = self.state.channels[channel].icomp
@@ -456,20 +469,21 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
 
     def _apply_end(self, measurement: Measurement, *, aborted: bool, at: float) -> None:
         sweep = measurement.sweep
-        if sweep is not None:
-            state = self.state.channels[sweep.channel]
-            level = sweep.start if aborted else measurement.post_level
-            if state.output_on and level is not None:
-                state.voltage, state.icomp = level, sweep.icomp
+        if sweep is not None:  # every sweep source (primary, synchronous, WNX) to its start or stop value (PDF 553)
+            at_stop = measurement.post_at_stop and not aborted
+            for source in sweep.sources:
+                state = self.state.channels[source.channel]
+                if state.output_on:
+                    force_source(state, source.source, source.stop if at_stop else source.start, source.comp)
         held = measurement.abort_source_levels if aborted else measurement.source_levels
-        for channel, (voltage, icomp) in (held or {}).items():
+        for channel, (voltage, icomp) in (held or {}).items():  # sampling sources (MM 10), held as voltages
             state = self.state.channels[channel]
             if state.output_on:
-                state.voltage, state.icomp = voltage, icomp
+                force_source(state, "V", voltage, icomp)
         if measurement.zero_at is not None and measurement.zero_at <= at:
             for channel, state in self.state.channels.items():
                 if state.output_on and not self.faults.stuck(channel):
-                    state.voltage = 0.0
+                    force_source(state, "V", 0.0, state.icomp if state.icomp is not None else DEFAULT_ICOMP)
         self._measurement = None
         self._commit_dc()
 
@@ -484,9 +498,8 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         """Commit the DC output levels (compliance-limited, as ``solve`` applies them) to stateful devices."""
         if not self.circuit.has_state:
             return
-        levels = self._on_levels()
-        if levels:
-            applied, _, _ = self.solve(levels, {ch: self._icomp(ch) for ch in levels})
+        if self._on_levels() or self._on_currents():
+            applied, _, _ = self.dc_solution()
             self.circuit.commit(applied)
         self._sync_devices()
 
@@ -533,6 +546,8 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
                 reasons.append(f"channel {channel}: output switch on")
             if state.voltage != 0.0:
                 reasons.append(f"channel {channel}: output {state.voltage} V")
+            if state.mode == "I":
+                reasons.append(f"channel {channel}: forcing {state.current} A")
         if self._measurement is not None:
             reasons.append("measurement pending")
         if self._input_queue:

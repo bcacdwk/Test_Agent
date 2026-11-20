@@ -76,8 +76,14 @@ def test_committed_statuses() -> None:
              "basic.diode_iv": "smu/diode-iv", "fefet.dual_sweep_mw": "nvm/fefet-dual-sweep-mw",
              "system.self_test": "system/self-test-cal", "system.self_cal": "system/self-test-cal",
              "generic.smu_sampling": "smu/smu-sampling", "mosfet.id_t_sampling": "smu/smu-sampling",
-             "reliability.tddb_cvs": "reliability/tddb-bdv"}  # WP7.4
-    # WP2.5: the six first test cards; WP5.10: family folders + the system card
+             "reliability.tddb_cvs": "reliability/tddb-bdv",  # WP7.4
+             "basic.iv_force_i": "smu/diode-iv", "mosfet.idvg_family": "smu/mosfet-idvg",
+             "mosfet.idvg_sync": "smu/mosfet-idvg", "mosfet.body_effect": "smu/mosfet-idvg",
+             "generic.smu_multi_sweep": "smu/smu-spot-kelvin"}  # WP7.2
+    # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
+    for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
+                      "generic.smu_multi_sweep"):
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
     for recipe_id in registry.ids():
         expected = f".agents/skills/b1500-test/cards/{cards[recipe_id]}.md" if recipe_id in cards else None
         assert registry.get(recipe_id).card == expected, recipe_id

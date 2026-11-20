@@ -1,0 +1,63 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOSFET body effect: a linear-region transfer curve (gate staircase at a small drain bias, source on the GNDU) at
+# each body bias of the bulk step list (host loop over the bulk role, kind smu_stepped). The bulk needs its own SMU
+# (pin map mosfet-4t-body: bulk on SMU5). Body biases are reverse (Vbs <= 0 for n-channel) and inside the DUT
+# profile's bulk envelope (nmos-generic: 1 V), so the source/drain junctions stay off; the bulk current is measured
+# as the junction leakage check.
+# Analysis: body_effect (constant-current Vth per curve against Vsb = V_source - V_bulk; the least-squares slope
+# dVth/dVsb is the body-effect coefficient).
+# status: sim_validated by tests/integration/test_recipes_sweeps.py (nmos_basic: EKV slope n - 1 within 0.02 V/V);
+# hw_validated only through a reviewed validation record (bring-up stage L4).
+id: mosfet.body_effect
+version: 1
+title: MOSFET body effect (Id-Vg at several body biases) for dVth/dVsb
+family: smu
+kind: smu_stepped
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md
+device_types: [nmos, pmos]
+roles:
+  gate:
+    function: sweep_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, icomp: $icomp_gate}
+  drain:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {v: $vd, icomp: $icomp_drain}
+  source: {function: ground, allow_gndu: true}
+  bulk:
+    function: step_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {values: $vbs_values, icomp: $icomp_bulk}
+params:
+  vg_start: {unit: V, default: 0.0, recommended: [-1.0, 0.0], range: [-10, 10],
+             doc: "Gate sweep start (below threshold; the 100 nA Vth criterion needs subthreshold points)."}
+  vg_stop: {unit: V, default: 1.2, recommended: [1.0, 3.0], range: [-10, 10], doc: "Gate sweep stop."}
+  vg_points: {type: int, default: 121, recommended: [61, 301], range: [11, 1001],
+              doc: "Gate sweep points (121 = 10 mV steps over the default range)."}
+  vd: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [-5, 5], doc: "Drain bias (linear region)."}
+  vbs_values: {type: float_list, unit: V, default: [0.0, -0.25, -0.5, -0.75, -1.0], range: [-5, 5],
+               doc: "Body biases (bulk to the grounded source), one transfer curve each; reverse bias only."}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: "Gate current compliance."}
+  icomp_drain: {unit: A, default: 1.0e-3, recommended: [1.0e-4, 1.0e-2], range: [1.0e-12, 1.0e-2],
+                doc: "Drain current compliance."}
+  icomp_bulk: {unit: A, default: 1.0e-4, recommended: [1.0e-6, 1.0e-3], range: [1.0e-12, 1.0e-3],
+               doc: "Bulk current compliance (a forward-biased junction stops the loop here)."}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset (short = fastest/noisiest, long = 16 power-line cycles).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: body_effect}
+provenance:
+  sources:
+    - blueprint v2 3.1 (mosfet.body_effect, smu_stepped)
+    - Programming Guide Ed. 15 WV (PDF 568-569), DV (PDF 396), WM (PDF 552-553), FMT (PDF 436-438)
+  validation_runs: []

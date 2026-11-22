@@ -18,6 +18,10 @@ flags, the short-circuit bound of every HV-SPGU channel (R-SPGU-01 info) and the
 v2 channel forms (blueprint 2.9)::
 
     gate=SPGU1:101 via SEL1.OUT1 pulse 0->4 V 1 us x1000 @10 kHz SER 1 MOhm Isc<=0.08 A residual
+    gate=SPGU1:101 via SEL1.OUT1 pulse 0->-4..4 V 2.4 us x100 @44.64 kHz SER 1 MOhm Isc<=0.08 A residual
+
+(the second: a stored SPGU program, three-level or ALWG, whose channel leaves its base level for several levels: every
+one is listed, not only the guard train's level of largest magnitude)
     gate=CMU1:H 1 MHz 30 mVrms DC -2..2 V corr 2h; bulk=CMU1:L low
     top=WGFMU1:201 via RSU201.OUT dc_sample 0.5 V 504000 pts @100 ns
     force=SMU3(HRSMU) bias I<=1 mA Vcomp 5 V
@@ -52,6 +56,7 @@ from b1500_test_agent.models.plan import (
 from b1500_test_agent.models.policy import HARD_CEILING_A, HARD_CEILING_V
 from b1500_test_agent.models.routing import Route
 from b1500_test_agent.models.sources import PulseTrain, SourcePlan, source_plan, total_pulses
+from b1500_test_agent.models.spgu import spgu_programs
 from b1500_test_agent.rules.engine import rule_rank
 
 __all__ = [
@@ -161,13 +166,22 @@ def _levels(entry: ChannelEnvelope, *, compact: bool) -> str:
 
 
 class _Context:
-    """What the channel texts need besides the envelope: the source plan and the config-derived info findings."""
+    """What the channel texts need besides the envelope: the source plan, the levels of the stored SPGU programs and
+    the config-derived info findings."""
 
     def __init__(self, plan: PlanRecord, findings: Sequence[RuleFinding]) -> None:
         try:
             self.sources = source_plan(plan.program)
         except ValidationError:
             self.sources = SourcePlan()
+        self.away: dict[int, set[float]] = {}
+        try:
+            programs = spgu_programs(plan.program)
+        except ValidationError:
+            programs = []
+        for program in programs:
+            for ch in program.channels:
+                self.away.setdefault(_norm(ch), set()).update(program.away_levels(ch))
         self.isc: dict[str, tuple[float, bool]] = {}
         self.corr_age: dict[str, float] = {}
         for f in findings:
@@ -180,10 +194,10 @@ class _Context:
 
 
 def _pulse(entry: ChannelEnvelope, trains: list[PulseTrain], isc: tuple[float, bool] | None, *, compact: bool,
-           pgu: bool) -> str:
+           pgu: bool, away: set[float] | None = None) -> str:
     if trains:
         base = _span(t.base_v for t in trains)
-        peak = _span(t.peak_v for t in trains)
+        peak = _span(away) if away else _span(t.peak_v for t in trains)
         width = _span((t.width_s for t in trains), lambda w: _seconds(w, space=not compact))
         count = total_pulses(trains)
         text = f"{base}->{peak}V {width} x{count}" if compact else f"pulse {base}->{peak} V {width} x{count}"
@@ -256,7 +270,7 @@ def _channel(plan: PlanRecord, channel: int, entry: ChannelEnvelope, ctx: _Conte
         head += f"@{bound.via.target}" if compact else f" via {bound.via.target}"
     if function in _PULSE_FUNCTIONS or entry.pulse is not None:
         body = _pulse(entry, ctx.sources.trains(channel), ctx.isc.get(entry.role), compact=compact,
-                      pgu=function == "pgu")
+                      pgu=function == "pgu", away=ctx.away.get(_norm(channel)))
     elif function == "wgfmu":
         body = _wgfmu(entry, ctx.sources, channel, compact=compact)
     elif function == "cmu_high":
@@ -340,6 +354,10 @@ def summary_flags(findings: Iterable[RuleFinding]) -> list[tuple[str, str]]:
         if f.severity in ("confirm", "block")
     }
     return sorted(flags, key=lambda flag: (rule_rank(flag[0]), flag[0], flag[1]))
+
+
+def _norm(channel: int) -> int:
+    return channel * 100 + 1 if 1 <= channel <= 10 else channel
 
 
 def _ascii(text: str) -> str:

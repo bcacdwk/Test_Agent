@@ -18,6 +18,7 @@ skill's rules, a card, a recipe, the policy or a DUT profile, and it never autho
 | [06b time series and pulsed runs](06b-analysis-time-pulse.md) | sampling summary and relaxation fit, time to breakdown and Weibull, pulsed vs DC (two-run), pulse plateau | analysing a sampling, TDDB or pulsed run |
 | [07 HSPICE simulation](07-hspice-simulation.md) | reserved workflow: level-1 model card, netlist, comparison, BSIM4/Verilog-A later | a simulation-comparison request (answer: reserved) |
 | 08 debug | skill `b1500-debug`: triage order, runbooks, cases | noisy, impossible, compliance-limited or drifting data; faults; VISA errors |
+| [09 pulses, HV-SPGU and selector](09-pulse-spgu-selector.md) | HV-SPGU output and SER (open-load doubling, high_z residual), PG and ALWG trains, count/duration bounds, running a train, readings during a train, R-PULSE/R-SPGU rules, simulator | any SPGU pulse or waveform plan; a gate pulse that did nothing or too much |
 | [11 switching and routing](11-switching-routing.md) | switches in the station profile, routes per phase, 16440A selector (ERSSP, PGU open, Force only), SCUU/ASU paths, RSU, guard and R-ROUTE rules, cleanup to rest, selector check, simulator | any plan through a switch target; selector wiring (L7); a run blocked or failed on a route |
 
 ## Sections by file
@@ -91,6 +92,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Hot-carrier injection HCI](05-reliability-defects.md#hot-carrier-injection-hci)
 - [TDDB constant-voltage stress](05-reliability-defects.md#tddb-constant-voltage-stress)
 - [Interface traps Dit](05-reliability-defects.md#interface-traps-dit)
+- [Charge pumping](05-reliability-defects.md#charge-pumping)
 - [Oxide traps SILC and charge trapping](05-reliability-defects.md#oxide-traps-silc-and-charge-trapping)
 - [IGZO instability mechanisms](05-reliability-defects.md#igzo-instability-mechanisms)
 - [Ferroelectric wake-up imprint and fatigue](05-reliability-defects.md#ferroelectric-wake-up-imprint-and-fatigue)
@@ -132,6 +134,17 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Example netlist](07-hspice-simulation.md#example-netlist)
 - [Comparing measured and simulated curves](07-hspice-simulation.md#comparing-measured-and-simulated-curves)
 - [BSIM4 and Verilog-A later](07-hspice-simulation.md#bsim4-and-verilog-a-later)
+
+### 09 pulses, HV-SPGU and selector
+
+- [HV-SPGU output and the SER load](09-pulse-spgu-selector.md#hv-spgu-output-and-the-ser-load)
+- [PG pulse trains](09-pulse-spgu-selector.md#pg-pulse-trains)
+- [ALWG waveforms](09-pulse-spgu-selector.md#alwg-waveforms)
+- [Running a train](09-pulse-spgu-selector.md#running-a-train)
+- [Readings during a train](09-pulse-spgu-selector.md#readings-during-a-train)
+- [Guard and rules](09-pulse-spgu-selector.md#guard-and-rules)
+- [Simulator behaviour](09-pulse-spgu-selector.md#simulator-behaviour)
+- [Troubleshooting pulses](09-pulse-spgu-selector.md#troubleshooting-pulses)
 
 ### 11 switching and routing
 

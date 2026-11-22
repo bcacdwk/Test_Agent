@@ -196,7 +196,7 @@ def status_lines(result: StationStatus) -> list[str]:
     if result.config is not None:
         cfg = result.config
         lines.append(f"config: {'valid' if cfg.ok else 'INVALID'}; {cfg.backend_reason}")
-        lines += [f"  {f.key}: {f.source} {f.path} sha256:{f.sha256}" for f in cfg.files]
+        lines += [f"  {f.key}: {f.source}{' ' + f.path if f.path else ''} sha256:{f.sha256}" for f in cfg.files]
         lines += [f"  problem: {p.file or 'config'}: {p.message}" for p in cfg.problems]
         lines += [f"  warning: {w}" for w in cfg.warnings]
     if result.limits is not None:

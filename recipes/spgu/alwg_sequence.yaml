@@ -1,0 +1,50 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# HV-SPGU arbitrary linear waveform (ALWG) on one gate (card spgu/spgu-pulse-train): one pattern of linear vectors
+# (levels reached over times, each a ramp from the previous level; initial level v_initial), repeated `repeat` times
+# per sequence, the sequence output `count` times or for `duration` (never free run), the level adjusted to the
+# declared load SER (R-SPGU-01), through the 16440A selector when the gate is on a selector output. Kind spgu_pulse,
+# mode alwg: SIM 1, SPRM, SER, ODSW, STGP, ALW (pattern block), ALS (sequence block), SPUPD, SRP, SPST? polls to the
+# end (ATV-19 fallback: SPP), ERRX?. The default is a bipolar program/erase pair (+4 V and -4 V, 1 us each with 100 ns
+# ramps, 10 us at 0 V after each). No measurement data: kind_result reports the outputs and output time.
+# status: sim_validated by tests/integration/test_recipes_spgu_pulse.py (fefet_lab: the waveform reaches the gate
+# through SEL1.OUT1, sequence count and level exact, selector at rest verified).
+id: spgu.alwg_sequence
+version: 1
+title: HV-SPGU arbitrary linear waveform (one pattern of ramps, repeated, count or duration, SER) on a gate
+family: spgu
+kind: spgu_pulse
+status: sim_validated
+card: .agents/skills/b1500-test/cards/spgu/spgu-pulse-train.md
+device_types: [fefet, nmos, pmos, fecap, capacitor]
+roles:
+  gate:
+    function: pgu
+    module_types: [HVSPGU]
+    settings: {initial: $v_initial, levels: $levels, times: $times, load_ohm: $load_ohm}
+params:
+  mode: {type: enum, choices: [alwg], default: alwg, doc: Fixed kind mode (ALWG).}
+  v_initial: {unit: V, default: 0.0, range: [-40.0, 40.0], doc: Initial level of the pattern (held before and between sequences).}
+  levels:
+    type: float_list
+    unit: V
+    default: [4.0, 4.0, 0.0, 0.0, -4.0, -4.0, 0.0, 0.0]
+    range: [-40.0, 40.0]
+    doc: Vector levels (set levels; each vector ramps linearly from the previous level to this one; 1 mV resolution).
+  times:
+    type: float_list
+    unit: s
+    default: [1.0e-7, 1.0e-6, 1.0e-7, 1.0e-5, 1.0e-7, 1.0e-6, 1.0e-7, 1.0e-5]
+    range: [1.0e-8, 0.67108863]
+    doc: Vector times (incremental, one per level, on the 10 ns grid).
+  repeat: {type: int, default: 1, recommended: [1, 1000], range: [1, 1048576], doc: Pattern repeats per sequence.}
+  bound: {type: enum, choices: [count, duration], default: count, doc: What ends the output (free run is never used).}
+  count: {type: int, default: 100, recommended: [1, 10000], range: [1, 1000000], doc: Sequences output (bound count).}
+  duration: {unit: s, default: 0.01, range: [1.0e-6, 3600.0], doc: Output time (bound duration).}
+  load_ohm: {unit: Ohm, default: 1.0e+6, recommended: [1.0e+3, 1.0e+6], range: [0.1, 1.0e+6], doc: Declared load SER.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults: []
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind spgu_pulse ALWG), 3.3 (spgu.alwg_sequence); v0.2 C waveform sequence flow
+    - Programming Guide Ed. 15 ALWG (PDF 147-151, Tables 2-4/2-5), ALW (PDF 361-362), ALS (PDF 360-361), SIM (PDF 508)
+  validation_runs: []

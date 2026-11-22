@@ -82,7 +82,7 @@ def test_absent_selectors_are_skipped_and_none_left_is_a_compile_error() -> None
 
 
 @pytest.mark.parametrize(("change", "message"), [
-    ({"mode": "pg"}, "mode must be one of"),
+    ({"mode": "free_run"}, "mode must be one of"),  # pg and alwg exist since WP9.3
     ({"pgu_open": "yes"}, "pgu_open must be a bool"),
     ({"dwell_s": 61.0}, "dwell_s must be"),
 ])

@@ -1,5 +1,6 @@
-"""Shared pieces of the simulator device models: the ``Device``/``StatefulDevice``/``DynamicDevice``/``AcDevice``
-protocols, voltage and state types, physical constants and numerically safe helpers (blueprint 4.1, 4.2).
+"""Shared pieces of the simulator device models: the ``Device``/``StatefulDevice``/``DynamicDevice``/``AcDevice``/
+``PumpedDevice`` protocols, voltage, drive and state types, physical constants and numerically safe helpers
+(blueprint 4.1, 4.2).
 
 Sign convention: currents flow from the instrument into the device terminal (an SMU forcing +V into a resistor
 to ground measures a positive current). A terminal voltage of ``None`` is floating.
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 BOLTZMANN_OVER_Q = 8.617333262e-5
@@ -103,6 +105,30 @@ class AcDevice(Protocol):
 
     def capacitance(self, v: float, f: float) -> float:
         """Parallel capacitance ``Im(Y)/(2πf)`` (F)."""
+        ...
+
+
+@dataclass(frozen=True)
+class PeriodicDrive:
+    """A periodic trapezoid on one terminal (an HV-SPGU pulse train, WP9.3): the levels it alternates between at the
+    terminal (V), its frequency and the transition times of its rising and falling edges (s)."""
+
+    low_v: float
+    high_v: float
+    freq_hz: float
+    rise_s: float
+    fall_s: float
+
+
+@runtime_checkable
+class PumpedDevice(Protocol):
+    """A device that carries a DC current only while a terminal is driven periodically (charge pumping, WP9.3)."""
+
+    name: str
+
+    def pumped_currents(self, v: Voltages, drives: Mapping[str, PeriodicDrive]) -> dict[str, float]:
+        """Time-averaged extra current (A) into each terminal while the terminals in ``drives`` are driven (the other
+        terminals at their DC voltages ``v``, ``None`` = floating); the quasi-static currents are not included."""
         ...
 
 

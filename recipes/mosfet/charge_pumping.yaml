@@ -1,0 +1,72 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOSFET charge pumping (card spgu/charge-pumping, stage L7): gate pulse trains from the HV-SPGU (through the 16440A
+# selector when the gate is on a selector output) swing the surface from accumulation (base below Vfb) to inversion
+# (top above Vth); the bulk SMU reads the recombination current Icp = q f A Dit dE during each train, drain and source
+# held at the reverse bias v_r. One train per base level x frequency (base levels outer); the trains last `duration`
+# and an SMU spot reading is taken `settle` after SRP while the train runs (SPST? 1 after the read). Kind spgu_pulse,
+# mode pg with SMU roles. Default analysis charge_pumping: Icp per frequency, Qcp = dIcp/df and its linearity
+# (Nit, Dit with the gate area / energy window as options). Base-level charge pumping: give several v_base values.
+# status: sim_validated by tests/integration/test_recipes_charge_pumping.py (nmos_cv: Icp proportional to f, Qcp
+# within +-10 % of the model truth, every reading during a train, selector at rest verified).
+id: mosfet.charge_pumping
+version: 1
+title: MOSFET charge pumping - gate pulse trains from the SPGU, bulk current Icp vs frequency (and base level), Qcp, Nit
+family: spgu
+kind: spgu_pulse
+status: sim_validated
+card: .agents/skills/b1500-test/cards/spgu/charge-pumping.md
+device_types: [nmos, pmos]
+roles:
+  gate:
+    function: pgu
+    module_types: [HVSPGU]
+    settings: {base: $v_base, amplitude: $amplitude, duty: $duty, lead: $t_edge, trail: $t_edge, load_ohm: $load_ohm}
+  bulk:
+    function: measure_only
+    measure: [I]
+    module_types: [HRSMU, MPSMU]
+    prefer: HRSMU
+    low_current: true
+    settings: {icomp: $icomp_bulk}
+  drain:
+    function: bias_v
+    module_types: [HRSMU, MPSMU]
+    settings: {v: $v_r, icomp: $icomp_sd}
+  source:
+    function: bias_v
+    module_types: [HRSMU, MPSMU]
+    settings: {v: $v_r, icomp: $icomp_sd}
+params:
+  mode: {type: enum, choices: [pg], default: pg, doc: Fixed kind mode (PG pulses with SMU readings during the train).}
+  v_base:
+    type: float_list
+    unit: V
+    default: [-2.0]
+    range: [-10.0, 10.0]
+    doc: Gate base levels (one train set per level; several values = base-level charge pumping).
+  amplitude: {unit: V, default: 4.0, recommended: [2.0, 5.0], range: [0.1, 10.0], doc: Pulse amplitude (top = base + amplitude).}
+  duty: {unit: "1", default: 0.5, recommended: [0.3, 0.5], range: [0.05, 0.5], doc: Width / period.}
+  t_edge: {unit: s, default: 1.0e-7, recommended: [2.0e-8, 1.0e-6], range: [8.0e-9, 1.0e-5], doc: Rise and fall time of the gate pulses.}
+  frequency:
+    type: float_list
+    unit: Hz
+    default: [1.0e+4, 2.0e+4, 5.0e+4, 1.0e+5, 2.0e+5, 5.0e+5, 1.0e+6]
+    range: [10.0, 5.0e+6]
+    doc: Pulse frequencies (Icp is proportional to f; the period is rounded to 10 ns).
+  duration: {unit: s, default: 0.2, recommended: [0.1, 1.0], range: [1.0e-3, 30.0], doc: Output time of each train (covers settle + the reading).}
+  settle: {unit: s, default: 0.01, range: [0.0, 1.0], doc: Wait after the train starts before the reading.}
+  load_ohm: {unit: Ohm, default: 1.0e+6, range: [1.0e+3, 1.0e+6], doc: Declared load SER (insulated gate).}
+  v_r: {unit: V, default: 0.0, recommended: [0.0, 0.5], range: [-2.0, 2.0], doc: Drain and source reverse bias (n-channel >= 0).}
+  icomp_bulk: {unit: A, default: 1.0e-6, recommended: [1.0e-8, 1.0e-5], range: [1.0e-12, 1.0e-3], doc: Bulk SMU compliance.}
+  icomp_sd: {unit: A, default: 1.0e-4, range: [1.0e-9, 1.0e-3], doc: Drain and source SMU compliance.}
+  integration: {type: enum, choices: [short, medium, long], default: medium, doc: ADC preset of the bulk reading.}
+  samples: {type: int, default: 1, recommended: [1, 4], range: [1, 100], doc: Readings per train.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: charge_pumping, options: {}}
+provenance:
+  sources:
+    - blueprint v2 3.3 (mosfet.charge_pumping, scenario nmos_cv), 2.7 (spgu_pulse with SMU spot during the train)
+    - Groeseneken, Maes, Beltran, De Keersmaecker, IEEE TED 31, 42 (1984) (charge-pumping current and energy window)
+    - Programming Guide Ed. 15 SPGU (PDF 141-151), MM 1 (PDF 470-471), SPST? (PDF 513-514)
+  validation_runs: []

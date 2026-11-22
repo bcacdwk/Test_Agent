@@ -44,18 +44,22 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "spgu/selector-check": ["system.selector_check"],  # WP9.2
     "smu/smu-pulsed-iv": ["mosfet.idvg_pulsed", "mosfet.idvd_pulsed", "basic.pulsed_spot",
                           "generic.smu_multi_pulsed"],  # WP7.3
+    "spgu/spgu-pulse-train": ["spgu.pulse_train", "spgu.alwg_sequence"],  # WP9.3
+    "spgu/charge-pumping": ["mosfet.charge_pumping"],  # WP9.3
 }
-ROUTES = {"spgu/selector-check": ["selector_16440a:smu", "selector_16440a:pgu", "selector_16440a:pgu_open"]}
-"""Cards whose recipes set switch routes (WP9.2); every other card's recipes route nothing ("Routes: none")."""
+ROUTES = {"spgu/selector-check": ["selector_16440a:smu", "selector_16440a:pgu", "selector_16440a:pgu_open"],
+          "spgu/spgu-pulse-train": ["selector_16440a:pgu"], "spgu/charge-pumping": ["selector_16440a:pgu"]}
+"""Cards whose recipes set switch routes (WP9.2, WP9.3); every other card's recipes route nothing ("Routes: none")."""
 STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfet-idvg": "L4", "smu/mosfet-idvd": "L4",
             "smu/gate-leakage": "L4", "nvm/fefet-dual-sweep-mw": "L7", "system/self-test-cal": "L1",
             "smu/smu-sampling": "L5", "reliability/tddb-bdv": "L9", "smu/smu-spot-kelvin": "L2",
             "system/zero-check": "L1", "reliability/bti-stress-measure": "L9", "reliability/igzo-bias-stress": "L9",
             "reliability/hci-silc": "L9", "cmu/cmu-correction": "L6", "spgu/selector-check": "L7",
-            "smu/smu-pulsed-iv": "L5"}
+            "smu/smu-pulsed-iv": "L5", "spgu/spgu-pulse-train": "L7", "spgu/charge-pumping": "L7"}
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
-            "interlock-open", "cleanup-failed-fault", "cmu-correction-stale"}  # WP8.2: the first v2 runbook
+            "interlock-open", "cleanup-failed-fault", "cmu-correction-stale",  # WP8.2: the first v2 runbook
+            "spgu-selector-state", "spgu-pulse-no-effect", "spgu-load-mismatch"}  # WP9.3
 RUN_ID = re.compile(r"\bS\d{8}T\d{6}Z-[0-9a-f]{4}\b")
 SCENARIOS = sorted(p.stem for p in (ROOT / "config" / "sim" / "scenarios").glob("*.yaml"))
 
@@ -103,7 +107,7 @@ def test_card_frontmatter_v2(card: str) -> None:
     front = _card(card).front
     assert front["bringup_stage"] == STAGE_OF[card] and front["bringup_stage"] in STAGES
     assert front["manual"] and all(CANONICAL.fullmatch(entry) for entry in front["manual"])
-    assert front["routes"] == ROUTES.get(card, [])  # only the selector check routes (WP9.2)
+    assert front["routes"] == ROUTES.get(card, [])  # only the SPGU cards route (WP9.2, WP9.3)
     assert front["intent"]
 
 

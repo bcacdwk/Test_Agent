@@ -54,7 +54,8 @@ through declared outputs and never claims a wiring it cannot read back.
   (`RouteNotVerified`); the cleanup then restores everything.
 - One terminal takes one source per phase: two non-rest states of one output in one phase are blocked.
 - Kinds that route their roles: the composite `stress_measure` (ASU and selector paths, one `setup` phase) and
-  `spgu_pulse` (`route_only`: the selector check). Kinds that do not route (the v1 SMU kinds, `smu_spot`) cannot use
+  `spgu_pulse` (`route_only`: the selector check; `pg`/`alwg`: phase `pulse` to PGU, phase `rest` back, see
+  [09](09-pulse-spgu-selector.md#running-a-train)). Kinds that do not route (the v1 SMU kinds, `smu_spot`) cannot use
   a pin map with switch targets: R-PIN-01 blocks the plan instead of mis-sourcing it.
 
 ## The 16440A selector
@@ -147,6 +148,9 @@ through declared outputs and never claims a wiring it cannot read back.
   SMU on the wrong path reads its noise floor.
 - `ERSSP` without `ERMOD 1`, a bad port or status, or PGU open on CH 2 queue error 120 (simulator convention: the
   manual names the condition but no code).
+- Plans bind against the station profile with one simulator-only addition: a selector input recorded `null` takes the
+  scenario's cabling of that port (`ConfigBundle.planning_station`), so the lab example rehearses routed plans
+  (still `unverified_topology`). On hardware a `null` input blocks (R-PIN-01) until the human records it.
 
 ## Troubleshooting routes
 

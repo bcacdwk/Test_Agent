@@ -45,11 +45,14 @@ requested, or a snapshot that failed (``live_error`` says why)."""
 
 
 class ConfigFileBrief(StrictModel):
-    """One config file in use: item key, layer, path and the first 12 hex digits of its sha256."""
+    """One config file in use: item key, layer, path and the first 12 hex digits of its sha256. ``path`` is ``None``
+    when the file sits at its layer's conventional place (``config/<key>.example.yaml`` for an example,
+    ``config/local/<key>.yaml`` for a local file; simulator scenarios and fault profiles ``config/<key>.yaml``), which
+    keeps ``station_status`` within its response budget as the example set grows (WP9.3)."""
 
     key: str
     source: ConfigSource
-    path: str
+    path: str | None = None
     sha256: ShortDigest
 
 

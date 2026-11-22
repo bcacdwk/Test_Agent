@@ -30,7 +30,14 @@ from b1500_test_agent.models.sim import (
     device_params,
 )
 from b1500_test_agent.models.station import PinTarget, SimDeviceModel, SimScenario, selector_port
-from b1500_test_agent.transport.sim.devices.base import Device, DeviceState, DynamicDevice, StatefulDevice
+from b1500_test_agent.transport.sim.devices.base import (
+    Device,
+    DeviceState,
+    DynamicDevice,
+    PeriodicDrive,
+    PumpedDevice,
+    StatefulDevice,
+)
 from b1500_test_agent.transport.sim.devices.basic import CapacitorDevice, DiodeDevice, OpenDevice, ResistorDevice
 from b1500_test_agent.transport.sim.devices.dielectric import DielectricDevice
 from b1500_test_agent.transport.sim.devices.ferro import FecapDevice, FefetDevice
@@ -92,8 +99,9 @@ class Circuit:
 
     Units evaluate it three ways: ``channel_currents`` (a quasi-static trial, state unchanged), ``commit`` (apply DC
     levels quasi-statically) and ``advance`` (hold levels for a time step: kinetics, self-heating, ageing,
-    breakdown, displacement currents). Small-signal models are reached through ``devices`` (``AcDevice``,
-    ``Mosfet.gate_admittance``, ``FixtureDevice``); attached noise through ``noise_on``.
+    breakdown, displacement currents); ``pumped_currents`` adds what a periodic drive pumps (charge pumping).
+    Small-signal models are reached through ``devices`` (``AcDevice``, ``Mosfet.gate_admittance``,
+    ``FixtureDevice``); attached noise through ``noise_on``.
     """
 
     def __init__(self, scenario: SimScenario) -> None:
@@ -199,6 +207,27 @@ class Circuit:
             return dynamic.advance(dt, v) if dynamic is not None else device.terminal_currents(v)
 
         return self._collect(levels, evaluate)
+
+    def pumped_currents(self, levels: Mapping[Node, float], drives: Mapping[Node, PeriodicDrive]) -> dict[Node, float]:
+        """Time-averaged extra current (A) of each node in ``levels`` while the nodes in ``drives`` (an SPGU channel's
+        pulse train at the DUT, WP9.3) drive the terminals that reach them now (directly or through a selector):
+        every ``PumpedDevice`` (MOSFET charge pumping) with a driven terminal, its other terminals at ``levels``."""
+        currents: dict[Node, float] = {}
+        routes = self.routes()
+        for name, device in self.devices.items():
+            if not isinstance(device, PumpedDevice):
+                continue
+            wiring = self.wiring.get(name, {})
+            driven = {terminal: drives[node] for terminal, target in wiring.items()
+                      if (node := self._resolve(target, routes)) is not None and node in drives}
+            if not driven:
+                continue
+            for terminal, current in device.pumped_currents(self.terminal_voltages(name, levels, routes),
+                                                            driven).items():
+                target = self._resolve(wiring.get(terminal), routes)
+                if target is not None and target in levels:
+                    currents[target] = currents.get(target, 0.0) + current
+        return currents
 
     def noise_on(self, target: PinTarget) -> list[NoiseSource]:
         """Noise sources attached to a device terminal wired to ``target`` (a canonical channel number or

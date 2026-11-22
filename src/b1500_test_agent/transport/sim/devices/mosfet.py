@@ -12,7 +12,9 @@ from b1500_test_agent.models.sim import MosfetDamagedParams, MosfetEkvParams, Mo
 from b1500_test_agent.transport.sim.devices.base import (
     BOLTZMANN_OVER_Q,
     EPS0_F_CM,
+    Q_E,
     DeviceState,
+    PeriodicDrive,
     Voltages,
     check_frequency,
     check_state_keys,
@@ -33,6 +35,12 @@ MAX_SELF_HEATING_K = 500.0
 
 HCI_MAX_DEGRADATION = 0.95
 """Largest fractional loss of β by hot-carrier degradation."""
+
+CP_THERMAL_VELOCITY_CM_S = 1.0e7
+"""Carrier thermal velocity in the charge-pumping emission levels (cm/s; Groeseneken et al. 1984)."""
+
+SILICON_GAP_EV = 1.12
+"""Silicon band gap (eV): each emission level lies within half of it from midgap."""
 
 
 class MosfetEkv:
@@ -165,10 +173,12 @@ class Mosfet(MosfetEkv):
     - ``gate_admittance(v, f, low)``: split C-V from the 1-D MOS electrostatics of the gate stack (``moscap``) with the
       flatband voltage implied by ``vth0``; the channel responds as a distributed RC line driven from source and
       drain, overlaps ``cov_f_per_m·W`` per edge. Evaluated with the source at bulk potential (no body bias).
+    - ``pumped_currents(v, drives)`` (WP9.3): the charge-pumping current of a gate pulse train (``PeriodicDrive``),
+      ``charge_pumping_truth`` its model value (see ``charge_pumping_current``).
 
     State (persisted): ``dt_k``, ``bti_dv``, ``bti_dv0``, ``bti_t_rec``, ``bti_recovering``, ``hci_d``, ``igzo_dv``,
     ``igzo_ref``, ``igzo_recovering``. Truth: ``vth``, ``selfheat_truth``, ``pulsed_truth``, ``bti_truth``,
-    ``bti_recovery_truth``, ``hci_truth``, ``igzo_truth``, ``cv_truth``, ``truth()``.
+    ``bti_recovery_truth``, ``hci_truth``, ``igzo_truth``, ``cv_truth``, ``charge_pumping_truth``, ``truth()``.
     """
 
     STATE_KEYS = frozenset({"dt_k", "bti_dv", "bti_dv0", "bti_t_rec", "bti_recovering", "hci_d", "igzo_dv",
@@ -380,6 +390,76 @@ class Mosfet(MosfetEkv):
         return {"cgc": self.gate_capacitance(v, f, ("source", "drain")),
                 "cgb": self.gate_capacitance(v, f, ("bulk",))}
 
+    # -- charge pumping ------------------------------------------------------------------------------------------------
+
+    def charge_pumping_current(self, drive: PeriodicDrive, *, vb: float = 0.0, vsb: float = 0.0) -> dict[str, float]:
+        """Charge-pumping current of a gate pulse train ``drive`` (Groeseneken et al., IEEE TED 31, 42, 1984), with the
+        bulk at ``vb`` and the source/drain ``vsb`` above it (terminal polarity; reverse bias raises the threshold by
+        ``n·Vsb``, the EKV pinch-off). In the n-channel frame (p-channel mirrored), with ``ΔVA`` the pulse amplitude:
+
+        - each edge sweeps the surface between flatband ``Vfb`` and threshold ``Vth`` in ``t_em = t_edge·|Vth -
+          Vfb|/ΔVA``; trapped electrons (holes) whose emission time ``exp(|E|/U_T)/(σ·v_th·n_i)`` is shorter
+          re-emit, so only traps within ``U_T·ln(1/(σ·v_th·n_i·t_em))`` (at most half the gap) of midgap on each
+          side recombine: ``ΔE = E_fall + E_rise``;
+        - ``Icp = q·f·A·Dit·ΔE·F_acc·F_inv`` with the smooth steps ``F_acc = 1/(1 + exp((V_low - Vfb)/δ))`` (the base
+          reaches accumulation) and ``F_inv = 1/(1 + exp((Vth - V_high)/δ))`` (the top reaches inversion), ``δ =
+          cp_edge_v``.
+
+        Returns ``icp_a`` (the magnitude), ``delta_e_ev``, ``vfb_v``/``vth_v`` (terminal polarity) and the two step
+        factors; ``icp_a`` is 0 without interface traps or geometry.
+        """
+        p = self.params
+        es = self.cv
+        s = self.sign
+        if es is None or p.dit_cm2_ev == 0.0 or drive.freq_hz <= 0.0:
+            return {"icp_a": 0.0, "delta_e_ev": 0.0, "vfb_v": math.nan, "vth_v": math.nan, "f_acc": 0.0, "f_inv": 0.0}
+        lo, hi = sorted((s * (drive.low_v - vb), s * (drive.high_v - vb)))
+        vth = s * self.vth + p.slope_factor * max(s * vsb, 0.0)
+        vfb = s * self.vth - es.vth_offset
+        amplitude = hi - lo
+        rate = CP_THERMAL_VELOCITY_CM_S * es.ni * p.cp_sigma_cm2
+        energy = 0.0
+        if amplitude > 0.0:
+            for edge in (drive.fall_s, drive.rise_s):
+                t_em = max(edge, 1e-15) * abs(vth - vfb) / amplitude
+                energy += min(max(self.ut * math.log(1.0 / (rate * t_em)), 0.0), 0.5 * SILICON_GAP_EV)
+        f_acc = 1.0 / (1.0 + math.exp(min((lo - vfb) / p.cp_edge_v, 700.0)))
+        f_inv = 1.0 / (1.0 + math.exp(min((vth - hi) / p.cp_edge_v, 700.0)))
+        icp = Q_E * drive.freq_hz * self.wl_cm2 * p.dit_cm2_ev * energy * f_acc * f_inv
+        return {"icp_a": icp, "delta_e_ev": energy, "vfb_v": s * vfb, "vth_v": s * vth, "f_acc": f_acc,
+                "f_inv": f_inv}
+
+    def pumped_currents(self, v: Voltages, drives: Mapping[str, PeriodicDrive]) -> dict[str, float]:
+        """The charge-pumping current while the gate is driven by ``drives["gate"]``: recombination needs majority
+        carriers from the bulk and minority carriers from the source or drain, so a floating bulk or floating source
+        and drain carry none. Into the bulk ``+Icp`` (n-channel: holes from the substrate; the bulk SMU reads a
+        positive current), out of the connected source/drain terminals ``Icp`` shared equally (p-channel mirrored)."""
+        drive = drives.get("gate")
+        vb = v.get("bulk")
+        ends = [t for t in ("source", "drain") if v.get(t) is not None]
+        if drive is None or vb is None or not ends:
+            return {}
+        reverse = min(self.sign * (float(v[t]) - vb) for t in ends)  # type: ignore[arg-type]
+        icp = self.charge_pumping_current(drive, vb=vb, vsb=self.sign * reverse)["icp_a"]
+        if icp == 0.0:
+            return {}
+        out = {"bulk": self.sign * icp}
+        for terminal in ends:
+            out[terminal] = -self.sign * icp / len(ends)
+        return out
+
+    def charge_pumping_truth(self, low_v: float, high_v: float, freq_hz: float, rise_s: float, fall_s: float, *,
+                             vsb: float = 0.0) -> dict[str, float]:
+        """Model truth of a gate pulse train ``low_v -> high_v`` (gate-bulk, V) at ``freq_hz`` with the given edges:
+        ``icp_a``, ``qcp_c = Icp/f`` (charge per cycle), ``delta_e_ev``, ``nit_cm2 = Dit·ΔE`` (traps per cm² in the
+        window), ``dit_cm2_ev``, ``area_cm2`` (W·L), ``vfb_v``, ``vth_v`` (``charge_pumping_current``)."""
+        drive = PeriodicDrive(low_v=low_v, high_v=high_v, freq_hz=freq_hz, rise_s=rise_s, fall_s=fall_s)
+        out = self.charge_pumping_current(drive, vsb=vsb)
+        area = self.wl_cm2 if self.cv is not None else 0.0
+        return {"icp_a": out["icp_a"], "qcp_c": out["icp_a"] / freq_hz, "delta_e_ev": out["delta_e_ev"],
+                "nit_cm2": self.params.dit_cm2_ev * out["delta_e_ev"], "dit_cm2_ev": self.params.dit_cm2_ev,
+                "area_cm2": area, "vfb_v": out["vfb_v"], "vth_v": out["vth_v"]}
+
     # -- truth ---------------------------------------------------------------------------------------------------------
 
     def selfheat_truth(self, v: Voltages) -> dict[str, float]:
@@ -428,4 +508,5 @@ class Mosfet(MosfetEkv):
         p = self.params
         return {"vth0": p.vth0, "rth_k_per_w": p.rth_k_per_w, "tau_th_s": p.tau_th_s, "bti_a": p.bti_a,
                 "bti_gamma": p.bti_gamma, "bti_n": p.bti_n, "hci_b": p.hci_b, "hci_m": p.hci_m,
-                "igzo_tau_s": p.igzo_tau_s, "igzo_beta": p.igzo_beta, "igzo_dvth_per_v": p.igzo_dvth_per_v}
+                "igzo_tau_s": p.igzo_tau_s, "igzo_beta": p.igzo_beta, "igzo_dvth_per_v": p.igzo_dvth_per_v,
+                "dit_cm2_ev": p.dit_cm2_ev}

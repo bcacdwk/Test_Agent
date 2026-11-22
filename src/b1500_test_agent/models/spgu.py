@@ -35,9 +35,10 @@ from __future__ import annotations
 
 import itertools
 import math
+from collections.abc import Mapping
 from typing import Annotated, Final, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, TypeAdapter, model_validator
 
 from b1500_test_agent.models.common import StrictModel
 from b1500_test_agent.models.measurement import Channel
@@ -50,8 +51,9 @@ of the previous pattern meanwhile (PG p148 (2-60) "50 ns")."""
 SpguLevels = Literal["two_level", "three_level"]
 """PG output mode of a pulse channel: one pulse source, or the sum of pulse sources 1 and 2 (PG p511 (4-193))."""
 
-PulseSource = Literal[1, 2]
-"""Pulse signal source of an SPGU channel (PG p514 (4-196) "src")."""
+PulseSource = Annotated[int, Field(ge=1, le=2)]
+"""Pulse signal source of an SPGU channel, 1 or 2 (PG p514 (4-196) "src"); an int (not a ``Literal``) so that a
+program stored as JSON (dict keys are strings) validates back (``spgu_programs``)."""
 
 AlwgTrigger = Literal[0, 1, 2, 3]
 """ALWG trigger output (PG p523 (4-205) "STGP"): 0 off, 1 sequence start, 2 pattern change, 3 every pattern start;
@@ -203,6 +205,16 @@ class SpguPulseProgram(_Bounded):
     def trains(self) -> dict[int, list[PulseTrain]]:
         """The guard train of every channel (what a kind puts into ``SourcePlan.pulses``)."""
         return {ch: [self.guard_train(ch)] for ch in self.channels}
+
+    def away_levels(self, ch: int) -> list[float]:
+        """Every set level channel ``ch`` outputs besides its base level, sorted (the plan summary shows them all:
+        a three-level channel's guard train keeps only the one of largest magnitude).
+
+        Raises:
+            KeyError: If ``ch`` is not a channel of the program.
+        """
+        channel = self.channels[ch]
+        return sorted({v for v in channel.level_set() if v != channel.base_v})
 
 
 # -- ALWG ------------------------------------------------------------------------------------------------------------
@@ -363,6 +375,36 @@ class AlwgProgram(_Bounded):
         """The guard train of every channel (what a kind puts into ``SourcePlan.pulses``)."""
         return {ch: [self.guard_train(ch)] for ch in self.channels}
 
+    def away_levels(self, ch: int) -> list[float]:
+        """Every set level of channel ``ch``'s patterns in the sequence besides its base (initial) level, sorted (the
+        plan summary shows them all: the guard train keeps only the one of largest magnitude).
+
+        Raises:
+            KeyError: If ``ch`` is not a channel of the program.
+        """
+        base = self.base_v(ch)
+        patterns = self.channels[ch].patterns
+        return sorted({v for number in {n for n, _ in self.sequence} for v in patterns[number - 1].levels()
+                       if v != base})
+
 
 SpguProgram = SpguPulseProgram | AlwgProgram
 """Either SPGU program."""
+
+
+SPGU_PROGRAMS_KEY: Final = "spgu_programs"
+"""Key of the SPGU programs a kind starts, in start order, in ``PlanRecord.program`` (kind ``spgu_pulse``): R-PULSE-01
+checks each against the module spec (``driver.modules.SPGU_SPEC.program_problems``) and against the plan's
+``SourcePlan`` (every channel's guard train must be one of its pulse trains)."""
+
+_PROGRAM_LIST: Final = TypeAdapter(list[SpguPulseProgram | AlwgProgram])
+
+
+def spgu_programs(program: Mapping[str, object]) -> list[SpguProgram]:
+    """The SPGU programs stored in a kind's program under ``SPGU_PROGRAMS_KEY`` (empty when none).
+
+    Raises:
+        pydantic.ValidationError: If the stored value is not a list of PG or ALWG programs.
+    """
+    raw = program.get(SPGU_PROGRAMS_KEY)
+    return [] if raw is None else list(_PROGRAM_LIST.validate_python(raw))

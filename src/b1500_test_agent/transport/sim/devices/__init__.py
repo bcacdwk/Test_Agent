@@ -18,8 +18,10 @@ Common interface (``base``): ``terminal_currents(v)`` is a quasi-static trial th
 internal state (``StatefulDevice``) also has ``commit(v)`` (quasi-static application) and ``export_state`` /
 ``import_state`` (JSON scalars persisted in ``SimPersistentState.devices``, so the state survives transactions and
 processes); a device with time-dependent physics (``DynamicDevice``) has ``advance(dt, v)``; a two-terminal device
-with a small-signal model (``AcDevice``) has ``admittance(v, f)``/``capacitance(v, f)``. The instrument commits the
-voltages actually applied (each measurement step and every DC output change); the units that need virtual time
+with a small-signal model (``AcDevice``) has ``admittance(v, f)``/``capacitance(v, f)``; a device that carries a DC
+current only under a periodic terminal drive (``PumpedDevice``: MOSFET charge pumping, WP9.3) has
+``pumped_currents(v, drives)``, which ``Circuit.pumped_currents`` adds for an SPGU pulse train. The instrument commits
+the voltages actually applied (each measurement step and every DC output change); the units that need virtual time
 (sampling, pulses, stress-measure, CMU, WGFMU) call ``Circuit.advance``.
 
 Modules: ``base`` (protocols, types, constants, helpers), ``kinetics`` (shared time laws and the play operator),
@@ -29,7 +31,15 @@ FeCap), ``noise``, ``circuit`` (``build_device``, ``Circuit``, ``canonical_chann
 from their family module; this package exports the circuit API and the protocols.
 """
 
-from b1500_test_agent.transport.sim.devices.base import AcDevice, Device, DynamicDevice, StatefulDevice
+from b1500_test_agent.transport.sim.devices.base import (
+    AcDevice,
+    Device,
+    DynamicDevice,
+    PeriodicDrive,
+    PumpedDevice,
+    StatefulDevice,
+)
 from b1500_test_agent.transport.sim.devices.circuit import Circuit, build_device, canonical_channel
 
-__all__ = ["AcDevice", "Circuit", "Device", "DynamicDevice", "StatefulDevice", "build_device", "canonical_channel"]
+__all__ = ["AcDevice", "Circuit", "Device", "DynamicDevice", "PeriodicDrive", "PumpedDevice", "StatefulDevice",
+           "build_device", "canonical_channel"]

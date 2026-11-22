@@ -1,8 +1,8 @@
 """Measurement kinds (blueprint 2.6, v2 2.7): ``smu_staircase``, ``smu_stepped``, ``smu_sampling``, ``smu_spot`` and
 ``smu_pulsed`` (sim + visa), ``cmu_correction`` (sim + visa; WP8.2), the composite ``stress_measure`` (sim + visa;
 built from ``catalog/blocks.py``, so it is imported after the kinds those blocks use), ``system`` (sim + visa),
-``spgu_pulse`` (sim + visa; its ``route_only`` mode since WP9.2) and the declared ``UnimplementedKind`` ids.
-``default_kinds()`` is the mapping the recipe registry loads against."""
+``spgu_pulse`` (sim + visa; its ``route_only`` mode since WP9.2, the ``pg``/``alwg`` pulse modes since WP9.3) and the
+declared ``UnimplementedKind`` ids. ``default_kinds()`` is the mapping the recipe registry loads against."""
 
 from b1500_test_agent.catalog.kinds.base import MeasurementKind, implemented_on
 from b1500_test_agent.catalog.kinds.cmu_correction import CmuCorrectionKind

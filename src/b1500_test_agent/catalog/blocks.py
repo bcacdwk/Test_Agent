@@ -28,6 +28,13 @@ the transaction's cleanup (``AB`` -> ``DZ`` -> ``CL`` -> verify) runs on any exi
   the constant outputs, the sweep (``MM 2``) or spot (``MM 1``) setup, ranging (``RI``), ``ERRX?`` drain, ``XE`` and
   the data read(s) (``tx.check_abort`` after every spot ``XE``, so a cancel acts within one spot measurement);
   ``read_blocks`` turns a read's blocks into table rows (``staircase_rows`` / ``SmuSpotKind.rows_of``).
+- ``spgu_burst`` (WP9.3): one guarded HV-SPGU output: the program's setup (``SpguOps.configure_spgu``: every channel
+  through ``OutputGuard.check_pulse`` first), ``SPUPD`` of its channels, ``ERRX?`` drain, ``SRP``; then an optional
+  ``during`` callback (an SMU read while the train runs, which must still be running afterwards: ``SPST?`` 1), then
+  ``SPST?`` polls with host waits until the count or duration ends (``on_wait`` after every poll: abort checks and
+  checkpoints, at least once a second), and the ATV-19 fallback (blueprint v2 11): ``SpguStillActive`` after the
+  planned time plus a margin -> ``SPP``, verified by ``SPST?`` 0, else ``DriverError`` (the cleanup's step 2 tries
+  again and latches); finally an ``ERRX?`` drain. The output switches (``CN``) and the routes are the caller's.
 - ``Monitor``/``hold_chunks``/``hold_bias``: hold DC levels for a time, timed by the instrument itself. A hold is a
   chain of sampling measurements (``MM 10``, one sample each) of at most ``SEGMENT_S`` (25 s) per block: the outputs
   stay at their DC levels (``DV`` before the trigger; ``MSC`` never touches DC outputs) and the measured roles are
@@ -71,11 +78,13 @@ from b1500_test_agent.catalog.kinds.smu_staircase import (
 from b1500_test_agent.catalog.schema import CompileError
 from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.b1500 import RawBlock, SamplingSetup
+from b1500_test_agent.driver.errors import DriverError, SpguStillActive
 from b1500_test_agent.driver.sampling import parse_sampling
 from b1500_test_agent.models.common import StrictModel
 from b1500_test_agent.models.measurement import Channel, Integration
 from b1500_test_agent.models.plan import ChannelBinding
 from b1500_test_agent.models.routing import SELECTOR_KIND, Route, SwitchKind
+from b1500_test_agent.models.spgu import SpguProgram
 from b1500_test_agent.models.station import StationProfile
 
 if TYPE_CHECKING:
@@ -86,6 +95,7 @@ __all__ = [
     "MONITOR_INTERVAL_S",
     "SEGMENT_S",
     "STOP_STATUSES",
+    "BurstResult",
     "HoldResult",
     "Monitor",
     "RouteStep",
@@ -103,6 +113,7 @@ __all__ = [
     "route_lines",
     "route_steps",
     "set_levels",
+    "spgu_burst",
     "spot_once",
     "spot_read",
     "staircase_read",
@@ -361,6 +372,85 @@ def read_blocks(spec: ReadSpec, blocks: Sequence[RawBlock], *, first_step: int) 
     for offset, row in enumerate(rows):
         row["step"] = first_step + offset
     return rows
+
+
+# -- SPGU output -----------------------------------------------------------------------------------------------------
+
+SPGU_POLL_S = 0.1
+"""Shortest host wait between two ``SPST?`` polls (the lab code polls every 0.1 s, lwp ``SPGU_pulse.m``)."""
+
+SPGU_MAX_POLL_S = 1.0
+"""Longest host wait between two ``SPST?`` polls: abort checks stay within a second (blueprint v2 2.6)."""
+
+SPGU_STOP_MARGIN_S = 2.0
+"""Extra time after the planned output time before the ATV-19 fallback stops the output with ``SPP`` (at least this,
+and 5 % of the output time; the lab code waits 5 s)."""
+
+
+def spgu_poll_s(output_s: float) -> float:
+    """Host wait between ``SPST?`` polls for an output of ``output_s``: 1/50 of it within 0.1 to 1 s."""
+    return min(SPGU_MAX_POLL_S, max(SPGU_POLL_S, output_s / 50.0))
+
+
+def spgu_stop_timeout_s(output_s: float) -> float:
+    """How long ``spgu_burst`` polls before the ATV-19 fallback: the output time plus ``SPGU_STOP_MARGIN_S`` (at least
+    5 % of it)."""
+    return output_s + max(SPGU_STOP_MARGIN_S, 0.05 * output_s)
+
+
+@dataclass
+class BurstResult:
+    """What ``spgu_burst`` did: the host time waited for the end (s), whether the ATV-19 fallback stopped the output
+    with ``SPP``, and what ``during`` returned."""
+
+    waited_s: float = 0.0
+    stopped_by_spp: bool = False
+    during: object = None
+
+
+def spgu_burst(tx: Transaction, program: SpguProgram, *, during: Callable[[], object] | None = None,
+               on_wait: Callable[[float], None] | None = None, label: str = "pulse") -> BurstResult:
+    """One guarded SPGU output of ``program`` (module docstring); the channels' output switches are already on.
+
+    Raises:
+        EnvelopeViolation: A channel is outside its pulse envelope (nothing of the setup written).
+        AcquisitionError: The instrument reported an error after the setup (nothing started) or after the output.
+        DriverError: The train ended before ``during`` returned, or the output did not stop after ``SPP``.
+    """
+    driver = tx.driver
+    driver.configure_spgu(program)
+    driver.apply_pulse_setup()
+    drain_or_raise(tx, f"the {label} setup")
+    driver.start_pulses()
+    tx.mark(f"{label}: SPGU output started ({program.output_time_s():g} s planned)")
+    result = BurstResult()
+    if during is not None:
+        result.during = during()
+        if not driver.pulse_output_active():
+            raise DriverError(f"{label}: the SPGU output ended before the measurement during it finished (SPST? 0); "
+                              "a read during a train needs a longer train (duration or count)")
+    output = program.output_time_s()
+    poll = spgu_poll_s(output)
+    elapsed = 0.0
+
+    def check() -> None:
+        nonlocal elapsed
+        elapsed += poll
+        tx.check_abort()
+        if on_wait is not None:
+            on_wait(elapsed)
+
+    try:
+        result.waited_s = driver.wait_pulses_stopped(timeout_s=spgu_stop_timeout_s(output), poll_s=poll, check=check)
+    except SpguStillActive as exc:
+        tx.mark(f"{label}: SPST? still 1 after {exc.waited_s:g} s (planned {output:g} s); ATV-19 fallback: SPP")
+        driver.stop_pulses()
+        result.waited_s, result.stopped_by_spp = exc.waited_s, True
+        if driver.pulse_output_active():
+            raise DriverError(f"{label}: the SPGU output did not stop (SPST? 1 after SPP)") from exc
+    drain_or_raise(tx, f"the {label} output")
+    tx.mark(f"{label}: SPGU output ended after {result.waited_s:g} s" + (" (SPP)" if result.stopped_by_spp else ""))
+    return result
 
 
 # -- holds -----------------------------------------------------------------------------------------------------------

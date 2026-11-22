@@ -23,6 +23,8 @@ import math
 from collections.abc import Iterator
 from dataclasses import dataclass
 
+from pydantic import ValidationError
+
 from b1500_test_agent.driver.modules import SMU_PULSE_SPECS, SPEC_SYMBOL, SPGU_SPEC, WGFMU_SPEC, SpecProblem
 from b1500_test_agent.models.plan import BoundChannel, ChannelEnvelope
 from b1500_test_agent.models.sources import (
@@ -35,6 +37,7 @@ from b1500_test_agent.models.sources import (
     total_on_time_s,
     total_pulses,
 )
+from b1500_test_agent.models.spgu import SPGU_PROGRAMS_KEY, SpguProgram, spgu_programs
 from b1500_test_agent.models.station import SMU_TYPES, ModuleSlot
 from b1500_test_agent.rules.builtin.common import (
     PULSE_FUNCTIONS,
@@ -100,11 +103,23 @@ def pulse_module_spec(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     width + trailing / 0.8, count or duration bounded, ``SER`` range; SMU: the ``PT`` width/period table; WGFMU: the
     10 ns grid) and inside the channel's pulse envelope (else the guard would refuse it at run time). Trains on a
     channel that is not a pulse channel, and a source plan that does not validate, block. Free run cannot be
-    expressed (a train has a count or a duration)."""
+    expressed (a train has a count or a duration).
+
+    When the kind stores the HV-SPGU programs it starts (``plan.program["spgu_programs"]``, kind ``spgu_pulse``,
+    WP9.3), the HV-SPGU channels are checked program by program instead (``SPGU_SPEC.program_problems``: every pulse
+    source of a two- or three-level channel, the three-level sum, the open-load level; ALWG levels, vector times and
+    counts), every channel a program drives must be a pulse channel, and each program channel's guard train must be
+    one of the channel's trains (so the envelope, R-PULSE-02/03, R-SPGU-01 and the summary see what runs)."""
     sources, problem = source_plan_of(ctx)
     if problem is not None:
         yield block(f"the kind's source plan does not validate ({problem})", source=env.plan("program.sources"),
                     observed=None, limit="a valid source plan")
+        return
+    try:
+        programs = spgu_programs(ctx.plan.program)
+    except ValidationError as exc:
+        yield block(f"the kind's SPGU programs do not validate ({exc.error_count()} problem(s))",
+                    source=env.plan(f"program.{SPGU_PROGRAMS_KEY}"), observed=None, limit="valid SPGU programs")
         return
     channels = pulse_channels(ctx)
     known = {norm_channel(pc.channel) for pc in channels}
@@ -113,6 +128,12 @@ def pulse_module_spec(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
             yield block(f"pulse trains on channel {channel}, which is not a pulse channel of the plan",
                         source=env.plan(f"program.sources.pulses.{channel}"), observed=channel,
                         limit=", ".join(str(pc.channel) for pc in channels) or None)
+    for index, program in enumerate(programs):
+        for channel in sorted(program.channels):
+            if norm_channel(channel) not in known:
+                yield block(f"SPGU program {index} drives channel {channel}, which is not a pulse channel of the plan",
+                            source=env.plan(f"program.{SPGU_PROGRAMS_KEY}[{index}]"), observed=channel,
+                            limit=", ".join(str(pc.channel) for pc in channels) or None)
     for pc in channels:
         if pc.entry.pulse is None:
             yield block(f"{pc.name}: a pulse role without a pulse envelope (the guard would refuse every pulse)",
@@ -124,12 +145,39 @@ def pulse_module_spec(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
             yield block(f"{pc.name}: no pulse train is compiled for this channel", subject=pc.role,
                         source=env.plan("program.sources.pulses"), observed=None, limit="a pulse train")
             continue
+        spgu = bool(programs) and pc.module is not None and pc.module.type == "HVSPGU"
+        if spgu:
+            yield from _program_problems(env, pc, programs, trains)
         for index, train in enumerate(trains):
-            problems, source = _module_problems(env, pc, train)
-            for found in problems:
-                yield block(f"{pc.name}, train {index}: {found.message}", subject=pc.role, source=source,
-                            observed=scalar(found.observed), limit=scalar(found.limit))
+            if not spgu:
+                problems, source = _module_problems(env, pc, train)
+                for found in problems:
+                    yield block(f"{pc.name}, train {index}: {found.message}", subject=pc.role, source=source,
+                                observed=scalar(found.observed), limit=scalar(found.limit))
             yield from _envelope_admits(env, pc, index, train)
+
+
+def _program_problems(env: RuleEnv, pc: PulseChannel, programs: list[SpguProgram],
+                      trains: list[PulseTrain]) -> Iterator[Finding]:
+    """R-PULSE-01 for one HV-SPGU channel of a plan that stores its SPGU programs (rule docstring)."""
+    key = norm_channel(pc.channel)
+    once = {t.model_copy(update={"repeat": 1}) for t in trains}
+    seen: set[str] = set()
+    for index, program in enumerate(programs):
+        own = [ch for ch in program.channels if norm_channel(ch) == key]
+        if not own:
+            continue
+        if program.guard_train(own[0]) not in once:
+            yield block(f"{pc.name}: SPGU program {index} outputs a train that is not among the channel's compiled "
+                        "pulse trains", subject=pc.role, source=env.plan(f"program.{SPGU_PROGRAMS_KEY}[{index}]"),
+                        observed=None, limit="program.sources.pulses")
+        for found in SPGU_SPEC.program_problems(program):
+            if found.message in seen:
+                continue
+            seen.add(found.message)
+            yield block(f"{pc.name}, SPGU program {index}: {found.message}", subject=pc.role,
+                        source=env.code(f"{SPEC_SYMBOL}.SPGU_SPEC"), observed=scalar(found.observed),
+                        limit=scalar(found.limit))
 
 
 def _module_problems(env: RuleEnv, pc: PulseChannel, train: PulseTrain) -> tuple[list[SpecProblem], str]:

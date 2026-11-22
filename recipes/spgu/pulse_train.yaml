@@ -1,0 +1,62 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# HV-SPGU pulse train on one gate (card spgu/spgu-pulse-train, bring-up stage L7): a two-level (or three-level) pulse
+# train bounded by a pulse count or an output duration (never free run), the level adjusted to the declared load SER
+# (load_ohm; an open, high-impedance gate sees |V| (SER + 50) / SER, R-SPGU-01), through the 16440A selector when the
+# pin map puts the gate on a selector output (SEL1.OUT1 -> PGU for the train, back to rest after it; read back each
+# time). Kind spgu_pulse, mode pg: SIM 0, SPRM, SPPER, SER, SPM, SPT, SPV, ODSW, STGP, SPUPD, SRP, SPST? polls to the
+# end (ATV-19 fallback: SPP), ERRX?. The lab's SPGU_pulse.m sequence (lwp) with explicit SER and bounded output. No
+# measurement data: kind_result reports the outputs, pulses and output time. Three-level: source 2 (v_peak2, width2,
+# delay2) adds to source 1 (PG p146 (2-58)).
+# status: sim_validated by tests/integration/test_recipes_spgu_pulse.py (fefet_lab: 4 V x 1 us x 1000 at 10 kHz
+# through SEL1.OUT1, delivered level and pulse count exact against the SER divider model, the FeFET programmed,
+# selector at rest verified; SER 50 Ohm on the high_z gate blocked).
+id: spgu.pulse_train
+version: 1
+title: HV-SPGU pulse train (2/3-level, count or duration, SER) on a gate, through the selector when wired so
+family: spgu
+kind: spgu_pulse
+status: sim_validated
+card: .agents/skills/b1500-test/cards/spgu/spgu-pulse-train.md
+device_types: [fefet, nmos, pmos, fecap, capacitor]
+roles:
+  gate:
+    function: pgu
+    module_types: [HVSPGU]
+    settings:
+      base: $v_base
+      peak: $v_peak
+      width: $width
+      delay: $delay
+      lead: $t_edge
+      trail: $t_edge
+      load_ohm: $load_ohm
+      three_level: $three_level
+      base2: $v_base2
+      peak2: $v_peak2
+      width2: $width2
+      delay2: $delay2
+params:
+  mode: {type: enum, choices: [pg], default: pg, doc: Fixed kind mode (PG pulses).}
+  v_base: {unit: V, default: 0.0, recommended: [-5.0, 5.0], range: [-40.0, 40.0], doc: Base level (set level; SER-adjusted).}
+  v_peak: {unit: V, default: 4.0, recommended: [-5.0, 5.0], range: [-40.0, 40.0], doc: Peak level (set level; SER-adjusted).}
+  width: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-3], range: [1.0e-8, 10.0], doc: Pulse width (time at the peak level).}
+  delay: {unit: s, default: 0.0, range: [0.0, 10.0], doc: Pulse delay within the period.}
+  t_edge: {unit: s, default: 2.0e-8, recommended: [2.0e-8, 1.0e-6], range: [8.0e-9, 0.4], doc: Leading and trailing transition time (width >= t_edge / 0.8).}
+  period: {unit: s, default: 1.0e-4, recommended: [1.0e-6, 1.0], range: [2.0e-8, 10.0], doc: Pulse period (>= delay + width + t_edge / 0.8).}
+  bound: {type: enum, choices: [count, duration], default: count, doc: What ends the train (free run is never used).}
+  count: {type: int, default: 1000, recommended: [1, 10000], range: [1, 1000000], doc: Pulses of the train (bound count).}
+  duration: {unit: s, default: 0.1, recommended: [1.0e-3, 10.0], range: [1.0e-6, 3600.0], doc: Output time of the train (bound duration).}
+  load_ohm: {unit: Ohm, default: 1.0e+6, recommended: [1.0e+3, 1.0e+6], range: [0.1, 1.0e+6], doc: Declared load SER (1 MOhm for an insulated gate; 50 Ohm doubles the level on an open load).}
+  three_level: {type: bool, default: false, doc: Add pulse source 2 (three-level output = sum of both sources).}
+  v_base2: {unit: V, default: 0.0, range: [-40.0, 40.0], doc: Base level of source 2 (three-level only).}
+  v_peak2: {unit: V, default: -4.0, range: [-40.0, 40.0], doc: Peak level of source 2 (three-level only).}
+  width2: {unit: s, default: 1.0e-6, range: [1.0e-8, 10.0], doc: Pulse width of source 2 (three-level only).}
+  delay2: {unit: s, default: 2.0e-6, range: [0.0, 10.0], doc: Pulse delay of source 2 (three-level only).}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults: []
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind spgu_pulse), 2.8 (R-PULSE-01..03, R-SPGU-01), 2.9 (pulse summary), 3.3 (spgu.pulse_train)
+    - lwp matlab_B1500/lib/SPGU_pulse.m, test_SPGU.m (ERMOD 1, ERSSP p,2, SIM 0, SPRM, SPPER, SER, SPM, SPT, SPV, SPUPD, SRP, SPST?)
+    - Programming Guide Ed. 15 SPGU (PDF 141-151), SER (PDF 507), SPRM (PDF 512-513), SPT (PDF 514-515), SPV (PDF 516-517), SPST? (PDF 513-514)
+  validation_runs: []

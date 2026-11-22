@@ -67,6 +67,11 @@ class MosfetDynamicsParams(StrictModel):
     - **IGZO bias-stress drift** (stretched exponential, Libsch & Kanicki, APL 62, 1286, 1993): under gate bias ``V``
       the threshold approaches ``igzo_dvth_per_v·V`` as ``ΔV∞·(1 - exp(-(t/igzo_tau_s)^igzo_beta))`` and recovers with
       ``igzo_recovery_tau_s`` (default: ``igzo_tau_s``) when the bias is lowered.
+    - **Charge pumping** (Groeseneken et al., IEEE TED 31, 42, 1984; needs the geometry): a gate pulse train that
+      swings the surface from accumulation to inversion pumps the recombination current ``Icp = q·f·A·dit_cm2_ev·ΔE``
+      out of the interface traps (mean density ``dit_cm2_ev``, capture cross section ``cp_sigma_cm2``); the energy
+      window ``ΔE`` follows from the emission-limited levels of the falling and rising edges, and the base and top
+      levels must pass the flatband and threshold voltages (smoothed over ``cp_edge_v``).
     """
 
     w_um: PositiveFloat | None = None
@@ -94,12 +99,17 @@ class MosfetDynamicsParams(StrictModel):
     igzo_tau_s: PositiveFloat = 1.0e3
     igzo_beta: float = Field(default=0.5, gt=0.0, le=1.0)
     igzo_recovery_tau_s: PositiveFloat | None = None
+    dit_cm2_ev: float = Field(default=0.0, ge=0.0, le=1.0e14)
+    cp_sigma_cm2: float = Field(default=1.0e-16, gt=0.0, le=1.0e-12)
+    cp_edge_v: float = Field(default=0.1, gt=0.0, le=2.0)
 
     @model_validator(mode="after")
     def _geometry_complete(self) -> MosfetDynamicsParams:
         given = [self.w_um is not None, self.l_um is not None, self.tox_nm is not None]
         if any(given) and not all(given):
             raise ValueError("w_um, l_um and tox_nm are given together (gate capacitances need all three).")
+        if self.dit_cm2_ev > 0.0 and not all(given):
+            raise ValueError("charge pumping (dit_cm2_ev > 0) needs the geometry w_um, l_um and tox_nm.")
         return self
 
 

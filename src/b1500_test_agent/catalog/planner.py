@@ -10,7 +10,8 @@ Steps of ``Planner.plan`` (no instrument I/O):
    terminal on its MFCMU side, whatever its name): a channel (with the station profile's slot,
    module type, model and alias), an MFCMU side (``7H``/``7L``), a switch output (``SEL1.OUT1``: the route for the
    role's resource and the channel wired to that input, ``None`` when unknown) or the GNDU; unmapped roles stay
-   unbound (R-PIN-01 decides).
+   unbound (R-PIN-01 decides). Binding, compilation and the rules read ``planning_station`` (on the simulator, null
+   16440A selector inputs take the scenario's cabling).
 3. **Compile** through the recipe's kind (pure): envelope (incl. allowed routes), estimate, FLEX preview, program
    and the routes per phase. When parameters have the wrong type compilation is skipped (empty envelope); a kind's
    ``CompileError`` is reported as ``invalid_input`` unless R-PARAM-01 already blocks the plan (then the blocked
@@ -231,6 +232,12 @@ def _bound(name: str, channel: int | None, station: StationProfile, **extra: obj
     )
 
 
+def planning_station(bundle: ConfigBundle) -> StationProfile:
+    """The station profile plans bind against and the plan rules read (``ConfigBundle.planning_station``: on the
+    simulator, null 16440A selector inputs take the scenario's cabling)."""
+    return bundle.planning_station()
+
+
 def bind_roles(recipe: Recipe, pin_map: PinMap | None, station: StationProfile, pin_map_name: str) -> ChannelBinding:
     """Bind every recipe role to the pin-map terminal of the same name (unmapped roles stay unbound); a role with
     ``bind: cmu_side`` binds to the terminal on its MFCMU side instead (``RoleSpec.pin_terminal``; WP8.2).
@@ -307,7 +314,7 @@ class Planner:
         pin_map, dut = lookup(bundle, plan.request)
         return RuleContext(
             plan=plan, recipe=recipe, effective_status=self.registry.effective_status(recipe.id, bundle.backend),
-            station=bundle.station, policy=bundle.policy, pin_map=pin_map, dut=dut, live=live,
+            station=planning_station(bundle), policy=bundle.policy, pin_map=pin_map, dut=dut, live=live,
             backend=bundle.backend, fault=fault, inflight_unrecovered=inflight_unrecovered,
             calibration=calibration, recipe_source=self.registry.source(recipe.id),
             corrections=correction_records(bundle.station, self._corrections),
@@ -322,13 +329,14 @@ class Planner:
         files = resolve_param_files(recipe, params, FileRoots.of(self.registry.root, bundle.paths.work_dir))
         mistyped = sorted({*mistyped, *(name for name, f in files.items() if f.problem is not None)})
         pin_map, _ = lookup(bundle, req)
-        binding = bind_roles(recipe, pin_map, bundle.station, req.pin_map)
+        station = planning_station(bundle)
+        binding = bind_roles(recipe, pin_map, station, req.pin_map)
         kind = self.registry.kinds.get(recipe.kind)
         compiled = CompiledKindPlan(envelope=CompiledEnvelope(channels={}), estimate=Estimate(points=0, duration_s=0))
         error: CompileError | None = None
         if kind is not None and not mistyped:
             try:
-                compiled = kind.compile(recipe, params, binding, bundle.station)
+                compiled = kind.compile(recipe, params, binding, station)
             except CompileError as exc:
                 error = exc
             except (ValueError, TypeError) as exc:

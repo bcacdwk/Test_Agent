@@ -55,6 +55,7 @@ from b1500_test_agent.models.common import (
     StrictModel,
 )
 from b1500_test_agent.models.policy import DutProfile, Policy
+from b1500_test_agent.models.routing import SELECTOR_KIND
 from b1500_test_agent.models.sim import SimFaultProfile
 from b1500_test_agent.models.station import (
     PinMap,
@@ -221,6 +222,40 @@ class ConfigBundle(StrictModel):
     def sha256(self, key: str) -> str:
         """Digest of the file used for config item ``key``; raises ``KeyError`` for an unknown item."""
         return self.files[key].sha256
+
+    def planning_station(self) -> StationProfile:
+        """The station profile plans bind against and the plan rules read (binding, compile, ``RuleContext``,
+        R-CFG-01).
+
+        Hardware (``visa``): the configured profile. Simulator: the configured profile, except that a 16440A selector
+        input recorded ``null`` (wiring unknown) takes the simulator scenario's cabling of the same ``ERSSP`` port
+        (``SimScenario.selectors``: the rehearsal wiring the simulated mainframe really has), so a lab-shaped example
+        station can rehearse routed plans. Recorded inputs are never replaced, ``certainty`` stays as configured
+        (R-ROUTE-02 still asks for ``unverified_topology``), and on hardware a null input keeps blocking (R-PIN-01)
+        until a human records it at bring-up stage L7 (blueprint v2 ATV-28). ``station`` itself stays the file's
+        content (proposals and status read it)."""
+        scenario = self.sim_scenario
+        station = self.station
+        if self.backend != "sim" or scenario is None or not scenario.selectors:
+            return station
+        switches = []
+        changed = False
+        for switch in station.switches:
+            if switch.kind != SELECTOR_KIND:
+                switches.append(switch)
+                continue
+            ports = {}
+            for output, port in switch.ports.items():
+                cabling = scenario.selectors.get(port.index)
+                inputs = dict(port.inputs)
+                for side in ("smu", "pgu"):
+                    wired = getattr(cabling, side) if cabling is not None else None
+                    if side in inputs and inputs[side] is None and wired is not None:
+                        inputs[side] = wired  # type: ignore[index]
+                        changed = True
+                ports[output] = port.model_copy(update={"inputs": inputs})
+            switches.append(switch.model_copy(update={"ports": ports}))
+        return station.model_copy(update={"switches": switches}) if changed else station
 
     def report(self) -> ConfigReport:
         """The ``ok`` config report of this bundle."""

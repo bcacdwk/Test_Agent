@@ -10,6 +10,7 @@ sources:
   - "Kaczer et al., IRPS 2008 (BTI power law and recovery); Takeda & Suzuki, IEEE EDL 4, 111, 1983 (HCI)"
   - "DiMaria & Cartier, J. Appl. Phys. 78, 3883, 1995 (SILC)"
   - "D. K. Schroder, Semiconductor Material and Device Characterization, 3rd ed. (not page-checked)"
+  - "Groeseneken, Maes, Beltran, De Keersmaecker, IEEE TED 31, 42, 1984 (charge pumping); recipes/mosfet/charge_pumping.yaml, analysis/charge_pumping.py (WP9.3)"
   - "JEDEC reliability test methods for BTI, HCI and TDDB (not consulted yet; TODO(verify))"
 last_reviewed: null
 ---
@@ -125,9 +126,32 @@ Seeded from deck slide 14 (high Dit stretches C-V curves and increases SS).
   the voltage axis, add a frequency-dependent conductance peak, and raise the subthreshold swing.
 - From SS (rough, includes depletion capacitance): Dit about (Cox / q) (SS / (ln(10) kT/q) - 1) - Cd / q. Use only
   as a relative indicator between devices of the same stack.
-- Proper methods (all reserved): high-low frequency C-V, conductance method, Terman (high-frequency) method, charge
-  pumping.
+- Proper methods: charge pumping (below; `mosfet.charge_pumping`), high-low frequency C-V, conductance method,
+  Terman (high-frequency) method (the C-V ones with the MFCMU recipes).
 - Physics of SS: [01](01-device-physics.md#mosfet-subthreshold-swing).
+
+## Charge pumping
+
+Groeseneken et al., IEEE TED 31, 42 (1984); EasyEXPERT has it as "Charge Pumping2" (SMU + SPGU, EX p518 (9-12)).
+
+- Gate pulses swing the surface from accumulation (base below Vfb) to inversion (top above Vth); every period the
+  interface traps fill with minority carriers from source/drain and recombine with majority carriers from the bulk.
+  The bulk SMU reads the DC recombination current `Icp = q f A D̄it ΔE` (n-channel: positive into the bulk; source and
+  drain held at a reverse bias Vr carry `-Icp` together).
+- `ΔE`: the traps that cannot re-emit during an edge, about `2 kT ln(1/(v_th n_i σ t_em))` with `t_em` = edge time x
+  |Vth - Vfb| / amplitude; 0.6-0.8 eV for 100 ns edges (σ 1e-16 cm²). Slower edges shrink `ΔE` slowly (log).
+- **Base-level sweep** (fixed amplitude, several `v_base`): `Icp` rises once the top passes Vth, plateaus, falls
+  once the base no longer reaches Vfb; the plateau edges estimate Vth - amplitude and Vfb.
+- **Frequency sweep** (plateau base): `Icp` proportional to f; the slope `Qcp = dIcp/df` (C per cycle) gives
+  `Nit = Qcp/(q A)` and `D̄it = Nit/ΔE`. An offset or a bend at high f: leakage, incomplete pumping (pulse shorter
+  than the capture time), or a geometric component of slow edges on long channels.
+- Method `charge_pumping` (analysis): `Icp` per frequency = the maximum over the base levels; least-squares
+  `Icp = Qcp f + I0`: results `qcp` (C, classification `linear` within 10 % or `nonlinear`), `icp_max` (A); `nit`
+  (cm^-2) with option `area_um2` (W x L of the DUT profile geometry) and `dit` (cm^-2 eV^-1) with `delta_e_ev` too
+  (a stated assumption). Untrusted readings refuse; C/T never enter.
+- Pitfalls: a floating bulk or floating source and drain gives no Icp; forward-biased junctions (Vr wrong sign) add
+  diode current; gate leakage of a thin oxide adds an offset; too many pulses on a fragile gate is a stress (soft
+  band `soft_pulse`).
 
 ## Oxide traps SILC and charge trapping
 

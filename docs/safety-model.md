@@ -201,13 +201,21 @@ its `rest` state, and the cleanup returns every declared output to `rest` and ve
 routed plan runs, every involved output and every present selector port must read back `rest` (R-ROUTE-01): a
 selector a previous run or a human left switched blocks until `safe_shutdown`. Unknown wiring (`null` inputs) or
 presence (`present: null`) blocks on hardware; unverified wiring needs confirmation (`unverified_topology`). The
-selector's SMU path carries Force only, so a Kelvin role never uses it; the PGU-open state exists only on CH 1.
+selector's SMU path carries Force only, so a Kelvin role never uses it; the PGU-open state exists only on CH 1. On the
+simulator only, a `null` selector input takes the scenario's cabling of that port (`ConfigBundle.planning_station`,
+WP9.3), so the lab example rehearses routed plans; the confirmation stays, and on hardware the input still blocks.
 
 **Pulse sources.** The HV-SPGU and the WGFMU have no compliance: their envelopes have no current limit
 (`max_abs_i: null`), and the pulse/waveform envelope bounds them instead. Free-running output cannot be expressed (a
 train has a count or a duration) and is refused by the guard. Every pulse terminal of the DUT profile needs a human-
 declared `pulse` envelope; amplitude, width, duty and pulses per run outside it need confirmation, the policy's
-pulse soft bands too. SMU pulses keep their compliance and the `PT` timing table.
+pulse soft bands too. SMU pulses keep their compliance and the `PT` timing table. Kind `spgu_pulse` (WP9.3) stores
+every SPGU program it will start (`plan.program.spgu_programs`): R-PULSE-01 checks each against the module spec and
+requires each channel's guard train among the plan's pulse trains, so the summary, R-PULSE-02/03 and R-SPGU-01 judge
+exactly what runs; the summary lists every level a three-level or ALWG channel leaves its base for (`0->-4..4 V`).
+Each output starts only after `SPST?` reads 0, polls `SPST?` to its end with abort checks, and the ATV-19 fallback
+stops one that does not fall (`SPP`, verified by `SPST?` 0, else the run fails and the cleanup latches); SMU readings
+during a train must finish while it still runs.
 
 **SER and the `high_z` residual (decision 9, ATV-20).** The HV-SPGU adjusts its level to the declared load `SER`;
 an open load sees `|V|·(SER+50)/SER`, twice the set level at the initial 50 Ω. R-SPGU-01 compares this open-load

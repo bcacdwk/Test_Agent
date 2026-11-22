@@ -32,6 +32,7 @@ from typing import Any, Literal, get_args
 
 from pydantic import ValidationError
 
+from b1500_test_agent.analysis.charge_pumping import charge_pumping
 from b1500_test_agent.analysis.dataset import RunData, load_run
 from b1500_test_agent.analysis.diode import diode_fit, forward_voltage
 from b1500_test_agent.analysis.errors import MethodNotImplementedError
@@ -270,6 +271,10 @@ _METHODS = [
             "Change of Id, Vth or Ig against stress time: power law b t^m or stretched exponential tau, beta.",
             ("reliability.*", "igzo.bias_stress", "generic.*"), _STRESS_KINDS, families=_RELIABILITY,
             milestone="M7"),
+    _method("charge_pumping", "extraction", charge_pumping,
+            "Charge pumping: Icp per pulse frequency (base-level plateau), charge per cycle Qcp = dIcp/df and its "
+            "linearity; Nit, Dit with the gate area and energy window.",
+            ("mosfet.charge_pumping", "generic.*"), ("spgu_pulse",), families=("spgu",), milestone="M9"),
     _method("silc", "extraction", silc,
             "Stress-induced leakage: (Ig - Ig0)/Ig0 at v_sense, its power-law exponent, Ig0 and injected charge.",
             ("reliability.silc", "reliability.bti_sms", "reliability.hci", "generic.*"), _STRESS_KINDS,

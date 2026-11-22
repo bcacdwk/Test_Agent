@@ -42,7 +42,9 @@ HV-SPGU pulses through the 16440A selectors: pulse trains, selector check, charg
 
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
+| spgu | charge pumping, Icp, interface traps, Dit, Nit, base-level sweep, gate pulses, substrate current | [charge-pumping](spgu/charge-pumping.md) | `mosfet.charge_pumping` | sim_validated | HVSPGU, HRSMU, MPSMU | L7 |
 | spgu | selector check, 16440A, ERSSP, selector wiring, relay check, SEL1, SEL2, PGU open, route check | [selector-check](spgu/selector-check.md) | `system.selector_check` | sim_validated | all installed | L7 |
+| spgu | SPGU pulse, pulse train, gate pulses, program pulse, erase pulse, ALWG, arbitrary waveform, SER, load impedance, 3-level pulse | [spgu-pulse-train](spgu/spgu-pulse-train.md) | `spgu.pulse_train`, `spgu.alwg_sequence` | sim_validated | HVSPGU | L7 |
 
 ## wgfmu
 

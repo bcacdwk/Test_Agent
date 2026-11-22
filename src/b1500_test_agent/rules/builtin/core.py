@@ -75,7 +75,7 @@ def config_valid(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     mismatched = []
     if ctx.policy != cfg.policy:
         mismatched.append(("policy", env.config_source("policy")))
-    if ctx.station != cfg.station:
+    if ctx.station != cfg.planning_station():
         mismatched.append(("station profile", env.config_source("station")))
     if ctx.pin_map is not None and cfg.pin_maps.get(ctx.pin_map.name) != ctx.pin_map:
         mismatched.append((f"pin map {ctx.pin_map.name}", env.pin_map(ctx.pin_map.name)))

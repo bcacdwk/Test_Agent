@@ -26,6 +26,11 @@
   level of an output-on channel takes part in every circuit evaluation (``SimInstrument._on_levels``: no compliance),
   and a run drives the stateful devices segment by segment in virtual time (``spgu_output.Run``; FeFET switching
   kinetics, retention, wake-up/fatigue of the WP5.9 ``ferro`` model).
+- **SMU readings during a train** (WP9.3, charge pumping): an SMU spot or sweep measurement taken while a run is
+  active reads the time average over one period of the run (``_spgu_pulse_currents``: the quasi-static currents of
+  every output segment weighted by its duration) plus what the PG trains pump through the devices
+  (``Circuit.pumped_currents``: MOSFET charge pumping from the trapezoid levels, frequency and edges). ``MM 10``
+  sampling still sees the static levels.
 - **``CORRSER?``** stops a running output, outputs one period of the set-up channels, answers the load the channel
   sees (``loadZ``, 0.1 Ohm to 1 MOhm) and the voltage it measured at the peak level (``+n.nnnnnnE+nn``; TODO(verify)
   the format at L7), sets ``SER`` with mode 1, and takes ``max(period, delay + interval x count)``; error 2204 below
@@ -46,7 +51,7 @@ from dataclasses import dataclass, field
 
 from b1500_test_agent.models.measurement import CHANNEL_NUMBERS
 from b1500_test_agent.transport.sim import flex
-from b1500_test_agent.transport.sim.devices import canonical_channel
+from b1500_test_agent.transport.sim.devices import PeriodicDrive, canonical_channel
 from b1500_test_agent.transport.sim.state import ChannelState
 from b1500_test_agent.transport.sim.units.base import FOREVER, SPGU_TYPES, handles
 from b1500_test_agent.transport.sim.units.spgu_output import (
@@ -239,6 +244,65 @@ class SpguUnit:
                 base = self._spgu_smu_levels()
             levels[channel] = self._spgu_delivered(channel, st.voltage, setup.ser, base)
         return levels
+
+    # -- SMU readings during a train (WP9.3) -------------------------------------------------------------------------
+
+    def _spgu_drives(self, channels: set[int]) -> dict[int, PeriodicDrive]:
+        """The PG trains of ``channels`` as ``PeriodicDrive`` at the DUT (lowest and highest level of the channel's
+        level set, delivered through the ``SER`` divider; the period; the leading and trailing times of source 1, or
+        of the two-level source). ALWG sequences and channels whose pulse switch is enabled give none."""
+        if self._spgu_mode != 0:
+            return {}
+        drives: dict[int, PeriodicDrive] = {}
+        base: dict[int, float] | None = None
+        for channel in sorted(channels):
+            setup = self._spgu_setup(channel)
+            if setup.mode == 0 or setup.switch[0] != 0:
+                continue
+            used = [1] if setup.mode == 1 else [2] if setup.mode == 2 else [1, 2]
+            levels = [0.0]
+            for s in used:
+                levels = [a + b for a in levels for b in (setup.sources[s].base, setup.sources[s].peak)]
+            if base is None:
+                base = self._spgu_smu_levels()
+            low = self._spgu_delivered(channel, min(levels), setup.ser, base)
+            high = self._spgu_delivered(channel, max(levels), setup.ser, base)
+            edge = setup.sources[used[0]]
+            drives[channel] = PeriodicDrive(low_v=low, high_v=high, freq_hz=1.0 / self._spgu_period,
+                                            rise_s=edge.lead, fall_s=edge.trail)
+        return drives
+
+    def _spgu_pulse_currents(self, applied: dict[int, float]) -> dict[int, float] | None:
+        """What the SMU channels in ``applied`` (the solved DC voltages) read while an SPGU output runs, or ``None``
+        when none drives the DUT now (the static solve stands). An SMU integrates over many pulse periods, so it reads
+        the time average over one period (sequence) of the run: the quasi-static currents of every output segment,
+        weighted by its duration, plus the charge-pumping current the trains pump (``Circuit.pumped_currents``; PG
+        trains only). A run started by another process is not modelled (its levels are unknown here)."""
+        run = self._spgu_current()
+        if run is None or run.foreign or not run.segments or run.unit <= 0.0:
+            return None
+        live = self._spgu_live(run)
+        if not live:
+            return None
+        smu = {ch: v for ch, v in applied.items() if not self._spgu_is(ch)}
+        if not smu:
+            return None
+        weights: dict[tuple[tuple[int, float], ...], float] = {}
+        for dt, row in run.segments:
+            key = tuple(sorted((ch, v) for ch, v in row.items() if ch in live and v is not None))
+            weights[key] = weights.get(key, 0.0) + dt
+        total = math.fsum(weights.values())
+        averaged = dict.fromkeys(smu, 0.0)
+        for key, weight in weights.items():
+            currents = self._current({**smu, **dict(key)})
+            for channel in averaged:
+                averaged[channel] += currents.get(channel, 0.0) * weight / total
+        drives = self._spgu_drives(live)
+        if drives:
+            for node, current in self.circuit.pumped_currents(smu, drives).items():
+                if isinstance(node, int) and node in averaged:
+                    averaged[node] += current
+        return averaged
 
     # -- runs -------------------------------------------------------------------------------------------------------
 

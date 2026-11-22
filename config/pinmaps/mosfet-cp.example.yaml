@@ -1,0 +1,22 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Four-terminal MOSFET for charge pumping (card spgu/charge-pumping) on the lab-shaped example station: the gate
+# through the first 16440A selector (SEL1.OUT1: HV-SPGU pulses on its PGU input, SMU DC bias on its SMU input), the
+# bulk (substrate or well contact, or the chuck) on HRSMU 4 for the pA-nA charge-pumping current, drain and source on
+# MPSMU 5 and 6 (reverse bias). Simulator scenario nmos_cv.
+#
+# A gate role binds through the route for its resource (smu, pgu); the channel is the one the station profile wires
+# to that selector input (config/station.example.yaml leaves both inputs null until stage L7 records them: on the
+# simulator the scenario's cabling stands in, on hardware plans through it are blocked by R-PIN-01 until then).
+# certainty: unverified (every plan needs confirmation, unverified_pin_map). The visa backend never reads this file.
+
+description: MOSFET charge pumping; gate via selector SEL1.OUT1 (SPGU pulses), bulk SMU4 (HRSMU), drain SMU5, source SMU6.
+certainty: unverified
+terminals:
+  gate: SEL1.OUT1
+  drain: 5
+  source: 6
+  bulk: 4
+notes:
+  - "The bulk SMU reads the charge-pumping current (pA to tens of nA): an HRSMU, guarded triax to the substrate
+    contact or the chuck; drain and source together set the reverse bias (0 V by default)."
+  - "SEL1.OUT1 is selector CH 1; through a selector the SMU path is Force only (no Kelvin role on the gate)."

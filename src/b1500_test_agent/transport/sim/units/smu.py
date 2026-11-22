@@ -16,6 +16,8 @@ limits Tables 4-6/4-7 (PDF 341-342); interlock in the high-voltage state 577; mu
 ``MM 10`` (sampling) triggers are handed to ``SamplingUnit._start_sampling`` (``units/sampling.py``, WP7.4), the pulsed
 modes ``MM 3/4/5/27/28`` to ``PulsedUnit._start_pulsed`` (``units/pulsed.py``, WP7.3); ``WSV``/``WSI`` may follow a
 ``PWV``/``PWI`` pulsed sweep and ``WNX`` (N = 1-10) the ``MCPWS`` steps of MM 28 when no ``WV``/``WI`` primary is set.
+While an HV-SPGU output runs, a spot or sweep step reads the time average over the train
+(``SpguUnit._spgu_pulse_currents``, WP9.3: charge pumping).
 
 Current sources (``DI``, ``WI``, ``WSI``, ``WNX`` mode 2): the channel's voltage is solved so that its current equals
 the programmed current, unless that needs more than the voltage compliance (then the channel sits at ±Vcomp and
@@ -663,6 +665,9 @@ class SmuUnit:
                ) -> tuple[list[str], list[str], dict[int, float]]:
         forced = forced or {}
         applied, currents, clamped = self.solve(levels, icomps, forced)
+        pulsed = self._spgu_pulse_currents(applied)  # an SPGU train running now: time-averaged readings (WP9.3)
+        if pulsed is not None:
+            currents = {**currents, **{ch: i for ch, i in pulsed.items() if ch in currents}}
         faulted = {canonical_channel(ch) for ch in self.faults.compliance_channels(step)}
         limited = clamped | faulted
         oscillating = self.faults.oscillating(step)

@@ -48,11 +48,22 @@ if TYPE_CHECKING:
     from b1500_test_agent.service.core import B1500Service
 
 
+def conventional_path(key: str, source: str) -> str | None:
+    """Where a config item of ``source`` lives by convention (repository-relative, POSIX), or ``None`` (override)."""
+    if source == "example":
+        return f"config/{key}.yaml" if key.startswith("sim/") else f"config/{key}.example.yaml"
+    if source == "local":
+        return f"config/local/{key}.yaml"
+    return None
+
+
 def config_status(report: ConfigReport) -> ConfigStatus:
-    """The configuration part of ``station_status``."""
+    """The configuration part of ``station_status`` (a file's path only when it is not the conventional one)."""
     return ConfigStatus(
         ok=report.ok, backend_reason=report.backend_reason,
-        files=[ConfigFileBrief(key=f.key, source=f.source, path=f.path, sha256=f.sha256[:12]) for f in report.files],
+        files=[ConfigFileBrief(key=f.key, source=f.source, sha256=f.sha256[:12],
+                               path=None if f.path == conventional_path(f.key, f.source) else f.path)
+               for f in report.files],
         problems=list(report.problems), warnings=list(report.warnings),
         digest=report.digest[:12] if report.digest else None,
     )

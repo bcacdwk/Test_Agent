@@ -20,6 +20,7 @@ import yaml
 
 from b1500_test_agent.transport.wgfmu import api, dll
 from b1500_test_agent.transport.wgfmu.dll import C_SIGNATURES, argtypes_of
+from tests.wgfmu_abi.fake_lib import ctype_name
 
 pytestmark = pytest.mark.wgfmu
 
@@ -86,12 +87,12 @@ def test_prototypes_are_the_manuals(corpus) -> None:
 
 
 def test_argtypes_and_restype_map_to_ctypes() -> None:
-    names = {name: [t.__name__ for t in argtypes_of(name)] for name in C_SIGNATURES}
+    names = {name: [ctype_name(t) for t in argtypes_of(name)] for name in C_SIGNATURES}
     assert names["WGFMU_openSession"] == ["c_char_p"]
     assert names["WGFMU_getMeasureValues"] == ["c_int", "c_int", "LP_c_int", "LP_c_double", "LP_c_double"]
     assert names["WGFMU_doSelfTest"] == ["LP_c_int", "c_char_p", "LP_c_int"]
     assert names["WGFMU_setTimeout"] == ["c_double"] and names["WGFMU_execute"] == []
-    assert dll.RESTYPE.__name__ == "c_int"
+    assert ctype_name(dll.RESTYPE) == "c_int"
     assert set(dll.C_TYPES) == set(gen.C_TYPES)
 
 

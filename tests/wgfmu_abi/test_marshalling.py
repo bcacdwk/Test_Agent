@@ -13,7 +13,7 @@ from b1500_test_agent.transport.wgfmu import api
 from b1500_test_agent.transport.wgfmu.api import C_FUNCTIONS, WgfmuError
 from b1500_test_agent.transport.wgfmu.dll import C_SIGNATURES, WgfmuDll, argtypes_of
 from tests.wgfmu_abi.conftest import Binding
-from tests.wgfmu_abi.fake_lib import array, load
+from tests.wgfmu_abi.fake_lib import array, ctype_name, load
 
 pytestmark = pytest.mark.wgfmu
 
@@ -47,8 +47,8 @@ def test_nothing_loads_before_the_first_call_and_the_table_is_bound(binding: Bin
     lib = binding.lib
     for name in C_SIGNATURES:
         func = getattr(lib, name)
-        assert [t.__name__ for t in func.argtypes] == [t.__name__ for t in argtypes_of(name)], name
-        assert func.restype.__name__ == "c_int"
+        assert [ctype_name(t) for t in func.argtypes] == [ctype_name(t) for t in argtypes_of(name)], name
+        assert ctype_name(func.restype) == "c_int"
     dll.clear()
     assert binding.loads == [dll.path]  # loaded once
 
@@ -167,7 +167,7 @@ def test_vectors_go_in_as_contiguous_float64_buffers(binding: Binding) -> None:
     assert call.name == "WGFMU_addVectors" and call.args[0] == b"p" and call.args[3] == 3
     assert array(call.args[1], 3).tolist() == [1e-6, 2e-6, 3e-6]
     assert array(call.args[2], 3).tolist() == [1.0, 2.0, 3.0]
-    assert type(call.args[1]).__name__ == "LP_c_double"
+    assert ctype_name(type(call.args[1])) == "LP_c_double"
     spec = binding.st.sim._patterns["p"]
     assert spec.dts == [100, 200, 300] and spec.volts == [1.0, 2.0, 3.0]  # 10 ns ticks
 
@@ -185,7 +185,7 @@ def test_out_parameters_are_read_back(binding: Binding) -> None:
     assert dll.channel_ids() == [101, 102]
     size_call, ids_call = binding.lib.calls[-2:]
     assert size_call.name == "WGFMU_getChannelIdSize" and load(size_call.args[0]) == 2
-    assert load(ids_call.args[1]) == 2 and type(ids_call.args[0]).__name__ == "LP_c_int"
+    assert load(ids_call.args[1]) == 2 and ctype_name(type(ids_call.args[0])) == "LP_c_int"
     status = dll.status()
     assert status == (api.STATUS_IDLE, 0.0, 0.0) and [type(x) for x in status] == [int, float, float]
     assert dll.channel_status(101) == (api.STATUS_IDLE, 0.0, 0.0)

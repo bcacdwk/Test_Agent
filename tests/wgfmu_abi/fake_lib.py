@@ -19,6 +19,7 @@ the binding and are used through their own methods.
 
 from __future__ import annotations
 
+import sys
 from collections import Counter, deque
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -66,6 +67,23 @@ def store(arg: Any, value: Any) -> None:
         obj.contents.value = value
     else:
         obj.value = value
+
+
+def ctype_name(ctype: Any) -> str:
+    """Platform-independent C name of a ctypes type or pointer type, read from its ``_type_`` code.
+
+    On Windows ``c_int`` is an alias of ``c_long`` (both 32-bit), so ``ctypes.c_int.__name__`` reads ``c_long`` and a
+    pointer to it ``LP_c_long``; the binding's declared ``int`` must still compare as ``c_int`` there. Elsewhere
+    ``c_long`` is 64-bit and keeps its own name.
+    """
+    code = getattr(ctype, "_type_", None)
+    if isinstance(code, str):
+        if code == "i" or (code == "l" and sys.platform == "win32"):
+            return "c_int"
+        return str(ctype.__name__)
+    if isinstance(code, type):
+        return "LP_" + ctype_name(code)
+    return str(ctype.__name__)
 
 
 def load(arg: Any) -> Any:

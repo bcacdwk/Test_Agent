@@ -4,8 +4,8 @@ switch unit (ASU) of an HRSMU or B1511B MPSMU and the SCUU (SMU CMU unify unit) 
 WP6.1 adds the read-only queries the bring-up probe needs (``ERMOD?``, ``ERSSP?``); WP7.1 the ASU commands (``SAP``
 path, ``SAR`` 1 pA auto ranging, ``SAL`` indicator) and the two ``*LRN?`` types that read them back (62, 63); WP8.1
 the SCUU path and indicator (``SSP``, ``SSL``; the manual has no ``SSP?``: ``*LRN? 81`` answers the path,
-``LRN_SCUU_PATH``). The selector setting commands (``ERMOD``, ``ERSSP``) arrive with WP9.2. Builders check only the
-syntax domain of the manual.
+``LRN_SCUU_PATH``); WP9.2 the selector setting commands (``ERMOD``, ``ERSSP``). Builders check only the syntax domain
+of the manual (including the CH 1-only PGU-open state of the 16440A, PG p154 (2-66)).
 
 Source: Keysight B1500 Series Programming Guide, Edition 15 ("PG"; physical PDF pages, chapter 4 printed 4-N =
 PDF N + 318).
@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import Final
 
 from b1500_test_agent.driver.flex.core import _channel, _choice, _int
-from b1500_test_agent.models.routing import SELECTOR_PORTS, SwitchState
+from b1500_test_agent.models.routing import PGU_OPEN_PORTS, SELECTOR_PORTS, SwitchState
 
 ERMOD_Q = "ERMOD?"
 """Control mode of the digital I/O port (PG PDF 420-421, printed 4-102 to 4-103): the sum of the enabled mode values,
@@ -29,9 +29,41 @@ ERMOD_SELECTOR = 1
 ERMOD_MAX = 63
 """Largest ``ERMOD?`` answer: every control mode of PDF 421 enabled (1 + 2 + 4 + 8 + 16 + 32)."""
 
+ERMOD_MODES: Final = (0, 1, 2, 4, 8, 16, 32)
+"""``ERMOD`` control modes (PG PDF 419, printed 4-101): 0 general purpose (initial setting), 1 16440A selector, 2
+N1258A/N1259A, 4 N1265A, 8 N1266A, 16 N1268A, 32 N1272A."""
+
 ERSSP_STATES: Final[dict[int, SwitchState]] = {0: "open", 1: "smu", 2: "pgu", 3: "pgu_open"}
 """``ERSSP``/``ERSSP?`` connection status (PG PDF 433-434, printed 4-115 to 4-116): 0 all open (initial setting),
 1 SMU on, 2 PGU on, 3 PGU open (the semiconductor relay on the PGU path open)."""
+
+ERSSP_CODES: Final[dict[SwitchState, int]] = {state: code for code, state in ERSSP_STATES.items()}
+"""Selector route state -> ``ERSSP`` status code."""
+
+
+def ermod(mode: int, enable: bool = True) -> str:
+    """``ERMOD mode[,option]``: select a digital I/O control mode (PG PDF 419-420, printed 4-101 to 4-102); ``mode``
+    one of ``ERMOD_MODES`` (``ERMOD_SELECTOR`` = 1 for the 16440A), ``enable`` True sends the manual's form
+    ``ERMOD 1`` (option 1, the default, enables the mode), False adds option 0 (disables it). Several modes may be on
+    at once (``ERMOD?`` answers their sum, PDF 421). A mode setting: no output change."""
+    if not isinstance(enable, bool):
+        raise TypeError(f"ERMOD option must be a bool, got {enable!r}")
+    code = _choice(mode, ERMOD_MODES, "ERMOD mode")
+    return f"ERMOD {code}" if enable else f"ERMOD {code},0"
+
+
+def erssp(port: int, status: int) -> str:
+    """``ERSSP port,status``: connect one 16440A selector output (PG PDF 433, printed 4-115): port 0/1 = output 1/2
+    of the first selector, 2/3 = output 1/2 of the second; status 0 all open, 1 SMU on, 2 PGU on, 3 PGU open
+    (``ERSSP_STATES``). PGU open exists only on CH 1 of each selector, i.e. ports 0 and 2 (PG PDF 154, printed 2-66).
+    Needs the 16440A control mode (``ERMOD 1``). Connecting an input to the DUT is a route
+    (``OutputGuard.check_route``)."""
+    if _int(port, "ERSSP port") not in SELECTOR_PORTS:
+        raise ValueError(f"ERSSP port must be 0 to 3, got {port}")
+    code = _choice(status, tuple(ERSSP_STATES), "ERSSP status")
+    if ERSSP_STATES[code] == "pgu_open" and port not in PGU_OPEN_PORTS:
+        raise ValueError(f"ERSSP {port},{code}: PGU open exists only on CH 1 of a selector (ports 0 and 2)")
+    return f"ERSSP {port},{code}"
 
 
 def erssp_q(port: int) -> str:

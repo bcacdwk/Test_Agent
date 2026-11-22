@@ -24,9 +24,10 @@ times ``read_times``, plus ``stress_time`` when it is later), ``stress_time`` (s
 log-spaced from ``first_read`` to it), ``integration`` and ``samples`` (the read kinds' parameters). Times lie on the
 10 ms grid of the instrument's hold timer; at most ``MAX_READS`` reads after the reference read.
 
-Run (one transaction, guarded driver only, blocks of ``catalog/blocks.py``): ``apply_routes`` (ASU paths of roles
-bound through an ASU), ``open_outputs`` (``TSC 0``, ``AAD``/``AIT``, ``CN``, ``ERRX?`` drain, ``LOP?`` positive control
-on hardware), the reference read (cycle 0, before any stress), then per cycle ``k``: ``hold_bias`` at the stress (or
+Run (one transaction, guarded driver only, blocks of ``catalog/blocks.py``): ``apply_routes`` (the routes of roles
+bound through an ASU or a 16440A selector, one ``setup`` phase: guarded, read back; WP9.2), ``open_outputs``
+(``TSC 0``, ``AAD``/``AIT``, ``CN``, ``ERRX?`` drain, ``LOP?`` positive control on hardware), the reference read
+(cycle 0, before any stress), then per cycle ``k``: ``hold_bias`` at the stress (or
 recovery) levels for the time to the next read (at every phase change the outputs whose level falls are set first:
 ``blocks.ordered``), in instrument-timed ``MM 10`` blocks of at most 25 s with one monitor
 sample of every measured role at the end of each block (the stress current: gate leakage under BTI, drain current
@@ -75,6 +76,7 @@ from b1500_test_agent.catalog.blocks import (
     ordered,
     read,
     read_blocks,
+    route_lines,
     route_steps,
 )
 from b1500_test_agent.catalog.kinds.smu_spot import SmuSpotKind, SpotProgram
@@ -477,7 +479,7 @@ class StressMeasureKind:
         integration = program.integration
         adc = ADC_TYPE_CODES[integration.adc]
         measure = program.read.measure
-        lines = [flex.sap(s.index, flex.ASU_PATH_CODES[s.route.state]) for s in program.routes]
+        lines = route_lines(program.routes)
         lines.append(flex.tsc(False))
         lines += [flex.aad(m.channel, adc) for m in measure]
         lines.append(flex.ait(adc, ADC_MODE_CODES[integration.mode], integration.n))

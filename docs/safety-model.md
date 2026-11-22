@@ -270,7 +270,8 @@ current-limited, until the cleanup.
 Every instrument action runs inside one transaction. On any exit, including errors, interrupts and guard
 violations, it: aborts a pending measurement, stops an active SPGU output (blueprint v2 2.6 step 2: on a mainframe
 with an HV-SPGU, `SPST?` and `SPP` while it reads 1), zeroes and disconnects the outputs, drains instrument errors and
-verifies that all outputs are off (on hardware `LOP?` and, with an SPGU, `SPST?` = 0). A failed step triggers a device clear and one retry. If the safe state still
+verifies that all outputs are off (on hardware `LOP?` and, with an SPGU, `SPST?` = 0) and every declared switch
+output at rest (routes to rest between `DZ` and `CL`, WP9.2). A failed step triggers a device clear and one retry. If the safe state still
 cannot be verified, a persistent **fault latch** is set: every sourcing path then refuses (R-FAULT-01) until a human
 runs `b1500 fault clear`, which succeeds only after a verified safe shutdown. `safe_shutdown` itself is never gated.
 A crash mid-run leaves an in-flight marker; the next transaction runs the recovery cleanup first. The instrument
@@ -288,7 +289,24 @@ MFCMU DC bias); `CL` leaves the MFCMU at 0 V, 0 V rms, 1 kHz. The simulator's ve
 and AC level. A new driver (recovery, `safe_shutdown`) knows no MFCMU it drove and relies on the instrument-wide `DZ`
 and `CL` (PG p397 (4-79), p382 (4-64)). Every SCUU path change (`SSP`) is guarded by `check_route` per output: it
 switches outputs on and resets the SMUs (ATV-27, PG p520 (4-202)); its modules are never named in `CN` (error 323).
-Returning the SCUU to its `rest` state belongs to the route step of the cleanup (WP9.2).
+Returning the SCUU to its `rest` state belongs to the route step of the cleanup (WP9.2, below).
+
+**Routes to rest (cleanup steps 5 and 8, WP9.2).** On a station that declares switches every transaction, a
+`safe_shutdown` and an in-flight recovery too, returns every 16440A selector, SCUU and ASU not recorded absent to its
+`rest` state between `DZ` and `CL` (selector: `ERMOD 1` + `ERSSP port,rest` on every declared port, sent whatever it
+reads; SCUU: `SSP` to the rest path only when an output is connected to a non-rest input, since every `SSP` switches
+outputs on; `CL` follows; ASU: `SAP ch,0` when on AUX), through a guard that admits nothing but rest states (the
+cleanup has no plan envelope). The verification then reads every declared output (`ERMOD?`, `ERSSP?` per port,
+`*LRN? 81`, `*LRN? 62`; queries only) and needs a rest state on each (an SCUU with both outputs open, its power-on
+state, counts as rest); the manifest records them as `cleanup.switches_after`. A selector that will not return
+(simulated `selector_stuck`) fails the verification after the retry and latches the fault (`cleanup_unverified`). An
+SCUU or ASU that does not answer its read-back is not installed: nothing to restore or verify, and a plan routing
+through it is blocked before the run (unreadable state, R-ROUTE-01). Kinds switch with
+`Transaction.apply_routes(phase)` (composite kinds through `catalog/blocks.apply_routes`): the whole phase passes
+`check_route` before the first write, `ERMOD 1` precedes `ERSSP`, the transaction waits the relay settle time (10 ms,
+`TODO(verify)` at L7) and reads every touched output back (`RouteNotVerified` on a mismatch). Residual: `ERSSP?`
+reports the commanded state; a relay welded without the B1500A noticing is found only by the human at the selector
+check (bring-up L7, LEDs and relay clicks).
 
 **SPGU stop (cleanup step 2, WP9.1).** The cleanup knows whether an HV-SPGU is installed from the `UNT?` the run's
 pre-execute snapshot read (a transaction without one, e.g. `safe_shutdown` or an in-flight recovery, reads `UNT?`

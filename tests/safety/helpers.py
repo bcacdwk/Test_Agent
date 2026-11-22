@@ -12,7 +12,7 @@ two-process tests (``multiprocessing`` spawn context, so they must be importable
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -21,6 +21,7 @@ from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.b1500 import RawBlock, StaircaseSetup
 from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.plan import ChannelEnvelope, CompiledEnvelope
+from b1500_test_agent.models.routing import SwitchSpec
 from b1500_test_agent.models.run import LockHolder
 from b1500_test_agent.models.station import Settings, SimScenario
 from b1500_test_agent.session import InstrumentLock, Session, Transaction
@@ -41,8 +42,9 @@ SWEEP = StaircaseSetup(channel=GATE, start=0.0, stop=1.5, points=11, icomp=1e-5,
 WIDTH = 2
 """Elements per step with ``FMT 1,1``: the drain current and the gate source value."""
 
-CLEANUP_ORDER = ("device_clear", "abort", "spgu_stop", "zero", "disconnect", "drain_errors", "verify")
-"""Blueprint v2 2.6 order; ``spgu_stop`` (step 2) runs on instruments with an HV-SPGU (every lab-layout scenario)."""
+CLEANUP_ORDER = ("device_clear", "abort", "spgu_stop", "zero", "routes", "disconnect", "drain_errors", "verify")
+"""Blueprint v2 2.6 order; ``spgu_stop`` (step 2) runs on instruments with an HV-SPGU (every lab-layout scenario),
+``routes`` (step 5, WP9.2) in sessions whose station declares switches."""
 
 
 class HookTransport:
@@ -162,16 +164,18 @@ class Harness:
 
 
 def make_harness(state_dir: Path, scenario: SimScenario | None = None, *, adapter: str = "cli",
-                 hook_type: Callable[[SimTransport], HookTransport] = HookTransport) -> Harness:
+                 hook_type: Callable[[SimTransport], HookTransport] = HookTransport,
+                 switches: Sequence[SwitchSpec] = ()) -> Harness:
     """A harness over the noiseless ``nmos_basic`` scenario (gate = SMU4, drain = SMU3) unless ``scenario`` is given;
-    ``hook_type`` builds the injection wrapper (``HookTransport`` or a subclass with other moments)."""
+    ``hook_type`` builds the injection wrapper (``HookTransport`` or a subclass with other moments); ``switches`` are
+    the station's declared switches (WP9.2: guard, cleanup step 5 and verification)."""
     scenario = scenario or noiseless(load_scenario("nmos_basic"))
     sim = SimTransport(scenario, state_file=sim_state_file(state_dir, scenario.name))
     hook = hook_type(sim)
     daily = MemoryAuditSink()
     settings = Settings.model_validate({"sim": {"scenario": scenario.name}})
     session = Session(settings, lambda: AuditingTransport(hook, daily), daily, state_dir=state_dir,
-                      adapter=adapter)  # type: ignore[arg-type]
+                      adapter=adapter, switches=switches)  # type: ignore[arg-type]
     return Harness(session=session, sim=sim, hook=hook, daily=daily, run=MemoryRun(), state_dir=state_dir)
 
 

@@ -76,6 +76,13 @@ DATA_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES
 
 SYSTEM_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES if c["recipe_id"] in SYSTEM_RECIPES]
 
+ROUTE_CASES: list[dict[str, Any]] = [
+    {"recipe_id": "system.selector_check", "scenario": "lab_station", "source": "card spgu/selector-check",
+     "request": {"params": {"dwell_s": 0.0}, "pin_map": "fefet-sel"}},
+]
+"""Route-only recipes of WP9.2 (kind ``spgu_pulse`` mode ``route_only``: no output, no run table) with their card
+example requests (``dwell_s`` 0: the visa-loop sleeps for real between steps)."""
+
 
 def bus_factory(bus: LoopBus) -> BusFactory:
     """The executor's bus factory: the real ``make_bus`` with the visa-loop resource manager and WGFMU library
@@ -197,6 +204,38 @@ def run_case(service: B1500Service, case: dict[str, Any]) -> RunSummary:
         return service.run_plan(validation.plan_id)
     assert validation.tier == "needs_confirmation" and validation.summary is not None
     return service.run_confirmed_plan(validation.plan_id, summary=validation.summary)
+
+
+SWITCH_MNEMONICS = frozenset({"ERMOD", "ERMOD?", "ERSSP", "ERSSP?"})
+SWITCH_LEARN = frozenset({"*LRN? 81", "*LRN? 62"})
+"""The declared-switch traffic every transaction on the lab station example sends since WP9.2 (blueprint v2 2.6):
+the pre-execute snapshot's ``ERMOD?``/``ERMOD 1``/``ERSSP?`` and SCUU/ASU read-backs, cleanup step 5 (``ERMOD 1`` +
+``ERSSP p,0`` per declared port, the SCUU/ASU read-backs) and step 8 (``ERSSP?`` per port, ``*LRN? 81``/``62``)."""
+
+
+def ok_commands(log: list[Any]) -> list[str]:
+    """Every executed command of a simulator command log, in order."""
+    return [r.command for r in log if r.outcome == "ok"]
+
+
+def without_switch_traffic(log: list[Any]) -> list[str]:
+    """The mnemonics of the executed commands without the declared-switch traffic (``SWITCH_MNEMONICS``,
+    ``SWITCH_LEARN``), i.e. the v1/v2 measurement and cleanup flow the older assertions describe."""
+    return [r.mnemonic for r in log if r.outcome == "ok" and r.mnemonic not in SWITCH_MNEMONICS
+            and r.command not in SWITCH_LEARN]
+
+
+def assert_selectors_restored(log: list[Any], ports: tuple[int, ...] = (0, 1, 2, 3)) -> None:
+    """Cleanup steps 5 and 8 on the lab station example (SEL1/SEL2 declared present, rest open): after the last
+    ``DZ`` the control mode and ``ERSSP p,0`` for every declared port, then ``CL``; after ``CL`` the read-back
+    ``ERSSP? p`` of every port. Nothing switched a selector to a non-rest state after the last ``DZ``."""
+    sent = ok_commands(log)
+    dz = len(sent) - 1 - sent[::-1].index("DZ")
+    cl = sent.index("CL", dz)
+    restore = [c for c in sent[dz:cl] if c.split(" ")[0] in ("ERMOD", "ERSSP")]
+    assert restore == ["ERMOD 1", *[f"ERSSP {p},0" for p in ports[:2]], "ERMOD 1",
+                       *[f"ERSSP {p},0" for p in ports[2:]]], restore
+    assert [c for c in sent[cl:] if c.startswith("ERSSP?")] == [f"ERSSP? {p}" for p in ports]
 
 
 def bus_events(events: list[AuditEvent]) -> list[str]:

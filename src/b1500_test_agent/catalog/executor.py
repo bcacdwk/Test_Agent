@@ -226,6 +226,7 @@ class Executor(RunningRuns):
             None if bundle.sim_scenario is None else bundle.sim_scenario.model_dump(mode="json"),
             None if bundle.sim_faults is None else bundle.sim_faults.model_dump(mode="json"),
             state_dir.as_posix(),
+            [s.model_dump(mode="json") for s in bundle.station.switches],
         ], sort_keys=True)
         if self._session is None or key != self._session_key:
             if self._session is not None and self.runner.active() is None:
@@ -239,7 +240,8 @@ class Executor(RunningRuns):
                 return make_bus(bundle.settings, sink, scenario=bundle.sim_scenario, faults=bundle.sim_faults,
                                 state_dir=state_dir)
 
-            self._session = Session(bundle.settings, factory, sink, state_dir=state_dir, adapter=self.adapter)
+            self._session = Session(bundle.settings, factory, sink, state_dir=state_dir, adapter=self.adapter,
+                                    switches=bundle.station.switches)
             self._session.on_recovery = functools.partial(self._finalize_orphan, bundle)
             self._session_key = key
         return self._session

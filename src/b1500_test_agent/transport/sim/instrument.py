@@ -167,6 +167,7 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         self.wgfmu_unit: SimWgfmu | None = None
         """The simulated WGFMU instrument library on this instrument (set by ``SimWgfmu``), if any."""
         self.circuit = DrivenCircuit(scenario, self._wgfmu_drive)
+        self.circuit.router = self._selector_routes
         self.state = SimPersistentState(scenario=scenario.name, auto_calibration=scenario.auto_calibration)
         self.state.devices = self.circuit.export_state()
         self.interrupt_pending = False
@@ -718,6 +719,7 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         state = state.model_copy(deep=True)
         self.circuit.import_state(state.devices)
         self.state = state
+        self._selector_settle().clear()  # relays switched by another process have long settled
         self._sync_devices()
         self._sync_channels()
         self._spgu_sync()  # an SPGU output another process started continues from now

@@ -6,8 +6,8 @@ One module per instrument family: ``core`` (system queries, output switches, ``F
 MM 18-26 sources, ``ADJ``/``ADJ?`` and the data correction ``CORRL``/``CLCORR``/``CORR?``/``DCORR``/``CORRDT``/
 ``CORRST``/``CORRST?``), ``spgu`` (the HV-SPGU: ``SIM``, ``SPM``, ``SPT``, ``SPV``, ``SPPER``, ``SPRM``, ``SER``,
 ``SPUPD``, ``SRP``, ``SPP``, ``SPST?``, ``ODSW``, ``STGP``, ``CORRSER?``, ``ALW``, ``ALS``; WP9.1) and ``switch``
-(``ERMOD?``, ``ERSSP?``; ASU ``SAP``, ``SAR``, ``SAL``; the SCUU's ``SSP``/``SSL``); the selector work package (M9)
-adds its setting commands to the same module. This package re-exports every public builder and constant, so callers
+(the 16440A selector's ``ERMOD``, ``ERMOD?``, ``ERSSP``, ``ERSSP?``, WP6.1/9.2; ASU ``SAP``, ``SAR``, ``SAL``;
+the SCUU's ``SSP``/``SSL``). This package re-exports every public builder and constant, so callers
 import the package (``from b1500_test_agent.driver import flex``) and write ``flex.dv(...)``. Builders are pure
 (syntax and domain checks only, never policy) and return one command per string; ``alw``/``als`` return the command
 header and the binary block that follows it.
@@ -185,8 +185,10 @@ from b1500_test_agent.driver.flex.switch import (
     ASU_PATH_CODES,
     ASU_PATHS,
     ERMOD_MAX,
+    ERMOD_MODES,
     ERMOD_Q,
     ERMOD_SELECTOR,
+    ERSSP_CODES,
     ERSSP_STATES,
     LRN_ASU_1PA,
     LRN_ASU_PATH,
@@ -198,6 +200,8 @@ from b1500_test_agent.driver.flex.switch import (
     SAR_RESPONSE,
     SCUU_SMU_SLOT_OFFSETS,
     SSP_PATHS,
+    ermod,
+    erssp,
     erssp_q,
     sal,
     sap,
@@ -232,9 +236,11 @@ __all__ = [
     "CORR_RESULTS",
     "DCORR_MODES",
     "ERMOD_MAX",
+    "ERMOD_MODES",
     "ERMOD_Q",
     "ERMOD_SELECTOR",
     "ERRX_Q",
+    "ERSSP_CODES",
     "ERSSP_STATES",
     "FORMATS",
     "IDN_Q",
@@ -330,6 +336,8 @@ __all__ = [
     "di",
     "dv",
     "dz",
+    "ermod",
+    "erssp",
     "erssp_q",
     "fc",
     "fmt",

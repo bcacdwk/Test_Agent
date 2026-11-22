@@ -40,7 +40,9 @@ MFCMU (SCUU when declared): corrections, C-V, C-f, C-t, Dit, split C-V.
 
 HV-SPGU pulses through the 16440A selectors: pulse trains, selector check, charge pumping.
 
-No recipe in this family yet: say so; never emulate it with another family's recipe.
+| family | intent keywords | card | recipes | status | modules | stage |
+|---|---|---|---|---|---|---|
+| spgu | selector check, 16440A, ERSSP, selector wiring, relay check, SEL1, SEL2, PGU open, route check | [selector-check](spgu/selector-check.md) | `system.selector_check` | sim_validated | all installed | L7 |
 
 ## wgfmu
 

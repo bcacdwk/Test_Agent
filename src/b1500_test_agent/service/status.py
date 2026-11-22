@@ -37,6 +37,7 @@ from b1500_test_agent.models.station import CorrectionCheck, CorrectionFreshness
 from b1500_test_agent.rules.builtin.cmu import CORRECTION_CARD
 from b1500_test_agent.service.common import clip, status_for
 from b1500_test_agent.session import InstrumentBusy
+from b1500_test_agent.session.routes import cleanup_scope
 
 if TYPE_CHECKING:
     from b1500_test_agent.service.core import B1500Service
@@ -199,6 +200,10 @@ def station_status(svc: B1500Service, bundle: ConfigBundle, refresh: bool) -> St
         notes.append(f"{len(live.errors)} instrument error(s) drained")
     corrections, correction_notes = correction_status(bundle, live, svc.executor.now())
     notes += correction_notes
+    switches = switch_status(bundle.station, live)
+    off_rest = sorted(target for target, text in switches.items() if text.startswith("off rest"))
+    if off_rest:
+        notes.append(f"switch outputs off rest: {', '.join(off_rest)} (safe_shutdown returns them)")
     library = live.wgfmu_library if live is not None else None
     if library is not None and any(m.type == "WGFMU" for m in bundle.station.modules):  # visa (WP10.2)
         notes.append(f"WGFMU library {library.machine} {library.file_version or ''} loadable".replace("  ", " ")
@@ -241,4 +246,25 @@ def station_status(svc: B1500Service, bundle: ConfigBundle, refresh: bool) -> St
         pin_maps={name: pm.certainty for name, pm in sorted(bundle.pin_maps.items())},
         dut_profiles={name: d.device_type for name, d in sorted(bundle.dut_profiles.items())},
         active_run=active_run_status(active) if active is not None else None, corrections=corrections,
+        switches=switches,
     )
+
+
+def switch_status(station: StationProfile, live: LiveState | None) -> dict[str, str]:
+    """``StationStatus.switches``: every declared output of a FLEX-switched switch not recorded absent (16440A
+    selector, SCUU, ASU: ``routes.cleanup_scope``; RSU states come with the WGFMU library) -> its live state when at
+    rest, ``off rest: <state> (rest <rest>)`` when not, ``not read`` when the snapshot has none (kept short: the tool
+    response stays within its 2k-token budget)."""
+    states = (live.switch_states or {}) if live is not None else {}
+    found: dict[str, str] = {}
+    for switch in cleanup_scope(station.switches):
+        for output in sorted(switch.ports, key=lambda name: switch.ports[name].index):
+            target = f"{switch.id}.{output}"
+            state = states.get(target)
+            if state is None:
+                found[target] = "not read"
+            elif switch.at_rest(output, state):
+                found[target] = state
+            else:
+                found[target] = f"off rest: {state} (rest {switch.rest})"
+    return found

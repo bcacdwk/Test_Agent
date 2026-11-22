@@ -1,6 +1,7 @@
-# Golden FLEX strings of the ASU builders added by WP7.1 (driver/flex/switch.py), with the Programming Guide Ed. 15
-# page of each syntax (physical PDF page, printed page); the manual examples are copied verbatim. Loaded by
-# tests/unit/test_driver_spot_asu.py.
+# Golden FLEX strings of the switch builders (driver/flex/switch.py): the ASU builders added by WP7.1 and the 16440A
+# selector builders of WP6.1 (ERSSP?) and WP9.2 (ERMOD, ERSSP), with the Programming Guide Ed. 15 page of each syntax
+# (physical PDF page, printed page); the manual examples are copied verbatim. Loaded by
+# tests/unit/test_driver_spot_asu.py and tests/unit/test_driver_flex_switch.py.
 - {builder: sal, args: [1, 0], expected: "SAL 1,0", page: "PG p505 (4-187)", note: manual example}
 - {builder: sap, args: [1, 1], expected: "SAP 1,1", page: "PG p506 (4-188)", note: manual example}
 - {builder: sap, args: [4, 0], expected: "SAP 4,0", page: "PG p506 (4-188)", note: back to the SMU side}
@@ -8,3 +9,12 @@
 - {builder: sar, args: [3, 1], expected: "SAR 3,1", page: "PG p506 (4-188)", note: disable (initial setting)}
 - {builder: lrn_q, args: [62], expected: "*LRN? 62", page: "PG p451 (4-133)", note: ASU paths}
 - {builder: lrn_q, args: [63], expected: "*LRN? 63", page: "PG p451 (4-133)", note: 1 pA auto ranging modes}
+- {builder: ermod, args: [1], expected: "ERMOD 1", page: "PG p420 (4-102)", note: manual example (16440A control mode)}
+- {builder: ermod, args: [0], expected: "ERMOD 0", page: "PG p419 (4-101)", note: general purpose (initial setting)}
+- {builder: ermod, args: [4, false], expected: "ERMOD 4,0", page: "PG p419 (4-101)", note: option 0 disables the mode}
+- {builder: ermod, args: [16, true], expected: "ERMOD 16", page: "PG p420 (4-102)", note: remarks (ERMOD 4, 8, 16)}
+- {builder: erssp, args: [0, 2], expected: "ERSSP 0,2", page: "PG p433 (4-115)", note: manual example (output 1 of the first selector, PGU on)}
+- {builder: erssp, args: [1, 1], expected: "ERSSP 1,1", page: "PG p433 (4-115)", note: output 2 of the first selector, SMU on}
+- {builder: erssp, args: [2, 3], expected: "ERSSP 2,3", page: "PG p433 (4-115)", note: PGU open on CH 1 of the second selector (PG p154 (2-66))}
+- {builder: erssp, args: [3, 0], expected: "ERSSP 3,0", page: "PG p433 (4-115)", note: all open (initial setting)}
+- {builder: erssp_q, args: [1], expected: "ERSSP? 1", page: "PG p434 (4-116)", note: manual example}

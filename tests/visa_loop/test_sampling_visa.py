@@ -21,7 +21,7 @@ from b1500_test_agent.analysis.dataset import DATA_FILE
 from b1500_test_agent.models.run import RunSummary
 from b1500_test_agent.service import B1500Service
 from tests.integration.helpers import make_world
-from tests.visa_loop.helpers import VisaWorld, bus_events
+from tests.visa_loop.helpers import VisaWorld, assert_selectors_restored, bus_events, without_switch_traffic
 
 CHUNK = 256
 GENERIC_CONFIG: dict[str, Any] = {
@@ -89,8 +89,10 @@ def test_sampling_recipe_runs_on_backend_visa_with_cleanup_verified(case: dict[s
     assert bus.stats.max_chunks > 1 and bus.stats.signed_errx > 0
     bus.instrument.assert_safe()
 
-    sent = [r.mnemonic for r in bus.instrument.command_log if r.outcome == "ok"]
-    # v2 cleanup on the lab mainframe (SPGU in slot 1): SPST? (no SPP: inactive) before DZ, LOP? + SPST? verify
+    sent = without_switch_traffic(bus.instrument.command_log)
+    # v2 cleanup on the lab mainframe (SPGU in slot 1): SPST? (no SPP: inactive) before DZ, LOP? + SPST? verify;
+    # the declared selectors' rest/verify traffic (WP9.2) is checked by assert_selectors_restored
+    assert_selectors_restored(bus.instrument.command_log)
     assert sent[-4:] == ["CL", "ERRX?", "LOP?", "SPST?"] and "TSR" in sent and "MM" in sent and "SPP" not in sent
     cn = sent.index("CN")
     control = sent.index("LOP?", cn)

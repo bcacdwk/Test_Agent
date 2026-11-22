@@ -16,6 +16,7 @@ skill's rules, a card, a recipe, the policy or a DUT profile, and it never autho
 | [06 analysis and extraction](06-analysis-extraction.md) | run table and trust, quality gate, gm, Vth (3 methods), SS, Ion/Ioff, Ron/gds, R, diode fit, leakage, MW, plots, reporting rules | before `analyze_run`; writing the report; ad-hoc analysis |
 | [07 HSPICE simulation](07-hspice-simulation.md) | reserved workflow: level-1 model card, netlist, comparison, BSIM4/Verilog-A later | a simulation-comparison request (answer: reserved) |
 | 08 debug | skill `b1500-debug`: triage order, runbooks, cases | noisy, impossible, compliance-limited or drifting data; faults; VISA errors |
+| [11 switching and routing](11-switching-routing.md) | switches in the station profile, routes per phase, 16440A selector (ERSSP, PGU open, Force only), SCUU/ASU paths, RSU, guard and R-ROUTE rules, cleanup to rest, selector check, simulator | any plan through a switch target; selector wiring (L7); a run blocked or failed on a route |
 
 ## Sections by file
 
@@ -123,6 +124,19 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Example netlist](07-hspice-simulation.md#example-netlist)
 - [Comparing measured and simulated curves](07-hspice-simulation.md#comparing-measured-and-simulated-curves)
 - [BSIM4 and Verilog-A later](07-hspice-simulation.md#bsim4-and-verilog-a-later)
+
+### 11 switching and routing
+
+- [Switches in the station profile](11-switching-routing.md#switches-in-the-station-profile)
+- [Routes and phases](11-switching-routing.md#routes-and-phases)
+- [The 16440A selector](11-switching-routing.md#the-16440a-selector)
+- [SCUU and ASU paths](11-switching-routing.md#scuu-and-asu-paths)
+- [RSU of the WGFMU](11-switching-routing.md#rsu-of-the-wgfmu)
+- [Guard and rules](11-switching-routing.md#guard-and-rules)
+- [Cleanup and verification](11-switching-routing.md#cleanup-and-verification)
+- [Selector check and recording the wiring](11-switching-routing.md#selector-check-and-recording-the-wiring)
+- [Simulator behaviour](11-switching-routing.md#simulator-behaviour)
+- [Troubleshooting routes](11-switching-routing.md#troubleshooting-routes)
 
 ## Manual documents
 

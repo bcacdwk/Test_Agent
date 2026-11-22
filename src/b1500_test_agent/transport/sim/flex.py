@@ -195,14 +195,15 @@ SUPPORTED = QUERIES | SAMPLING_COMMANDS | CMU_COMMANDS | frozenset({
     "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
     "SAP", "SAR", "SAL",
     "SSP", "SSL",
+    "ERMOD", "ERSSP",
     "SIM", "SPM", "SPT", "SPV", "SPPER", "SPRM", "SER", "SPUPD", "SRP", "SPP", "ODSW", "STGP", "ALW", "ALS",
 })  # fmt: skip
 """Every mnemonic the simulator executes (the v1 subset plus ``CM`` and ``*LRN?`` types 0 and 31, v2 2.6, the family
 state queries of the bring-up probe, v2 7.1: ``ERMOD?``, ``ERSSP?``, ``SPST?``, ``CORRST?``, ``ADJ?`` mode 0, the
 sampling commands of WP7.4 and the v2 sweep sources of WP7.2: ``DI``, ``WI``, ``WSV``/``WSI``, ``WNX``/``WNCC`` with
 ``MM 16``), the ASU commands of WP7.1 (``SAP``, ``SAR``, ``SAL`` with ``*LRN?`` types 62 and 63), the MFCMU and
-SCUU commands of WP8.1 with ``MM`` 17-26 and ``*LRN?`` types 70-73, 80, 81, 90, and the HV-SPGU commands of WP9.1;
-anything else is error 100 and logged ``unsupported``."""
+SCUU commands of WP8.1 with ``MM`` 17-26 and ``*LRN?`` types 70-73, 80, 81, 90, the HV-SPGU commands of WP9.1 and
+the 16440A selector settings ``ERMOD``/``ERSSP`` of WP9.2; anything else is error 100 and logged ``unsupported``."""
 
 ALONE_ONLY = frozenset({"AB", "*RST", "FMT", "BC"})
 """Mnemonics that must be sent alone: the simulator rejects the whole line (error 103) otherwise (PDF 44, 364,

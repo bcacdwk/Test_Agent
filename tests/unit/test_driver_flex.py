@@ -387,6 +387,6 @@ def test_family_modules_hold_disjoint_builders() -> None:
     assert {"sim", "spm", "spt", "spv", "spper", "sprm", "ser", "spupd", "odsw", "stgp", "corrser_q", "alw",
             "als"} == set(_own_functions(flex_spgu))  # WP9.1
     assert {"SPST_Q", "SRP", "SPP"} <= set(_own_constants(flex_spgu))
-    assert {"erssp_q", "sap", "sar", "sal", "ssp", "ssl"} == set(_own_functions(flex_switch))
-    assert {"ERMOD_Q", "ASU_PATHS", "LRN_ASU_PATH", "LRN_ASU_1PA", "SSP_PATHS", "LRN_SCUU_PATH"} <= set(
-        _own_constants(flex_switch))
+    assert {"erssp_q", "sap", "sar", "sal", "ssp", "ssl", "ermod", "erssp"} == set(_own_functions(flex_switch))
+    assert {"ERMOD_Q", "ASU_PATHS", "LRN_ASU_PATH", "LRN_ASU_1PA", "SSP_PATHS", "LRN_SCUU_PATH", "ERMOD_MODES",
+            "ERSSP_CODES"} <= set(_own_constants(flex_switch))  # ERMOD/ERSSP: WP9.2

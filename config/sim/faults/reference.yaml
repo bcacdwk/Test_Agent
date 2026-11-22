@@ -35,3 +35,4 @@ faults:
   - {kind: wgfmu_hang, fn: wait_until_completed, nth: 1}  # library call blocks for the session timeout; run hangs
   - {kind: wgfmu_disconnect_fails, channels: [201], count: null}  # RSU relay stuck: channel stays connected
   - {kind: wgfmu_dll_missing}                         # no WGFMU library: Bus.wgfmu is None on the simulator
+  - {kind: selector_stuck, port: 0, state: pgu}      # 16440A port 0 stays on PGU whatever ERSSP sends; ERSSP? 2

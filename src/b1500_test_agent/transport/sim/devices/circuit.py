@@ -1,5 +1,11 @@
 """The simulator circuit: device objects of a scenario (``build_device``) and the wiring that connects their
-terminals to channels, MFCMU sides (``"7H"``/``"7L"``, WP8.1) or the GNDU (``Circuit``), blueprint 4.2."""
+terminals to channels, MFCMU sides (``"7H"``/``"7L"``, WP8.1), 16440A selector outputs (``"SELPORT0"``, WP9.2) or the
+GNDU (``Circuit``), blueprint 4.2.
+
+Selector outputs are routed nodes: ``Circuit.router`` (set by the instrument) returns, for every cabled selector
+output, the node its present ``ERSSP`` state connects (the SMU or SPGU channel on that input) or ``None`` (open,
+PGU open, an uncabled input, a relay still settling). Every evaluation resolves a terminal wired to a selector output
+through it, so the terminal sees that channel's level and its current counts as that channel's, or it floats."""
 
 from __future__ import annotations
 
@@ -23,7 +29,7 @@ from b1500_test_agent.models.sim import (
     ShortParams,
     device_params,
 )
-from b1500_test_agent.models.station import PinTarget, SimDeviceModel, SimScenario
+from b1500_test_agent.models.station import PinTarget, SimDeviceModel, SimScenario, selector_port
 from b1500_test_agent.transport.sim.devices.base import Device, DeviceState, DynamicDevice, StatefulDevice
 from b1500_test_agent.transport.sim.devices.basic import CapacitorDevice, DiodeDevice, OpenDevice, ResistorDevice
 from b1500_test_agent.transport.sim.devices.dielectric import DielectricDevice
@@ -37,6 +43,9 @@ P = TypeVar("P", bound=StrictModel)
 
 Node = int | str
 """A circuit node with a forced level: a canonical channel number or an MFCMU side target (``"7H"``, ``"7L"``)."""
+
+Router = Callable[[], Mapping[str, "Node | None"]]
+"""Selector output (``"SELPORT0"``) -> the node it connects now, ``None`` = open (``Circuit.router``)."""
 
 
 def _typed(params: StrictModel, schema: type[P]) -> P:
@@ -102,6 +111,10 @@ class Circuit:
         self.noise: dict[str, NoiseSource] = {
             name: device for name, device in self.devices.items() if isinstance(device, NoiseSource)
         }
+        self.router: Router | None = None
+        """Where the selector outputs connect now (set by the instrument; ``None`` = every selector output open)."""
+        self._routed = frozenset(target for terminals in self.wiring.values() for target in terminals.values()
+                                 if selector_port(target) is not None)
         for name, source in self.noise.items():
             target = self.devices.get(source.params.attach)
             if target is None or isinstance(target, NoiseSource):
@@ -115,11 +128,34 @@ class Circuit:
         """True when a device has internal state (then the instrument commits applied voltages)."""
         return bool(self.stateful)
 
-    def terminal_voltages(self, name: str, levels: Mapping[Node, float]) -> dict[str, float | None]:
+    def routes(self) -> Mapping[str, Node | None]:
+        """Selector output -> the node it connects now (empty without selector-wired terminals or a router)."""
+        if not self._routed or self.router is None:
+            return {}
+        return self.router()
+
+    def _resolve(self, target: PinTarget, routes: Mapping[str, Node | None]) -> PinTarget:
+        """``target`` with a selector output replaced by the node it connects (``None`` = open)."""
+        if isinstance(target, str) and target in self._routed:
+            return routes.get(target)  # type: ignore[return-value]
+        return target
+
+    def wired_to(self, node: Node) -> bool:
+        """True when some device terminal reaches ``node`` now (directly or through a selector output)."""
+        routes = self.routes()
+        return any(self._resolve(target, routes) == node
+                   for terminals in self.wiring.values() for target in terminals.values())
+
+    def terminal_voltages(self, name: str, levels: Mapping[Node, float],
+                          routes: Mapping[str, Node | None] | None = None) -> dict[str, float | None]:
         """Voltage of each wired terminal of device ``name`` for ``levels`` (``None`` = floating): GNDU 0 V, a
-        channel or MFCMU side its level, anything else (or a node without a level) floating."""
+        channel or MFCMU side its level, a selector output the level of the node it connects (``routes``, default
+        ``self.routes()``), anything else (or a node without a level) floating."""
+        if routes is None:
+            routes = self.routes()
         voltages: dict[str, float | None] = {}
         for terminal, target in self.wiring.get(name, {}).items():
+            target = self._resolve(target, routes)
             if target == "GNDU":
                 voltages[terminal] = 0.0
             elif target is not None:
@@ -131,10 +167,11 @@ class Circuit:
     def _collect(self, levels: Mapping[Node, float], evaluate: Callable[[str, Device, dict[str, float | None]],
                                                                         dict[str, float]]) -> dict[Node, float]:
         currents: dict[Node, float] = {node: 0.0 for node in levels}
+        routes = self.routes()
         for name, device in self.devices.items():
             wiring = self.wiring.get(name, {})
-            for terminal, current in evaluate(name, device, self.terminal_voltages(name, levels)).items():
-                target = wiring.get(terminal)
+            for terminal, current in evaluate(name, device, self.terminal_voltages(name, levels, routes)).items():
+                target = self._resolve(wiring.get(terminal), routes)
                 if target is not None and target in currents:
                     currents[target] += current
         return currents
@@ -147,8 +184,9 @@ class Circuit:
 
     def commit(self, levels: Mapping[Node, float]) -> None:
         """Apply ``levels`` (the voltages actually forced) to every stateful device."""
+        routes = self.routes()
         for name, device in self.stateful.items():
-            device.commit(self.terminal_voltages(name, levels))
+            device.commit(self.terminal_voltages(name, levels, routes))
 
     def advance(self, dt: float, levels: Mapping[Node, float]) -> dict[Node, float]:
         """Hold ``levels`` for ``dt`` seconds (≥ 0): every dynamic device evolves; returns the current (A) of each
@@ -164,10 +202,12 @@ class Circuit:
 
     def noise_on(self, target: PinTarget) -> list[NoiseSource]:
         """Noise sources attached to a device terminal wired to ``target`` (a canonical channel number or
-        ``"GNDU"``), in scenario order."""
+        ``"GNDU"``; through a selector output while it connects ``target``), in scenario order."""
         target = canonical_channel(target) if isinstance(target, int) else target
+        routes = self.routes()
         return [source for source in self.noise.values()
-                if self.wiring.get(source.params.attach, {}).get(source.params.terminal) == target]
+                if self._resolve(self.wiring.get(source.params.attach, {}).get(source.params.terminal), routes)
+                == target]
 
     def export_state(self) -> dict[str, DeviceState]:
         """Internal state of every stateful device (for ``SimPersistentState.devices``)."""

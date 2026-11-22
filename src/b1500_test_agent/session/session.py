@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import contextlib
 import os
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, cast
@@ -41,6 +41,7 @@ from b1500_test_agent.driver.b1500 import B1500Driver
 from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.common import Backend
 from b1500_test_agent.models.plan import CompiledEnvelope
+from b1500_test_agent.models.routing import SwitchSpec
 from b1500_test_agent.models.run import Adapter, CleanupReport, CleanupStep, LockHolder
 from b1500_test_agent.models.station import DllProbe, LiveState, Settings
 from b1500_test_agent.paths import Paths
@@ -97,10 +98,15 @@ class Session:
     """
 
     def __init__(self, settings: Settings, bus_factory: BusFactory, audit: AuditSink, *,
-                 state_dir: Path | None = None, adapter: Adapter = "cli") -> None:
+                 state_dir: Path | None = None, adapter: Adapter = "cli",
+                 switches: Sequence[SwitchSpec] = ()) -> None:
         self.settings = settings
         self.audit = audit
         self.adapter: Adapter = adapter
+        self.switches: tuple[SwitchSpec, ...] = tuple(switches)
+        """The station's declared switches (``StationProfile.switches``): every transaction's ``OutputGuard`` admits
+        their ``rest`` states, its cleanup returns them to rest and verifies them, snapshots read their states
+        (blueprint v2 2.6 steps 5 and 8; WP9.2). Empty: no switch is touched."""
         self.state_dir = (Path(state_dir) if state_dir is not None
                           else Paths.from_env().with_settings(settings.paths).state_dir)
         self.fault_latch = FaultLatch(self.state_dir, audit=audit, backend=settings.backend)
@@ -265,8 +271,8 @@ class Session:
                 self._bus_end()
 
     def snapshot(self, *, refresh: bool = True, lock_timeout_s: float = 5.0) -> LiveState:
-        """IDN, UNT, ERRX drain, STB, outputs; read-only (``read_only``: queries only, no source or channel
-        commands).
+        """IDN, UNT, ERRX drain, STB, outputs and the declared switches' states that queries can read (selectors only
+        while their control mode is on); read-only (``read_only``: queries only, no source or channel commands).
 
         Runs under the instrument lock (``InstrumentBusy`` when held elsewhere); with ``refresh=False`` the last
         snapshot is returned without I/O when there is one. A stale inflight marker is left for the next
@@ -276,7 +282,8 @@ class Session:
             return self.last_live
         transport = self.transport
         with self.read_only("snapshot", lock_timeout_s=lock_timeout_s) as driver:
-            live = read_live_state(driver, backend=transport.backend, resource=transport.resource)
+            live = read_live_state(driver, backend=transport.backend, resource=transport.resource,
+                                   switches=self.switches)
         library = self.wgfmu_library()
         if library is not None:
             live = live.model_copy(update={"wgfmu_library": library})
@@ -324,7 +331,8 @@ class Session:
                            plan_id=plan_id, control=control)
 
     def safe_shutdown(self, *, reason: str, abort: bool = True, lock_timeout_s: float = 5.0) -> CleanupReport:
-        """``AB`` (when ``abort``) -> ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify, with device clear and one retry;
+        """``AB`` (when ``abort``) -> ``SPP`` (with an SPGU) -> ``DZ`` -> switches to rest -> ``CL`` -> ``ERRX?`` drain
+        -> verify (outputs and declared switches), with device clear and one retry;
         never gated (runs with a latched fault). An unverified result latches the fault. A stale inflight marker is
         recovered (audited ``recovery_cleanup``). It still takes the instrument lock, so a transaction in another
         process finishes its own cleanup first (``InstrumentBusy`` after ``lock_timeout_s``).

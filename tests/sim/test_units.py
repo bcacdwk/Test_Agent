@@ -26,7 +26,7 @@ SAMPLING = {"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"}
 CMU = {"CORRST?", "ADJ?", "CORR?", "CORRL?", "DCORR?", "MM", "XE"} | set(flex.CMU_COMMANDS)  # MM/XE by mode (WP8.1)
 SPGU = {"SPST?", "SIM", "SPM", "SPT", "SPV", "SPPER", "SPRM", "SER", "SPUPD", "SRP", "SPP", "ODSW", "STGP",
         "CORRSER?", "ALW", "ALS"}  # WP9.1
-SWITCH = {"ERMOD?", "ERSSP?", "SAP", "SAR", "SAL", "SSP", "SSL"}
+SWITCH = {"ERMOD?", "ERSSP?", "SAP", "SAR", "SAL", "SSP", "SSL", "ERMOD", "ERSSP"}  # ERMOD/ERSSP: WP9.2
 
 
 def test_every_supported_mnemonic_has_exactly_one_handler() -> None:

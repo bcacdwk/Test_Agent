@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 
 from b1500_test_agent.analysis.dataset import DATA_FILE
-from tests.visa_loop.helpers import VisaWorld, bus_events
+from tests.visa_loop.helpers import VisaWorld, assert_selectors_restored, bus_events, without_switch_traffic
 from tests.visa_loop.test_sampling_visa import run_to_end, sim_data
 
 CHUNK = 256
@@ -54,8 +54,10 @@ def test_stress_recipe_runs_on_backend_visa_with_cleanup_verified(case: dict[str
     assert bus.stats.max_chunks > 1 and bus.stats.signed_errx > 0
     bus.instrument.assert_safe()
 
-    sent = [r.mnemonic for r in bus.instrument.command_log if r.outcome == "ok"]
-    # v2 cleanup on the lab mainframe (SPGU in slot 1): SPST? (no SPP: inactive), DZ, CL, drain, LOP? + SPST? verify
+    sent = without_switch_traffic(bus.instrument.command_log)
+    # v2 cleanup on the lab mainframe (SPGU in slot 1): SPST? (no SPP: inactive), DZ, CL, drain, LOP? + SPST? verify;
+    # the declared selectors' rest/verify traffic (WP9.2) is checked by assert_selectors_restored
+    assert_selectors_restored(bus.instrument.command_log)
     assert sent[-6:] == ["SPST?", "DZ", "CL", "ERRX?", "LOP?", "SPST?"] and "MT" in sent and "SPP" not in sent
     cn = sent.index("CN")
     assert sent.index("TSC") < cn  # time stamps off before the outputs: the read parsers expect none

@@ -1,0 +1,37 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# 16440A selector check (bring-up stage L7, card spgu/selector-check): every declared 16440A selector output of the
+# station is stepped on its own through SMU on, PGU on, PGU open (CH 1 only, ports 0 and 2; PG p154 (2-66)) and back
+# to its rest state, each state set with ERMOD 1 + ERSSP port,status and read back with ERSSP? (PG p433-434
+# (4-115, 4-116)); the human at the station listens to the relays and watches the front-panel LEDs. No output is
+# switched on and nothing is sourced: the compiled envelope has no channel (the OutputGuard refuses CN and every
+# source) and the kind checks LOP? all off and SPST? 0 before the first route. Works with unrecorded selector inputs,
+# which is how the human records the wiring at L7 (ATV-28). Any existing pin map may be named; no DUT profile (no
+# DUT roles). Kind spgu_pulse, mode route_only (WP9.2; WP9.3 adds the pulse modes to the kind).
+# status: sim_validated by tests/integration/test_recipes_selector.py (lab_station: every declared port read back in
+# every state, cleanup verified with the selectors at rest); hw_validated only through a reviewed validation record
+# (stage L7).
+id: system.selector_check
+version: 1
+title: 16440A selector check - each declared output SMU, PGU, PGU open and back to rest, every state read back
+family: spgu
+kind: spgu_pulse
+status: sim_validated
+card: .agents/skills/b1500-test/cards/spgu/selector-check.md
+device_types: []
+roles: {}
+params:
+  mode: {type: enum, choices: [route_only], default: route_only, doc: Fixed kind mode of this recipe (no source).}
+  pgu_open: {type: bool, default: true, doc: Also step CH 1 outputs (ports 0 and 2) through the PGU-open state.}
+  dwell_s:
+    unit: s
+    default: 0.5
+    recommended: [0.2, 2.0]
+    range: [0.0, 10.0]
+    doc: Time each state is held after its read-back (the human listens to the relay and watches the LED).
+quality: {}
+provenance:
+  sources:
+    - blueprint v2 3.3 (system.selector_check, stage L7), 2.6 (cleanup steps 5 and 8), 2.8 (R-ROUTE-01/02)
+    - Programming Guide Ed. 15 ERMOD (PDF 419-420), ERSSP (PDF 433), ERSSP? (PDF 434), SMU/PG selector (PDF 154)
+    - 16440A User's Guide Ed. 6 (SEL p10-12 switching states)
+  validation_runs: []

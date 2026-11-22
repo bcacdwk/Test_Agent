@@ -11,9 +11,12 @@ of the plan's envelope (no envelope: no guard, so every source operation refuses
 1 ``AB`` if ``XE`` was issued and its read did not complete (sent alone; on timeout device clear, then ``AB``)
 1b (v2 step 2, on instruments with an HV-SPGU, WP9.1) ``SPST?`` and ``SPP`` if an SPGU output is active
 2 ``DZ`` (v2 step 4: first ``DCV ch,0`` and ``ACV ch,0`` on every MFCMU the transaction drove whose ``LOP?`` code
-still shows its output switch on, WP8.1) 3 ``CL`` 4 ``ERRX?`` drain 5 verify outputs off (``LOP?`` plus ``SPST?`` = 0
-with an SPGU on hardware, simulator state on sim, which includes the MFCMU DC bias and AC level and the SPGU output;
-on hardware a failed ``LOP?`` positive control makes the verification fail whatever ``LOP?`` reads)
+still shows its output switch on, WP8.1) 2b ``routes`` (v2 step 5, WP9.2; on stations that declare switches): every
+declared 16440A selector, SCUU and ASU back to its ``rest`` state (``session/routes.py``) 3 ``CL`` 4 ``ERRX?`` drain
+5 verify outputs off (``LOP?`` plus ``SPST?`` = 0 with an SPGU on hardware, simulator state on sim, which includes
+the MFCMU DC bias and AC level and the SPGU output; on hardware a failed ``LOP?`` positive control makes the
+verification fail whatever ``LOP?`` reads) and every declared switch output at rest (``ERSSP?`` per declared port,
+``*LRN? 81``/``62``; v2 step 8, ``CleanupReport.switches_after``)
 6 on any step error: device clear, retry the sequence once
 7 still unverified (``DZ``, ``CL`` or the verification failed in the last attempt) -> ``FaultLatch.set`` + audit
 ``cleanup_unverified`` 8 save the simulator state, remove the inflight marker, unlock and close the bus (``process``
@@ -26,6 +29,12 @@ Audit: every event of the transaction carries its ``tx`` id and intent; with a `
 the lifecycle events go to the run's sink (``audit.jsonl`` of the run folder) and every measurement read is handed to
 ``RunHandle.save_raw`` before it is parsed, so raw data survives parser errors and later failures. Without a run
 they go to the session's sink (``<state_dir>/audit/YYYY-MM-DD.jsonl``).
+
+Routes (blueprint v2 2.6, WP9.2): the ``OutputGuard`` knows the station's switches (their ``rest`` states may always
+be restored); kinds switch with ``apply_routes(routes, phase=...)`` (one phase of the plan's ``routes_by_phase``:
+guarded, ``ERMOD 1`` first, settle wait, read-back verified, audited as checkpoint ``routes``); ``snapshot`` fills
+``LiveState.switch_states`` for the pre-execute rule R-ROUTE-01 (``ERMOD 1`` first when the station declares a
+selector).
 
 Runs (blueprint v2 2.6): kinds call ``checkpoint(done, total, phase, rows)`` between segments and long readback
 loops call ``check_abort()``; with a ``RunControl`` (``session/runner.py``) this records the progress of an
@@ -64,10 +73,12 @@ from pydantic import AwareDatetime, ValidationError
 from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.b1500 import B1500Driver
 from b1500_test_agent.driver.discovery import all_outputs_off
+from b1500_test_agent.driver.errors import DriverError
 from b1500_test_agent.driver.guard import EnvelopeViolation, OutputGuard
 from b1500_test_agent.models.audit import AuditEvent, AuditEventName
 from b1500_test_agent.models.common import Backend, JsonScalar, StrictModel
 from b1500_test_agent.models.plan import CompiledEnvelope
+from b1500_test_agent.models.routing import Route, SwitchSpec, SwitchState
 from b1500_test_agent.models.run import Adapter, CleanupReport, CleanupStep, LockHolder, PositiveControl
 from b1500_test_agent.models.station import (
     MODULE_TYPE_BY_MODEL,
@@ -79,6 +90,7 @@ from b1500_test_agent.models.station import (
 )
 from b1500_test_agent.session.fault import CleanupUnverified, FaultLatched, PositiveControlFailed
 from b1500_test_agent.session.lock import atomic_write_json, host_name, remove_file
+from b1500_test_agent.session.routes import apply_phase, cleanup_scope, read_states, restore_routes, verify_routes
 from b1500_test_agent.session.wgfmu_live import bound, read_channels
 from b1500_test_agent.transport.audit import AuditingTransport, AuditSink, hold_audit
 from b1500_test_agent.transport.base import Transport, TransportError, TransportTimeout, state_hooks, unwrap
@@ -88,8 +100,8 @@ if TYPE_CHECKING:
     from b1500_test_agent.session.runner import RowsSource, RunControl
     from b1500_test_agent.session.session import Session
 
-CleanupStepName = Literal["abort", "spgu_stop", "zero", "disconnect", "drain_errors", "verify", "device_clear",
-                          "restore"]
+CleanupStepName = Literal["abort", "spgu_stop", "zero", "routes", "disconnect", "drain_errors", "verify",
+                          "device_clear", "restore"]
 
 STATE_SAVE_INTERVAL_S = 1.0
 """Least wall time between two saves of the simulator state at checkpoints (the persisted state then shows what a
@@ -183,18 +195,29 @@ def new_tx_id(now: datetime | None = None) -> str:
 
 
 def read_live_state(driver: B1500Driver, *, backend: Backend, resource: str,
-                    earlier_errors: list[InstrumentError] | None = None) -> LiveState:
-    """Read-only snapshot through ``driver``: ``*IDN?``, ``UNT?``, ``ERRX?`` drain, ``*STB?``, ``LOP?``.
+                    earlier_errors: list[InstrumentError] | None = None, switches: Sequence[SwitchSpec] = (),
+                    set_selector_control: bool = False) -> LiveState:
+    """Snapshot through ``driver``: ``*IDN?``, ``UNT?``, ``ERRX?`` drain, ``*STB?``, ``LOP?`` and, when the station
+    declares switches, their states (``switch_states``: the outputs that could be read, ``session/routes.py``).
 
-    ``earlier_errors`` (e.g. a transaction's baseline drain) are listed before the newly drained ones.
+    ``earlier_errors`` (e.g. a transaction's baseline drain) are listed before the newly drained ones. Read-only
+    unless ``set_selector_control`` (a transaction's pre-execute snapshot), which sends ``ERMOD 1`` first when a
+    declared selector's control mode is off, since ``ERSSP?`` is defined only with it (R-ROUTE-01 pre).
     """
     identity = driver.identify()
     inventory = driver.modules()
     errors = [*(earlier_errors or []), *driver.errors(drain=True)]
     status = driver.status_byte()
     outputs = driver.output_state()
+    states: dict[str, SwitchState] | None = None
+    scope = cleanup_scope(switches)
+    if scope:
+        try:
+            states = read_states(driver, scope, set_control=set_selector_control)
+        except DriverError:
+            states = None  # not read: R-ROUTE-01 blocks plans that route, other plans are unaffected
     return LiveState(backend=backend, resource=resource, taken_at=datetime.now(UTC), identity=identity,
-                     inventory=inventory, errors=errors, status_byte=status, outputs=outputs)
+                     inventory=inventory, errors=errors, status_byte=status, outputs=outputs, switch_states=states)
 
 
 # -- Cleanup ----------------------------------------------------------------------------------------------------------
@@ -240,10 +263,14 @@ class CleanupOutcome:
 
 
 def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
-                positive: PositiveControl | None = None, spgu: bool | None = None) -> CleanupOutcome:
+                positive: PositiveControl | None = None, spgu: bool | None = None,
+                switches: Sequence[SwitchSpec] = ()) -> CleanupOutcome:
     """``AB`` (when ``always_abort`` or a measurement is pending) -> SPGU stop -> MFCMU ``DCV 0``/``ACV 0`` (channels
-    the driver drove) + ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify; after any failed step a device clear and one
-    retry of the whole sequence (blueprint 2.4 steps 1-6, v2 2.6 steps 1, 2, 4, 6-10).
+    the driver drove) + ``DZ`` -> switches to rest -> ``CL`` -> ``ERRX?`` drain -> verify; after any failed step a
+    device clear and one retry of the whole sequence (blueprint 2.4 steps 1-6, v2 2.6 steps 1, 2, 4-10).
+
+    ``switches``: the station's declared switches; those in ``routes.cleanup_scope`` are returned to rest (step 5,
+    ``routes``) and verified (step 8, part of ``verify``; ``CleanupReport.switches_after``).
 
     ``spgu``: whether an HV-SPGU is installed (``None`` = unknown: ``UNT?`` is read once after the abort step, and an
     unreadable inventory counts as installed). With an SPGU the ``spgu_stop`` step reads ``SPST?`` and sends ``SPP``
@@ -263,7 +290,9 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
     steps: list[CleanupStep] = []
     errors: list[InstrumentError] = []
     outputs: dict[int, str] = {}
+    switches_after: dict[str, str] = {}
     deferred: list[BaseException] = []
+    scope = cleanup_scope(switches)
 
     def step(name: CleanupStepName, attempt: int, action: Callable[[], tuple[bool, str]]) -> bool:
         error: str | None = None
@@ -314,6 +343,9 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
         cmu = f"; MFCMU {', '.join(str(ch) for ch in zeroed)} DC 0 V, AC 0 V" if zeroed else ""
         return True, "all channels" + cmu
 
+    def routes() -> tuple[bool, str]:
+        return restore_routes(driver, scope)
+
     def disconnect() -> tuple[bool, str]:
         driver.disconnect()
         return True, "all channels"
@@ -326,6 +358,15 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
         return True, ", ".join(f"{e.code} {e.message}".strip() for e in found) or "queue empty"
 
     def verify() -> tuple[bool, str]:
+        ok, detail = verify_outputs()
+        if not scope:
+            return ok, detail
+        switches_after.clear()
+        routed_ok, routed_detail, after = verify_routes(driver, scope)
+        switches_after.update(after)
+        return ok and routed_ok, f"{detail}; {routed_detail}"
+
+    def verify_outputs() -> tuple[bool, str]:
         outputs.clear()
         if sim is not None:
             reasons = sim.unsafe_reasons()
@@ -361,6 +402,8 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
         if spgu:
             results["spgu_stop"] = step("spgu_stop", attempt, spgu_stop)
         results["zero"] = step("zero", attempt, zero)
+        if scope:
+            results["routes"] = step("routes", attempt, routes)
         results["disconnect"] = step("disconnect", attempt, disconnect)
         results["drain_errors"] = step("drain_errors", attempt, drain)
         results["verify"] = step("verify", attempt, verify)
@@ -368,7 +411,8 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
         if all(results.values()):
             break
     report = CleanupReport(steps=steps, verified=method if verified else "unverified", outputs_after=dict(outputs),
-                           latched_fault=False, errors=errors, positive_control=positive)
+                           latched_fault=False, errors=errors, positive_control=positive,
+                           switches_after=dict(switches_after))
     return CleanupOutcome(report=report, deferred=deferred[0] if deferred else None)
 
 
@@ -468,8 +512,9 @@ class Transaction:
     """__enter__: fault-latch check, lock, write <state_dir>/inflight.json, recover if a previous inflight marker
     exists (AB, DZ, CL, verify), baseline ERRX drain. Body uses tx.driver (guarded).
     __exit__ runs for ANY exit incl. BaseException/EnvelopeViolation: 1 AB if XE issued and not complete
-    (sent alone; on timeout device_clear then AB) 2 DZ 3 CL 4 ERRX drain 5 verify outputs off (LOP? on hw,
-    sim_state on sim) 6 on any step error: device_clear, retry once 7 still unverified → FaultLatch.set +
+    (sent alone; on timeout device_clear then AB) 2 DZ (2b declared switches to rest, WP9.2) 3 CL 4 ERRX drain
+    5 verify outputs off (LOP? on hw, sim_state on sim) and switches at rest 6 on any step error: device_clear, retry
+    once 7 still unverified → FaultLatch.set +
     audit cleanup_unverified 8 remove inflight marker, unlock + close the bus, release lock. Never suppresses the
     original exception.
 
@@ -583,7 +628,8 @@ class Transaction:
             if hooks is not None:
                 hooks.load_state()
             target: Transport = transport if self.run is None else _RawCapture(transport, self.run, self._emit)
-            self.driver = B1500Driver(target, None if self.envelope is None else OutputGuard(self.envelope))
+            guard = None if self.envelope is None else OutputGuard(self.envelope, switches=session.switches)
+            self.driver = B1500Driver(target, guard)
         except BaseException:
             self._release(save_state=False)
             raise
@@ -618,7 +664,8 @@ class Transaction:
         return spgu_installed(live.inventory if live is not None else None)
 
     def _recover(self, previous: InflightMarker) -> None:
-        outcome = run_cleanup(self.driver, always_abort=True, emit=self._emit, spgu=self._spgu_hint())
+        outcome = run_cleanup(self.driver, always_abort=True, emit=self._emit, spgu=self._spgu_hint(),
+                              switches=self._session.switches)
         report = outcome.report
         self._emit("recovery_cleanup", {"previous_tx": previous.tx, "previous_run": previous.run,
                                         "previous_pid": previous.pid, "previous_intent": previous.intent,
@@ -753,13 +800,15 @@ class Transaction:
         return report.model_copy(update={"steps": [*report.steps, step]})
 
     def snapshot(self, *, wgfmu: bool = False) -> LiveState:
-        """Read-only live state under this transaction's lock (for pre-execute rules); its ``errors`` start with
-        the baseline drain of ``__enter__``. On visa it carries the WGFMU library probe (``wgfmu_library``);
+        """Live state under this transaction's lock (for pre-execute rules); its ``errors`` start with the baseline
+        drain of ``__enter__``. Queries only, except ``ERMOD 1`` when a declared selector's control mode is off
+        (``switch_states`` needs ``ERSSP?``; WP9.2). On visa it carries the WGFMU library probe (``wgfmu_library``);
         ``wgfmu=True`` (a plan with WGFMU roles) also reads the library's channel ids (``wgfmu_channels``) through a
         short library session while the FLEX link's exclusive lock is released (R-WG-01 pre-execute; WP10.2)."""
         session = self._session
         live = read_live_state(self.driver, backend=session.backend, resource=session.transport.resource,
-                               earlier_errors=self.baseline_errors)
+                               earlier_errors=self.baseline_errors, switches=session.switches,
+                               set_selector_control=True)
         library = session.wgfmu_library()
         update: dict[str, object] = {} if library is None else {"wgfmu_library": library}
         if wgfmu:
@@ -768,6 +817,27 @@ class Transaction:
             live = live.model_copy(update=update)
         session.last_live = live
         return live
+
+    def apply_routes(self, routes: Sequence[Route], *, phase: str) -> dict[str, SwitchState]:
+        """Switch one phase of routes (a list of the plan's ``routes_by_phase``) through the guarded driver, wait the
+        selector settle time and verify the read-back (``routes.apply_phase``); audited as checkpoint ``routes``.
+        Returns the states read back. The cleanup returns every declared switch to rest whatever happens.
+
+        Raises:
+            EnvelopeViolation: If a route is neither one of the plan's nor a rest state (nothing of the phase sent).
+            RouteNotVerified: If an output does not read the state just set.
+            ValueError: If a route names an undeclared switch or output, an RSU, or one output twice.
+        """
+        listed = ", ".join(str(r) for r in routes)
+        try:
+            states = apply_phase(self.driver, routes, {s.id: s for s in self._session.switches})
+        except Exception as exc:
+            self._emit("checkpoint", {"label": "routes", "phase": phase, "routes": listed},
+                       error=f"{type(exc).__name__}: {exc}")
+            raise
+        self._emit("checkpoint", {"label": "routes", "phase": phase, "routes": listed,
+                                  "readback": ", ".join(f"{t} {s}" for t, s in sorted(states.items()))})
+        return states
 
     def _wgfmu_channels(self, library: DllProbe | None) -> list[int] | None:
         """``WGFMU_getChannelIds`` through ``open_session``/``close_session`` with the FLEX exclusive lock released
@@ -810,7 +880,8 @@ class Transaction:
             if not self._cleanup_done:
                 self._cleanup_done = True
                 outcome = run_cleanup(self.driver, always_abort=self._always_abort, emit=self._emit,
-                                      positive=self.positive_control, spgu=self._spgu_hint())
+                                      positive=self.positive_control, spgu=self._spgu_hint(),
+                                      switches=self._session.switches)
                 deferred = outcome.deferred
                 report = outcome.report
                 if report.verified == "unverified":

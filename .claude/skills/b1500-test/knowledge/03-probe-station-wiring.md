@@ -113,7 +113,8 @@ Seeded from deck slide 12.
 - N1301A-200 GSWU (guard switch unit): joins the CMU high and low guards near the DUT for accurate impedance
   measurements; it opens while the SCUU is in SMU state (UG PDF 103).
 - 16440A SMU/PGU selector (with the 16445A adapter): switches a DUT terminal between an SMU and an SPGU channel,
-  used for pulse program plus SMU read (UG PDF 44-45). Reserved recipe `spgu.program_smu_read`.
+  used for pulse program plus SMU read (UG PDF 44-45). Ports, states, PGU open, routes, cleanup and the selector
+  check: [11 switching and routing](11-switching-routing.md#the-16440a-selector).
 - SCUU path command `SSP chnum,path` with the MFCMU's channel (PG p520 (4-202)): 1 Force1 only, 2 Force2 only, 3 both
   SMUs, 4 CMUH/CMUL; Force1 is the SMU in slot `cmu_slot - 1`, Force2 the one in `cmu_slot - 2`. Power-on and `*RST`
   leave it open, which no `SSP` path restores (so a declared SCUU rests at `smu` or `cmu`). A connection switches the

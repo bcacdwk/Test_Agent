@@ -49,7 +49,8 @@ def routes_valid(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     ``envelope.routes`` (or a switch's ``rest``) and name every allowed route; no switch output is driven by two
     sources (two non-rest states) in one phase; Kelvin roles never go through a selector (Force only). Pre-execute:
     the live state of every output of the involved switches and of every declared selector port (``ERSSP?`` after
-    ``ERMOD 1``) was read and is its ``rest`` state."""
+    ``ERMOD 1``; the transaction's snapshot reads them, WP9.2) was read and is a rest state (``SwitchSpec.at_rest``:
+    the ``rest`` state, or both outputs of an SCUU open, its power-on state)."""
     routes = plan_routes(ctx)
     if not routes:
         return
@@ -157,7 +158,7 @@ def _live_rest(ctx: RuleContext, env: RuleEnv, routes: list[PlanRoute]) -> Itera
             if state is None:
                 yield block(f"{target}: the live state was not readable", source=env.live(f"switch_states.{target}"),
                             observed=None, limit=switch.rest)
-            elif state != switch.rest:
+            elif not switch.at_rest(output, state):
                 yield block(f"{target} is {state}, not its rest state {switch.rest} (a previous run or a human left "
                             "it switched; run safe_shutdown)", source=env.live(f"switch_states.{target}"),
                             observed=state, limit=switch.rest)

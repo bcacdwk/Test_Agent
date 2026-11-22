@@ -4,7 +4,7 @@ Schemas live in ``models/sim.py`` (``SimFault``, ``SimFaultProfile``). Faults co
 profile or from ``SimInstrument.inject()``; counters start when a fault becomes active. Instrument-side faults
 (``compliance_at``, ``errx``, ``timeout`` on ``XE``/queries, ``garbage_data``, ``interlock_open``, ``oscillation``,
 overrides, ``ignore_dz``, ``slow``, ``abort_ignored``, ``cmu_correction_lost``, ``cmu_overload``, ``spgu_no_stop``,
-``spgu_load_mismatch``) are consulted by
+``spgu_load_mismatch``, ``selector_stuck``) are consulted by
 ``SimInstrument``; link faults (``timeout``
 on ``read``, ``disconnect``, ``cleanup_failure``, ``bus_locked``, ``run_interrupt``) by ``SimTransport`` (and by the
 visa-loop test resource, which puts the real ``VisaTransport`` on the same instrument). ``run_interrupt`` is counted
@@ -37,6 +37,7 @@ from b1500_test_agent.models.sim import (
     ModulesOverride,
     Oscillation,
     RunInterrupt,
+    SelectorStuck,
     SimFault,
     Slow,
     SpguLoadMismatch,
@@ -258,6 +259,15 @@ class FaultEngine:
             assert isinstance(fault, SpguLoadMismatch)
             if fault.channel is None or _canonical(fault.channel) == channel:
                 return fault.load_ohm
+        return None
+
+    def selector_stuck(self, port: int) -> int | None:
+        """The ``ERSSP`` status (0-3) a ``selector_stuck`` fault holds selector ``port`` in, if any (latest wins)."""
+        for item in reversed(self._of(SelectorStuck)):
+            fault = item.fault
+            assert isinstance(fault, SelectorStuck)
+            if fault.port == port:
+                return {"open": 0, "smu": 1, "pgu": 2, "pgu_open": 3}[fault.state]
         return None
 
     def slow_factor(self) -> float:

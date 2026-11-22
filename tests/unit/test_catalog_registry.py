@@ -82,6 +82,9 @@ def test_committed_statuses() -> None:
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
         assert registry.get(recipe_id).kind == "cmu_correction"
         assert registry.get(recipe_id).always_confirm == ["physical_setup"]
+    # WP9.2: kind spgu_pulse, mode route_only (tests/integration/test_recipes_selector.py)
+    assert status["system.selector_check"] == ("sim_validated", "sim_validated")
+    assert registry.get("system.selector_check").kind == "spgu_pulse"
     # WP7.6: kind stress_measure (tests/integration/test_recipes_stress.py); destructive, always confirmed
     for recipe_id in ("reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "reliability.silc"):
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
@@ -101,7 +104,8 @@ def test_committed_statuses() -> None:
              "reliability.bti_sms": "reliability/bti-stress-measure",
              "igzo.bias_stress": "reliability/igzo-bias-stress",
              "reliability.hci": "reliability/hci-silc", "reliability.silc": "reliability/hci-silc",  # WP7.6
-             **{r: "cmu/cmu-correction" for r in CORRECTION_RECIPES}}  # WP8.2
+             **{r: "cmu/cmu-correction" for r in CORRECTION_RECIPES},  # WP8.2
+         "system.selector_check": "spgu/selector-check"}  # WP9.2
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):

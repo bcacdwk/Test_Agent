@@ -109,8 +109,10 @@ sweep source, trigger, wait, read, zero, disconnect. In v1 the recipe kind compi
 `validate_plan` returns it as the plan's FLEX preview (writes only) so a human can audit it.
 
 - Every run is one transaction: rules re-checked under the instrument lock, output guard on every source command,
-  then cleanup abort, SPGU stop, zero, disconnect, verify (deck slide 8: zero and disconnect after any error and
-  after every measurement), whatever happened. Unverified cleanup latches a fault that only a human clears.
+  then cleanup abort, SPGU stop, zero, switches to rest, disconnect, verify (deck slide 8: zero and disconnect after
+  any error and after every measurement), whatever happened. Unverified cleanup latches a fault that only a human
+  clears. Switches to rest: every declared 16440A port `ERMOD 1` + `ERSSP p,0`, SCUU/ASU paths, all read back
+  ([11](11-switching-routing.md#cleanup-and-verification)).
 - SPGU stop (cleanup step 2, mainframes with an HV-SPGU, e.g. the lab's slot 1): `SPST?` and, while it reads 1,
   `SPP` (PG PDF 511, 513-514); the verification also needs `SPST?` = 0. `DZ` does not stop a running SPGU output
   (it is not a stop condition, PG PDF 142); an SPGU that ignores `SPP` latches the fault unless the retry stops it.

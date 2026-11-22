@@ -79,6 +79,17 @@ class SpguStillActive(DriverError):
         self.waited_s = waited_s
 
 
+class RouteNotVerified(DriverError):
+    """A switch output does not read back the state a route just set (``ERSSP?``, ``*LRN? 81``/``62``; blueprint v2
+    2.6): a stuck relay, a selector without control or wrong wiring of the control cable. ``readback`` maps each
+    target (``SEL1.OUT1``) to what was read (``None`` = not readable). The run stops; the cleanup returns every
+    declared output to rest and verifies it, or latches the fault."""
+
+    def __init__(self, message: str, *, readback: dict[str, str | None]) -> None:
+        super().__init__(message)
+        self.readback = dict(readback)
+
+
 _ERRX_RE = re.compile(r"^\s*(?P<code>[+-]?\d+)\s*(?:,\s*(?P<msg>.*?))?\s*$", re.DOTALL)
 _UNSIGNED_RE = re.compile(r"^\+?(?P<value>\d+)$")
 

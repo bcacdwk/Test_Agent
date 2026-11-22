@@ -29,14 +29,28 @@ from tests.visa_loop.helpers import (
     MEASUREMENT_CASES,
     SYSTEM_CASES,
     VisaWorld,
+    assert_selectors_restored,
     bus_events,
     run_case,
+    without_switch_traffic,
 )
 
 CHUNK = 256
 """Small VISA chunks so that every data block needs several reads (pyvisa's default is 20 kB)."""
 
 SYSTEM_QUERIES = {"system.self_test": "*TST?", "system.self_cal": "*CAL?"}
+
+LAB_SWITCHES_AT_REST = {"SEL1.OUT1": "open", "SEL1.OUT2": "open", "SEL2.OUT1": "open", "SEL2.OUT2": "open",
+                        "SCUU1.OUT1": "not installed", "SCUU1.OUT2": "not installed", "ASU3.OUT": "not installed",
+                        "ASU4.OUT": "not installed"}
+"""``cleanup.switches_after`` of a run on the lab station example (blueprint v2 2.6 step 8, WP9.2): the two selectors
+read back open; the SCUU and ASUs of unknown presence do not answer on the lab mainframe (not installed)."""
+
+
+def manifest_switches(world: VisaWorld, run_id: str | None) -> dict[str, str]:
+    """``cleanup.switches_after`` of a run's manifest."""
+    manifest = json.loads((world.run_dir(run_id) / "manifest.json").read_text(encoding="utf-8"))
+    return dict(manifest["cleanup"]["switches_after"])
 
 
 def sim_run(case: dict[str, Any], tmp_path: Path) -> tuple[Path, dict[str, Any]]:
@@ -99,9 +113,12 @@ def test_v1_recipe_completes_on_backend_visa_with_cleanup_verified(case: dict[st
                                                                    tmp_path: Path) -> None:
     bus, _, result = run_on_visa(world, case, chunk_size=case.get("chunk", CHUNK))
     assert bus.stats.max_chunks > 1  # multi-chunk data reads
-    sent = [r.mnemonic for r in bus.instrument.command_log if r.outcome == "ok"]
-    # v2 cleanup on the lab mainframe (SPGU in slot 1): SPST? (no SPP: inactive), DZ, CL, drain, LOP? + SPST? verify
+    sent = without_switch_traffic(bus.instrument.command_log)
+    # v2 cleanup on the lab mainframe (SPGU in slot 1): SPST? (no SPP: inactive), DZ, CL, drain, LOP? + SPST? verify;
+    # since WP9.2 also the declared selectors back to rest and verified (step 5 between DZ and CL, step 8 after)
     assert sent[-6:] == ["SPST?", "DZ", "CL", "ERRX?", "LOP?", "SPST?"] and "XE" in sent and "SPP" not in sent
+    assert_selectors_restored(bus.instrument.command_log)
+    assert manifest_switches(world, result.run_id) == LAB_SWITCHES_AT_REST
 
     # LOP? positive control: read after CN (outputs on at 0 V) and before any level or trigger
     cn = sent.index("CN")
@@ -142,9 +159,10 @@ def test_system_recipe_runs_confirmed_on_backend_visa(case: dict[str, Any], worl
     bus, validation, result = run_on_visa(world, case)
     assert sorted(validation.confirm_reasons) == sorted(["first_hw_run", reason])
     assert validation.summary is not None and "| visa |" in validation.summary and "no outputs" in validation.summary
-    sent = [r.mnemonic for r in bus.instrument.command_log if r.outcome == "ok"]
+    sent = without_switch_traffic(bus.instrument.command_log)
     query = SYSTEM_QUERIES[recipe_id]
     assert sent.count(query) == 1 and sent[-4:] == ["CL", "ERRX?", "LOP?", "SPST?"]
+    assert_selectors_restored(bus.instrument.command_log)
     assert not {"CN", "DV", "WV", "XE", "*RST"} & set(sent)
     assert not [r for r in bus.instrument.command_log if r.source]
 

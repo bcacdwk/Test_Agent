@@ -68,6 +68,15 @@ SELECTOR_PORTS: Final = range(4)
 PGU_OPEN_PORTS: Final = frozenset({0, 2})
 """Selector ports with the PGU-open state: CH 1 of each selector (PG p154 (2-66))."""
 
+SELECTOR_SETTLE_S: Final = 0.01
+"""Time a 16440A output needs after an ``ERSSP`` change before the new path carries the signal (mechanical relays;
+break before make, so the output is open meanwhile). The manual gives no switching time (SEL p27-29 list none):
+10 ms is a conservative relay figure, TODO(verify) at bring-up L7. The transaction waits it after every selector
+change; the simulator keeps a switched output open for this long."""
+
+SELECTOR_KIND: Final = "selector_16440a"
+"""``SwitchSpec.kind`` of the 16440A SMU/PGU selector."""
+
 
 def split_switch_target(target: str) -> tuple[str, str] | None:
     """``("SEL1", "OUT1")`` for a switch target ``"SEL1.OUT1"``; ``None`` for anything else (channels, ``GNDU``)."""
@@ -126,6 +135,9 @@ class SwitchSpec(StrictModel):
                 raise ValueError(f"{self.id}.{output}: a verified switch cannot have unknown (null) inputs.")
             if not self.allows(output, self.rest):
                 raise ValueError(f"{self.id}.{output}: the rest state {self.rest!r} is not available on this output.")
+        if self.kind == "asu" and self.rest != "smu":
+            raise ValueError(f"Switch {self.id}: an ASU rests on its SMU side (rest smu): CL and CN return its path "
+                             "there (PG p505 (4-187)), so no cleanup could keep another rest state.")
         return self
 
     def states(self) -> frozenset[str]:
@@ -138,6 +150,14 @@ class SwitchSpec(StrictModel):
         if port is None or state not in self.states():
             return False
         return not (state == "pgu_open" and port.index not in PGU_OPEN_PORTS)
+
+    def at_rest(self, output: str, state: str) -> bool:
+        """True when ``state`` read back on ``output`` counts as rest: the ``rest`` state itself, or, for an SCUU,
+        both outputs open (the power-on and ``*RST`` state: no ``SSP`` path sets it, it connects nothing, and the
+        cleanup leaves it alone rather than switch an SMU on just to reach ``rest``; PG p520 (4-202))."""
+        if output not in self.ports:
+            return False
+        return state == self.rest or (self.kind == "scuu" and state == "open")
 
     def input_channel(self, output: str, state: str) -> Channel | None:
         """The channel ``state`` connects to ``output`` (``None`` when open, not wired or unknown)."""

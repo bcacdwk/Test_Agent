@@ -76,13 +76,31 @@ Slot = Annotated[int, Field(ge=1, le=10)]
 CmuSideTarget = Annotated[str, Field(pattern=r"^(10|[1-9])[HL]$")]
 """An MFCMU terminal pair: ``"7H"`` = High (Hc/Hp) and ``"7L"`` = Low (Lc/Lp) of the MFCMU in slot 7."""
 
-PinTarget = Channel | Literal["GNDU"] | CmuSideTarget | None
+SELECTOR_TARGET_PREFIX: Final = "SELPORT"
+"""Prefix of a simulated selector-output wiring target (``SelectorTarget``)."""
+
+SelectorTarget = Annotated[str, Field(pattern=r"^SELPORT[0-3]$")]
+"""A 16440A selector output in a simulated wiring, named by its ``ERSSP`` port: ``"SELPORT0"`` = output 1 of the
+first selector ... ``"SELPORT3"`` = output 2 of the second (PG p433 (4-115)). The station profile names the same
+outputs ``SEL1.OUT1`` etc.; the scenario describes the hardware, so it uses the port number."""
+
+PinTarget = Channel | Literal["GNDU"] | CmuSideTarget | SelectorTarget | None
 """Physical wiring target of a simulated DUT terminal (``SimScenario.wiring``): a channel number, the mainframe
-ground unit, an MFCMU side (``"7H"``/``"7L"``, WP8.1) or ``None`` (not connected). Pin maps use the wider
-``TerminalTarget``. Electrically the High side carries the DC bias and the AC drive, the Low side is the virtual
-ground (0 V DC) the current is measured at; with an SCUU on that MFCMU (``SimScenario.scuu``) ``"7H"``/``"7L"`` are
-the SCUU outputs CMUH/Force1 and CMUL/Force2, which ``SSP`` connects to the MFCMU, to the SMU in slot 6 / slot 5 or
-to nothing (PG p520 (4-202))."""
+ground unit, an MFCMU side (``"7H"``/``"7L"``, WP8.1), a 16440A selector output (``"SELPORT0"``, WP9.2) or ``None``
+(not connected). Pin maps use the wider ``TerminalTarget``. Electrically the High side carries the DC bias and the
+AC drive, the Low side is the virtual ground (0 V DC) the current is measured at; with an SCUU on that MFCMU
+(``SimScenario.scuu``) ``"7H"``/``"7L"`` are the SCUU outputs CMUH/Force1 and CMUL/Force2, which ``SSP`` connects to
+the MFCMU, to the SMU in slot 6 / slot 5 or to nothing (PG p520 (4-202)). A selector output carries the channel its
+``ERSSP`` state connects (``SimScenario.selectors``), or nothing."""
+
+
+def selector_port(target: object) -> int | None:
+    """``0`` for the simulated selector-output target ``"SELPORT0"``; ``None`` for anything else."""
+    prefix = SELECTOR_TARGET_PREFIX
+    if isinstance(target, str) and len(target) == len(prefix) + 1 and target.startswith(prefix) \
+            and target[-1] in "0123":
+        return int(target[-1])
+    return None
 
 TerminalTarget = Channel | Literal["GNDU"] | CmuSideTarget | SwitchTarget | None
 """Where a pin-map terminal is wired (blueprint v2 2.3): a channel number, the GNDU, an MFCMU side (``"7H"``,
@@ -113,6 +131,12 @@ def switch_target(target: object) -> tuple[str, str] | None:
 def channel_slot(channel: int) -> int:
     """Slot number of a PG Table 4-1 channel number (``3`` and ``301``/``302`` are all slot 3)."""
     return channel if channel <= 10 else channel // 100
+
+
+def channel_canonical(channel: int) -> int:
+    """Canonical channel number: ``101``..``1001`` (subchannel 1) map to ``1``..``10`` (PG Table 4-1, PDF 334);
+    subchannel 2 keeps its three/four-digit number."""
+    return channel // 100 if channel > 10 and channel % 100 == 1 else channel
 
 
 def _check_model(model: str) -> ModuleType:
@@ -568,6 +592,15 @@ class SimSlot(StrictModel):
         return self
 
 
+class SimSelectorPort(StrictModel):
+    """The cabling of one simulated 16440A selector output (``SimScenario.selectors``): the SMU whose Force line goes
+    to its SMU input (Force only, Sense open: PG p154 (2-66)) and the HV-SPGU channel on its PGU input; ``None`` =
+    that input is not cabled (the state connects nothing)."""
+
+    smu: Channel | None = None
+    pgu: Channel | None = None
+
+
 class SimDeviceModel(StrictModel):
     """A device model instance (``open``, ``resistor``, ``short``, ``mosfet_ekv`` in M1) with its truth parameters.
 
@@ -651,10 +684,32 @@ class SimScenario(StrictModel):
     timing: str = "instant"
     auto_calibration: bool = False
     scuu: list[Slot] = Field(default_factory=list)
+    selectors: dict[Annotated[int, Field(ge=0, le=3)], SimSelectorPort] = Field(default_factory=dict)
+    """16440A selector cabling (WP9.2): ``ERSSP`` port -> the SMU and SPGU channels on its inputs. A DUT terminal wired
+    to ``"SELPORT<port>"`` sees the input the port's ``ERSSP`` state connects (``smu``, ``pgu``), floats when it is
+    open or PGU-open, and floats during the relay settle time after a change (``routing.SELECTOR_SETTLE_S``). A channel
+    on a selector input is cabled there only, so no terminal may be wired to it directly."""
     rsu_smu: dict[Channel, Channel] = Field(default_factory=dict)
     """WGFMU channel (``201``) -> the SMU whose Force is cabled to that channel's RSU "From SMU" input (WG p20 (1-8)):
     while the RSU is not on the WGFMU path, a DUT terminal wired to the WGFMU channel sees that SMU (blueprint v2
     4.2 "Switches", ATV-32). Empty: the RSU's SMU input is not cabled (the terminal floats)."""
+
+    def _selector_inputs(self, models: dict[int, str]) -> set[int]:
+        """Canonical channels on selector inputs, each checked to be an SMU (smu side) or HV-SPGU channel (pgu
+        side) of the mainframe."""
+        found: set[int] = set()
+        for port, cabling in sorted(self.selectors.items()):
+            for side, channel in (("smu", cabling.smu), ("pgu", cabling.pgu)):
+                if channel is None:
+                    continue
+                module = models.get(channel_slot(channel))
+                ok = module in SMU_TYPES and channel <= 10 if side == "smu" else (
+                    module == "HVSPGU" and channel > 10)
+                if not ok:
+                    raise ValueError(f"selectors.{port}.{side}: channel {channel} is a {module or 'empty slot'}, not "
+                                     f"{'an SMU' if side == 'smu' else 'an HV-SPGU channel (101, 102 ...)'}.")
+                found.add(channel_canonical(channel))
+        return found
 
     @model_validator(mode="after")
     def _rsu_inputs(self) -> SimScenario:
@@ -690,8 +745,16 @@ class SimScenario(StrictModel):
                 raise ValueError(f"scuu: slot {slot} needs an MFCMU there and an MPSMU or HRSMU in slots {slot - 1} "
                                  f"and {slot - 2} (PG p520 (4-202)).")
         fed = {slot - k for slot in self.scuu for k in (1, 2)}
+        selector_inputs = self._selector_inputs(models)
         for device, terminals in self.wiring.items():
             for terminal, target in terminals.items():
+                port = selector_port(target)
+                if port is not None and port not in self.selectors:
+                    raise ValueError(f"{device}.{terminal} is wired to {target}, but selectors lists no cabling for "
+                                     f"port {port}.")
+                if isinstance(target, int) and channel_canonical(target) in selector_inputs:
+                    raise ValueError(f"{device}.{terminal} is wired to channel {target}, which is cabled to a 16440A "
+                                     "selector input; wire the terminal to the selector output (SELPORT<port>).")
                 if isinstance(target, int) and channel_slot(target) not in slots:
                     raise ValueError(f"{device}.{terminal} is wired to channel {target} in an empty slot.")
                 if isinstance(target, int) and channel_slot(target) in fed:
@@ -803,9 +866,10 @@ class LiveState(StrictModel):
     status byte and per-channel output state. Fields stay ``None``/empty when not read.
 
     v2 (filled by the module WPs' snapshots; ``None`` = not read): ``switch_states`` = the state of every declared
-    switch output read back (``ERSSP?`` after ``ERMOD 1`` for selectors, ``SSP?``/``SAP?`` paths, RSU connection),
-    keyed ``"<switch>.<output>"`` (R-ROUTE-01); ``cmu_corrections`` = correction state per MFCMU alias (R-CORR-01);
-    ``wgfmu_library`` = the WGFMU library probe and ``wgfmu_channels`` = ``WGFMU_getChannelIds`` (R-WG-01).
+    switch output read back (``ERSSP?`` after ``ERMOD 1`` for selectors, the ``*LRN? 81``/``62`` SCUU and ASU paths;
+    RSU states come with the WGFMU library), keyed ``"<switch>.<output>"``, outputs that could not be read left out
+    (R-ROUTE-01; filled by every snapshot since WP9.2); ``cmu_corrections`` = correction state per MFCMU alias
+    (R-CORR-01); ``wgfmu_library`` = the WGFMU library probe and ``wgfmu_channels`` = ``WGFMU_getChannelIds`` (R-WG-01).
     """
 
     backend: Backend

@@ -418,6 +418,24 @@ class SpguLoadMismatch(StrictModel):
     load_ohm: float = Field(gt=0.0, le=1.0e12)
 
 
+class SelectorStuck(StrictModel):
+    """A 16440A selector output that does not follow ``ERSSP`` (blueprint v2 4.3): ``port`` (0-3, PG p433 (4-115))
+    stays in ``state`` through every ``ERSSP``, ``ERMOD``, ``*RST`` and device clear, ``ERSSP?`` reports that state
+    and the DUT terminal behind it stays on that path (a welded relay or a selector whose control the B1500A lost).
+    The transaction cannot return it to rest, so its cleanup verification fails and the fault latches
+    (``cleanup_unverified``). ``pgu_open`` exists only on CH 1 (ports 0 and 2, PG p154 (2-66))."""
+
+    kind: Literal["selector_stuck"] = "selector_stuck"
+    port: int = Field(ge=0, le=3)
+    state: Literal["open", "smu", "pgu", "pgu_open"]
+
+    @model_validator(mode="after")
+    def _ch1_only(self) -> SelectorStuck:
+        if self.state == "pgu_open" and self.port not in (0, 2):
+            raise ValueError(f"port {self.port} is CH 2 of its selector, which has no PGU-open state (ports 0, 2)")
+        return self
+
+
 LIBRARY_FUNCTIONS: tuple[str, ...] = (
     "open_session", "close_session", "initialize", "clear", "set_timeout", "channel_ids", "set_operation_mode",
     "set_force_voltage_range", "set_measure_mode", "set_measure_current_range", "set_measure_voltage_range",
@@ -493,7 +511,7 @@ SimFault = Annotated[
     ComplianceAt | ErrxFault | TimeoutFault | GarbageData | InterlockOpen | Disconnect | Oscillation | IdnOverride
     | ModulesOverride | IgnoreDz | CleanupFailure | Slow | RunInterrupt | BusLockedFault | AbortIgnored
     | BreakdownAt | CmuCorrectionLost | CmuOverload | SpguNoStop | SpguLoadMismatch
-    | WgfmuErrorFault | WgfmuHang | WgfmuDisconnectFails | WgfmuDllMissing,
+    | WgfmuErrorFault | WgfmuHang | WgfmuDisconnectFails | WgfmuDllMissing | SelectorStuck,
     Field(discriminator="kind"),
 ]
 """One simulator fault (blueprint 3, v2 4.3); the ``kind`` key selects the type."""
@@ -502,7 +520,7 @@ FAULT_KINDS: tuple[str, ...] = (
     "compliance_at", "errx", "timeout", "garbage_data", "interlock_open", "disconnect", "oscillation",
     "idn_override", "modules_override", "ignore_dz", "cleanup_failure", "slow", "run_interrupt", "bus_locked",
     "abort_ignored", "breakdown_at", "cmu_correction_lost", "cmu_overload", "spgu_no_stop", "spgu_load_mismatch",
-    "wgfmu_error", "wgfmu_hang", "wgfmu_disconnect_fails", "wgfmu_dll_missing",
+    "wgfmu_error", "wgfmu_hang", "wgfmu_disconnect_fails", "wgfmu_dll_missing", "selector_stuck",
 )  # fmt: skip
 """Every ``SimFault`` kind, in blueprint order (v1 kinds, then the v2 additions of blueprint 4.3)."""
 

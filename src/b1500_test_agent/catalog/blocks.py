@@ -9,11 +9,14 @@ the transaction's cleanup (``AB`` -> ``DZ`` -> ``CL`` -> verify) runs on any exi
 - v1 blocks, shared since WP2.1 and re-exported here so that composite kinds take every block from one module:
   ``configure_staircase`` (a complete staircase setup up to ``XE``, ``CN`` included), ``staircase_rows`` (table rows of
   one sweep block), ``force_bias`` (one ``DV``/``DI``) and ``drain_or_raise`` (the ``ERRX?`` gate).
-- ``RouteStep``/``route_steps``/``apply_routes``: the switch routes a plan applies. ``route_steps`` resolves the
-  roles bound through a switch target (``BoundChannel.via``) at compile time; ``apply_routes`` sets them through the
-  guarded driver (``OutputGuard.check_route``). Implemented for the switch kinds that have a driver path: the ASU
-  (``SAP``, WP7.1). A 16440A selector, SCUU or RSU route is refused at compile time (``CompileError``) until its
-  family adds the driver path (selector: WP9.2, SCUU: WP8.1, RSU: WP10.x); an empty list does nothing.
+- ``RouteStep``/``route_steps``/``route_lines``/``apply_routes``: the switch routes a plan applies. ``route_steps``
+  resolves the roles bound through a switch target (``BoundChannel.via``) at compile time, ``route_lines`` gives
+  their writes for the FLEX preview, and ``apply_routes`` applies them as one phase through
+  ``Transaction.apply_routes`` (WP9.2: every route through ``OutputGuard.check_route`` before the first write,
+  ``ERMOD 1`` before a selector's ``ERSSP``, the relay settle time, the read-back verified; the cleanup returns every
+  declared switch to rest). Switch kinds with this path: the ASU (``SAP``, WP7.1) and the 16440A selector
+  (``ERSSP``, WP9.2). An SCUU route (both outputs set by one ``SSP``: the MFCMU kinds route it themselves, WP8.3) or
+  an RSU route (WGFMU library, WP10.x) is refused at compile time (``CompileError``); an empty list does nothing.
 - ``open_outputs``: the one-time setup of a composite run: time stamps off (``TSC 0``: the read parsers expect no time
   elements), ADC (``AAD``/``AIT``), output switches on (``CN``), ``ERRX?`` drain and, on hardware, the ``LOP?``
   positive control.
@@ -72,7 +75,7 @@ from b1500_test_agent.driver.sampling import parse_sampling
 from b1500_test_agent.models.common import StrictModel
 from b1500_test_agent.models.measurement import Channel, Integration
 from b1500_test_agent.models.plan import ChannelBinding
-from b1500_test_agent.models.routing import Route, SwitchKind
+from b1500_test_agent.models.routing import SELECTOR_KIND, Route, SwitchKind
 from b1500_test_agent.models.station import StationProfile
 
 if TYPE_CHECKING:
@@ -97,6 +100,7 @@ __all__ = [
     "ordered",
     "read",
     "read_blocks",
+    "route_lines",
     "route_steps",
     "set_levels",
     "spot_once",
@@ -124,8 +128,9 @@ STOP_STATUSES = frozenset("CTVX")
 data (``V``), oscillation (``X``)."""
 
 ASU_KIND: SwitchKind = "asu"
-DRIVER_ROUTE_KINDS: frozenset[str] = frozenset({ASU_KIND})
-"""Switch kinds with a driver path for ``apply_routes`` (the ASU's ``SAP``, WP7.1)."""
+DRIVER_ROUTE_KINDS: frozenset[str] = frozenset({ASU_KIND, SELECTOR_KIND})
+"""Switch kinds a composite kind's roles may be routed through by ``apply_routes`` (the ASU's ``SAP``, WP7.1; the
+16440A selector's ``ERSSP``, WP9.2)."""
 
 
 # -- routes ----------------------------------------------------------------------------------------------------------
@@ -133,7 +138,7 @@ DRIVER_ROUTE_KINDS: frozenset[str] = frozenset({ASU_KIND})
 
 class RouteStep(StrictModel):
     """One route a plan applies: the route, its switch kind and the port index the driver addresses (``SAP``: the
-    SMU channel the ASU belongs to)."""
+    SMU channel the ASU belongs to; ``ERSSP``: the selector port)."""
 
     route: Route
     switch_kind: SwitchKind
@@ -146,7 +151,7 @@ def route_steps(binding: ChannelBinding, station: StationProfile, *, kind_id: st
     A role whose switch is undeclared or whose wiring is unknown is skipped (R-PIN-01 blocks the plan).
 
     Raises:
-        CompileError: For a switch kind without a driver path (16440A selector, SCUU, RSU).
+        CompileError: For a switch kind without this path (SCUU, RSU).
     """
     steps: list[RouteStep] = []
     for bound in binding.roles.values():
@@ -157,27 +162,40 @@ def route_steps(binding: ChannelBinding, station: StationProfile, *, kind_id: st
             continue
         if switch.kind not in DRIVER_ROUTE_KINDS:
             raise CompileError(f"{kind_id}: role {bound.role} reaches its terminal through {switch.id} "
-                               f"({switch.kind}); this kind routes only ASU paths (the {switch.kind} route has no "
-                               "driver path yet): wire the terminal directly")
+                               f"({switch.kind}); this kind routes only ASU and 16440A selector paths (an SCUU is "
+                               "routed by the MFCMU kinds, an RSU by the WGFMU kinds): wire the terminal directly")
         step = RouteStep(route=bound.via, switch_kind=switch.kind, index=switch.ports[bound.via.output].index)
         if step not in steps:
             steps.append(step)
     return steps
 
 
-def apply_routes(tx: Transaction, steps: Sequence[RouteStep]) -> None:
-    """Set every route through the guarded driver, in order (``OutputGuard.check_route`` admits the plan's routes and
-    each switch's rest state); nothing for an empty list. Call before ``CN``: an ASU path change connects or
-    disconnects the SMU output at the DUT.
+def route_lines(steps: Sequence[RouteStep]) -> list[str]:
+    """The writes ``apply_routes`` sends for ``steps`` (FLEX preview), in the driver's order: ``ERMOD 1`` and one
+    ``ERSSP`` per selector route, then one ``SAP`` per ASU route."""
+    selectors = [s for s in steps if s.switch_kind == SELECTOR_KIND]
+    lines = [flex.ermod(flex.ERMOD_SELECTOR)] if selectors else []
+    lines += [flex.erssp(s.index, flex.ERSSP_CODES[s.route.state]) for s in selectors]
+    lines += [flex.sap(s.index, flex.ASU_PATH_CODES[s.route.state]) for s in steps if s.switch_kind == ASU_KIND]
+    return lines
+
+
+def apply_routes(tx: Transaction, steps: Sequence[RouteStep], *, phase: str = "setup") -> None:
+    """Apply ``steps`` as one phase through ``Transaction.apply_routes`` (guarded, settle time, read-back verified;
+    module docstring); nothing for an empty list. Call before ``CN``: a route connects or disconnects the output at
+    the DUT.
 
     Raises:
-        ValueError: For a switch kind without a driver path (``route_steps`` refuses those at compile time).
+        ValueError: For a switch kind without this path (``route_steps`` refuses those at compile time) or a route
+            through a switch the station does not declare.
+        EnvelopeViolation: If a route is neither the plan's nor a rest state (nothing of the phase is sent).
+        RouteNotVerified: If an output does not read back the state just set.
     """
     for step in steps:
-        if step.switch_kind != ASU_KIND:
+        if step.switch_kind not in DRIVER_ROUTE_KINDS:
             raise ValueError(f"route {step.route}: no driver path for a {step.switch_kind} route")
-        tx.driver.set_asu_path(step.route, step.index)
     if steps:
+        tx.apply_routes([s.route for s in steps], phase=phase)
         tx.mark("routes set: " + ", ".join(str(s.route) for s in steps))
 
 

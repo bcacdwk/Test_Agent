@@ -41,12 +41,15 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "reliability/hci-silc": ["reliability.hci", "reliability.silc"],  # WP7.6
     "cmu/cmu-correction": ["cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short",
                            "cmu.correction_load"],  # WP8.2
+    "spgu/selector-check": ["system.selector_check"],  # WP9.2
 }
+ROUTES = {"spgu/selector-check": ["selector_16440a:smu", "selector_16440a:pgu", "selector_16440a:pgu_open"]}
+"""Cards whose recipes set switch routes (WP9.2); every other card's recipes route nothing ("Routes: none")."""
 STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfet-idvg": "L4", "smu/mosfet-idvd": "L4",
             "smu/gate-leakage": "L4", "nvm/fefet-dual-sweep-mw": "L7", "system/self-test-cal": "L1",
             "smu/smu-sampling": "L5", "reliability/tddb-bdv": "L9", "smu/smu-spot-kelvin": "L2",
             "system/zero-check": "L1", "reliability/bti-stress-measure": "L9", "reliability/igzo-bias-stress": "L9",
-            "reliability/hci-silc": "L9", "cmu/cmu-correction": "L6"}
+            "reliability/hci-silc": "L9", "cmu/cmu-correction": "L6", "spgu/selector-check": "L7"}
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault", "cmu-correction-stale"}  # WP8.2: the first v2 runbook
@@ -97,7 +100,7 @@ def test_card_frontmatter_v2(card: str) -> None:
     front = _card(card).front
     assert front["bringup_stage"] == STAGE_OF[card] and front["bringup_stage"] in STAGES
     assert front["manual"] and all(CANONICAL.fullmatch(entry) for entry in front["manual"])
-    assert front["routes"] == []  # v1 recipes use no switch
+    assert front["routes"] == ROUTES.get(card, [])  # only the selector check routes (WP9.2)
     assert front["intent"]
 
 
@@ -111,7 +114,7 @@ def test_card_has_sim_and_hw_validation_records_and_no_scenario_in_expected_shap
     assert f"| hw | pending (bring-up stage {STAGE_OF[card]}) |" in record
     for recipe in CARDS[card]:
         assert f"`validation/hw/{recipe}.yaml`" in record
-    assert "Routes: none" in _section(doc, 2)
+    assert ("Routes per phase:" if card in ROUTES else "Routes: none") in _section(doc, 2)
     expected = _section(doc, 8)
     assert [s for s in SCENARIOS if s in expected] == []  # typical ranges, never simulator truth
 

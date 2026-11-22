@@ -48,6 +48,7 @@ def test_every_kind_has_a_schema_and_parses_from_yaml_data() -> None:
         "spgu_no_stop": {"spp_ignored": 1}, "spgu_load_mismatch": {"channel": 101, "load_ohm": 50.0},
         "wgfmu_error": {"fn": "execute", "code": 3050}, "wgfmu_hang": {"fn": "wait_until_completed"},
         "wgfmu_disconnect_fails": {"channels": [201]}, "wgfmu_dll_missing": {},
+        "selector_stuck": {"port": 2, "state": "pgu_open"},
     }  # fmt: skip
     assert set(examples) == set(FAULT_KINDS)
     for kind, fields in examples.items():

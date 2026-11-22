@@ -229,7 +229,7 @@ def test_an_unbound_read_role_leaves_the_plan_to_the_rules() -> None:
 # -- routes ----------------------------------------------------------------------------------------------------------
 
 
-def test_an_asu_bound_gate_compiles_its_route_and_a_selector_is_refused() -> None:
+def test_asu_and_selector_bound_gates_compile_their_routes_and_an_scuu_is_refused() -> None:
     station = STATION.model_copy(update={"switches": [
         s.model_copy(update={"present": True}) if s.id == "ASU4" else s for s in STATION.switches]})
     pm = pin_map(gate="ASU4.OUT", drain=3)
@@ -246,9 +246,17 @@ def test_an_asu_bound_gate_compiles_its_route_and_a_selector_is_refused() -> Non
         if s.id == "SEL1" else s for s in STATION.switches]})
     selector = pin_map(gate="SEL1.OUT1", drain=3)
     assert bind_roles(rec, selector, wired, "mosfet-4t").roles["gate"].channel == 4
-    with pytest.raises(CompileError, match="routes only ASU paths"):
-        compile_recipe(rec=rec, pm=selector, station=wired, **SMALL)
+    via = Route(switch="SEL1", output="OUT1", state="smu")  # WP9.2: the 16440A selector path of the gate SMU
+    assert route_steps(bind_roles(rec, selector, wired, "mosfet-4t"), wired, kind_id="stress_measure") == [
+        RouteStep(route=via, switch_kind="selector_16440a", index=0)]
+    routed = compile_recipe(rec=rec, pm=selector, station=wired, **SMALL)
+    assert routed.envelope.routes == frozenset({via}) and routed.routes_by_phase == {"setup": [via]}
+    assert routed.flex_preview[:3] == ["ERMOD 1", "ERSSP 0,1", "TSC 0"]  # route_lines, then the outputs' setup
     assert route_steps(bind_roles(rec, selector, STATION, "mosfet-4t"), STATION, kind_id="stress_measure") == []
+    scuu = STATION.model_copy(update={"switches": [s.model_copy(update={"present": True}) if s.id == "SCUU1" else s
+                                                   for s in STATION.switches]})
+    with pytest.raises(CompileError, match="routes only ASU and 16440A selector paths"):
+        compile_recipe(rec=rec, pm=pin_map(gate="SCUU1.OUT1", drain=3), station=scuu, **SMALL)
 
 
 # -- table replay ----------------------------------------------------------------------------------------------------

@@ -146,6 +146,10 @@ class StationStatus(ResultEnvelope):
     WP8.2), e.g. ``fresh: phase 0.2 h, open 0.1 h, short 0.1 h`` or ``not fresh: phase fresh 0.2 h; open stale 9.1 h;
     short missing``. The store only knows what correction runs wrote and the last live check discarded; the live
     ``CORRST?``/``ADJ?`` state is checked before every capacitance run (R-CORR-01)."""
+    switches: dict[str, str] = Field(default_factory=dict)
+    """Declared 16440A selector, SCUU or ASU output (``SEL1.OUT1``) -> its live state from the snapshot when at rest
+    (blueprint v2 2.9; WP9.2), ``off rest: <state> (rest <rest>)`` when not, or ``not read`` (a selector whose control
+    mode is off: the snapshot sends no setting, so ``ERSSP?`` is not asked; an SCUU/ASU that does not answer)."""
 
 
 # -- list_recipes ----------------------------------------------------------------------------------------------------

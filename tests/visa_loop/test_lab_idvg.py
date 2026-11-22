@@ -21,7 +21,7 @@ from b1500_test_agent.analysis.dataset import DATA_FILE
 from b1500_test_agent.models.sim import ComplianceAt
 from tests.integration.helpers import make_world
 from tests.integration.test_lab_idvg_sequence import FLOW_DIFFERENCES, LAB_IDVG_REQUEST, kernel_preview
-from tests.visa_loop.helpers import VisaWorld
+from tests.visa_loop.helpers import VisaWorld, assert_selectors_restored, without_switch_traffic
 
 SCENARIO = "lab_nmos_2025"
 
@@ -44,7 +44,11 @@ def matlab_value(element: str) -> float:
 def test_the_lab_measurement_runs_on_visa_with_the_documented_flow(world: VisaWorld, tmp_path: Path) -> None:
     bus, result = run_lab_idvg(world)
     assert result.ok and result.outcome == "completed" and result.cleanup_verified == "lop", result.message
-    sent = [r.command for r in bus.instrument.command_log if r.outcome == "ok"]
+    # the declared selectors' rest/verify traffic of the snapshot and cleanup (WP9.2) is checked on its own; the rest
+    # is the documented flow
+    assert_selectors_restored(bus.instrument.command_log)
+    sent = [r.command for r in bus.instrument.command_log if r.outcome == "ok"
+            and r.mnemonic in without_switch_traffic([r])]
     mnemonics = [c.split(" ")[0] for c in sent]
 
     # what the lab script sends and the kernel deliberately does not (FLOW_DIFFERENCES)

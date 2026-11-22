@@ -36,7 +36,7 @@ from b1500_test_agent.driver.errors import FlexParseError
 from b1500_test_agent.driver.guard import EnvelopeViolation, OutputGuard
 from b1500_test_agent.driver.ops import core as driver_module  # parse_data/parse_errx are looked up here
 from b1500_test_agent.models.plan import PlanRecord, PlanRequest
-from b1500_test_agent.models.routing import Route
+from b1500_test_agent.models.routing import Route, SwitchPort, SwitchSpec
 from b1500_test_agent.models.sim import (
     BreakdownAt,
     CleanupFailure,
@@ -55,6 +55,7 @@ from b1500_test_agent.transport.base import TransportError, TransportTimeout
 from b1500_test_agent.transport.sim import SimTransport
 from tests.safety.helpers import Harness, HookTransport, assert_global_invariant, make_harness
 from tests.sim.helpers import load_scenario, noiseless
+from tests.sim.selector_helpers import SEL1
 from tests.unit.rules_factory import T0, bundle, dut, engine, pin_map
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -367,15 +368,21 @@ def test_a_tampered_stress_above_the_envelope_never_reaches_the_instrument(tmp_p
 
 
 def test_a_route_outside_the_plan_never_reaches_the_instrument(tmp_path: Path) -> None:
-    """``apply_routes`` sets ASU paths through the guard: a route that is neither the plan's nor the switch's rest
-    state is refused before ``SAP`` (the plan has no routes, so any non-rest path is refused)."""
-    h = make_harness(tmp_path, SCENARIO, hook_type=StressHook)
+    """``apply_routes`` sets routes through ``Transaction.apply_routes`` and the guard (WP9.2): a route that is neither
+    the plan's nor the switch's rest state is refused before ``SAP``/``ERSSP`` (the plan has no routes, so any
+    non-rest path is refused); a switch kind without this path (RSU) is refused before any I/O."""
+    asu4 = SwitchSpec(id="ASU4", kind="asu", present=True, rest="smu",
+                      ports={"OUT": SwitchPort(index=GATE, inputs={"smu": GATE})})
+    h = make_harness(tmp_path, SCENARIO, hook_type=StressHook, switches=[asu4, SEL1])
     step = RouteStep(route=Route(switch="ASU4", output="OUT", state="cmu"), switch_kind="asu", index=GATE)
     with pytest.raises(EnvelopeViolation), h.transaction(envelope=PLAN.envelope) as tx:
         apply_routes(tx, [step])
     assert_global_invariant(h, envelope=PLAN.envelope)
-    assert not [r for r in h.log if r.mnemonic == "SAP"]
-    with pytest.raises(ValueError, match="no driver path"), h.transaction(envelope=PLAN.envelope) as tx:
+    with pytest.raises(EnvelopeViolation), h.transaction(envelope=PLAN.envelope) as tx:
         apply_routes(tx, [RouteStep(route=Route(switch="SEL1", output="OUT1", state="pgu"),
                                     switch_kind="selector_16440a", index=0)])
-    assert not [r for r in h.log if r.mnemonic in ("SAP", "ERMOD", "ERSSP")]
+    assert not [r for r in h.log if r.mnemonic == "SAP"]
+    assert not [r for r in h.log if r.mnemonic == "ERSSP" and not r.command.endswith(",0")]  # only the cleanup's rests
+    with pytest.raises(ValueError, match="no driver path"), h.transaction(envelope=PLAN.envelope) as tx:
+        apply_routes(tx, [RouteStep(route=Route(switch="RSU201", output="OUT", state="wgfmu"),
+                                    switch_kind="rsu", index=201)])

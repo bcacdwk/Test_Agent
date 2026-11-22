@@ -5,7 +5,8 @@
 # lwp/matlab_B1500/IdVg_test_*.csv (model and firmware only; the B1500A answers 0 in the serial field, PG PDF 440);
 # slots from lwp/matlab_B1500/B1500_Config.mat (UNT? 0: SPGU1=1, WGFMU1=2, HRSMU1=3, HRSMU2=4, MPSMU1=5, MPSMU2=6,
 # CMU1=7); slots 8-10 were not recorded (left empty here). The B1511B of slots 5/6 is the station example's guess
-# (B1511A or B: confirmed at L0). Noise, faults and timing as documented in nmos_basic.yaml.
+# (B1511A or B: confirmed at L0). The two 16440A selectors (WP9.2) are cabled as in fefet_lab.yaml; nothing hangs on
+# their outputs. Noise, faults and timing as documented in nmos_basic.yaml.
 
 description: >-
   The lab mainframe (B1525A SPGU, B1530A WGFMU, 2 B1517A HRSMU, 2 B1511B MPSMU, B1520A MFCMU) with no DUT wired, for
@@ -20,6 +21,11 @@ slots:                          # lab layout (config/station.example.yaml): SPGU
   - {slot: 6, model: B1511B}
   - {slot: 7, model: B1520A}
 interlock_closed: false
+selectors:                      # 16440A cabling (rehearsal assumption; the real wiring is recorded at bring-up L7):
+  0: {smu: 3, pgu: 101}         # ERSSP port -> SMU Force on the SMU input, SPGU channel on the PGU input; lwp
+  1: {smu: null, pgu: 102}      # SPGU_pulse.m drives all four ports (ERMOD 1, ERSSP 0..3), so both selectors are
+  2: {smu: 5, pgu: null}        # simulated; no DUT hangs on their outputs here (system.selector_check steps them)
+  3: {smu: 6, pgu: null}
 wiring: {}                      # no DUT: probes lifted
 models: {}
 noise:

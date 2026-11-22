@@ -184,7 +184,9 @@ class SpguUnit:
                 if st.output_on and st.mode == "V" and self._is_smu(ch)}
 
     def _spgu_wired(self, channel: int) -> bool:
-        return any(target == channel for terminals in self.circuit.wiring.values() for target in terminals.values())
+        """True when a DUT terminal reaches ``channel`` now (wired to it, or through a selector output routed to it,
+        WP9.2); otherwise the output sees an open load."""
+        return self.circuit.wired_to(channel)
 
     def _spgu_delivered(self, channel: int, v_set: float, ser: float, base: dict[int, float]) -> float:
         """The level at the DUT for set level ``v_set`` (module docstring)."""

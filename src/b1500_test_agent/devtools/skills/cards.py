@@ -98,12 +98,18 @@ def recipe_modules(recipe: Recipe) -> set[str] | None:
     return allowed
 
 
-def recipe_routes(recipe: Recipe) -> set[str]:
-    """Routes (``<switch kind>:<state>``) a recipe's roles can need: every non-rest state of every switch kind whose
-    input is the resource (``smu``, ``pgu``, ``cmu``, ``wgfmu``) behind one of its roles."""
+def recipe_routes(recipe: Recipe, kind: object = None) -> set[str]:
+    """Routes (``<switch kind>:<state>``) a recipe can set: every non-rest state of every switch kind whose input is
+    the resource (``smu``, ``pgu``, ``cmu``, ``wgfmu``) behind one of its roles, plus the routes its measurement kind
+    sets by itself (``kind.switch_routes(recipe)`` when the kind has it, e.g. the route-only selector check of
+    ``spgu_pulse``, WP9.2)."""
     resources = {role.resource for role in recipe.roles.values()}
-    return {f"{kind}:{state}" for kind, states in SWITCH_STATES.items() for state in sorted(states)
-            if state != "open" and STATE_INPUT[state] in resources}
+    routes = {f"{kind}:{state}" for kind, states in SWITCH_STATES.items() for state in sorted(states)
+              if state != "open" and STATE_INPUT[state] in resources}
+    own = getattr(kind, "switch_routes", None)
+    if callable(own):
+        routes |= set(own(recipe))
+    return routes
 
 
 def card_folder_problem(entry_dir: Path, path: Path) -> str | None:
@@ -182,7 +188,7 @@ def check_card(lint: Lint, path: Path, registry: RecipeRegistry, entry_dir: Path
             lint.add("card_status", path, f"status {front.status} differs from recipe {recipe_id}'s effective "
                                           f"status on the simulator ({effective})", 1)
     check_device_types(lint, path, front, recipes)
-    check_modules_and_routes(lint, path, front, recipes)
+    check_modules_and_routes(lint, path, front, recipes, registry)
     check_stage(lint, path, front, recipes, stages)
     check_manual(lint, path, front, catalog_ids)
     for ref in front.knowledge:
@@ -248,9 +254,10 @@ def check_device_types(lint: Lint, path: Path, front: CardFrontmatter, recipes: 
                                       f"({sorted({t for r in typed for t in r.device_types})})", 1)
 
 
-def check_modules_and_routes(lint: Lint, path: Path, front: CardFrontmatter, recipes: list[Recipe]) -> None:
+def check_modules_and_routes(lint: Lint, path: Path, front: CardFrontmatter, recipes: list[Recipe],
+                             registry: RecipeRegistry | None = None) -> None:
     """``modules`` ⊆ the module types the recipes' roles may use (empty only for roleless recipes); ``routes`` ⊆
-    the routes the roles' resources can need."""
+    the routes the roles' resources can need or the recipes' kinds set (``recipe_routes``)."""
     if not recipes:
         return
     per_recipe = [recipe_modules(r) for r in recipes]
@@ -266,7 +273,8 @@ def check_modules_and_routes(lint: Lint, path: Path, front: CardFrontmatter, rec
         if not front.modules:
             lint.add("card_modules", path, "modules is empty; list the module types the card's recipes use "
                                            "(empty only for recipes without roles)", 1)
-    allowed_routes = set().union(*(recipe_routes(r) for r in recipes))
+    kinds = registry.kinds if registry is not None else {}
+    allowed_routes = set().union(*(recipe_routes(r, kinds.get(r.kind)) for r in recipes))
     extra_routes = [r for r in front.routes if r not in allowed_routes]
     if extra_routes:
         shown = ", ".join(sorted(allowed_routes)) or "none: the roles use no switchable resource"

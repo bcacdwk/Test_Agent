@@ -51,7 +51,7 @@ PRIORITY_SCALE = {
     "sampling MM 10 with MCC, ML, MT, MSC, MV, MI and the time stamps TSC/TSR by WP7.4, the sweep sources DI, WI, "
     "WSV, WSI, WNX and MM 16 by WP7.2, MM 1 spot and the ASU commands SAP, SAR, SAL by WP7.1, the MFCMU commands, "
     "MM 17-26 and the SCUU's SSP/SSL by WP8.1, the correction set-up queries CORRL?/DCORR? by WP8.2, the HV-SPGU "
-    "PG/ALWG commands by WP9.1)",
+    "PG/ALWG commands by WP9.1, the 16440A selector settings ERMOD/ERSSP by WP9.2)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
     "simulator's FLEX subset v1 (AV, BC, NUB?, TSC)",
     "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
@@ -73,6 +73,7 @@ DRIVER_METHODS = (
     "set_correction_data", "set_correction", "scuu_route", "set_scuu_indicator", "correction_frequencies",
     "correction_standard",
     "configure_spgu", "apply_pulse_setup", "start_pulses", "stop_pulses", "measure_pulse_load",
+    "set_selector_control", "route_selector",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
@@ -82,6 +83,7 @@ COMMAND_BUILDERS = (
     "wmacv", "pdcv", "ptdcv", "pwdcv", "mdcv", "mtdcv", "adj", "corrl", "clcorr", "corr_q", "dcorr", "corrdt",
     "corrst", "ssp", "ssl", "corrl_q", "dcorr_q",
     "sim", "spm", "spt", "spv", "spper", "sprm", "ser", "spupd", "odsw", "stgp", "corrser_q", "alw", "als",
+    "ermod", "erssp",
     "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q", "ERMOD_Q", "SPST_Q",
     "SRP", "SPP",
 )  # fmt: skip
@@ -150,9 +152,15 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "*LRN?": CommandTarget("auto_calibration", "lrn_q", "type 31 (CM state) before every run's pre-execute rules "
                            "(R-CAL-01/02); type 0 stays the ATV-1 fallback for SPGU/WGFMU outputs; types 62/63 = "
                            "ASU paths and 1 pA auto ranging (asu_paths, asu_1pa_auto; WP7.1)"),
-    "ERMOD?": CommandTarget("selector_control_mode", "ERMOD_Q", "read-only probe (WP6.1); ERMOD itself: WP9.2"),
+    "ERMOD?": CommandTarget("selector_control_mode", "ERMOD_Q", "read-only probe (WP6.1); snapshots and the cleanup "
+                            "verification read it before ERSSP? (WP9.2)"),
     "ERSSP?": CommandTarget("selector_state", "erssp_q", "read-only probe per declared selector port, only with "
-                            "the 16440A control mode on (WP6.1); ERSSP itself: WP9.2"),
+                            "the 16440A control mode on (WP6.1); route read-back, pre-execute R-ROUTE-01 and cleanup "
+                            "step 8 per declared port (WP9.2)"),
+    "ERMOD": CommandTarget("set_selector_control", "ermod", "ERMOD 1 before every selector route and in cleanup "
+                           "step 5 (ATV-18: power-on/*RST leave it off; WP9.2)"),
+    "ERSSP": CommandTarget("route_selector", "erssp", "OutputGuard.check_route (16440A route open|smu|pgu|pgu_open; "
+                           "PGU open on CH 1 only); apply_routes per phase, rest_switch in cleanup step 5 (WP9.2)"),
     "SPST?": CommandTarget("pulse_output_active", "SPST_Q", "read-only probe (WP6.1); cleanup step 2 (SPP when 1) "
                            "and verification, SpguOps.wait_pulses_stopped polling (WP9.1)"),
     "SIM": CommandTarget("configure_spgu", "sim", "HV-SPGU PG (0) or ALWG (1) mode, first write of every SPGU setup"),
@@ -247,6 +255,8 @@ GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "CORRST?": ([388], ["4-70"]),
     "ERMOD?": ([420, 421], ["4-102 to 4-103"]),
     "ERSSP?": ([434], ["4-116"]),
+    "ERMOD": ([419, 420], ["4-101 to 4-102"]),
+    "ERSSP": ([433], ["4-115"]),
     "SPST?": ([513, 514], ["4-195 to 4-196"]),
     "SIM": ([508], ["4-190"]),
     "SPRM": ([512, 513], ["4-194 to 4-195"]),

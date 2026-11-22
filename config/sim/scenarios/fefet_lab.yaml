@@ -1,0 +1,62 @@
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario; device params are typed by
+# b1500_test_agent.models.sim (DEVICE_PARAMS); consumed by the simulator (transport/sim/). Name = file name.
+# The lab's FeFET landing (blueprint v2 4.4, 7.3; lwp SPGU_pulse.m: ERMOD 1, ERSSP p,2 for pulses, ERSSP p,1 back
+# to the SMU): the gate pad hangs on output 1 of the first 16440A selector (ERSSP port 0 = station SEL1.OUT1, CH 1
+# with the PGU-open state), whose SMU input carries the Force of HRSMU 3 and whose PGU input carries SPGU channel 101;
+# drain on HRSMU 4, source and bulk on the GNDU. Pin map fefet-sel, DUT profile fefet-lab. The cabling of the other
+# selector ports is the rehearsal assumption of lab_station.yaml (the real wiring is recorded at bring-up L7). A gate
+# route to the SMU reaches the pad after the relay settle time; with the selector open or on PGU open the gate floats,
+# so an SMU read through the wrong path shows the noise floor. The FeFET switches with NLS kinetics in microseconds
+# at 4-5 V (pulses from the SPGU through the PGU path), DC loop as fefet_basic. Noise and timing as nmos_basic.yaml.
+
+description: >-
+  Lab FeFET behind selector SEL1 (port 0: SMU 3 / SPGU 101), drain SMU4, source/bulk GNDU, on the lab mainframe;
+  instant timing.
+idn: Agilent Technologies,B1500A,0,A.06.02.2023.0401
+slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
+  - {slot: 7, model: B1520A}
+interlock_closed: false
+selectors:                      # 16440A cabling: ERSSP port -> SMU Force on the SMU input, SPGU channel on the PGU input
+  0: {smu: 3, pgu: 101}         # SEL1.OUT1 (CH 1): the FeFET gate
+  1: {smu: null, pgu: 102}      # SEL1.OUT2 (CH 2)
+  2: {smu: 5, pgu: null}        # SEL2.OUT1 (CH 1)
+  3: {smu: 6, pgu: null}        # SEL2.OUT2 (CH 2)
+wiring:
+  dut:
+    gate: SELPORT0
+    drain: 4
+    source: GNDU
+    bulk: GNDU
+models:
+  dut:
+    model: fefet
+    params:
+      polarity: n
+      vth0: 0.6                 # V; threshold at zero polarization (Vth = vth0 - k_v * P)
+      k_v: 0.5                  # V; a saturated loop gives a memory window of about 2 * k_v = 1 V
+      vc_v: 2.8                 # V; coercive gate voltage of the DC loop
+      delta_v: 0.45             # V; width of the tanh switching branches
+      p_init: -1.0              # erased (high-Vth) state until the first program; persisted in the sim state
+      slope_factor: 1.3
+      beta: 1.0e-3              # A/V^2
+      theta: 0.5                # 1/V
+      lambda: 0.05
+      rs_ohm: 20.0
+      gate_leak_s: 1.0e-12
+      temperature_k: 300.0
+      tau0_s: 1.0e-9            # NLS kinetics: tau(V) = tau0 exp((va/|V|)^alpha); ~us switching at 4-5 V
+      va_v: 8.0
+      alpha: 2.0
+      beta_sw: 1.0
+noise:
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  rel: 1.0e-3
+  seed: 3
+faults: null
+timing: instant

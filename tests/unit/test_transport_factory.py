@@ -1,6 +1,7 @@
 """``make_bus`` (blueprint v2 2.4, replaces v1's ``make_transport``): sim by default, visa only when the settings say
 so, the FLEX link always audited, ``Bus.wgfmu`` the audited simulated WGFMU library on the same simulated instrument
-(WP10.1; ``None`` on visa until the DLL binding, WP10.2), nothing opened."""
+(WP10.1) or, on visa, the audited ctypes binding ``WgfmuDll`` of ``settings.wgfmu.library`` (WP10.2), nothing opened
+and nothing loaded."""
 
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from b1500_test_agent.transport.sim import SimTransport
 from b1500_test_agent.transport.sim.wgfmu import SimWgfmu
 from b1500_test_agent.transport.visa import VisaTransport
 from b1500_test_agent.transport.wgfmu import AuditingWgfmu, WgfmuApi
+from b1500_test_agent.transport.wgfmu.dll import WgfmuDll, library_path
 
 
 def test_committed_config_makes_an_audited_sim_bus(repo_paths: Paths, tmp_path: Path) -> None:
@@ -53,11 +55,33 @@ def test_default_settings_never_select_visa(repo_paths: Paths) -> None:
 
 
 def test_visa_only_when_the_settings_say_so() -> None:
-    bus = make_bus(Settings(backend="visa"), MemoryAuditSink())
+    sink = MemoryAuditSink()
+    bus = make_bus(Settings(backend="visa"), sink)
     transport = bus.flex
     assert isinstance(transport.inner, VisaTransport) and transport.backend == "visa"
-    assert not transport.inner.is_open and bus.wgfmu is None
+    assert not transport.inner.is_open
     assert state_hooks(transport) is None  # never opened: no hardware is touched here
+    # WP10.2: the WGFMU library binding of the default path, audited, constructed and never loaded here
+    assert isinstance(bus.wgfmu, AuditingWgfmu) and bus.wgfmu.backend == "visa"
+    library = bus.wgfmu.inner
+    assert isinstance(library, WgfmuDll) and not library.loaded
+    assert library.path == library_path(Settings()) and library.path.endswith("wgfmu.dll")
+    assert sink.events == []
+
+
+def test_visa_takes_an_injected_wgfmu_library_and_sim_refuses_one(repo_paths: Paths) -> None:
+    made: list[str] = []
+
+    def factory(path: str) -> WgfmuDll:
+        made.append(path)
+        return WgfmuDll(path, loader=lambda p: (_ for _ in ()).throw(AssertionError(p)))  # never loaded here
+
+    settings = Settings.model_validate({"backend": "visa", "wgfmu": {"library": "D:/keysight/wgfmu.dll"}})
+    bus = make_bus(settings, MemoryAuditSink(), wgfmu_factory=factory)
+    assert made == ["D:/keysight/wgfmu.dll"] and isinstance(bus.wgfmu, AuditingWgfmu)
+    bundle = load_config(repo_paths)
+    with pytest.raises(TransportError, match="WGFMU library binding"):
+        make_bus(bundle.settings, MemoryAuditSink(), scenario=bundle.sim_scenario, wgfmu_factory=factory)
 
 
 def test_visa_takes_an_injected_resource_manager_and_refuses_sim_arguments(repo_paths: Paths) -> None:

@@ -71,6 +71,7 @@ from b1500_test_agent.models.plan import CompiledEnvelope
 from b1500_test_agent.models.run import Adapter, CleanupReport, CleanupStep, LockHolder, PositiveControl
 from b1500_test_agent.models.station import (
     MODULE_TYPE_BY_MODEL,
+    DllProbe,
     InstrumentError,
     LiveState,
     ModuleInventory,
@@ -78,8 +79,10 @@ from b1500_test_agent.models.station import (
 )
 from b1500_test_agent.session.fault import CleanupUnverified, FaultLatched, PositiveControlFailed
 from b1500_test_agent.session.lock import atomic_write_json, host_name, remove_file
+from b1500_test_agent.session.wgfmu_live import bound, read_channels
 from b1500_test_agent.transport.audit import AuditingTransport, AuditSink, hold_audit
 from b1500_test_agent.transport.base import Transport, TransportError, TransportTimeout, state_hooks, unwrap
+from b1500_test_agent.transport.wgfmu.api import WgfmuError
 
 if TYPE_CHECKING:
     from b1500_test_agent.session.runner import RowsSource, RunControl
@@ -749,13 +752,43 @@ class Transaction:
                    error=error)
         return report.model_copy(update={"steps": [*report.steps, step]})
 
-    def snapshot(self) -> LiveState:
+    def snapshot(self, *, wgfmu: bool = False) -> LiveState:
         """Read-only live state under this transaction's lock (for pre-execute rules); its ``errors`` start with
-        the baseline drain of ``__enter__``."""
-        live = read_live_state(self.driver, backend=self._session.backend, resource=self._session.transport.resource,
+        the baseline drain of ``__enter__``. On visa it carries the WGFMU library probe (``wgfmu_library``);
+        ``wgfmu=True`` (a plan with WGFMU roles) also reads the library's channel ids (``wgfmu_channels``) through a
+        short library session while the FLEX link's exclusive lock is released (R-WG-01 pre-execute; WP10.2)."""
+        session = self._session
+        live = read_live_state(self.driver, backend=session.backend, resource=session.transport.resource,
                                earlier_errors=self.baseline_errors)
-        self._session.last_live = live
+        library = session.wgfmu_library()
+        update: dict[str, object] = {} if library is None else {"wgfmu_library": library}
+        if wgfmu:
+            update["wgfmu_channels"] = self._wgfmu_channels(library)
+        if update:
+            live = live.model_copy(update=update)
+        session.last_live = live
         return live
+
+    def _wgfmu_channels(self, library: DllProbe | None) -> list[int] | None:
+        """``WGFMU_getChannelIds`` through ``open_session``/``close_session`` with the FLEX exclusive lock released
+        meanwhile (the library opens its own VISA session, ATV-14); ``None`` (audited checkpoint
+        ``wgfmu_channels_unread``) without a loadable library or when the library fails, so R-WG-01 blocks. A
+        relock refused by another client propagates (``BusLocked``): the transaction ends with its cleanup."""
+        wgfmu = self._session.bus.wgfmu
+        if wgfmu is None or (library is not None and not library.loadable):
+            reason = "no WGFMU instrument library on this bus" if library is None else library.message
+            self._emit("checkpoint", {"label": "wgfmu_channels_unread"}, error=reason[:_DETAIL_LIMIT])
+            return None
+        transport = self._session.transport
+        transport.unlock()
+        try:
+            with bound(wgfmu, self._sink, run=self.run_id, tx=self.tx_id, intent=self.intent):
+                return read_channels(wgfmu, transport.resource)
+        except WgfmuError as exc:
+            self._emit("checkpoint", {"label": "wgfmu_channels_unread"}, error=str(exc)[:_DETAIL_LIMIT])
+            return None
+        finally:
+            transport.lock()
 
     # -- exit -------------------------------------------------------------------------------------------------------
 

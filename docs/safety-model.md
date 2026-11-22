@@ -371,6 +371,19 @@ Residual: `ADJ? ch,0` is a query that, per the manual, re-applies the last phase
 it (`config adopt`, human only: denied by the harness rules and blocked by the guard hook), and `config adopt` refuses a
 file that does not validate against its schema and keeps the replaced file as `<file>.bak`.
 
+**WGFMU library binding (blueprint v2 2.4, decision 6, WP10.2).** `transport/wgfmu/dll.py` is the only module that
+imports `ctypes` and loads `wgfmu.dll` (lint). It loads nothing until the first library call, and only after a probe
+that reads the DLL as a file in pure Python says this 64-bit Python can load it (x64 PE header, every export the
+binding needs); a 32-bit DLL is refused with "install library >= A.03.00" (no 32-bit bridge), so a wrong install is a
+clear error, never a crash. Every function's argument types come from the generated signature table (checked against
+the API extract and the manual's prototypes); strings that are not ASCII and numbers that are not finite C values are
+refused before the library. `doctor` and `doctor --probe` only read the file; `--wgfmu-session` (and the pre-execute
+snapshot of a WGFMU plan, for R-WG-01) opens the library's own session only to read the channel ids (and the status),
+with the GPIB link closed or its exclusive lock released, and always closes it (ATV-16: TODO(verify) at bring-up L0
+that this changes no output). Residual: the library's error-string format and the real firmware codes are verified at
+L8; a library that crashes inside a call ends that call as a library error, but its effect on the instrument is the
+library's.
+
 **Physical backstop.** Outputs stay at or below 42 V while the interlock is open (keep it open; v1 has no
 high-voltage workflow), per-channel compliance limits current, and the shield box encloses the DUT.
 

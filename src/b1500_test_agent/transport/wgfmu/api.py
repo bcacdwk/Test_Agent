@@ -19,10 +19,10 @@ highest limits by ``update``, ``execute`` (and ``exportAscii``), which then fail
 Constants: ``LIBRARY_CONSTANTS`` holds the ``wgfmu.h`` names and values of WG Tables 4-4 to 4-18 (p138-151); the
 Pythonic maps (``OPERATION_MODES`` ...) derive from it, and ``tests/unit/test_wgfmu_api.py`` checks both against the
 manual extract ``references/manuals/structured/b1530a-wgfmu-api-reference.yaml`` and the error-code extract.
-``C_FUNCTIONS`` names the C functions behind every protocol method (the DLL binding of WP10.2 generates its
-``argtypes`` for exactly these). ``LIMITS`` are the ALWG and measurement limits the simulator enforces (WG p16
-(1-4), p79-89 (4-9 to 4-19), p125-129 (4-55 to 4-59); WG5 p24 (1-14) Table 1-6: 2,048 vectors per pattern, 512
-sequences per channel).
+``C_FUNCTIONS`` names the C functions behind every protocol method (the DLL binding binds exactly these; its
+prototypes are generated from the API extract, ``scripts/gen_wgfmu_signatures.py``). ``LIMITS`` are the ALWG and
+measurement limits the simulator enforces (WG p16 (1-4), p79-89 (4-9 to 4-19), p125-129 (4-55 to 4-59); WG5 p24
+(1-14) Table 1-6: 2,048 vectors per pattern, 512 sequences per channel).
 
 Channel ids: ``slot * 100 + channel`` (WG p137 (4-67) Table 4-3: ``101`` = slot 1 Ch 1 ... ``1002``).
 """

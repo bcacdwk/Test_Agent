@@ -37,7 +37,13 @@ What the wire does here:
   itself answers the Programming Guide form ``0,"No Error."`` (PG PDF 432);
 - ``lop_reads_off`` (default off, test switch): every ``LOP?`` answer reports all slots ``00`` whatever the output
   switches do, i.e. an instrument whose ``LOP?`` cannot verify the cleanup (the v1 ATV-1 failure that the
-  transaction's ``LOP?`` positive control must catch).
+  transaction's ``LOP?`` positive control must catch);
+- the WGFMU instrument library (WP10.2): ``LoopBus.wgfmu_library`` is the ``wgfmu_factory`` of ``make_bus``. It
+  returns the REAL ``WgfmuDll`` (platform ``win32`` injected, so its probe reads the synthetic x64 DLL the world wrote)
+  whose loader hands it ``LoopWgfmuLibrary``: the ctypes-shaped fake library of ``tests/wgfmu_abi/fake_lib.py`` over a
+  ``SimWgfmu`` on this bus's instrument. Its online calls fail with a communication error while any session holds the
+  exclusive VISA lock (ATV-14); ``openSession`` loads the shared state like a VISA session, every call marks it
+  changed, ``closeSession`` saves it.
 """
 
 from __future__ import annotations
@@ -62,7 +68,10 @@ from b1500_test_agent.transport.sim import SimInstrument
 from b1500_test_agent.transport.sim import flex as simflex
 from b1500_test_agent.transport.sim.instrument import SimulatedInterrupt
 from b1500_test_agent.transport.sim.state import load_state_file, save_state_file
+from b1500_test_agent.transport.sim.wgfmu import SimWgfmu
 from b1500_test_agent.transport.visa import visa_status_codes
+from b1500_test_agent.transport.wgfmu.dll import WgfmuDll
+from tests.wgfmu_abi.fake_lib import FakeWgfmuLibrary
 
 DEFAULT_RESOURCE = "GPIB0::17::INSTR"
 DEFAULT_CHUNK_SIZE = 20 * 1024
@@ -110,6 +119,7 @@ class LoopStats:
     saves: int = 0
     signed_errx: int = 0
     library: str | None = None
+    wgfmu_loads: int = 0
 
 
 def _mnemonic(part: str) -> str:
@@ -164,6 +174,15 @@ class LoopBus:
         """``rm_factory`` for ``VisaTransport``: called with the configured VISA library string."""
         self.stats.library = library
         return LoopManager(self)
+
+    def wgfmu_library(self, path: str) -> WgfmuDll:
+        """``wgfmu_factory`` for ``make_bus``: the real binding over ``LoopWgfmuLibrary`` (module docstring)."""
+
+        def load(library_path: str) -> LoopWgfmuLibrary:
+            self.stats.wgfmu_loads += 1
+            return LoopWgfmuLibrary(self, library_path)
+
+        return WgfmuDll(path, loader=load, platform="win32", bits=64)
 
     def inject(self, fault: SimFault) -> None:
         self.instrument.inject(fault)
@@ -433,3 +452,21 @@ class LoopResource:
         self.closed = True
         self._pending.clear()
         self.bus.stats.closes += 1
+
+
+class LoopWgfmuLibrary(FakeWgfmuLibrary):
+    """The fake ``wgfmu.dll`` of a visa-loop bus: ``SimWgfmu`` on the bus's instrument behind the ctypes-shaped fake;
+    the library's session shares the instrument state like a VISA session (module docstring)."""
+
+    def __init__(self, bus: LoopBus, path: str) -> None:
+        super().__init__(SimWgfmu(bus.instrument, flex_locked=lambda: not bus.lock_is_free()), path=path)
+        self.bus = bus
+
+    def dispatch(self, name: str, args: tuple[Any, ...]) -> int:
+        if name == "WGFMU_openSession":
+            self.bus.sync_in()
+        rc = super().dispatch(name, args)
+        self.bus.touch()
+        if name == "WGFMU_closeSession":
+            self.bus.sync_out()
+        return rc

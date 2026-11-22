@@ -314,7 +314,8 @@ def wgfmu_access(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     """WGFMU roles reach the DUT through their RSU (pin-map target ``RSU<ch>.OUT``, state ``wgfmu``); on visa the
     instrument library is loadable (64-bit ``wgfmu.dll``, ``DllProbe.loadable``); the bound channels are among the
     library's ``WGFMU_getChannelIds``. The live parts are required before execution and checked at validation when a
-    snapshot carries them."""
+    snapshot carries them: every visa snapshot carries the DLL probe, the pre-execute snapshot of a plan with WGFMU
+    roles also the channel ids (``Transaction.snapshot(wgfmu=True)``, WP10.2)."""
     roles = _wgfmu_roles(ctx)
     if not roles:
         return

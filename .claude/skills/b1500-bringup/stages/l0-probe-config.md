@@ -1,6 +1,6 @@
 ---
 stage: L0
-title: Read-only probe and configuration - bus, identity, inventory, errors; config/local adopted by the human
+title: Read-only probe and configuration - bus, identity, inventory, errors, WGFMU library; config/local adopted by the human
 recipes: []
 checks:
   - {id: visa_resources, quantity: visa_resources, reference: doctor --probe, text: 'PASS: the resource is listed'}
@@ -11,6 +11,8 @@ checks:
   - {id: status_byte, quantity: status_byte, reference: PG status byte, text: 'PASS: bits 3 and 5 clear'}
   - {id: outputs, quantity: outputs, reference: 'LOP? answer', text: 'PASS: every slot 00'}
   - {id: release, quantity: release, reference: doctor --probe, text: 'PASS: unlocked and closed'}
+  - {id: wgfmu_library, quantity: wgfmu_library, reference: doctor --probe, text: 'PASS: x64 wgfmu.dll loadable (library >= A.03.00); INFO without a WGFMU'}
+  - {id: wgfmu_session, quantity: wgfmu_session, reference: doctor --probe --wgfmu-session, text: 'PASS: the library lists the WGFMU channels of UNT?, no sequencer running'}
   - {id: fault_latch, quantity: fault_latch, reference: doctor --probe, text: 'PASS: no fault latched'}
 version: 1
 ---
@@ -20,7 +22,9 @@ version: 1
 
 First contact over GPIB. Nothing here switches an output on: the probe sends queries only (`*IDN?`, `UNT?`,
 `ERRX?`, `*STB?`, `LOP?`, `*LRN? 31`, `ERMOD?`/`ERSSP?`, `SPST?`, `CORRST?`/`ADJ? ch,0`) through a read-only link
-that refuses any setting command. You probe and propose; the human creates and adopts the configuration.
+that refuses any setting command; it reads the WGFMU library's file without loading it, and `--wgfmu-session` opens
+the library's own session with the GPIB link closed only to list the channels and the status. You probe and
+propose; the human creates and adopts the configuration.
 
 ## 1. Preconditions
 
@@ -51,7 +55,8 @@ one turn, give the human the adoption command in chat and stop (skill part 4).
 
 1. `uv run b1500 doctor` (installation; no FAIL), then `uv run b1500 config check` once the human has run the
    init command.
-2. `uv run b1500 doctor --probe` (read-only). Read every line; raw answers go to `work/bringup/probe-<UTC>.json`.
+2. `uv run b1500 doctor --probe --wgfmu-session` (read-only). Read every line; raw answers go to
+   `work/bringup/probe-<UTC>.json`.
    The first probe after power-on may WARN about old error-queue entries (it drains them): probe again; the
    second must show none.
 3. A FAIL line: stop (section 5). A `busy` bus: EasyEXPERT or another VISA program still holds the instrument;
@@ -79,6 +84,8 @@ one turn, give the human the adoption command in chat and stop (skill part 4).
 | `status_byte` | bits 3 (8) and 5 (32) clear; bit 4 (16) may be set | PASS | `*STB?` (PG p76 (1-56) "Status Byte") |
 | `outputs` | every slot `00` | PASS | `LOP?` (PG p446 (4-128) "LOP?") |
 | `release` | unlocked and closed | PASS | `doctor --probe` |
+| `wgfmu_library` | the x64 `wgfmu.dll` (System32, or `wgfmu.library`) with every export the binding needs | PASS | `doctor --probe` (ATV-15) |
+| `wgfmu_session` | channels = the WGFMU of `UNT?` (e.g. 201, 202); status idle; session closed | PASS | `doctor --probe --wgfmu-session` (ATV-16) |
 | `fault_latch` | none | PASS | `doctor --probe` |
 
 - Terminations (ATV-2): every query answered without a timeout, no stray CR or trailing space in the raw
@@ -89,13 +96,19 @@ one turn, give the human the adoption command in chat and stop (skill part 4).
 - Per-call open, lock, unlock and close below 100 ms (ATV-13, from the `bus_*` lines of the daily audit). Fallback,
   an owner decision: `visa.session: process` in `config/local/settings.yaml`.
 - Line frequency of S0 equals the policy's `line_hz` (ATV-31); otherwise the human corrects the policy.
-- The WGFMU library session check of the probe arrives with the WGFMU work package; L8 checks the library.
+- WGFMU library (ATV-15): a 32-bit DLL or a missing one FAILs with "install library >= A.03.00"; the human installs
+  the B1530A WGFMU Instrument Library A.04.00 (x64 into System32) or sets `wgfmu.library`; record the file version
+  the line shows. Session (ATV-16): opening it, listing the channels and the status must change no output (`LOP?`
+  of a second probe still all `00`). Fallback when only the session line fails: probe without `--wgfmu-session`
+  and leave the session check to L8.
 
 ## 5. Abort criteria
 
 - No answer or timeouts after the termination fallback; `*IDN?` without `B1500A`; a `UNT?` module the station
   does not know.
-- `LOP?` not all `00`; the error queue not empty on the second probe; status byte bit 3 or 5 set on two probes.
+- `LOP?` not all `00`; the error queue not empty on the second probe; status byte bit 3 or 5 set on two probes;
+  a `wgfmu_library` FAIL (WGFMU recipes cannot load the library: the human installs library >= A.03.00,
+  `docs/deployment-windows.md` step 2).
   Simulator rehearsal only: the simulator keeps bit 3 set while the interlock is open (it models the interlock
   state, not the manual's event, PG p76 (1-56)), so `*STB?` reads 24 with the interlock open as S0 requires; there
   bit 3 alone is no abort criterion (bit 5 still is). On hardware the criterion stands.

@@ -7,8 +7,9 @@ which needs the scenario (``ConfigBundle.sim_scenario``) and optionally its faul
 The FLEX link is always wrapped in ``AuditingTransport`` so every I/O and every bus lifecycle call is audited.
 ``Bus.wgfmu`` is the WGFMU instrument library wrapped in ``AuditingWgfmu`` (``wgfmu_call`` events in the same sink):
 on the simulator ``SimWgfmu`` on the same simulated instrument (WP10.1; ``None`` while a ``wgfmu_dll_missing`` fault
-is active from the start); on visa ``None`` until the DLL binding (WP10.2). Nothing is opened here: the session
-opens and closes the bus per transaction and per status snapshot.
+is active from the start); on visa the ctypes binding ``WgfmuDll`` of ``settings.wgfmu.library`` (default the
+installer's ``System32/wgfmu.dll``; WP10.2), only constructed: the DLL is probed and loaded at its first call, never
+on the Mac. Nothing is opened here: the session opens and closes the bus per transaction and per status snapshot.
 
 Typical call (``catalog/executor.py``)::
 
@@ -18,7 +19,7 @@ Typical call (``catalog/executor.py``)::
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from b1500_test_agent.models.sim import SimFault, SimFaultProfile
@@ -26,12 +27,18 @@ from b1500_test_agent.models.station import Settings, SimScenario
 from b1500_test_agent.transport.audit import AuditingTransport, AuditSink
 from b1500_test_agent.transport.base import Bus, TransportError
 from b1500_test_agent.transport.visa import RmFactory
+from b1500_test_agent.transport.wgfmu.api import WgfmuApi
 from b1500_test_agent.transport.wgfmu.audit import AuditingWgfmu
+
+WgfmuFactory = Callable[[str], WgfmuApi]
+"""Builds the WGFMU library binding for a library path (default ``WgfmuDll``; visa-loop tests inject a ``WgfmuDll``
+over a fake library)."""
 
 
 def make_bus(settings: Settings, sink: AuditSink, *, scenario: SimScenario | None = None,
              faults: SimFaultProfile | Iterable[SimFault] | None = None, state_dir: Path | None = None,
-             timeout_s: float | None = None, rm_factory: RmFactory | None = None) -> Bus:
+             timeout_s: float | None = None, rm_factory: RmFactory | None = None,
+             wgfmu_factory: WgfmuFactory | None = None) -> Bus:
     """The audited bus for ``settings.backend``; never selects visa implicitly.
 
     ``sim``: ``scenario`` is required and must be the one ``settings.sim.scenario`` names; ``faults`` are active
@@ -39,18 +46,24 @@ def make_bus(settings: Settings, sink: AuditSink, *, scenario: SimScenario | Non
     ``timeout_s`` is the simulator's default read timeout. ``Bus.wgfmu`` is the simulated WGFMU library on the same
     instrument; its online calls fail while the FLEX link holds the exclusive lock.
     ``visa``: ``settings.visa`` configures the session; ``rm_factory`` replaces PyVISA's resource manager (visa-loop
-    tests only); the sim-only arguments must be omitted.
+    tests only); ``Bus.wgfmu`` is ``wgfmu_factory(path)`` (default ``WgfmuDll``) for the library path of
+    ``settings.wgfmu``, audited; the sim-only arguments must be omitted.
     """
     if settings.backend == "visa":
         if scenario is not None or faults is not None:
             raise TransportError("Backend visa does not take a sim scenario or faults.")
         from b1500_test_agent.transport.visa import VisaTransport  # pyvisa itself loads only in open()
+        from b1500_test_agent.transport.wgfmu.dll import WgfmuDll, library_path  # wgfmu.dll loads at the first call
 
-        return Bus(flex=AuditingTransport(VisaTransport(settings.visa, rm_factory=rm_factory), sink))
+        library = (wgfmu_factory or WgfmuDll)(library_path(settings))
+        return Bus(flex=AuditingTransport(VisaTransport(settings.visa, rm_factory=rm_factory), sink),
+                   wgfmu=AuditingWgfmu(library, sink, backend="visa"))
     if settings.backend != "sim":  # pragma: no cover - Backend is a closed Literal
         raise TransportError(f"Unknown backend {settings.backend!r}.")
     if rm_factory is not None:
         raise TransportError("Backend sim does not take a VISA resource manager.")
+    if wgfmu_factory is not None:
+        raise TransportError("Backend sim does not take a WGFMU library binding (its library is simulated).")
     if scenario is None:
         raise TransportError("Backend sim needs the scenario (ConfigBundle.sim_scenario).")
     if scenario.name != settings.sim.scenario:

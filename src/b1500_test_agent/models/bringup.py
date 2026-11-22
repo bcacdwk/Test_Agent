@@ -13,7 +13,7 @@ from pydantic import AwareDatetime, Field
 
 from b1500_test_agent.models.common import ConfigReport, ResultEnvelope, StrictModel
 from b1500_test_agent.models.routing import SwitchState
-from b1500_test_agent.models.station import CmuCorrectionLive, Identity, ModuleInventory, StationProfile
+from b1500_test_agent.models.station import CmuCorrectionLive, DllProbe, Identity, ModuleInventory, StationProfile
 
 ProbeStatus = Literal["PASS", "INFO", "WARN", "FAIL"]
 """Verdict of one probe line: ``INFO`` = nothing to fix (not applicable, or a state to note)."""
@@ -41,7 +41,9 @@ class ProbeExchange(StrictModel):
 class ProbeReport(ResultEnvelope):
     """Result of ``b1500 doctor --probe``: PASS/INFO/WARN/FAIL lines, the parsed identity and inventory, every raw
     exchange in order, and where the raw record was written (``work/bringup/probe-<UTC>.json``). ``ok`` is false
-    exactly when a line FAILs."""
+    exactly when a line FAILs. ``wgfmu_library``: the WGFMU DLL probe (backend visa); ``wgfmu_channels``: the channel
+    ids the library reported in the ``--wgfmu-session`` check (WP10.2; the library calls are in the audit, not in
+    ``transcript``, which holds FLEX exchanges only)."""
 
     resource: str = ""
     taken_at: AwareDatetime | None = None
@@ -51,6 +53,8 @@ class ProbeReport(ResultEnvelope):
     visa_resources: list[str] | None = None
     switch_states: dict[str, SwitchState] | None = None
     cmu_corrections: dict[str, CmuCorrectionLive] | None = None
+    wgfmu_library: DllProbe | None = None
+    wgfmu_channels: list[int] | None = None
     transcript: list[ProbeExchange] = Field(default_factory=list)
     record: str | None = None
 

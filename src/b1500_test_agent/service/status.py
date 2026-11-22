@@ -159,6 +159,10 @@ def station_status(svc: B1500Service, bundle: ConfigBundle, refresh: bool) -> St
                      else "STB bit 3: a >42 V request was refused with the interlock open")
     if live is not None and live.errors:
         notes.append(f"{len(live.errors)} instrument error(s) drained")
+    library = live.wgfmu_library if live is not None else None
+    if library is not None and any(m.type == "WGFMU" for m in bundle.station.modules):  # visa (WP10.2)
+        notes.append(f"WGFMU library {library.machine} {library.file_version or ''} loadable".replace("  ", " ")
+                     if library.loadable else f"WGFMU library not loadable: {library.message}")
     head = (f"SIMULATED station (scenario {bundle.settings.sim.scenario})" if backend == "sim"
             else f"hardware station {bundle.settings.visa.resource}")
     status: ResultStatus = "ok"

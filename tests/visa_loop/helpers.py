@@ -5,6 +5,9 @@ PC's would (settings, station and policy, and every committed example pin map an
 the real ``config/local/`` is never read or written), a temporary ``B1500_DATA_DIR`` and a bus directory for the
 ``LoopBus`` instruments. No ``B1500_CONFIG_DIR`` (backend visa refuses it, rule R-CFG-01). Services get the real
 ``make_bus`` with the visa-loop resource manager injected, so the whole stack down to ``VisaTransport`` is real.
+The world's ``wgfmu.library`` names a synthetic x64 ``wgfmu.dll`` (``tests/wgfmu_abi/pe_builder.py``) and the bus
+factory injects the loop's WGFMU library (``LoopBus.wgfmu_library``: the real ``WgfmuDll`` over the fake ABI), so the
+library probe and session run as on the lab PC (WP10.2).
 """
 
 from __future__ import annotations
@@ -31,6 +34,7 @@ from tests.integration.sweep_cases import CASES as SWEEP_CASES
 from tests.integration.test_plan_goldens import CASES, GENERIC_3T
 from tests.sim.helpers import load_scenario
 from tests.visa_loop.loop import DEFAULT_RESOURCE, LoopBus
+from tests.wgfmu_abi.pe_builder import write_dll
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -62,10 +66,11 @@ SYSTEM_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES if c["recipe_
 
 
 def bus_factory(bus: LoopBus) -> BusFactory:
-    """The executor's bus factory: the real ``make_bus`` with the visa-loop resource manager injected."""
+    """The executor's bus factory: the real ``make_bus`` with the visa-loop resource manager and WGFMU library
+    injected."""
 
     def build(bundle: ConfigBundle, sink: AuditSink) -> Bus:
-        return make_bus(bundle.settings, sink, rm_factory=bus.manager)
+        return make_bus(bundle.settings, sink, rm_factory=bus.manager, wgfmu_factory=bus.wgfmu_library)
 
     return build
 
@@ -158,6 +163,7 @@ def make_visa_world(tmp_path: Path, **visa: Any) -> VisaWorld:
     settings = yaml.safe_load((config / "settings.example.yaml").read_text(encoding="utf-8"))
     settings["backend"] = "visa"
     settings["visa"].update({"resource": DEFAULT_RESOURCE, "lock_timeout_ms": 500, **visa})
+    settings["wgfmu"] = {"library": write_dll(tmp_path / "lib" / "wgfmu.dll")}  # synthetic x64 DLL, never loaded
     world.write_local("settings.yaml", settings)
     for item in ("station", "policy"):
         shutil.copyfile(config / f"{item}.example.yaml", world.local / f"{item}.yaml")

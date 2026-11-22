@@ -60,7 +60,7 @@ def test_root_claude_md_imports_agents_md() -> None:
     assert len(lines) - 1 <= MAX_CLAUDE_SPECIFIC_LINES
 
 
-@pytest.mark.parametrize("layer", ["driver", "analysis"])
+@pytest.mark.parametrize("layer", ["driver", "analysis", "transport/wgfmu"])
 def test_nested_instructions(layer: str) -> None:
     folder = PACKAGE / layer
     assert len(_read(folder / "AGENTS.md").splitlines()) <= MAX_NESTED_AGENTS_LINES

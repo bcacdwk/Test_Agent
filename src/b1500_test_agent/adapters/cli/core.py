@@ -10,10 +10,10 @@ usage errors.
   ``show RUN_ID`` · ``analyze RUN_ID METHOD -o k=v`` · ``note RUN_ID TEXT`` · ``shutdown [--reason]``
 - human-only: ``fault clear`` (safe shutdown, then clears the latch only when the shutdown verified the safe state)
   and ``lock status``
-- ``doctor`` (installation checks) and ``doctor --probe`` (the read-only instrument probe, blueprint v2 7.1;
-  ``service/probe.py``), ``harness init --codex|--claude [--check]`` (renders ``config/harness/`` templates into
-  the gitignored ``.codex/config.toml`` / ``.mcp.json``), ``mcp`` (stdio server, same as ``b1500-mcp``); the
-  ``config`` group lives in ``config.py`` and the ``bringup`` group in ``bringup.py``
+- ``doctor`` (installation checks) and ``doctor --probe [--wgfmu-session]`` (the read-only instrument probe,
+  blueprint v2 7.1; ``service/probe.py``), ``harness init --codex|--claude [--check]`` (renders
+  ``config/harness/`` templates into the gitignored ``.codex/config.toml`` / ``.mcp.json``), ``mcp`` (stdio server,
+  same as ``b1500-mcp``); the ``config`` group lives in ``config.py`` and the ``bringup`` group in ``bringup.py``
 
 ``run --confirm`` re-validates the plan, prints its summary and asks y/N on an interactive terminal only; without
 a TTY it exits non-zero and runs nothing (UX only: the harness tool confirmation is the approval, blueprint 4.3).
@@ -620,13 +620,20 @@ def probe_lines(report: ProbeReport) -> list[str]:
 def doctor_command(
     probe: Annotated[bool, typer.Option("--probe", help="Read-only instrument probe instead of the installation "
                                                         "checks (queries only, never a setting command).")] = False,
+    wgfmu_session: Annotated[bool, typer.Option("--wgfmu-session", help="With --probe: also open the WGFMU "
+                                                "library's session with the FLEX link closed (channel ids, "
+                                                "status, close).")] = False,
     as_json: JsonOption = False,
 ) -> None:
     """Check the installation and station readiness (PASS/WARN/FAIL); exit 1 on any FAIL. With --probe: the
     read-only instrument probe (VISA library, resources, identity, inventory vs station.yaml, error queue, status
-    byte, outputs, selectors, SPGU, MFCMU corrections; raw answers to work/bringup/probe-<UTC>.json)."""
+    byte, outputs, selectors, SPGU, MFCMU corrections, WGFMU library; raw answers to
+    work/bringup/probe-<UTC>.json); --wgfmu-session adds the WGFMU library session check."""
+    if wgfmu_session and not probe:
+        raise typer.BadParameter("--wgfmu-session is part of the probe: use b1500 doctor --probe --wgfmu-session",
+                                 param_hint="--wgfmu-session")
     if probe:
-        report = B1500Admin(make_service()).probe()
+        report = B1500Admin(make_service()).probe(wgfmu_session=wgfmu_session)
         emit(report, as_json, probe_lines(report))
         return
     report = doctor.run_doctor()

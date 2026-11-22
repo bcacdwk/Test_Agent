@@ -185,10 +185,13 @@ class B1500Admin:
                           held=held, holder=holder, inflight_marker=inflight, fault=fault,
                           message=clip("; ".join(parts)))
 
-    def probe(self) -> ProbeReport:
+    def probe(self, *, wgfmu_session: bool = False) -> ProbeReport:
         """The read-only bring-up probe (``service/probe.py``): PASS/INFO/WARN/FAIL lines, raw exchanges, record
-        ``work/bringup/probe-<UTC>.json``; queries only, never a setting command."""
-        return self.service._call("probe", {}, ProbeReport, lambda bundle: probing.probe(self.service, bundle))
+        ``work/bringup/probe-<UTC>.json``; queries only, never a setting command. ``wgfmu_session`` adds the WGFMU
+        library session check (open, channel ids, status, close with the FLEX link closed)."""
+        args = {"wgfmu_session": True} if wgfmu_session else {}
+        return self.service._call("probe", args, ProbeReport,
+                                  lambda bundle: probing.probe(self.service, bundle, wgfmu_session=wgfmu_session))
 
     def call(self, tool: str, args: Mapping[str, Any], result_type: type[R], body: Callable[[ConfigBundle], R]) -> R:
         """Run a CLI-only operation ``body`` like a tool call: configuration reload, error mapping (never raises)

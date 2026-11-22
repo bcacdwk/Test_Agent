@@ -44,7 +44,7 @@ def test_collect_only_lists_the_probe_and_record_tests(tmp_path: Path) -> None:
     run = run_suite(tmp_path, ["tests/hardware", "-m", "hardware", "--collect-only", "-q"], {})
     assert run.returncode == 0, run.output[-3000:]
     assert set(NODE.findall(run.output)) == PROBE_TESTS | RECORD_TESTS
-    assert len(PROBE_TESTS) == 15 and len(RECORD_TESTS) == len(STAGE_IDS) + 1
+    assert len(PROBE_TESTS) == 17 and len(RECORD_TESTS) == len(STAGE_IDS) + 1
     assert "hardware test(s) collected; they skip: hardware test: B1500_HW is unset" in run.output
 
 

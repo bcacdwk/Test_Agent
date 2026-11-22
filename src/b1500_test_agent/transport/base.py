@@ -113,9 +113,10 @@ class HostClock(Protocol):
 class Bus(NamedTuple):
     """The instrument links of one station (blueprint v2 2.4): ``flex`` carries FLEX text (VISA or simulator);
     ``wgfmu`` is the WGFMU instrument library (``transport.wgfmu.api.WgfmuApi``, audited by ``AuditingWgfmu``):
-    the simulated library on the simulator (WP10.1), ``None`` on visa until the DLL binding (WP10.2) and whenever no
-    WGFMU library is available. ``make_bus`` builds it; the session opens and closes ``flex`` per transaction, the
-    transaction's WGFMU phase opens and closes the library session (WP10.3)."""
+    the simulated library on the simulator (WP10.1), the ctypes binding ``WgfmuDll`` on visa (WP10.2; loaded at its
+    first call), ``None`` when no WGFMU library is available (the simulator's ``wgfmu_dll_missing`` fault).
+    ``make_bus`` builds it; the session opens and closes ``flex`` per transaction, the transaction's WGFMU phase opens
+    and closes the library session (WP10.3)."""
 
     flex: Transport
     wgfmu: WgfmuApi | None = None

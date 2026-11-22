@@ -33,7 +33,7 @@ from tests.unit.lab_fixtures import READ, SEQUENCES, load_sequence, real_idvg_he
 from tests.visa_loop.helpers import VisaWorld, make_visa_world
 from tests.visa_loop.loop import LoopBus
 
-PROBE_TESTS = 15
+PROBE_TESTS = 17
 RECORD_TESTS = 13
 
 
@@ -119,7 +119,7 @@ def test_the_suite_passes_on_a_station_at_rest_and_only_reads(world: VisaWorld, 
     skipped = run.with_status("skipped")
     assert len(skipped) == RECORD_TESTS and all(n.startswith("test_records.py::") for n in skipped)
     assert all("no record" in run.outcomes[n].message for n in skipped), {n: run.outcomes[n].message for n in skipped}
-    assert "VISA-LOOP REHEARSAL" in run.output and "hardware suite: 28 hardware test(s) selected" in run.output
+    assert "VISA-LOOP REHEARSAL" in run.output and "hardware suite: 30 hardware test(s) selected" in run.output
     spies.check()
     (record,) = spies.probe_records()  # one probe: the error queue was empty, no second drain
     assert record.ok and record.backend == "visa" and not record.simulated

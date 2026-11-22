@@ -22,6 +22,10 @@ own ``audit.jsonl``).
 
 A run is *running* while its transaction's in-flight marker names it and the instrument lock is held
 (``running_marker``): any process can see it (``station_status``, ``list_runs``) without touching the instrument.
+
+WGFMU library (blueprint v2 2.4, 7.1; WP10.2): on visa every snapshot carries the DLL probe of the bus's library
+binding (``LiveState.wgfmu_library``; a file read, never a load). ``check_wgfmu_session`` opens the library's own
+session with the FLEX link closed, under the instrument lock (``doctor --probe --wgfmu-session``).
 """
 
 from __future__ import annotations
@@ -38,7 +42,7 @@ from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.common import Backend
 from b1500_test_agent.models.plan import CompiledEnvelope
 from b1500_test_agent.models.run import Adapter, CleanupReport, CleanupStep, LockHolder
-from b1500_test_agent.models.station import LiveState, Settings
+from b1500_test_agent.models.station import DllProbe, LiveState, Settings
 from b1500_test_agent.paths import Paths
 from b1500_test_agent.session.abort import AbortFile
 from b1500_test_agent.session.fault import FaultLatch
@@ -52,9 +56,11 @@ from b1500_test_agent.session.transaction import (
     read_inflight,
     read_live_state,
 )
+from b1500_test_agent.session.wgfmu_live import SessionCheck, bound, check_session, library_probe
 from b1500_test_agent.transport.audit import AuditingTransport, AuditSink, JsonlAuditSink
 from b1500_test_agent.transport.base import Bus, BusLocked, Transport, TransportError, state_hooks
 from b1500_test_agent.transport.readonly import ReadOnlyTransport
+from b1500_test_agent.transport.wgfmu.api import LIBRARY_ERROR, WgfmuError, error_text
 
 BusMode = Literal["transaction", "process"]
 BusFactory = Callable[[], Bus | Transport]
@@ -271,8 +277,42 @@ class Session:
         transport = self.transport
         with self.read_only("snapshot", lock_timeout_s=lock_timeout_s) as driver:
             live = read_live_state(driver, backend=transport.backend, resource=transport.resource)
+        library = self.wgfmu_library()
+        if library is not None:
+            live = live.model_copy(update={"wgfmu_library": library})
         self.last_live = live
         return live
+
+    def wgfmu_library(self) -> DllProbe | None:
+        """The probe of the WGFMU library binding on visa (``WgfmuDll.probe``: a file read, never a load); ``None``
+        on the simulator and without a library."""
+        if self.backend != "visa":
+            return None
+        return library_probe(self.bus.wgfmu)
+
+    def check_wgfmu_session(self, intent: str, *, lock_timeout_s: float = 5.0) -> SessionCheck:
+        """The WGFMU library's own session, read only, with the FLEX link closed (blueprint v2 7.1
+        ``--wgfmu-session``, ATV-16): instrument lock (``InstrumentBusy`` when held elsewhere), the FLEX link closed
+        (also in ``process`` mode), simulator state loaded, ``open_session`` -> ``channel_ids`` -> ``status`` ->
+        ``close_session`` audited in the session sink with one transaction id, state saved. Library failures are in
+        the result, never raised."""
+        wgfmu = self.bus.wgfmu
+        if wgfmu is None:
+            return SessionCheck(error=WgfmuError(LIBRARY_ERROR, error_text(LIBRARY_ERROR, "no WGFMU instrument "
+                                                                           "library on this bus"),
+                                                 function="open_session"))
+        transport = self.transport
+        with self.lock.acquire(self._holder(), timeout_s=lock_timeout_s):
+            self.close()  # the library opens its own session to the B1500A: the FLEX link stays closed meanwhile
+            hooks = state_hooks(transport)
+            if hooks is not None:
+                hooks.load_state()
+            try:
+                with bound(wgfmu, self.audit, tx=new_tx_id(), intent=intent):
+                    return check_session(wgfmu, transport.resource)
+            finally:
+                if hooks is not None:
+                    hooks.save_state()
 
     def transaction(self, *, intent: str, envelope: CompiledEnvelope | None, run: RunHandle | None,
                     lock_timeout_s: float = 5.0, plan_id: str | None = None,

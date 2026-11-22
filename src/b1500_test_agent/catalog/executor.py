@@ -163,6 +163,11 @@ class _RunContext:
     started: datetime
 
 
+def _uses_wgfmu(plan: PlanRecord) -> bool:
+    """Whether the plan drives a WGFMU channel (its pre-execute snapshot then reads the library's channel ids)."""
+    return plan.envelope is not None and any(ch.function == "wgfmu" for ch in plan.envelope.channels.values())
+
+
 def _flags(findings: list[RuleFinding], severity: str) -> str:
     return "; ".join(f"{f.rule_id} {f.message}" for f in findings if f.severity == severity)
 
@@ -493,7 +498,7 @@ class Executor(RunningRuns):
                     "plan_id": plan.plan_id, "tier": checked.report.tier,
                     "confirm_reasons": ", ".join(checked.report.confirm_reasons),
                     "confirmed": run.confirmed_summary is not None, "mode": plan.mode})
-                state.live = tx.snapshot()
+                state.live = tx.snapshot(wgfmu=_uses_wgfmu(plan))
                 auto = self._read_auto_calibration(folder, tx)
                 calibration = calibration.model_copy(update={"auto_calibration": auto})
                 ctx = planner.context(plan, bundle, live=state.live, fault=session.fault_latch.get(),

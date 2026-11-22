@@ -95,8 +95,9 @@ def hw_config(hw_service: B1500Service) -> ConfigBundle:
 
 @pytest.fixture(scope="session")
 def probe_report(hw_service: B1500Service, hw_config: ConfigBundle) -> ProbeReport:
-    """One read-only probe of the station (``b1500 doctor --probe``; queries only, record in ``work/bringup/``)."""
-    return B1500Admin(hw_service).probe()
+    """One read-only probe of the station (``b1500 doctor --probe --wgfmu-session``, blueprint v2 7.5 step 6;
+    queries only, the WGFMU library's own session with the FLEX link closed; record in ``work/bringup/``)."""
+    return B1500Admin(hw_service).probe(wgfmu_session=True)
 
 
 @pytest.fixture(scope="session")

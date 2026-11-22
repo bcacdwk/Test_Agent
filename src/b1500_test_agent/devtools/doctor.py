@@ -11,8 +11,11 @@ examples wired as blueprint 5.4 says; each generated ``.codex/config.toml`` / ``
 the same ``b1500-mcp`` entry point, ``run_confirmed_plan`` = ``prompt`` / ``ask``; WARN when none is generated yet);
 the MCP server starts with exactly the ten tools within the token budget; the manual corpus (blueprint 5.2: PASS
 when the committed corpus is current, WARN when stale or missing) and the manual PDFs (optional: PASS when all are
-found, INFO when some or all are absent, WARN on an edition mismatch); ``PYTHONUTF8`` and ``LongPathsEnabled``
-(Windows).
+found, INFO when some or all are absent, WARN on an edition mismatch); the WGFMU instrument library (WP10.2: the
+configured or default ``System32\\wgfmu.dll`` located and its PE header read without loading it: path, x64, file
+version, exports; PASS when this Python can load it, FAIL for a 32-bit or incomplete DLL ("install library >=
+A.03.00") and for a missing one when backend visa has a WGFMU, WARN off Windows); ``PYTHONUTF8`` and
+``LongPathsEnabled`` (Windows).
 
 The read-only instrument probe (``b1500 doctor --probe``: VISA library and resources, identity, inventory, error
 queue, status byte, outputs, selectors, SPGU, MFCMU corrections; never ``CN`` or a setting command) is a service
@@ -49,6 +52,7 @@ from b1500_test_agent.session import read_inflight
 from b1500_test_agent.session.fault import FaultLatch
 from b1500_test_agent.session.lock import InstrumentLock
 from b1500_test_agent.transport.audit import NullAuditSink
+from b1500_test_agent.transport.wgfmu.dll import WgfmuDll
 
 CheckStatus = Literal["PASS", "INFO", "WARN", "FAIL"]
 MCP_SERVER_SPEC = "b1500_test_agent.adapters.mcp_server:create_server"
@@ -280,6 +284,22 @@ def check_manuals(repo_root: Path, setting: str, environ: Mapping[str, str]) -> 
     return [corpus, pdfs]
 
 
+def check_wgfmu_library(bundle: ConfigBundle | None, environ: Mapping[str, str], *, windows: bool) -> DoctorCheck:
+    """The WGFMU instrument library (``WgfmuDll.locate``: a file read, never a load); see the module docstring."""
+    from b1500_test_agent.service.probe import library_status
+
+    settings = bundle.settings if bundle is not None else Settings()
+    platform = "win32" if windows else (sys.platform if sys.platform != "win32" else "linux")
+    probe = WgfmuDll.locate(settings, platform=platform, environ=environ)
+    wgfmu = bundle is not None and any(m.type == "WGFMU" for m in bundle.station.modules)
+    required = wgfmu and bundle is not None and bundle.backend == "visa"
+    status = library_status(probe, required=required, windows=windows)
+    detail = probe.message
+    if status != "PASS" and wgfmu:
+        detail += "; WGFMU recipes on backend visa need it (blueprint 7.5 step 2)"
+    return _check("wgfmu library", status, detail)
+
+
 def check_pythonutf8(environ: Mapping[str, str], *, windows: bool) -> DoctorCheck:
     value = environ.get("PYTHONUTF8")
     if value == "1" or sys.flags.utf8_mode:
@@ -332,6 +352,7 @@ def run_doctor(*, environ: Mapping[str, str] | None = None, windows: bool | None
         check_harness_files(paths.repo_root),
         (mcp_check or check_mcp_server)(),
         *check_manuals(paths.repo_root, (bundle.settings if bundle is not None else Settings()).manuals_dir, env),
+        check_wgfmu_library(bundle, env, windows=on_windows),
         check_pythonutf8(env, windows=on_windows),
         check_long_paths(windows=on_windows),
     ]

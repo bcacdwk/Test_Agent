@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -29,7 +30,8 @@ from tests.visa_loop.loop import DEFAULT_RESOURCE, LoopBus
 
 RECORD_NAME = re.compile(r"^probe-\d{8}T\d{9}Z(-\d+)?\.json$")
 FLEX_PART = ["visa library", "visa resources", "bus", "identity", "inventory", "error queue", "status byte",
-             "outputs", "settings", "selectors", "spgu", "cmu CMU1", "release", "fault latch"]
+             "outputs", "settings", "selectors", "spgu", "cmu CMU1", "release", "wgfmu library", "fault latch"]
+"""The probe's lines without ``--wgfmu-session``: the FLEX part, then the WGFMU library probe (a file read, WP10.2)."""
 
 
 def probe(world: VisaWorld, bus: LoopBus, **kwargs: object) -> ProbeReport:
@@ -54,6 +56,9 @@ def test_probe_passes_and_the_audit_contains_only_queries(world: VisaWorld) -> N
     assert found["visa resources"] == "PASS" and found["identity"] == "PASS" and found["inventory"] == "PASS"
     assert report.identity is not None and report.identity.firmware == "A.06.02.2023.0401"
     assert report.visa_resources == [DEFAULT_RESOURCE] and bus.stats.library == "@ivi"
+    library = report.wgfmu_library  # WP10.2: probed as a file (the world's synthetic x64 DLL), never loaded
+    assert library is not None and library.loadable and library.machine == "x64" and bus.stats.wgfmu_loads == 0
+    assert found["wgfmu library"] == "PASS" and report.wgfmu_channels is None
     # the AC: every instrument I/O of the probe is a single query; nothing else reached the instrument
     events = io_events(world)
     assert events and all(e.ev == "query" and e.cmd is not None and is_query(e.cmd) for e in events), events
@@ -124,9 +129,14 @@ def test_a_visa_library_that_does_not_load_fails_before_any_open(world: VisaWorl
                            bus_factory=lambda bundle, sink: make_bus(bundle.settings, sink, rm_factory=broken))
     world.services.append(service)
     report = B1500Admin(service).probe()
-    assert [c.name for c in report.checks] == ["visa library", "fault latch"]
+    assert [c.name for c in report.checks] == ["visa library", "wgfmu library", "fault latch"]
     assert statuses(report)["visa library"] == "FAIL" and report.error_code == "transport_error"
     assert bus.stats.opens == 0
+    # the default WgfmuDll of this factory probes the world's synthetic x64 DLL, but not on Windows: WARN on the Mac
+    library = next(c for c in report.checks if c.name == "wgfmu library")
+    if sys.platform != "win32":
+        assert library.status == "WARN" and "only on Windows" in library.detail, library
+    assert report.wgfmu_library is not None and report.wgfmu_library.machine == "x64"
 
 
 @pytest.mark.parametrize(

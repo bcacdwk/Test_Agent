@@ -10,4 +10,4 @@
   `data/**` and harness settings; hook `scripts/hooks/b1500_guard.py` backs it. Never loosen them or the mode.
 - The `ask` prompt on `run_confirmed_plan` is not consent: show the summary in chat and stop the turn first.
 - `.mcp.json` is machine-specific: generate it with `uv run b1500 harness init --claude`; never commit it.
-- Nested `CLAUDE.md` files in `src/b1500_test_agent/{driver,analysis}/` load when you work there.
+- Nested `CLAUDE.md` files in `src/b1500_test_agent/{driver,analysis,transport/wgfmu}/` load when you work there.

@@ -8,7 +8,8 @@ natively.
   80 characters (the ``b1500 doctor`` WARN limit); no two tracked paths differ only in letter case.
 - Line ends: ``.gitattributes`` checks text out with LF on every clone, so plan hashes of committed files match.
 - Windows-only modules (``winreg``, ``msvcrt``, ``ctypes.WinDLL`` ...) are imported only inside functions with an
-  ``ImportError`` fallback, ``ctypes`` only in ``transport/wgfmu/dll.py`` (WP10.2; absent until then), and every
+  ``ImportError`` fallback, ``ctypes`` only in ``transport/wgfmu/dll.py`` (WP10.2; its ``WinDLL`` path is tested
+  by platform injection in ``tests/wgfmu_abi/test_platform.py``), and every
   module of the package imports on this OS.
 - ``b1500 doctor`` Windows checks with ``windows=True`` injected: path length, ``PYTHONUTF8``, ``LongPathsEnabled``
   without ``winreg``.

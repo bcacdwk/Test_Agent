@@ -7,7 +7,8 @@ unlocks and closes, and writes ``work/bringup/probe-<UTC>.json``. Nothing here s
 
 Pass criteria (7.4 L0): identity names a B1500A, ``UNT?`` equals ``config/local/station.yaml`` (R-INV-01), the error
 queue drains to empty, ``LOP?`` reports every output off, declared selector outputs are at rest, ``SPST?`` = 0,
-the MFCMU correction state is readable, no fault is latched and no probe line fails.
+the MFCMU correction state is readable, the WGFMU library is the loadable x64 DLL and its own session lists the
+installed WGFMU channels (``--wgfmu-session``; ATV-15, ATV-16), no fault is latched and no probe line fails.
 
 Run on the lab PC (owner present): ``$env:B1500_HW = "1"; uv run pytest -m "hardware and hw_l0" -rs``.
 """
@@ -28,6 +29,7 @@ from b1500_test_agent.models.bringup import ProbeCheck, ProbeReport
 from b1500_test_agent.models.station import MODULE_TYPE_BY_MODEL
 from b1500_test_agent.service import B1500Admin, B1500Service
 from b1500_test_agent.transport.readonly import is_query
+from b1500_test_agent.transport.wgfmu.api import channel_ids_of
 from tests.hardware.support import audit_events_since
 
 pytestmark = [pytest.mark.hardware, pytest.mark.hw_l0]
@@ -157,6 +159,30 @@ def test_cmu_correction_state_is_readable(probe_report: ProbeReport) -> None:
                 flex.adj_q(slot, flex.ADJ_READ_LAST)]:
             read = answers(probe_report, query)
             assert read and all(a is not None for a in read), f"{query} not answered"
+
+
+def test_wgfmu_library_is_the_loadable_x64_dll(probe_report: ProbeReport) -> None:
+    """ATV-15: library >= A.03.00, its x64 ``wgfmu.dll`` (System32 or ``wgfmu.library``) loadable by this Python."""
+    check = line(probe_report, "wgfmu library")
+    if not installed_slots(probe_report, "WGFMU"):
+        assert check.status == "INFO", check
+        pytest.skip("no WGFMU installed")
+    assert check.status == "PASS", check
+    library = probe_report.wgfmu_library
+    assert library is not None and library.loadable and library.machine == "x64", library
+    assert library.python_bits == 64 and not library.missing_exports, library
+
+
+def test_wgfmu_session_lists_the_installed_channels(probe_report: ProbeReport) -> None:
+    """ATV-16: the library's own session (FLEX link closed) opens, lists the channels ``UNT?`` shows, reports no
+    running sequencer and closes; the probe's other lines show nothing changed."""
+    check = line(probe_report, "wgfmu session")
+    slots = installed_slots(probe_report, "WGFMU")
+    if not slots:
+        assert check.status == "INFO", check
+        pytest.skip("no WGFMU installed")
+    assert check.status == "PASS", check
+    assert probe_report.wgfmu_channels == channel_ids_of(slots), probe_report.wgfmu_channels
 
 
 def test_no_fault_is_latched(probe_report: ProbeReport) -> None:

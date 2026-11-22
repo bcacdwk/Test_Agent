@@ -210,12 +210,14 @@ def test_doctor(cli_world: World) -> None:
     checks = {c["name"]: c for c in report["checks"]}
     assert set(checks) == {"python", "uv.lock", "imports", "config", "data dir", "path length", "state",
                            "skills mirror", "harness files", "mcp server", "manual corpus", "manual PDFs",
-                           "PYTHONUTF8", "LongPathsEnabled"}
+                           "wgfmu library", "PYTHONUTF8", "LongPathsEnabled"}
     assert checks["config"]["status"] == "PASS" and "sim" in checks["config"]["detail"]
     assert checks["mcp server"]["status"] == "PASS" and checks["mcp server"]["detail"].startswith("10 tools")
     assert checks["skills mirror"]["status"] == "PASS" and "in sync" in checks["skills mirror"]["detail"]
     assert checks["harness files"]["status"] == "WARN" and "harness init" in checks["harness files"]["detail"]
     assert checks["data dir"]["status"] == "PASS" and checks["state"]["status"] == "PASS"
+    # WP10.2: no wgfmu.dll on a developer machine or CI runner, backend sim: WARN, never FAIL
+    assert checks["wgfmu library"]["status"] == "WARN" and "wgfmu" in checks["wgfmu library"]["detail"]
     assert report["ok"] is (result.exit_code == 0)
     assert all(c["status"] != "FAIL" for c in report["checks"]), report
     human = invoke("doctor")

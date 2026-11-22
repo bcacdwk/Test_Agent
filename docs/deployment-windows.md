@@ -34,9 +34,8 @@ guard hook stop a coding agent from running them.
    `uv run b1500 doctor` (PASS/WARN only, backend still `sim`) (step 3).
 5. B1500A: File > Exit EasyEXPERT and leave the "Start EasyEXPERT" button on screen; in its Connection Expert
    GPIB address 17 and System Controller "No" (step 4; bring-up stage S0).
-6. *human:* `uv run b1500 config init --visa` (step 5); then `uv run b1500 doctor --probe`: PASS lines
-   (step 6). The WGFMU library session check of the probe (`--wgfmu-session`) arrives with the WGFMU work package
-   (WP10.2); until then stage L8 checks the library.
+6. *human:* `uv run b1500 config init --visa` (step 5); then `uv run b1500 doctor --probe --wgfmu-session`: PASS
+   lines (step 6).
 7. `uv run b1500 bringup propose-station`; fill the selector and RSU inputs from the cabling; *human:*
    `uv run b1500 config adopt work\bringup\station.proposed.yaml --as station`; pin maps and DUT profiles from
    the examples, adopted the same way; `uv run b1500 config check` (step 6).
@@ -178,21 +177,26 @@ Blueprint v2 §7.5 lines 6–7; prerequisite: step 4 done (EasyEXPERT ended).
 
 ```powershell
 uv run b1500 doctor
-uv run b1500 doctor --probe
+uv run b1500 doctor --probe --wgfmu-session
 uv run b1500 bringup propose-station
 uv run b1500 config adopt work\bringup\station.proposed.yaml --as station
 uv run b1500 config check
-uv run b1500 doctor --probe
+uv run b1500 doctor --probe --wgfmu-session
 ```
 
-- `doctor`: no FAIL line.
+- `doctor`: no FAIL line. Its `wgfmu library` line locates `wgfmu.dll` (`wgfmu.library`, default
+  `C:\Windows\System32\wgfmu.dll`) and reads its header without loading it: PASS for the x64 DLL with every function
+  the binding needs (file version shown); FAIL "install library >= A.03.00" for a 32-bit DLL (64-bit Python cannot
+  load it; there is no 32-bit bridge) and, on backend visa with a WGFMU, for a missing one.
 - `doctor --probe` is read-only (queries only, never `CN` or any setting command): the VISA library loads and
   `list_resources()` lists `visa.resource`; the bus opens with the exclusive lock; `*IDN?` names the B1500A
   (firmware recorded); `UNT?` against `config\local\station.yaml`; the error queue is drained; status byte; every
   output off (`LOP?`); the 16440A selector mode and outputs; `SPST?` with an SPGU installed; `CORRST?`/`ADJ?` per
-  MFCMU; then unlock and close. One PASS/INFO/WARN/FAIL line each (`--json` for the full report), exit code 1 on any
-  FAIL, and every raw answer in `work\bringup\probe-<UTC>.json`. The first run usually FAILs `inventory` (the
-  station file is still the example) and may WARN about old errors in the queue.
+  MFCMU; then unlock and close; then `wgfmu library` (as in `doctor`) and, with `--wgfmu-session`, the library's own
+  session with the GPIB link closed: open, channel ids (the WGFMU channels `UNT?` lists, e.g. 201 and 202), status
+  (no sequencer running), close (ATV-16: no output changes). One PASS/INFO/WARN/FAIL line each (`--json` for the full
+  report), exit code 1 on any FAIL, and every raw answer in `work\bringup\probe-<UTC>.json`. The first run usually
+  FAILs `inventory` (the station file is still the example) and may WARN about old errors in the queue.
 - `bringup propose-station` reads `*IDN?` and `UNT?` (read-only) and writes `work\bringup\station.proposed.yaml`: the
   live module list with the example's aliases and its switch wiring left `null`/`certainty: unverified`. It prints
   the diff against `config\local\station.yaml`. Fill in the selector and RSU inputs only once you know the cabling

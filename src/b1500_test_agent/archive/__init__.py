@@ -33,6 +33,7 @@ from b1500_test_agent.archive.store import (
     analysis_payload,
     index_entry,
     new_run_id,
+    process_software_version,
     software_version,
 )
 
@@ -57,6 +58,7 @@ __all__ = [
     "freshness_for",
     "index_entry",
     "new_run_id",
+    "process_software_version",
     "read_audit",
     "read_partial",
     "read_program",

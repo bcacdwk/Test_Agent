@@ -452,7 +452,11 @@ class SmuUnit:
 
     def _solve_voltages(self, levels: dict[int, float], icomps: dict[int, float],
                         fixed: dict[int, float]) -> tuple[dict[int, float], dict[int, float], set[int]]:
-        """``solve`` for the voltage channels, with the current sources held at the voltages ``fixed``."""
+        """``solve`` for the voltage channels, with the current sources held at the voltages ``fixed``.
+
+        When no channel exceeds its compliance, the currents of that last trial are returned as they are: devices
+        evaluate a trial without changing their state, so evaluating the unchanged voltages a second time gave the
+        same currents at twice the cost of every solve (a 4 h hold chain solves thousands of times)."""
         applied = {**levels, **fixed}
         clamped: set[int] = set()
         for _ in range(len(levels)):
@@ -460,7 +464,7 @@ class SmuUnit:
             over = [ch for ch in levels
                     if ch not in clamped and abs(currents.get(ch, 0.0)) > icomps[ch] * (1 + 1e-12)]
             if not over:
-                break
+                return applied, currents, clamped
             channel = max(over, key=lambda ch: abs(currents[ch]) / icomps[ch])
             applied[channel] = self._bisect(applied, channel, icomps[channel])
             clamped.add(channel)

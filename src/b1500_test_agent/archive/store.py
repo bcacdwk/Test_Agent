@@ -96,6 +96,18 @@ def software_version() -> str:
     return f"{__version__}+{described}"
 
 
+_PROCESS_VERSION: list[str] = []
+
+
+def process_software_version() -> str:
+    """``software_version()`` of the code this process runs, read once per process (the run manifests): the modules a
+    process imported do not change when the checkout does, and starting ``git`` once per run cost every run a process
+    start (tens of milliseconds on Windows) on its wall time."""
+    if not _PROCESS_VERSION:
+        _PROCESS_VERSION.append(software_version())
+    return _PROCESS_VERSION[0]
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -133,7 +145,8 @@ class RunFolder:
         self.path = self.runs_dir.joinpath(*self.relpath.parts)
         self.audit = RunAuditSink(self.path)
         self.raw_files: list[str] = []
-        self._raw_dir_ready = False
+        self._raw_dir: str | None = None
+        """``raw/`` as a string once made (one ``mkdir`` per run; blocks are joined as strings, not ``Path``s)."""
         self._raw_digests: dict[str, tuple[int, str]] = {}
         """Run-relative path → (size, sha256) of each raw block as written (``files`` reuses it, see there)."""
 
@@ -142,11 +155,13 @@ class RunFolder:
     def save_raw(self, raw: str) -> str:
         """Store one raw measurement response as ``raw/block-NNN.txt`` (exact text; latin-1 bytes, other
         characters backslash-escaped) and return that run-relative path."""
-        rel = f"{RAW_DIR}/block-{len(self.raw_files):03d}.txt"
-        target = self.path / RAW_DIR / rel.split("/")[1]
-        if not self._raw_dir_ready:  # made once per run, not once per block
-            target.parent.mkdir(parents=True, exist_ok=True)
-            self._raw_dir_ready = True
+        name = f"block-{len(self.raw_files):03d}.txt"
+        rel = f"{RAW_DIR}/{name}"
+        if self._raw_dir is None:  # made once per run, not once per block
+            directory = self.path / RAW_DIR
+            directory.mkdir(parents=True, exist_ok=True)
+            self._raw_dir = os.fspath(directory)
+        target = os.path.join(self._raw_dir, name)
         data = raw.encode("latin-1", errors="backslashreplace")
         # created exclusively (never overwrites), written with one unbuffered call: a long stepped plan writes a
         # block per segment, and the buffered file object cost more than the write on Windows (WP6.5)
@@ -252,21 +267,25 @@ class RunFolder:
         listing itself, no ``stat`` per file). A raw block this folder wrote (``save_raw``: created exclusively,
         digest taken from the bytes written) keeps that digest while its size is unchanged; every other file, and a
         block whose size changed, is read and hashed here. A long stepped plan writes hundreds of blocks, and reading
-        each back cost a quarter of a second on Windows (WP6.5)."""
-        found: list[tuple[Path, int]] = []
-        pending = [self.path]
+        each back cost a quarter of a second on Windows (WP6.5). Run-relative names are joined as strings during the
+        walk and sorted with the key ``Path`` comparison uses (``os.path.normcase`` parts: case-blind on Windows), so
+        the order is the one ``sorted(Path)`` gave; a ``Path.relative_to`` per file cost more than the walk."""
+        found: list[tuple[list[str], str, str, int]] = []
+        pending = [(os.fspath(self.path), "")]
         while pending:
-            with os.scandir(pending.pop()) as entries:
+            directory, prefix = pending.pop()
+            with os.scandir(directory) as entries:
                 for entry in entries:
+                    rel = prefix + entry.name
                     if entry.is_dir(follow_symlinks=False):
-                        pending.append(Path(entry.path))
+                        pending.append((entry.path, rel + "/"))
                     elif entry.is_file() and entry.name != MANIFEST_FILE:
-                        found.append((Path(entry.path), entry.stat().st_size))
+                        key = os.path.normcase(rel).split(os.sep)
+                        found.append((key, rel, entry.path, entry.stat().st_size))
         out: dict[str, str] = {}
-        for path, size in sorted(found):
-            rel = path.relative_to(self.path).as_posix()
+        for _, rel, path, size in sorted(found, key=lambda item: item[0]):
             known = self._raw_digests.get(rel)
-            out[rel] = known[1] if known is not None and known[0] == size else sha256_file(path)
+            out[rel] = known[1] if known is not None and known[0] == size else sha256_file(Path(path))
         return out
 
     def is_empty(self) -> bool:

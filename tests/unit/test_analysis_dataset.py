@@ -142,6 +142,18 @@ def test_run_data_validates_and_never_modifies_its_input() -> None:
         RunData(manifest(), table.assign(trust="maybe"))
 
 
+def test_a_subset_is_the_validated_table_of_its_rows() -> None:
+    """``RunData.subset`` (per-read analyses of a stress run) skips the second validation: rows of a validated table
+    give exactly the table ``validate_table`` would return for them."""
+    data = RunData(manifest(), mixed_status_table())
+    for rows in (data.table.iloc[[1, 3, 4]], data.table[data.table["drain_I_status"] == "N"], data.table.iloc[:0]):
+        sub = data.subset(rows)
+        assert sub.manifest is data.manifest and sub.path == data.path
+        pd.testing.assert_frame_equal(sub.table, validate_table(rows), check_exact=True)
+    with pytest.raises(ValueError):
+        data.subset(data.table.drop(columns=["gate_I"]))
+
+
 def test_trusted_drops_limited_and_untrusted_rows() -> None:
     data = RunData(manifest(), mixed_status_table())
     assert data.trusted()["step"].tolist() == [0]

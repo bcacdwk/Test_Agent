@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 from b1500_test_agent.analysis.dataset import MANIFEST_FILE
 from b1500_test_agent.archive.runfiles import read_progress
-from b1500_test_agent.archive.store import RunStore, software_version
+from b1500_test_agent.archive.store import RunStore, process_software_version
 from b1500_test_agent.catalog.planner import PlanError, PlanStore
 from b1500_test_agent.config import ConfigBundle
 from b1500_test_agent.errors import B1500Error, InvalidConfigError
@@ -205,7 +205,7 @@ class RunningRuns:
             recipe_version=plan.recipe_version, recipe_sha=plan.recipe_sha, recipe_status=status,
             backend=bundle.backend, simulated=bundle.backend == "sim", hashes=dict(plan.hashes), config_files=[],
             rules=[plan.rules], tier=plan.tier, client=ClientInfo(adapter=marker.adapter or "cli"),
-            software_version=software_version(), started_at=started, finished_at=datetime.now(UTC),
+            software_version=process_software_version(), started_at=started, finished_at=datetime.now(UTC),
             outcome="aborted", error_code="internal", message=message, cleanup=report,
             assumptions=[*self._assumptions(bundle, plan), ("finalized by the in-flight recovery of a later "
                          "transaction (the run's own process ended without finalizing it)")],

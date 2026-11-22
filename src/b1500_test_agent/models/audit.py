@@ -13,6 +13,8 @@ the blueprint shape. ``seq`` is assigned by the sink that records the event (one
 from __future__ import annotations
 
 import json
+import json.encoder
+import math
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -46,6 +48,29 @@ BUS_EVENTS: frozenset[str] = frozenset({"bus_open", "bus_lock", "bus_unlock", "b
 
 _LINE_KEYS = ("ts", "seq", "run", "tx", "ev", "cmd", "resp", "dur_ms", "intent", "backend")
 _OPTIONAL_KEYS = ("error", "data")
+_encode_str = json.encoder.encode_basestring  # the string encoder of json.dumps(..., ensure_ascii=False)
+
+
+def _json_value(value: object) -> str:
+    """``value`` as ``json.dumps(value, ensure_ascii=False, separators=(",", ":"))`` writes it (exact types take a
+    fast path; anything else goes through ``json.dumps``)."""
+    if value is None:
+        return "null"
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    kind = type(value)
+    if kind is str:
+        return _encode_str(value)  # type: ignore[arg-type]
+    if kind is int:
+        return int.__repr__(value)  # type: ignore[arg-type]
+    if kind is float and math.isfinite(value):  # type: ignore[arg-type]
+        return float.__repr__(value)  # type: ignore[arg-type]
+    if kind is dict and all(type(key) is str for key in value):  # type: ignore[attr-defined]
+        return "{" + ",".join(f"{_encode_str(key)}:{_json_value(item)}"
+                              for key, item in value.items()) + "}"  # type: ignore[attr-defined]
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
 def format_ts(ts: datetime) -> str:
@@ -102,8 +127,19 @@ class AuditEvent(StrictModel):
         return record
 
     def to_json_line(self) -> str:
-        """One JSONL line without the trailing newline (compact separators, UTF-8 text kept as is)."""
-        return json.dumps(self.to_record(), ensure_ascii=False, separators=(",", ":"))
+        """One JSONL line without the trailing newline (compact separators, UTF-8 text kept as is): exactly
+        ``json.dumps(self.to_record(), ensure_ascii=False, separators=(",", ":"))``, built key by key (every
+        instrument I/O writes one line, thousands in a long run, and the generic encoder took most of the time)."""
+        dur_ms = None if self.dur_ms is None else round(self.dur_ms, 3)
+        line = (f'{{"ts":"{format_ts(self.ts)}","seq":{_json_value(self.seq)},"run":{_json_value(self.run)},'
+                f'"tx":{_json_value(self.tx)},"ev":{_json_value(self.ev)},"cmd":{_json_value(self.cmd)},'
+                f'"resp":{_json_value(self.resp)},"dur_ms":{_json_value(dur_ms)},'
+                f'"intent":{_json_value(self.intent)},"backend":{_json_value(self.backend)}')
+        if self.error is not None:
+            line += f',"error":{_json_value(self.error)}'
+        if self.data is not None:
+            line += f',"data":{_json_value(self.data)}'
+        return line + "}"
 
     @classmethod
     def from_json_line(cls, line: str) -> AuditEvent:

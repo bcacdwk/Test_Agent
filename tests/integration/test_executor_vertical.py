@@ -143,3 +143,24 @@ def test_plan_request_shape(world: World) -> None:
     record = plan(executor, params={"vg_points": 101.0, "vg_stop": 3})
     assert record.resolved_params["vg_points"].value == 101 and record.resolved_params["vg_stop"].value == 3.0
     assert record.request.recipe_id == IDVG["recipe_id"]
+
+
+def test_a_run_hashes_the_recipe_tree_once_to_check_and_once_to_finalize(world: World,
+                                                                        monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each registry refresh reads and hashes every recipe file: the checks of a run share one registry (and its
+    pre-execute rules use it), the finalize refreshes it once (six refreshes per run before; dozens of file reads on
+    the wall time of every run, more on Windows)."""
+    from b1500_test_agent.catalog import registry as registry_module
+
+    executor = world.executor()
+    record = plan(executor)
+    calls: list[str] = []
+    fingerprint = registry_module._fingerprint
+
+    def counted(root: object) -> dict[str, str]:
+        calls.append(str(root))
+        return fingerprint(root)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(registry_module, "_fingerprint", counted)
+    result = run(executor, record.plan_id)
+    assert result.outcome == "completed" and len(calls) == 2

@@ -4,6 +4,7 @@ per bus lifecycle call."""
 from __future__ import annotations
 
 import json
+import random
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -55,6 +56,29 @@ def test_optional_keys_appear_only_when_set() -> None:
     assert record["error"] == "TransportTimeout: x"
     with pytest.raises(ValueError):
         AuditEvent.from_json_line('{"ev":"write"}')
+
+
+def test_lines_are_exactly_what_json_dumps_writes() -> None:
+    """``to_json_line`` builds the line key by key (a long run writes thousands); it must stay byte-identical to
+    ``json.dumps(to_record(), ensure_ascii=False, separators=(",", ":"))``: escapes, non-ASCII text, numbers, data."""
+    rng = random.Random(7)
+    text = "ab \"\\/\n\r\t\x00\x1f\x7f äµΩ€😀\u2028\u2029,:{}[]"
+
+    def s() -> str:
+        return "".join(rng.choice(text) for _ in range(rng.randint(0, 12)))
+
+    scalars = [None, True, False, 0, -1, 2**70, 0.0, -0.0, 1e16, 5e-324, 1.7976931348623157e308, 0.1, 123.4565]
+    for _ in range(3000):
+        data = None if rng.random() < 0.4 else {
+            s() or "k": rng.choice([*scalars, rng.random() * 10.0 ** rng.randint(-30, 30), s()]) for _ in range(4)}
+        event = AuditEvent(ts=datetime(2026, 11, 17, tzinfo=UTC) + timedelta(microseconds=rng.randint(0, 10**12)),
+                           seq=rng.choice([None, rng.randint(0, 10**9)]), run=rng.choice([None, s()]),
+                           tx=rng.choice([None, s()]), ev=rng.choice(["write", "read", "checkpoint", "data_block"]),
+                           cmd=rng.choice([None, s()]), resp=rng.choice([None, s()]),
+                           dur_ms=rng.choice([None, 0, 3, 0.0, rng.random() * 1e3, 1e-9, 1e300]),
+                           intent=rng.choice([None, s()]), backend=rng.choice(["sim", "visa"]),
+                           error=rng.choice([None, s()]), data=data)
+        assert event.to_json_line() == json.dumps(event.to_record(), ensure_ascii=False, separators=(",", ":"))
 
 
 def test_sinks_number_events_in_order(tmp_path: Path) -> None:

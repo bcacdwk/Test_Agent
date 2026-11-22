@@ -136,7 +136,7 @@ def stress_reads(d: RunData, method: str) -> list[Read]:
 
 
 def _sub(d: RunData, rows: pd.DataFrame) -> RunData:
-    return RunData(manifest=d.manifest, table=rows.reset_index(drop=True), path=d.path)
+    return d.subset(rows)
 
 
 def _vth(d: RunData, read: Read, *, method: VthMethod, i_crit_a: float, w_over_l: float | None, x: str, y: str,

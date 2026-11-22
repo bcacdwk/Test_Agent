@@ -55,7 +55,13 @@ from b1500_test_agent.analysis.registry import run_method
 from b1500_test_agent.archive.audit import RUN_AUDIT_FILE
 from b1500_test_agent.archive.corrections import records_for
 from b1500_test_agent.archive.runfiles import PARTIAL_FILE, PROGRESS_FILE
-from b1500_test_agent.archive.store import QUALITY_FILE, RunFolder, RunStore, analysis_payload, software_version
+from b1500_test_agent.archive.store import (
+    QUALITY_FILE,
+    RunFolder,
+    RunStore,
+    analysis_payload,
+    process_software_version,
+)
 from b1500_test_agent.catalog.files import FileRoots, changed_param_files
 from b1500_test_agent.catalog.kinds import MeasurementKind
 from b1500_test_agent.catalog.planner import (
@@ -137,6 +143,8 @@ class _Checked:
     recipe: Recipe
     kind: MeasurementKind
     report: RulesReport
+    registry: RecipeRegistry
+    """The registry the checks used; the run's pre-execute rules use it too (one recipe-tree hash per check)."""
 
 
 @dataclass
@@ -241,9 +249,10 @@ class Executor(RunningRuns):
         if self._session is not None:
             self._session.close()
 
-    def _planner(self, bundle: ConfigBundle) -> Planner:
-        """A planner over the registry with the server-written MFCMU correction store (R-CORR-01)."""
-        return Planner(self.registry(bundle), clock=self._clock,
+    def _planner(self, bundle: ConfigBundle, registry: RecipeRegistry | None = None) -> Planner:
+        """A planner over the registry (``registry``, else the current one) with the server-written MFCMU correction
+        store (R-CORR-01)."""
+        return Planner(registry if registry is not None else self.registry(bundle), clock=self._clock,
                        corrections=functools.partial(records_for, state_dir=bundle.paths.state_dir))
 
     def _engine(self, bundle: ConfigBundle) -> RulesEngine:
@@ -283,18 +292,20 @@ class Executor(RunningRuns):
         """Steps 1 and 3 without a run: the stored plan with fresh plan-phase rules, tier and summary. Raises
         ``PlanError`` (``unknown_plan``, ``plan_expired``, ``plan_stale``) or ``InvalidConfigError``."""
         bundle = self.config.get()
-        plan, _, _ = self._load_checked(plan_id, bundle)
-        return self._fresh(plan, bundle)[0]
+        registry = self.registry(bundle)
+        plan, _, _ = self._load_checked(plan_id, bundle, registry)
+        return self._fresh(plan, bundle, registry)[0]
 
-    def _load_checked(self, plan_id: str, bundle: ConfigBundle) -> tuple[PlanRecord, Recipe, MeasurementKind | None]:
-        """Step 1: load, expiry, staleness (file reads only)."""
+    def _load_checked(self, plan_id: str, bundle: ConfigBundle, registry: RecipeRegistry | None = None,
+                      ) -> tuple[PlanRecord, Recipe, MeasurementKind | None]:
+        """Step 1: load, expiry, staleness (file reads only) against ``registry`` (default: the current one)."""
         plan = PlanStore(bundle.paths.state_dir).load(plan_id)
         now = self._clock()
         ttl_end = plan.created_at + timedelta(hours=bundle.policy.plans.ttl_h)
         if now >= min(plan.expires_at, ttl_end):
             raise PlanExpiredError(f"plan {plan_id} expired at {min(plan.expires_at, ttl_end).isoformat()}; "
                                    "validate the request again")
-        registry = self.registry(bundle)
+        registry = registry if registry is not None else self.registry(bundle)
         if plan.backend != bundle.backend:
             raise PlanStaleError(f"plan {plan_id} was validated for backend {plan.backend}, the configured backend "
                                  f"is {bundle.backend}; validate again")
@@ -316,27 +327,29 @@ class Executor(RunningRuns):
                                  "again")
         return plan, recipe, registry.kinds.get(recipe.kind)
 
-    def _fresh(self, plan: PlanRecord, bundle: ConfigBundle) -> tuple[PlanRecord, RulesReport]:
+    def _fresh(self, plan: PlanRecord, bundle: ConfigBundle,
+               registry: RecipeRegistry | None = None) -> tuple[PlanRecord, RulesReport]:
         """Step 3: the plan-phase rules again (never the stored tier), with the current fault/inflight state."""
         session = self.session(bundle)
         fault, unrecovered = self._fault_state(session)
-        ctx = self._planner(bundle).context(plan, bundle, fault=fault, inflight_unrecovered=unrecovered)
+        ctx = self._planner(bundle, registry).context(plan, bundle, fault=fault, inflight_unrecovered=unrecovered)
         report = self._engine(bundle).evaluate(ctx, "plan")
         return with_rules(plan, report), report
 
     def _check(self, plan_id: str, bundle: ConfigBundle, confirmed_summary: str | None) -> _Checked:
-        """Steps 1-3 (zero transport I/O); raises ``_Refusal``."""
+        """Steps 1-3 (zero transport I/O) against one registry (each ``registry()`` hashes every recipe file to see a
+        change); raises ``_Refusal``."""
+        registry = self.registry(bundle)
         try:
-            plan, recipe, kind = self._load_checked(plan_id, bundle)
+            plan, recipe, kind = self._load_checked(plan_id, bundle, registry)
         except PlanError as exc:
             next_steps = ["validate the request again with validate_plan"]
             raise _Refusal("refused", exc.code, "refused", str(exc), next_steps) from None
-        registry = self.registry(bundle)
         if kind is None or registry.effective_status(recipe.id, bundle.backend) == "not_implemented":
             raise _Refusal("not_implemented", "not_implemented", "not_implemented",
                            f"recipe {recipe.id} (kind {recipe.kind}) is not implemented on backend {bundle.backend}",
                            ["list validated alternatives with list_recipes; never improvise instrument code"])
-        fresh, report = self._fresh(plan, bundle)
+        fresh, report = self._fresh(plan, bundle, registry)
         if report.tier == "blocked":
             raise _Refusal("blocked", "blocked_by_rules", "refused",
                            f"plan {plan_id} is blocked: {_flags(report.findings, 'block')}",
@@ -352,7 +365,7 @@ class Executor(RunningRuns):
             raise _Refusal("refused", "summary_mismatch", "refused",
                            "the confirmed summary differs from the current plan summary",
                            ["show the current summary to the human and ask again"], summary=fresh.summary)
-        return _Checked(plan=fresh, recipe=recipe, kind=kind, report=report)
+        return _Checked(plan=fresh, recipe=recipe, kind=kind, report=report, registry=registry)
 
     # -- run --------------------------------------------------------------------------------------------------------
 
@@ -486,7 +499,7 @@ class Executor(RunningRuns):
         checked, bundle, session, folder = run.checked, run.bundle, run.session, run.folder
         plan, kind = checked.plan, checked.kind
         calibration = self._calibration(bundle)
-        planner = self._planner(bundle)
+        planner = self._planner(bundle, checked.registry)
         state = _RunState()
         tx = session.transaction(intent=f"run {plan.recipe_id} ({plan.plan_id})", envelope=plan.envelope,
                                  run=folder, lock_timeout_s=self.lock_timeout_s, plan_id=plan.plan_id,
@@ -573,11 +586,12 @@ class Executor(RunningRuns):
                 control: RunControl | None = None) -> RunSummary:
         plan, recipe, kind = checked.plan, checked.recipe, checked.kind
         backend = bundle.backend
+        registry = self.registry(bundle)  # once per finalize: each call hashes every recipe file to see a change
         reports = [checked.report] + ([state.pre_report] if state.pre_report is not None else [])
         manifest = RunManifest(
             run_id=folder.run_id, plan=plan, plan_hash=plan.plan_hash, recipe_id=recipe.id,
             recipe_version=recipe.version, recipe_sha=recipe.sha256,
-            recipe_status=self.registry(bundle).effective_status(recipe.id, backend), backend=backend,
+            recipe_status=registry.effective_status(recipe.id, backend), backend=backend,
             simulated=backend == "sim",
             identity=state.live.identity if state.live else None,
             inventory=state.live.inventory if state.live else None,
@@ -585,7 +599,7 @@ class Executor(RunningRuns):
             confirmed_summary=confirmed_summary.strip() if confirmed_summary is not None else None,
             confirmed_via=None if confirmed_summary is None else (
                 "run_confirmed_plan" if client.adapter == "mcp" else "cli --confirm"),
-            client=client, software_version=software_version(), dut_instance=dut_instance, started_at=started,
+            client=client, software_version=process_software_version(), dut_instance=dut_instance, started_at=started,
             outcome="completed", cleanup=cleanup, assumptions=self._assumptions(bundle, plan),
         )
         error_code: ErrorCode | None = None
@@ -635,7 +649,7 @@ class Executor(RunningRuns):
             manifest = manifest.model_copy(update={"kind_result": dict(state.raw.kind_result)})
         counts = dict(quality.counts) if quality is not None else {}
         quality_findings = (self._engine(bundle).quality(counts, recipe=recipe,
-                                                         recipe_source=self.registry(bundle).source(recipe.id))
+                                                         recipe_source=registry.source(recipe.id))
                             if quality is not None else [])
         if control is not None:
             final = {"completed": "completed", "completed_with_flags": "completed", "cancelled": "cancelled"}

@@ -9,7 +9,7 @@ per-recipe AC: tier, run, default analysis vs the 4.2 fidelity target). These te
 - SILC (``nmos_bti`` gate oxide): the SILC ratio and exponent of the dielectric's damage law, Ig0 and q_inj; a gate
   breakdown under the stress stops the run (compliance) with the reads before it analysed.
 - Cancel at every checkpoint (AC): outcome ``cancelled``, outputs zero (cleanup verified), the partial rows up to that
-  checkpoint and no trigger after it; a 4 h BTI runs asynchronously in seconds (``timing: instant``).
+  checkpoint and no trigger after it; a 4 h BTI runs asynchronously in < 2 s (``timing: instant``, blueprint v2 4.1).
 """
 
 from __future__ import annotations
@@ -300,7 +300,8 @@ def test_an_async_bti_cancels_at_a_hold_block(recipe_id: str, world: World, monk
 @pytest.mark.wall_clock
 @pytest.mark.parametrize("recipe_id", ["reliability.bti_sms"])
 def test_a_four_hour_bti_runs_asynchronously_in_seconds(recipe_id: str, world: World) -> None:
-    """Blueprint v2 4.1: a 4 h BTI (2 V, 3 reads per decade, 576 hold blocks) runs in seconds (timing instant)."""
+    """Blueprint v2 4.1: a 4 h BTI (2 V, 3 reads per decade, 576 hold blocks) runs in < 2 s of wall time (timing
+    instant)."""
     world.use_scenario("nmos_bti")
     service = world.service(adapter="mcp")
     validation = service.validate_plan(**{**BTI, "recipe_id": recipe_id},
@@ -313,7 +314,7 @@ def test_a_four_hour_bti_runs_asynchronously_in_seconds(recipe_id: str, world: W
     wall = time.monotonic() - t0
     assert final is not None and final.outcome == "completed", final.message
     timings = manifest_of(world, final.run_id or "").timings  # type: ignore[union-attr]
-    assert wall < 3.0, f"4 h BTI took {wall:.2f} s of wall time (manifest timings {timings})"
+    assert wall < 2.0, f"4 h BTI took {wall:.2f} s of wall time (manifest timings {timings})"
     found = by_quantity(final.analyses)
     assert found["n"].value == pytest.approx(device(world).params.bti_n, abs=0.02)
     service.close()

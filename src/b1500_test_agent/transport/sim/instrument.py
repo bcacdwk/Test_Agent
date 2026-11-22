@@ -143,6 +143,14 @@ def _quick_mnemonic(part: str) -> str:
         return ""
 
 
+def _parsed(part: str) -> flex.Command | flex.FlexError:
+    """``flex.parse_command(part)``, or the ``FlexError`` it raises."""
+    try:
+        return flex.parse_command(part)
+    except flex.FlexError as exc:
+        return exc
+
+
 class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUnit):
     """In-process B1500A: ``handle(line)`` executes one command line and returns the query response, if any.
 
@@ -153,6 +161,9 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
     def __init__(self, scenario: SimScenario, *, faults: Iterable[SimFault] = ()) -> None:
         self.scenario = scenario
         self.faults = FaultEngine(faults)
+        self._slot_map: tuple[object, dict[int, SimSlot], dict[int, str | None]] | None = None
+        """``_slots`` and the module types looked up so far, for the module source they were built from (the latest
+        ``modules_override`` fault or ``None``)."""
         self.wgfmu_unit: SimWgfmu | None = None
         """The simulated WGFMU instrument library on this instrument (set by ``SimWgfmu``), if any."""
         self.circuit = DrivenCircuit(scenario, self._wgfmu_drive)
@@ -190,12 +201,27 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         self._reset_spgu_settings()
 
     def _slots(self) -> dict[int, SimSlot]:
-        override = self.faults.modules()
-        return {s.slot: s for s in (override if override is not None else self.scenario.slots)}
+        """Installed modules by slot: the scenario's, or those of the latest ``modules_override`` fault. Built once per
+        module source (the channel checks of every command ask for it, thousands of times in a long run); callers only
+        read it."""
+        return self._slot_cache()[1]
+
+    def _slot_cache(self) -> tuple[object, dict[int, SimSlot], dict[int, str | None]]:
+        override = self.faults.modules_override()
+        cached = self._slot_map
+        if cached is None or cached[0] is not override:
+            slots = override.slots if override is not None else self.scenario.slots
+            cached = self._slot_map = (override, {s.slot: s for s in slots}, {})
+        return cached
 
     def _module_type(self, slot: int) -> str | None:
-        module = self._slots().get(slot)
-        return None if module is None else MODULE_TYPE_BY_MODEL[module.model]
+        _, slots, types = self._slot_cache()
+        if slot in types:
+            return types[slot]
+        module = slots.get(slot)
+        kind = None if module is None else MODULE_TYPE_BY_MODEL[module.model]
+        types[slot] = kind
+        return kind
 
     def installed_channels(self) -> list[int]:
         """Canonical channel numbers of the installed modules (two-channel modules: ``slot`` and ``slot*100+2``)."""
@@ -320,7 +346,8 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         if len(line) + 1 > flex.INPUT_BUFFER_CHARS:
             self._reject(line, parts, flex.ERR_BUFFER_FULL)
             return None
-        mnemonics = [_quick_mnemonic(p) for p in parts]
+        parsed = [_parsed(p) for p in parts]  # each command parsed once (a pure function of its text)
+        mnemonics = [p.mnemonic if isinstance(p, flex.Command) else "" for p in parsed]
         if len(parts) > 1 and any(m in flex.ALONE_ONLY for m in mnemonics):
             self._reject(line, parts, flex.ERR_TERMINATOR)
             return None
@@ -338,10 +365,9 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
                     break
             elif measurement is not None and mnemonics[index] != "AB":
                 self._finish(measurement)
-            try:
-                cmd = flex.parse_command(part)
-            except flex.FlexError as exc:
-                self._fail(line, part, "", (), exc, parts[index + 1:])
+            cmd = parsed[index]
+            if isinstance(cmd, flex.FlexError):
+                self._fail(line, part, "", (), cmd, parts[index + 1:])
                 break
             if cmd.mnemonic not in flex.SUPPORTED:
                 self._fail(line, cmd.text, cmd.mnemonic, cmd.args, Unsupported(cmd.mnemonic), parts[index + 1:])
@@ -548,10 +574,14 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         return {ch: (st.current, st.vcomp if st.vcomp is not None else 0.0) for ch, st in self.state.channels.items()
                 if st.output_on and st.mode == "I" and self._is_smu(ch)}
 
-    def dc_solution(self) -> tuple[dict[int, float], dict[int, float], set[int]]:
-        """Applied voltages, currents and channels in compliance of the present DC outputs (``solve``)."""
-        levels = self._on_levels()
-        return self.solve(levels, {ch: self._icomp(ch) for ch in levels}, self._on_currents())
+    def dc_solution(self, levels: dict[int, float] | None = None,
+                    currents: dict[int, tuple[float, float]] | None = None,
+                    ) -> tuple[dict[int, float], dict[int, float], set[int]]:
+        """Applied voltages, currents and channels in compliance of the present DC outputs (``solve``); ``levels`` and
+        ``currents`` are ``_on_levels()``/``_on_currents()`` when the caller already has them."""
+        levels = self._on_levels() if levels is None else levels
+        currents = self._on_currents() if currents is None else currents
+        return self.solve(levels, {ch: self._icomp(ch) for ch in levels}, currents)
 
     def _icomp(self, channel: int) -> float:
         if self._channel_type(channel) in SPGU_TYPES:
@@ -599,8 +629,9 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, CmuUnit, SpguUnit, SwitchUn
         if not self.circuit.has_state:
             return
         applied: dict[int, float] = {}
-        if self._on_levels() or self._on_currents():
-            applied, _, _ = self.dc_solution()
+        levels, currents = self._on_levels(), self._on_currents()
+        if levels or currents:
+            applied, _, _ = self.dc_solution(levels, currents)
         sides, _ = self._route_sides(applied)
         if applied or sides:
             self.circuit.commit({**applied, **sides})

@@ -1,5 +1,6 @@
 """Run archive (blueprint 2.7): run ids, folder layout, raw blocks, manifest written once with file digests, index
-lines, analysis numbering, append-only notes, discarding empty folders, software version without git."""
+lines, analysis numbering, append-only notes, discarding empty folders, software version without git (and read once
+per process for the manifests)."""
 
 from __future__ import annotations
 
@@ -14,7 +15,14 @@ import pandas as pd
 import pytest
 
 from b1500_test_agent.analysis import load_run
-from b1500_test_agent.archive import RunStore, analysis_payload, new_run_id, read_audit, software_version
+from b1500_test_agent.archive import (
+    RunStore,
+    analysis_payload,
+    new_run_id,
+    process_software_version,
+    read_audit,
+    software_version,
+)
 from b1500_test_agent.archive import store as store_module
 from b1500_test_agent.models.analysis import QualityReport
 from b1500_test_agent.models.audit import AuditEvent
@@ -77,6 +85,37 @@ def test_raw_blocks_keep_their_written_digest_and_changed_ones_are_hashed_again(
     with pytest.raises(FileExistsError):
         folder.raw_files.pop()  # the next block would be written over block-002
         folder.save_raw("again")
+
+
+def test_files_are_named_and_ordered_as_sorted_paths(tmp_path: Path) -> None:
+    """``files`` joins run-relative names during its walk and sorts them as ``sorted(Path)`` does (case-blind parts on
+    Windows), so the manifest lists the same files in the same order as when each path was a ``Path``."""
+    folder = RunStore(tmp_path / "runs").create("sim", now=STAMP)
+    for _ in range(12):
+        folder.save_raw("NAI+1.00000E-09\r\n")
+    for rel in ("B.txt", "a.txt", "a/b/c.txt", "a-b/x.json", "analysis/x-1.json", "plots/Z-1.png", "raw.txt",
+                "a/manifest.json"):
+        (folder.path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (folder.path / rel).write_bytes(rel.encode())
+    (folder.path / "manifest.json").write_bytes(b"{}")
+    expected = [p.relative_to(folder.path).as_posix() for p in sorted(folder.path.rglob("*"))
+                if p.is_file() and p.name != "manifest.json"]
+    files = folder.files()
+    assert list(files) == expected and len(expected) == 19
+    assert files["a/b/c.txt"] == hashlib.sha256(b"a/b/c.txt").hexdigest()
+
+
+def test_process_software_version_is_read_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run manifests take the version of the code the process runs: ``git describe`` runs once per process, not once
+    per run (a process start per run on Windows)."""
+    first = process_software_version()
+    assert first == software_version() and first.startswith("0.1.0")
+
+    def no_git(*args: object, **kwargs: object) -> None:
+        raise AssertionError("git started again")
+
+    monkeypatch.setattr(store_module.subprocess, "run", no_git)
+    assert process_software_version() == first
 
 
 def test_analysis_files_and_notes_are_added_after_finalize(tmp_path: Path) -> None:

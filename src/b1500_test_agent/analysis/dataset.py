@@ -599,6 +599,23 @@ class RunData:
     def __repr__(self) -> str:
         return f"RunData(run_id={self.run_id!r}, points={len(self.table)}, columns={list(self.table.columns)})"
 
+    def subset(self, rows: pd.DataFrame) -> RunData:
+        """This run restricted to ``rows``, a selection of rows of ``self.table`` in table order (index renumbered).
+        Not validated again: rows of a validated table keep its columns, types and increasing ``step``, so
+        ``validate_table`` would return the same table (per-read analyses of a long stress run validated every read
+        again).
+
+        Raises:
+            ValueError: If ``rows`` does not have exactly the columns of ``self.table``.
+        """
+        if list(rows.columns) != list(self.table.columns):
+            raise ValueError("a subset keeps the columns of the run table")
+        data = object.__new__(RunData)
+        object.__setattr__(data, "manifest", self.manifest)
+        object.__setattr__(data, "table", rows.reset_index(drop=True))
+        object.__setattr__(data, "path", self.path)
+        return data
+
     @property
     def run_id(self) -> str:
         return self.manifest.run_id

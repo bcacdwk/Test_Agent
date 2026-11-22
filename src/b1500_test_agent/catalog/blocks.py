@@ -434,11 +434,10 @@ def hold_bias(tx: Transaction, outputs: Sequence[BiasOutput], seconds: float, mo
     result = HoldResult()
     previous: float | None = None
     for index, h_bias in enumerate(hold_chunks(seconds, monitor.period)):
-        setup = monitor.setup(h_bias)
-        if previous is None:
-            driver.sampling_setup(setup)
+        if previous is None:  # the setup is built only when it is sent: once, and when the block length changes
+            driver.sampling_setup(monitor.setup(h_bias))
         elif h_bias != previous:
-            driver.sampling_update(setup, timing=True, sources=False)
+            driver.sampling_update(monitor.setup(h_bias), timing=True, sources=False)
         previous = h_bias
         drain_or_raise(tx, f"{label} block {index + 1}")
         block = driver.execute_and_read(expected_points=monitor.width, timeout_s=monitor.timeout_s(h_bias))

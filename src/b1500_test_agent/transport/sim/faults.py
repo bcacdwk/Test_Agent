@@ -159,8 +159,13 @@ class FaultEngine:
 
     def modules(self) -> list[SimSlot] | None:
         """The overriding module list (latest ``modules_override``), if any."""
+        override = self.modules_override()
+        return list(override.slots) if override is not None else None
+
+    def modules_override(self) -> ModulesOverride | None:
+        """The latest active ``modules_override`` fault (frozen), if any."""
         items = self._of(ModulesOverride)
-        return list(items[-1].fault.slots) if items else None  # type: ignore[union-attr]
+        return items[-1].fault if items else None  # type: ignore[return-value]
 
     def stuck(self, channel: int) -> bool:
         """True if ``channel`` ignores zeroing (``ignore_dz``)."""

@@ -200,9 +200,10 @@ def params_match_spec(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 def pin_map_complete(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     """The pin map exists, maps every non-optional role, uses existing channels once each with an allowed module
     type (``low_current`` needs an HRSMU), and the plan binding and envelope agree with it. MFCMU roles use an MFCMU
-    side target (``7H`` for ``cmu_high``, ``7L`` for ``cmu_low``) and only they may. A terminal wired through a switch
-    (``SEL1.OUT1``) needs a declared, not absent switch that can connect the role's resource to that output, a known
-    channel on that input, and a plan that applies the route (``envelope.routes``); kinds that route no switch
+    side target (``7H`` for ``cmu_high``, ``7L`` for ``cmu_low``) and only they may; a role with ``bind: cmu_side``
+    (correction recipes) uses the pin map's terminal on its MFCMU side, whatever its name. A terminal wired through a
+    switch (``SEL1.OUT1``) needs a declared, not absent switch that can connect the role's resource to that output, a
+    known channel on that input, and a plan that applies the route (``envelope.routes``); kinds that route no switch
     therefore cannot use such a terminal. Presence on hardware, Kelvin paths and rest states are R-ROUTE-01."""
     recipe, plan = ctx.recipe, ctx.plan
     name = plan.binding.pin_map
@@ -234,8 +235,23 @@ def _check_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, 
                 seen: dict[tuple[int, str], str]) -> Iterator[Finding]:
     assert ctx.pin_map is not None
     pin_map, station, recipe = ctx.pin_map, ctx.station, ctx.recipe
-    terminal_src = env.pin_map(pin_map.name, f"terminals.{role_name}")
-    target = pin_map.terminals.get(role_name)
+    terminal = role_name
+    if spec.bind == "cmu_side":  # the terminal on the role's MFCMU side, whatever its name (WP8.2)
+        side = CMU_SIDES[spec.function]
+        terminal = spec.pin_terminal(role_name, pin_map.terminals) or ""
+        if not terminal:
+            if not spec.optional:
+                yield block(f"role {role_name} ({spec.function}) binds to the pin map's MFCMU {side} side, but pin "
+                            f"map {pin_map.name} wires no terminal to an MFCMU {side} side", subject=role_name,
+                            source=env.pin_map(pin_map.name, "terminals"), observed=None,
+                            limit=f"a <ch>{side} target")
+            elif bound is not None:
+                yield block(f"optional role {role_name} is bound although the pin map has no MFCMU {side} side",
+                            subject=role_name, source=env.pin_map(pin_map.name, "terminals"), observed=None,
+                            limit=None)
+            return
+    terminal_src = env.pin_map(pin_map.name, f"terminals.{terminal}")
+    target = pin_map.terminals.get(terminal)
     if target is None:
         if spec.optional:
             if bound is not None:
@@ -251,10 +267,10 @@ def _check_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, 
                     subject=role_name, source=env.plan(f"binding.roles.{role_name}"), observed=None,
                     limit=str(target))
         return
-    if bound.terminal != role_name:
+    if bound.terminal != terminal:
         yield block(f"role {role_name} is bound to terminal {bound.terminal!r}", subject=role_name,
                     source=env.plan(f"binding.roles.{role_name}.terminal"), observed=bound.terminal,
-                    limit=role_name)
+                    limit=terminal)
     if target == "GNDU":
         if not bound.gndu:
             yield block(f"role {role_name}: the plan binding differs from the pin map (GNDU)", subject=role_name,

@@ -9,9 +9,10 @@ state (``LiveState.cmu_corrections``: ``CORRST?`` per function, phase compensati
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from b1500_test_agent.driver.modules import CMU_SPEC, SPEC_SYMBOL
+from b1500_test_agent.models.plan import RuleFinding
 from b1500_test_agent.models.station import CorrectionRecord
 from b1500_test_agent.rules.builtin.common import (
     CMU_SOURCE_FUNCTION,
@@ -25,6 +26,31 @@ from b1500_test_agent.rules.engine import Finding, RuleContext, RuleEnv, block, 
 
 CORRECTION_KINDS_EXEMPT = frozenset({"cmu_correction"})
 """Kinds that measure the corrections themselves and therefore need none."""
+
+CORRECTION_CARD = "cmu/cmu-correction"
+"""The card (skill ``b1500-test``) every R-CORR-01 block points at (blueprint v2 0 #11: block, next step = card)."""
+
+CORRECTION_RECIPES: dict[str, str] = {
+    "phase": "cmu.phase_compensation", "open": "cmu.correction_open", "short": "cmu.correction_short",
+    "load": "cmu.correction_load",
+}  # fmt: skip
+"""The recipe that renews each correction kind."""
+
+CORRECTION_NEXT_STEP = (f"load card {CORRECTION_CARD} (skill b1500-test): run the missing corrections with the same "
+                        "pin map, in the order phase compensation, open, short (load), each after the human's own "
+                        "physical set-up and confirmation, then validate the capacitance plan again")
+"""Next step of a result blocked by R-CORR-01 (``validate_plan`` and refused runs)."""
+
+
+def correction_next_steps(findings: Iterable[RuleFinding], *, renew: bool = False) -> list[str]:
+    """``[CORRECTION_NEXT_STEP]`` when ``findings`` hold an R-CORR-01 block or ``renew`` (a run discarded correction
+    records), else ``[]``."""
+    blocked = any(f.rule_id == "R-CORR-01" and f.severity == "block" for f in findings)
+    return [CORRECTION_NEXT_STEP] if blocked or renew else []
+
+
+def _next(kind: str) -> str:
+    return f"next: {CORRECTION_RECIPES.get(kind, 'the correction recipes')} (card {CORRECTION_CARD})"
 
 # -- R-CMU-01 --------------------------------------------------------------------------------------------------------
 
@@ -128,7 +154,8 @@ def cmu_correction(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     store); the age of the oldest record in use is recorded (info, shown in the summary as ``corr <age>``). Before
     execution (and at validation when a snapshot carries them) the live state must still hold them: ``CORRST?`` on
     for every required open/short/load correction, phase compensation in effect, the same ``*IDN?`` as the records
-    (a ``*RST`` or a power cycle loses corrections). Correction recipes themselves are exempt."""
+    (a ``*RST``, a device clear or a power cycle loses corrections). Correction recipes themselves are exempt. Every
+    block names the recipe that renews the correction and the card ``cmu/cmu-correction`` (the next step; WP8.2)."""
     if not _uses_cmu(ctx) or ctx.recipe.kind in CORRECTION_KINDS_EXEMPT:
         return
     aliases = _aliases(ctx)
@@ -161,30 +188,31 @@ def _records_in_use(ctx: RuleContext, env: RuleEnv,
     for kind in policy.require:
         matching = [r for r in records if r.kind == kind]
         if not matching:
-            found.append(block(f"MFCMU {alias}: no {kind} correction record (run the {kind} correction recipe first)",
-                               subject=f"{alias}.{kind}", source=env.policy("corrections.require"), observed=None,
-                               limit=kind))
+            found.append(block(f"MFCMU {alias}: no {kind} correction record; {_next(kind)}", subject=f"{alias}.{kind}",
+                               source=env.policy("corrections.require"), observed=None, limit=kind))
             continue
         usable = [r for r in matching if r.station_sha == station_sha and r.pin_map_sha == pin_map_sha]
         if not usable:
             found.append(block(f"MFCMU {alias}: the {kind} correction was measured with another station profile or "
-                               "pin map", subject=f"{alias}.{kind}", source=env.state(f"corrections/{alias}.json"),
-                               observed=matching[-1].run_id, limit="this station profile and pin map"))
+                               f"pin map; {_next(kind)} with this pin map", subject=f"{alias}.{kind}",
+                               source=env.state(f"corrections/{alias}.json"), observed=matching[-1].run_id,
+                               limit="this station profile and pin map"))
             continue
         fresh = [r for r in usable if r.age_h(plan.created_at) <= policy.max_age_h]
         if not fresh:
             age = max(usable, key=lambda r: r.ts).age_h(plan.created_at)
             found.append(block(f"MFCMU {alias}: the {kind} correction is {age:.1f} h old, older than "
-                               f"{policy.max_age_h:g} h", subject=f"{alias}.{kind}",
+                               f"{policy.max_age_h:g} h; {_next(kind)}", subject=f"{alias}.{kind}",
                                source=env.policy("corrections.max_age_h"), observed=round(age, 3),
                                limit=policy.max_age_h))
             continue
         missing = sorted({f for f in freqs if not any(r.covers([f]) for r in fresh)})
         if missing:
             corrected = sorted({f for r in fresh for f in r.freqs_hz})
-            found.append(block(f"MFCMU {alias}: the {kind} correction does not cover {missing[0]:g} Hz",
-                               subject=f"{alias}.{kind}", source=env.state(f"corrections/{alias}.json"),
-                               observed=missing[0], limit=", ".join(f"{f:g}" for f in corrected) or None))
+            found.append(block(f"MFCMU {alias}: the {kind} correction does not cover {missing[0]:g} Hz; "
+                               f"{_next(kind)} with freqs_hz including it", subject=f"{alias}.{kind}",
+                               source=env.state(f"corrections/{alias}.json"), observed=missing[0],
+                               limit=", ".join(f"{f:g}" for f in corrected) or None))
             continue
         usable_kinds += 1
         chosen.extend(_covering_records(fresh, freqs))
@@ -233,17 +261,17 @@ def _live_corrections(ctx: RuleContext, env: RuleEnv, aliases: list[str],
         for kind in required:
             if kind == "phase":
                 if state.phase is False:
-                    yield block(f"MFCMU {alias}: phase compensation data are no longer in effect (a *RST or power "
-                                "cycle clears them); run the phase compensation recipe", subject=f"{alias}.phase",
+                    yield block(f"MFCMU {alias}: phase compensation data are no longer in effect (a *RST, device "
+                                f"clear or power cycle clears them); {_next('phase')}", subject=f"{alias}.phase",
                                 source=f"{where}.phase", observed=False, limit=True)
             elif state.corr_state.get(kind) is not True:
                 reading = "off" if kind in state.corr_state else "unknown"
-                yield block(f"MFCMU {alias}: CORRST? reports the {kind} correction {reading} (a *RST or power cycle "
-                            f"clears it); run the {kind} correction recipe again", subject=f"{alias}.{kind}",
+                yield block(f"MFCMU {alias}: CORRST? reports the {kind} correction {reading} (a *RST, device clear "
+                            f"or power cycle clears it); {_next(kind)}", subject=f"{alias}.{kind}",
                             source=f"{where}.corr_state.{kind}", observed=state.corr_state.get(kind), limit=True)
         identity = live.identity
         for record in in_use.get(alias, []):
             if identity is not None and record.idn.strip() != identity.raw.strip():
                 yield block(f"MFCMU {alias}: the {record.kind} correction was measured on another mainframe "
-                            f"({record.idn})", subject=f"{alias}.{record.kind}", source=env.live("identity"),
-                            observed=identity.raw, limit=record.idn)
+                            f"({record.idn}); {_next(record.kind)}", subject=f"{alias}.{record.kind}",
+                            source=env.live("identity"), observed=identity.raw, limit=record.idn)

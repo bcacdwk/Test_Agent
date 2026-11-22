@@ -249,6 +249,20 @@ budget).
   the terminals. Initial setting after reset: off (PG Table 2-13, PDF 180). Deck slide 9: "may auto-calibrate every
   30 minutes". Rule R-CAL-01 records the state as a warning.
 
+## MFCMU phase compensation and correction
+
+- Phase compensation (`ADJ`/`ADJ?`, PG PDF 355) zeroes the cable phase; open/short/load data correction (`CORR?`,
+  PG PDF 382) removes the fixture's stray admittance and series impedance at every listed frequency. Order (PG PDF
+  251): phase compensation (terminals open at the device end, about 30 s), then open (open), short (shorted), load
+  (standard). Recipes `cmu.phase_compensation`, `cmu.correction_open|short|load`, card `cmu/cmu-correction`.
+- `CLCORR`, `CORRL` (frequency list) and `DCORR` (standard values) clear the data of every correction (PG PDF 379,
+  384, 389): the recipes read the list and standards back and rewrite them only when they differ. `*RST`, a device
+  clear or a power cycle switch every correction off (PG PDF 175, 388).
+- The server keeps a record per correction (`data/state/corrections/<alias>.json`: frequencies, time, `*IDN?`, pin
+  map and station hashes). Rule R-CORR-01 blocks a capacitance plan without fresh phase/open/short records for its
+  pin map and frequencies (`policy.corrections.max_age_h`, default 8 h) and, before the run, when `CORRST?`/`ADJ?`
+  show them lost. `station_status.corrections` shows the freshness per MFCMU.
+
 ## Manual extracts and page conventions
 
 Structured extracts (read-only, outside this skill; open them by path):

@@ -52,6 +52,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Zero check floor](02-b1500-instrument.md#zero-check-floor)
 - [Status byte errors and interlock](02-b1500-instrument.md#status-byte-errors-and-interlock)
 - [Self-test self-calibration and auto calibration](02-b1500-instrument.md#self-test-self-calibration-and-auto-calibration)
+- [MFCMU phase compensation and correction](02-b1500-instrument.md#mfcmu-phase-compensation-and-correction)
 - [Manual extracts and page conventions](02-b1500-instrument.md#manual-extracts-and-page-conventions)
 
 ### 03 probe station and wiring

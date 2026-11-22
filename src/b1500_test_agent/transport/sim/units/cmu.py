@@ -14,11 +14,12 @@
   ``ADJ?`` mode 1 needs the manual mode, error 680, takes 30 s and initializes the MFCMU), the frequency list
   (``CORRL``, ``CLCORR``), the standards' reference values (``DCORR``, error 682 for a wrong mode) and the data
   (``CORR?`` reads every listed frequency with the standard the human connected, error 684 at AC 0 V; ``CORRDT``
-  sets data directly). ``CORRL``, ``CLCORR`` and ``DCORR`` switch the functions off and clear the data (PG PDF 379,
-  382, 384, 389). ``*RST`` and a device clear switch every function off and the compensation mode back to auto; the
-  data, list, references and compensation results stay (PG PDF 382, 388; Table 2-13). The ``cmu_correction_lost``
-  fault clears all of it, as a power cycle of the module would. ATV-21 (corrections persist until ``*RST`` or a
-  power cycle and ``CORRST?`` reflects them): as the manual states; TODO(verify) at bring-up L6.
+  sets data directly); ``CORRL?`` and ``DCORR?`` read the list and the references back (WP8.2). ``CORRL``,
+  ``CLCORR`` and ``DCORR`` switch the functions off and clear the data (PG PDF 379, 382, 384, 389). ``*RST`` and a
+  device clear switch every function off and the compensation mode back to auto; the data, list, references and
+  compensation results stay (PG PDF 382, 388; Table 2-13). The ``cmu_correction_lost`` fault clears all of it, as a
+  power cycle of the module would. ATV-21 (corrections persist until ``*RST`` or a power cycle and ``CORRST?`` reflects
+  them): as the manual states; TODO(verify) at bring-up L6.
 
 ``MM``/``XE`` dispatch by measurement mode (the WP5.2 handoff: "a second family that brings its own MM modes takes
 over"): the MFCMU modes 17-26 are set up and triggered here, every other mode goes to ``SmuUnit``. MM 18 takes the
@@ -394,6 +395,34 @@ class CmuUnit(CmuEngine):
             raise flex.FlexError(flex.ERR_PARAMETER, f"CLCORR mode {mode}")
         self._corrections_off(channel, clear_data=True)
         self._cmu_persistent(channel).freqs = list(DEFAULT_FREQS) if mode == 2 else []
+
+    @handles("CORRL?")
+    def _cmd_corrl_q(self, cmd: flex.Command) -> str:
+        """``CORRL? chnum[,index]``: the number of listed correction frequencies, or the frequency at ``index`` (1 =
+        the first; error 120 outside the list) (PG PDF 385). Simulator convention (TODO(verify) at bring-up L6): the
+        list keeps the order it was written in and frequencies are answered as plain decimals."""
+        flex.arity(cmd, 1, 2)
+        channel = self._cmu_channel(cmd.args[0])
+        freqs = self._cmu_persistent(channel).freqs
+        if len(cmd.args) == 1:
+            return str(len(freqs))
+        index = flex.integer(cmd.args[1])
+        if not 1 <= index <= len(freqs):
+            raise flex.FlexError(flex.ERR_PARAMETER, f"CORRL? index {index} (list of {len(freqs)})")
+        return format(freqs[index - 1], ".7g")
+
+    @handles("DCORR?")
+    def _cmd_dcorr_q(self, cmd: flex.Command) -> str:
+        """``DCORR? chnum,corr``: ``mode,primary,secondary`` of the standard's reference value (PG PDF 389-390).
+        Simulator convention (TODO(verify) at bring-up L6): a standard never set by ``DCORR`` answers the ideal value
+        0, 0 in its mode (open 100, short and load 400)."""
+        flex.arity(cmd, 2, 2)
+        channel = self._cmu_channel(cmd.args[0])
+        corr = flex.integer(cmd.args[1])
+        if corr not in CORRECTION_MODES:
+            raise flex.FlexError(flex.ERR_PARAMETER, f"DCORR? corr {corr}")
+        mode, primary, secondary = self._cmu_persistent(channel).standards.get(corr, [DCORR_MODE[corr], 0.0, 0.0])
+        return f"{int(mode)},{format(primary, '.7g')},{format(secondary, '.7g')}"
 
     @handles("DCORR")
     def _cmd_dcorr(self, cmd: flex.Command) -> None:

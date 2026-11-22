@@ -37,7 +37,7 @@ def test_supported_commands_are_exactly_the_v1_subset() -> None:
     auto-calibration switch ``CM`` and its read-back ``*LRN?`` (types 0 and 31); v2 7.1 (WP6.1) the family state
     queries of the read-only probe; WP7.4 the SMU sampling setup and the timer reset; WP7.2 the current, synchronous
     and multi-channel sweep sources; WP7.1 the ASU commands; WP8.1 the MFCMU commands, ``CORR?`` and the SCUU's
-    ``SSP``/``SSL``; WP9.1 the HV-SPGU commands."""
+    ``SSP``/``SSL``; WP9.1 the HV-SPGU commands; WP8.2 the correction set-up queries ``CORRL?``, ``DCORR?``."""
     assert flex.CMU_COMMANDS == {
         "IMP", "FC", "ACV", "DCV", "RC", "ACT", "LMN", "WDCV", "WTDCV", "WMDCV", "WFC", "WTFC", "WMFC", "WACV",
         "WTACV", "WMACV", "PDCV", "PTDCV", "PWDCV", "MDCV", "MTDCV", "ADJ", "CORRL", "CLCORR", "DCORR", "CORRDT",
@@ -50,7 +50,7 @@ def test_supported_commands_are_exactly_the_v1_subset() -> None:
         "AAD", "AIT", "AV", "RI", "RV",
         "MM", "CMM", "DV", "WV", "WT", "WM", "XE",
         "CM", "*LRN?",
-        "ERMOD?", "ERSSP?", "SPST?", "CORRST?", "ADJ?", "CORR?",
+        "ERMOD?", "ERSSP?", "SPST?", "CORRST?", "ADJ?", "CORR?", "CORRL?", "DCORR?",
         "MCC", "ML", "MT", "MSC", "MV", "MI", "TSR",
         "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
         "SAP", "SAR", "SAL",

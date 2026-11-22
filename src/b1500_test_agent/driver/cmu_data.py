@@ -1,6 +1,6 @@
 """MFCMU measurement data and query answers: impedance pairs per ``IMP`` model, monitor values, CMU status codes,
 and the small MFCMU/SCUU answers ``CORR?``, ``*LRN? 81`` (SCUU path) and ``*LRN? 90`` (phase compensation mode)
-(blueprint v2 2.5, 2.10; WP8.1).
+(blueprint v2 2.5, 2.10; WP8.1), plus the correction set-up queries ``CORRL?`` and ``DCORR?`` (WP8.2).
 
 Formats from the Keysight B1500 Series Programming Guide, Edition 15 ("PG"; physical PDF pages):
 
@@ -269,6 +269,57 @@ def parse_corr_result(text: str) -> int:
     if value not in CORR_RESULTS:
         raise FlexParseError(f"correction data measurement result (CORR?) is not 0, 1 or 2: {text!r}", raw=text)
     return value
+
+
+def parse_corrl_count(text: str) -> int:
+    """``CORRL? chnum`` -> the number of frequencies in the correction frequency list (PG PDF 385).
+
+    Raises:
+        FlexParseError: If the answer is not a non-negative integer (a leading ``+`` is accepted).
+    """
+    match = _INT_RE.match(text.strip())
+    if match is None:
+        raise FlexParseError(f"correction frequency count (CORRL?) is not a non-negative integer: {text!r}", raw=text)
+    return int(match.group("value"))
+
+
+def _number(text: str, what: str) -> float:
+    try:
+        value = float(text.strip())
+    except ValueError:
+        value = math.nan
+    if not math.isfinite(value):
+        raise FlexParseError(f"{what} is not a finite number: {text!r}", raw=text)
+    return value
+
+
+def parse_corrl_frequency(text: str) -> float:
+    """``CORRL? chnum,index`` -> the frequency (Hz) at that position of the correction list (PG PDF 385).
+
+    Raises:
+        FlexParseError: If the answer is not a positive finite number.
+    """
+    value = _number(text, "correction list frequency (CORRL?)")
+    if value <= 0:
+        raise FlexParseError(f"correction list frequency (CORRL?) is not positive: {text!r}", raw=text)
+    return value
+
+
+def parse_dcorr(text: str) -> tuple[int, float, float]:
+    """``DCORR? chnum,corr`` -> ``(mode, primary, secondary)`` of the standard's reference value: mode 100 (open: Cp
+    in F, G in S) or 400 (short/load: Ls in H, Rs in Ohm) (PG PDF 389-390).
+
+    Raises:
+        FlexParseError: If the answer is not three comma-separated numbers with mode 100 or 400.
+    """
+    parts = text.strip().split(",")
+    if len(parts) != 3:
+        raise FlexParseError(f"standard reference value (DCORR?) is not mode,primary,secondary: {text!r}", raw=text)
+    mode = _number(parts[0], "standard reference mode (DCORR?)")
+    if mode not in (100.0, 400.0):
+        raise FlexParseError(f"standard reference mode (DCORR?) is not 100 or 400: {text!r}", raw=text)
+    return int(mode), _number(parts[1], "standard primary value (DCORR?)"), \
+        _number(parts[2], "standard secondary value (DCORR?)")
 
 
 def _canonical(channel: int) -> int:

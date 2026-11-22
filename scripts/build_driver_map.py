@@ -50,7 +50,8 @@ PRIORITY_SCALE = {
     "(CM and *LRN? by WP5.6, the read-only probe queries ERMOD?, ERSSP?, SPST?, CORRST?, ADJ? by WP6.1, the SMU "
     "sampling MM 10 with MCC, ML, MT, MSC, MV, MI and the time stamps TSC/TSR by WP7.4, the sweep sources DI, WI, "
     "WSV, WSI, WNX and MM 16 by WP7.2, MM 1 spot and the ASU commands SAP, SAR, SAL by WP7.1, the MFCMU commands, "
-    "MM 17-26 and the SCUU's SSP/SSL by WP8.1, the HV-SPGU PG/ALWG commands by WP9.1)",
+    "MM 17-26 and the SCUU's SSP/SSL by WP8.1, the correction set-up queries CORRL?/DCORR? by WP8.2, the HV-SPGU "
+    "PG/ALWG commands by WP9.1)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
     "simulator's FLEX subset v1 (AV, BC, NUB?, TSC)",
     "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
@@ -69,7 +70,8 @@ DRIVER_METHODS = (
     "set_impedance_model", "apply_cmu_signal", "set_cmu_range", "set_cmu_integration", "set_cmu_monitor", "spot_c",
     "cv_sweep", "cf_sweep", "ac_level_sweep", "pulsed_spot_c", "pulsed_cv_sweep", "ct_sampling",
     "set_phase_compensation_mode", "set_correction_frequencies", "measure_correction", "set_correction_standard",
-    "set_correction_data", "set_correction", "scuu_route", "set_scuu_indicator",
+    "set_correction_data", "set_correction", "scuu_route", "set_scuu_indicator", "correction_frequencies",
+    "correction_standard",
     "configure_spgu", "apply_pulse_setup", "start_pulses", "stop_pulses", "measure_pulse_load",
 )  # fmt: skip
 COMMAND_BUILDERS = (
@@ -78,7 +80,7 @@ COMMAND_BUILDERS = (
     "erssp_q", "corrst_q", "adj_q", "tsc", "tsr", "mcc", "ml", "mt", "msc", "mv", "mi", "sap", "sar", "sal",
     "imp", "fc", "acv", "dcv", "rc", "act", "lmn", "wdcv", "wtdcv", "wmdcv", "wfc", "wtfc", "wmfc", "wacv", "wtacv",
     "wmacv", "pdcv", "ptdcv", "pwdcv", "mdcv", "mtdcv", "adj", "corrl", "clcorr", "corr_q", "dcorr", "corrdt",
-    "corrst", "ssp", "ssl",
+    "corrst", "ssp", "ssl", "corrl_q", "dcorr_q",
     "sim", "spm", "spt", "spv", "spper", "sprm", "ser", "spupd", "odsw", "stgp", "corrser_q", "alw", "als",
     "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q", "ERMOD_Q", "SPST_Q",
     "SRP", "SPP",
@@ -213,6 +215,9 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "CLCORR": CommandTarget("set_correction_frequencies", "clcorr"),
     "CORR?": CommandTarget("measure_correction", "corr_q", "OutputGuard.check_ac at every listed frequency"),
     "DCORR": CommandTarget("set_correction_standard", "dcorr"),
+    "CORRL?": CommandTarget("correction_frequencies", "corrl_q", "read back by the correction recipes before any "
+                            "rewrite, which would clear the other corrections (WP8.2)"),
+    "DCORR?": CommandTarget("correction_standard", "dcorr_q", "standards read back by the correction recipes (WP8.2)"),
     "CORRDT": CommandTarget("set_correction_data", "corrdt"),
     "CORRST": CommandTarget("set_correction", "corrst"),
     "SSP": CommandTarget("scuu_route", "ssp", "OutputGuard.check_route per output; resets the SMUs (ATV-27); path "
@@ -305,6 +310,8 @@ GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "CORRL": ([384, 385], ["4-66 to 4-67"]),
     "CLCORR": ([379], ["4-61"]),
     "DCORR": ([389], ["4-71"]),
+    "CORRL?": ([385], ["4-67"]),
+    "DCORR?": ([389, 390], ["4-71 to 4-72"]),
     "CORRDT": ([383, 384], ["4-65 to 4-66"]),
     "SSP": ([519, 520, 521], ["4-201 to 4-203"]),
     "SSL": ([519], ["4-201"]),

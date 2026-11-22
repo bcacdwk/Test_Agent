@@ -84,10 +84,12 @@ def run_on_visa(world: VisaWorld, case: dict[str, Any], **bus_kwargs: Any) -> tu
 
 def test_the_suite_covers_every_v1_runnable_recipe() -> None:
     assert sorted(c["recipe_id"] for c in MEASUREMENT_CASES) == [
-        "basic.contact_resistor", "basic.diode_iv", "basic.iv_force_i", "fefet.dual_sweep_mw",
-        "generic.smu_multi_sweep", "generic.smu_spot", "generic.smu_staircase", "mosfet.body_effect",
-        "mosfet.gate_leakage", "mosfet.idvd", "mosfet.idvg", "mosfet.idvg_family", "mosfet.idvg_sync",
-        "resistor.kelvin_4w", "system.self_cal", "system.self_test", "system.zero_check"]  # v1 + WP7.2 + WP7.1
+        "basic.contact_resistor", "basic.diode_iv", "basic.iv_force_i",
+        "cmu.correction_load", "cmu.correction_open", "cmu.correction_short", "cmu.phase_compensation",  # WP8.2
+        "fefet.dual_sweep_mw", "generic.smu_multi_sweep", "generic.smu_spot", "generic.smu_staircase",
+        "mosfet.body_effect", "mosfet.gate_leakage", "mosfet.idvd", "mosfet.idvg", "mosfet.idvg_family",
+        "mosfet.idvg_sync", "resistor.kelvin_4w", "system.self_cal", "system.self_test",
+        "system.zero_check"]  # v1 + WP7.2 + WP7.1
     assert sorted(c["recipe_id"] for c in SYSTEM_CASES) == ["system.self_cal", "system.self_test"]
     assert len(DATA_CASES) == 15
 

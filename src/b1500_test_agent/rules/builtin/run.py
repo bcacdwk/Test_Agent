@@ -96,16 +96,21 @@ def run_mode(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 @rule("R-ALWAYS-01", {"plan"})
 def always_confirm(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     """Recipe ``always_confirm`` reasons (destructive, system self-test/self-calibration, physical setup); the
-    correction kinds always need ``physical_setup`` (the human sets the probe state), declared or not; an ad-hoc
+    correction kinds always need ``physical_setup`` (the human sets the probe state), declared or not, and its message
+    carries the kind's prompt (``program["setup"]``: lift the probes, land them on a short ...); an ad-hoc
     ``file`` parameter from ``work/waveforms/`` (``adhoc_recipe``: a human reviews a waveform no recipe ships)."""
     recipe = ctx.recipe
+    setup = ctx.plan.program.get("setup")
+    prompt = f": the human must first {setup}" if isinstance(setup, str) and setup else ""
     for reason in recipe.always_confirm:
-        yield confirm(reason, f"recipe {recipe.id} always needs confirmation ({reason})",
+        yield confirm(reason, f"recipe {recipe.id} always needs confirmation ({reason})"
+                      + (prompt if reason == "physical_setup" else ""),
                       source=env.recipe(recipe, "always_confirm"), observed=reason, limit=None)
     if recipe.kind in PHYSICAL_SETUP_KINDS and "physical_setup" not in recipe.always_confirm:
         yield confirm("physical_setup", f"kind {recipe.kind} changes the probe setup (correction standards); a human "
-                      "confirms it", source=env.code("b1500_test_agent.rules.builtin.run.PHYSICAL_SETUP_KINDS"),
-                      observed=recipe.kind, limit=None)
+                      f"confirms it{prompt}",
+                      source=env.code("b1500_test_agent.rules.builtin.run.PHYSICAL_SETUP_KINDS"), observed=recipe.kind,
+                      limit=None)
     for name, record in sorted(ctx.plan.files.items()):
         if record.origin == "work":
             yield confirm("adhoc_recipe", f"parameter {name} uses the ad-hoc file {record.path} (not in the "

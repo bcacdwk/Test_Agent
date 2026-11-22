@@ -17,6 +17,6 @@ provenance:
     - blueprint 6.4 (CV MOS-C)
   validation_runs: []
 preconditions:
-  - cmu.correction implemented, with current corrections covering the frequencies (rule R-CORR-01)
+  - correction recipes cmu.phase_compensation, cmu.correction_open/short (WP8.2) run, with current corrections covering the frequencies (rule R-CORR-01)
   - SCUU switching and leakage validation flows
   - C-V extraction reserved in knowledge 06 written and reviewed; sim and hardware validation

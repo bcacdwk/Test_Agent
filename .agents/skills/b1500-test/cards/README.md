@@ -30,7 +30,7 @@ MFCMU (SCUU when declared): corrections, C-V, C-f, C-t, Dit, split C-V.
 
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
-| cmu | reserved: MFCMU phase compensation and open/short/load correction | [reserved](reserved/README.md) | `cmu.correction` | not_implemented | - | - |
+| cmu | phase compensation, open correction, short correction, load correction, CMU correction, R-CORR-01, ADJ, CORR? | [cmu-correction](cmu/cmu-correction.md) | `cmu.phase_compensation`, `cmu.correction_open`, `cmu.correction_short`, `cmu.correction_load` | sim_validated | MFCMU | L6 |
 | cmu | reserved: MOS capacitor C-V sweep with the MFCMU | [reserved](reserved/README.md) | `moscap.cv` | not_implemented | - | - |
 | cmu | reserved: Quasi-static C-V with SMUs | [reserved](reserved/README.md) | `moscap.qscv` | not_implemented | - | - |
 | cmu | reserved: MOSFET gate-drain capacitance C-V (Cgd) with the MFCMU | [reserved](reserved/README.md) | `mosfet.cgd_cv` | not_implemented | - | - |

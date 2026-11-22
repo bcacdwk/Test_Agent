@@ -1,19 +1,21 @@
 """MFCMU operations (blueprint v2 2.5): signal, measurement setups of MM 17-26, phase compensation, data correction
 and the cleanup zeroing (WP8.1).
 
-``CmuOps`` is a mixin of ``B1500Driver``, grouped as A (queries: correction state, phase compensation mode and
-result), B (settings without an output change: ``IMP``, ``RC``, ``ACT``, ``LMN``, ``ADJ``, the correction list,
-standards and switches), C (guarded sources: every ``FC``/``ACV``/``DCV`` and sweep, pulse or sampling source goes
-through ``OutputGuard.check_ac`` with the channel's resulting frequency, AC level and DC bias before anything is
-written; the correction and phase compensation measurements apply the signal too) and D (measurement: ``MM`` +
-``XE`` + parse into ``CmuReading``s). Command texts come from ``driver/flex/cmu.py`` (and ``core.mm``).
+``CmuOps`` is a mixin of ``B1500Driver``, grouped as A (queries: correction state, frequency list and standards,
+phase compensation mode and result), B (settings without an output change: ``IMP``, ``RC``, ``ACT``, ``LMN``,
+``ADJ``, the correction list, standards and switches), C (guarded sources: every ``FC``/``ACV``/``DCV`` and sweep,
+pulse or sampling source goes through ``OutputGuard.check_ac`` with the channel's resulting frequency, AC level and
+DC bias before anything is written; the correction and phase compensation measurements apply the signal too) and D
+(measurement: ``MM`` + ``XE`` + parse into ``CmuReading``s). Command texts come from ``driver/flex/cmu.py`` (and
+``core.mm``).
 
 The driver remembers, per transaction, what it programmed on each MFCMU (``CmuTracking``): the signal (starting
 from the ``CN`` condition 1 kHz, 0 V rms, 0 V, PG PDF 382/442), the channels it set to a non-zero AC level or DC
 bias, the ``IMP`` mode and ``LMN`` setting (for the data layout) and the correction frequency list it wrote (a
-``CORR?`` applies the AC level at every listed frequency, so it is refused unless this driver wrote the list and the
-guard admits every frequency). ``zero_cmu`` (cleanup step 4, blueprint v2 2.6) sends ``DCV ch,0`` and ``ACV ch,0``
-to those channels whose ``LOP?`` code still shows the output switch on.
+``CORR?`` applies the AC level at every listed frequency, so it is refused unless this driver wrote the list, or read
+it back with ``correction_frequencies``, and the guard admits every frequency). ``zero_cmu`` (cleanup step 4,
+blueprint v2 2.6) sends ``DCV ch,0`` and ``ACV ch,0`` to those channels whose ``LOP?`` code still shows the output
+switch on.
 """
 
 from __future__ import annotations
@@ -31,6 +33,9 @@ from b1500_test_agent.driver.cmu_data import (
     parse_adj_mode,
     parse_cmu_blocks,
     parse_corr_result,
+    parse_corrl_count,
+    parse_corrl_frequency,
+    parse_dcorr,
 )
 from b1500_test_agent.driver.discovery import parse_adj, parse_corrst, parse_lop
 from b1500_test_agent.driver.errors import DriverStateError
@@ -290,6 +295,21 @@ class CmuOps(DriverBase):
         phase = mode == 2 or (mode == flex.ADJ_MANUAL and result == 0)
         return CmuCorrectionLive(corr_state=corr_state, phase=phase)
 
+    def correction_frequencies(self, ch: int) -> tuple[float, ...]:
+        """``CORRL? ch`` and ``CORRL? ch,index`` for every entry: the correction frequency list stored in the MFCMU,
+        sorted (PG PDF 385). Queries only. The list read back is remembered like one written by
+        ``set_correction_frequencies``, so ``measure_correction`` can check every listed frequency against the guard
+        without rewriting the list (which would clear the data of the other corrections, WP8.2)."""
+        count = parse_corrl_count(self._query(flex.corrl_q(ch)))
+        freqs = tuple(sorted({parse_corrl_frequency(self._query(flex.corrl_q(ch, i))) for i in range(1, count + 1)}))
+        self.cmu_tracking.corr_freqs[_canonical(ch)] = freqs
+        return freqs
+
+    def correction_standard(self, ch: int, corr: CorrectionFunction) -> tuple[int, float, float]:
+        """``DCORR? ch,corr`` -> ``(mode, primary, secondary)``: the reference value of the open (100: Cp, G), short or
+        load (400: Ls, Rs) standard (PG PDF 389-390). A query."""
+        return parse_dcorr(self._query(flex.dcorr_q(ch, corr)))
+
     # -- B: settings without an output change -------------------------------------------------------------------
 
     def set_impedance_model(self, mode: int) -> None:
@@ -482,18 +502,18 @@ class CmuOps(DriverBase):
         """``CORR? ch,corr``: measure the open, short or load correction data at every listed frequency with the
         present AC level (PG PDF 382-383) and return 0 completed, 1 failed, 2 aborted. The human has connected the
         standard (or opened/shorted the terminals at the device end) first. Refused unless this driver wrote the
-        frequency list (``set_correction_frequencies``) and the guard admits the AC level and DC bias at every
-        listed frequency.
+        frequency list (``set_correction_frequencies``) or read it back (``correction_frequencies``) and the guard
+        admits the AC level and DC bias at every listed frequency.
 
         Raises:
-            DriverStateError: If this driver did not write the frequency list.
+            DriverStateError: If this driver neither wrote nor read the frequency list.
             EnvelopeViolation: If a listed frequency is outside the channel's AC envelope.
         """
         freqs = self.cmu_tracking.corr_freqs.get(_canonical(ch))
         if not freqs:
             raise DriverStateError(f"correction data measurement on channel {ch} refused: write the correction "
-                                   "frequency list in this transaction first (set_correction_frequencies), so every "
-                                   "frequency can be checked")
+                                   "frequency list in this transaction first (set_correction_frequencies) or read it "
+                                   "back (correction_frequencies), so every frequency can be checked")
         present = self._signal(ch)
         self._check("measure_correction", ch, *(present.model_copy(update={"freq_hz": f}) for f in freqs))
         return parse_corr_result(self._query(flex.corr_q(ch, corr), timeout_s=timeout_s))

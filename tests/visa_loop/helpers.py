@@ -50,17 +50,29 @@ SPOT_CASES: list[dict[str, Any]] = [
 element per measured channel (16 to 64 bytes), so these cases read through 8-byte VISA chunks to keep the chunked
 path exercised."""
 
-MEASUREMENT_CASES: list[dict[str, Any]] = [*CASES, *SWEEP_CASES, *SPOT_CASES]
+CORRECTION_CASES: list[dict[str, Any]] = [
+    {"recipe_id": recipe_id, "scenario": "capacitor_100p", "source": "card cmu-correction",
+     "request": {"params": {}, "pin_map": "capacitor-cmu"}}
+    for recipe_id in ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short", "cmu.correction_load")
+]
+"""The WP8.2 MFCMU correction recipes (kind ``cmu_correction``) with the card example request; no run table (like
+``system.*``), so they are not in ``DATA_CASES``; ``cmu.correction_load`` needs the load standard in the station
+profile (``tests/visa_loop/test_cmu_correction_visa.py`` writes it)."""
+
+CORRECTION_RECIPES = frozenset(c["recipe_id"] for c in CORRECTION_CASES)
+
+MEASUREMENT_CASES: list[dict[str, Any]] = [*CASES, *SWEEP_CASES, *SPOT_CASES, *CORRECTION_CASES]
 """The nine v1 runnable recipes with their card example requests (or recipe defaults) and v1 scenarios: the seven
 measurement recipes (WP5.5) and ``system.self_test``/``system.self_cal`` (kind ``system`` on visa, WP6.2); plus the
-five WP7.2 sweep recipes (``tests/integration/sweep_cases.CASES``: WI, WSV, MM 16, the two stepped families) and the
-three WP7.1 spot recipes (``SPOT_CASES``)."""
+five WP7.2 sweep recipes (``tests/integration/sweep_cases.CASES``: WI, WSV, MM 16, the two stepped families), the
+three WP7.1 spot recipes (``SPOT_CASES``) and the four WP8.2 correction recipes (``CORRECTION_CASES``)."""
 
 SYSTEM_RECIPES = frozenset({"system.self_test", "system.self_cal"})
 """The recipes of kind ``system`` (no output, no run table; ``system.zero_check`` is a measurement)."""
 
-DATA_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES if c["recipe_id"] not in SYSTEM_RECIPES]
-"""The cases that write a run table (every recipe but the kind ``system`` ones)."""
+DATA_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES
+                                     if c["recipe_id"] not in SYSTEM_RECIPES | CORRECTION_RECIPES]
+"""The cases that write a run table (every recipe but the kind ``system`` and ``cmu_correction`` ones)."""
 
 SYSTEM_CASES: list[dict[str, Any]] = [c for c in MEASUREMENT_CASES if c["recipe_id"] in SYSTEM_RECIPES]
 

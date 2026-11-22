@@ -141,6 +141,11 @@ class StationStatus(ResultEnvelope):
     active_run: ActiveRunStatus | None = None
     """The run holding the instrument (this or another process); while it runs ``status`` is ``busy`` and the live
     fields come from the last snapshot (``live: cached``)."""
+    corrections: dict[str, str] = Field(default_factory=dict)
+    """MFCMU alias -> correction freshness from the correction store under ``policy.corrections`` (blueprint v2 2.9;
+    WP8.2), e.g. ``fresh: phase 0.2 h, open 0.1 h, short 0.1 h`` or ``not fresh: phase fresh 0.2 h; open stale 9.1 h;
+    short missing``. The store only knows what correction runs wrote and the last live check discarded; the live
+    ``CORRST?``/``ADJ?`` state is checked before every capacitance run (R-CORR-01)."""
 
 
 # -- list_recipes ----------------------------------------------------------------------------------------------------

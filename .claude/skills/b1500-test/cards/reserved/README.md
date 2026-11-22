@@ -21,7 +21,6 @@ When a request needs one of them:
 | `spgu.program_smu_read` | SPGU/HV-SPGU program pulse, then SMU read via the 16440A selector | none |
 | `fefet.pulse_write_read` | FeFET pulse write/read, endurance, retention (destructive) | [fefet-dual-sweep-mw](../nvm/fefet-dual-sweep-mw.md) |
 | `fecap.pund` | Ferroelectric capacitor PUND (Pr, Ec) | none (FeFET: [fefet-dual-sweep-mw](../nvm/fefet-dual-sweep-mw.md)) |
-| `cmu.correction` | MFCMU phase compensation and open/short/load correction | none |
 | `moscap.cv` | MOS capacitor C-V with the MFCMU | none |
 | `moscap.qscv` | Quasi-static C-V with SMUs | none |
 | `mosfet.cgd_cv` | MOSFET gate-drain capacitance C-V with the MFCMU | none |
@@ -48,14 +47,13 @@ change, a card from [the template](../_TEMPLATE.md), a passing `b1500 dev lint-s
   envelope reviewed against film thickness and coercive field (DUT profile); sim and hardware validation.
 - `fecap.pund`: WGFMU pulse sequences with fast current sampling; PUND charge-integration analysis (Pr, Ec)
   documented in knowledge 04; capacitor DUT profiles with field limits; sim model; sim and hardware validation.
-- `cmu.correction`: MFCMU correction commands extracted from the manual; SCUU path and correction records in the
-  station profile (rule R-CORR-01); a human-guided open/short/load procedure with fixtures and its validation.
-- `moscap.cv`: `cmu.correction` implemented with corrections covering the frequencies (R-CORR-01); SCUU switching
-  and leakage-validation flows; the reserved C-V extraction in knowledge 06 written and reviewed; sim and hardware
-  validation.
+- `moscap.cv`: the correction recipes (card [cmu-correction](../cmu/cmu-correction.md)) with corrections covering
+  the frequencies (R-CORR-01); SCUU switching and leakage-validation flows; the reserved C-V extraction in
+  knowledge 06 written and reviewed; sim and hardware validation.
 - `moscap.qscv`: QSCV commands extracted from the manual and a leakage-compensation flow; low-current pin maps on
   HRSMU (with ASU when available); sim and hardware validation.
 - `mosfet.cgd_cv`: a leakage check passed on the same landing; open/short correction current for 1 MHz
-  (`cmu.correction`, R-CORR-01); pin map verified, SCUU/Guard topology recorded; sim and hardware validation.
+  (card [cmu-correction](../cmu/cmu-correction.md), R-CORR-01); pin map verified, SCUU/Guard topology recorded; sim
+  and hardware validation.
 - `hspice.compare`: the knowledge 07 workflow reviewed; a netlist/model input format and a non-instrument kind (no
   transaction) with its own tests.

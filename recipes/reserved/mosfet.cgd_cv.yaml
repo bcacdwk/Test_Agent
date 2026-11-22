@@ -23,5 +23,5 @@ provenance:
   validation_runs: []
 preconditions:
   - leakage check passed on the same landing
-  - open/short correction current for 1 MHz (cmu.correction; rule R-CORR-01)
+  - open/short correction current for 1 MHz (cmu.correction_open/short; rule R-CORR-01)
   - pin map verified; SCUU/guard topology recorded; sim and hardware validation

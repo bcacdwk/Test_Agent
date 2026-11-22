@@ -33,8 +33,9 @@ def clone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_committed_recipes_are_clean(clone: Path) -> None:
     result = runner.invoke(app, ["dev", "recipe-check"])
     assert result.exit_code == 0, result.output
-    assert result.output.startswith("recipes: clean (34 loaded")  # 24 (WP7.4) + five WP7.2 sweeps + three WP7.1
+    assert result.output.startswith("recipes: clean (37 loaded")  # 24 (WP7.4) + five WP7.2 sweeps + three WP7.1
     # + WP7.6: bti_sms and hci leave recipes/reserved, igzo.bias_stress and reliability.silc are new
+    # + WP8.2: the four cmu.* correction recipes, the reserved cmu.correction retired
     assert "mosfet.idvg" in result.output and "sim:sim_validated" in result.output
 
 

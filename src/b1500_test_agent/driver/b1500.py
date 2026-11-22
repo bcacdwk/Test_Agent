@@ -20,6 +20,7 @@ here, so callers import the driver API from one module.
 from __future__ import annotations
 
 from b1500_test_agent.driver.ops.cmu import (
+    PHASE_COMPENSATION_TIMEOUT_S,
     AcLevelSweepSetup,
     CfSweepSetup,
     CmuBlock,
@@ -38,9 +39,9 @@ from b1500_test_agent.driver.ops.spgu import SpguOps
 from b1500_test_agent.driver.ops.switch import SwitchOps
 
 __all__ = [
-    "ADC_MODE_CODES", "ADC_TYPE_CODES", "AcLevelSweepSetup", "B1500Driver", "CfSweepSetup", "CmuBlock", "CmuSignal",
-    "CmuSweepTiming", "CtSamplingSetup", "CvSweepSetup", "PulsedCvSweepSetup", "PulsedSpotCSetup", "RawBlock",
-    "SamplingSetup", "SamplingSource", "StaircaseSetup", "SweepSource",
+    "ADC_MODE_CODES", "ADC_TYPE_CODES", "PHASE_COMPENSATION_TIMEOUT_S", "AcLevelSweepSetup", "B1500Driver",
+    "CfSweepSetup", "CmuBlock", "CmuSignal", "CmuSweepTiming", "CtSamplingSetup", "CvSweepSetup", "PulsedCvSweepSetup",
+    "PulsedSpotCSetup", "RawBlock", "SamplingSetup", "SamplingSource", "StaircaseSetup", "SweepSource",
 ]
 
 

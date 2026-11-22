@@ -2,7 +2,9 @@
 
 Each file is a JSON array of ``CorrectionRecord`` objects (``models/station.py``), oldest first, written only by the
 server: the executor appends a record after a successful correction run (phase compensation ``ADJ``, open/short/load
-data correction; the ``cmu_correction`` kind). Nobody edits these files by hand; a correction is renewed by running
+data correction; the ``cmu_correction`` kind) and discards the records of corrections the instrument no longer holds
+(``discard``; ``clear`` after a device clear, which initializes the instrument like ``*RST``; WP8.2,
+``catalog/corrections.py``). Nobody edits these files by hand; a correction is renewed by running
 the correction recipe again. Writes are atomic (temporary file + ``os.replace``), so readers in other processes
 never see a half-written file; writers are serialized by the instrument lock (only a run writes records). Each kind
 keeps its newest ``MAX_RECORDS_PER_KIND`` records.
@@ -117,6 +119,22 @@ class CorrectionStore:
         kept.sort(key=lambda r: r.ts)
         atomic_write_json(self.path(cmu_alias), [r.model_dump(mode="json") for r in kept])
         return kept
+
+    def discard(self, cmu_alias: str, kinds: Iterable[CorrectionKind]) -> int:
+        """Remove the records of ``kinds`` (the instrument no longer holds those corrections: ``CORRST?`` off, phase
+        compensation not in effect, or data cleared by a rewritten correction set-up; WP8.2) and return how many were
+        removed; the file is rewritten only when something was removed (deleted when nothing is left)."""
+        drop = set(kinds)
+        records = self.records(cmu_alias)
+        kept = [r for r in records if r.kind not in drop]
+        if len(kept) == len(records):
+            return 0
+        if kept:
+            atomic_write_json(self.path(cmu_alias), [r.model_dump(mode="json") for r in kept])
+        else:
+            with contextlib.suppress(FileNotFoundError):
+                self.path(cmu_alias).unlink()
+        return len(records) - len(kept)
 
     def clear(self, cmu_alias: str) -> int:
         """Remove every record of ``cmu_alias`` (e.g. after a ``*RST`` lost the corrections; also a corrupt file);

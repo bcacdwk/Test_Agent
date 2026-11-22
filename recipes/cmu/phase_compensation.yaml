@@ -1,0 +1,32 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MFCMU phase compensation (kind cmu_correction, card cmu-correction; blueprint v2 3.2, bring-up stage L6): ADJ ch,1
+# (manual mode) and ADJ? ch,1, about 30 s with the measurement terminals OPEN at the device end (probes lifted;
+# Programming Guide Ed. 15 PDF 251, 355-356). First of the corrections a capacitance measurement needs (R-CORR-01,
+# policy corrections.require: phase, open, short): it switches the open/short/load corrections off, because they were
+# measured with the previous phase data, so open and short follow it. The roles bind by cmu_side to the terminals the
+# C-V pin map lands on the MFCMU (run it with the C-V's own pin map, e.g. moscap-cmu or capacitor-cmu); no DUT profile
+# (no DUT terminal is touched). Always needs the human's confirmation of the physical set-up (physical_setup). The
+# executor writes the phase record to the correction store (data/state/corrections/<alias>.json) on success.
+# status: sim_validated by tests/integration/test_recipes_cmu_correction.py (capacitor_100p: corrected 100 pF within
+# 0.1 %); the visa path by tests/visa_loop/test_cmu_correction_visa.py; hw_validated only through a reviewed
+# validation record (stage L6).
+id: cmu.phase_compensation
+version: 1
+title: MFCMU phase compensation (ADJ?) with the measurement terminals open at the device end
+family: cmu
+kind: cmu_correction
+status: sim_validated
+card: .agents/skills/b1500-test/cards/cmu/cmu-correction.md
+device_types: [capacitor, moscap, fecap]   # capacitance DUTs they serve (list filter); no DUT profile needed
+roles:
+  high: {function: cmu_high, bind: cmu_side, module_types: [MFCMU]}
+  low: {function: cmu_low, bind: cmu_side, module_types: [MFCMU]}
+params:
+  correction: {type: enum, choices: [phase], default: phase, doc: Fixed correction of this recipe.}
+quality: {}
+always_confirm: [physical_setup]
+provenance:
+  sources:
+    - blueprint v2 0 (decision 11), 2.7 (kind cmu_correction), 3.2 (cmu.phase_compensation)
+    - Programming Guide Ed. 15 Data Correction (PDF 251), ADJ/ADJ? (PDF 355-356)
+  validation_runs: []

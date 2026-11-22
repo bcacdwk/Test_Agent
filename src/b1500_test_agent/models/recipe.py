@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Mapping
 from typing import Annotated, Any, Final, Literal
 
 from pydantic import Field, JsonValue, model_validator
@@ -22,7 +23,7 @@ from pydantic import Field, JsonValue, model_validator
 from b1500_test_agent.models.analysis import Identifier, Provenance, TrustPolicy, Unit
 from b1500_test_agent.models.common import ConfirmReason, Sha256Hex, StrictModel, ValidationStatus
 from b1500_test_agent.models.routing import SwitchInput
-from b1500_test_agent.models.station import SMU_TYPES, ModuleType
+from b1500_test_agent.models.station import SMU_TYPES, ModuleType, cmu_side
 
 RecipeId = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$")]
 """Dotted recipe id, e.g. ``mosfet.idvg``, ``generic.smu_staircase``, ``system.self_test``."""
@@ -59,6 +60,23 @@ FUNCTION_MODULE_TYPES: Final[dict[str, frozenset[str]]] = {
 
 CMU_SIDES: Final[dict[str, Literal["H", "L"]]] = {"cmu_high": "H", "cmu_low": "L"}
 """MFCMU side of each MFCMU role function (pin-map target ``<channel>H`` / ``<channel>L``)."""
+
+RoleBinding = Literal["terminal", "cmu_side"]
+"""How a recipe role finds its pin-map terminal: ``terminal`` = the terminal of the same name (every DUT role);
+``cmu_side`` = the terminal the pin map wires to the role's MFCMU side (``cmu_high`` -> ``<ch>H``, ``cmu_low`` ->
+``<ch>L``), whatever its name (WP8.2: the correction recipes measure the measurement path of the landing a C-V pin map
+describes, ``gate``/``bulk`` or ``a``/``b``, so they run with that same pin map, as rule R-CORR-01 requires)."""
+
+
+def side_terminals(function: str, terminals: Mapping[str, object]) -> list[str]:
+    """The pin-map terminals wired to the MFCMU side of role ``function`` (``cmu_high`` -> ``H``, ``cmu_low`` ->
+    ``L``), sorted by name; ``[]`` for any other function. A role bound by ``cmu_side`` uses the first one (several
+    terminals on one side are tied to the same MFCMU terminal pair, so the measured path is the same)."""
+    side = CMU_SIDES.get(function)
+    if side is None:
+        return []
+    return sorted(name for name, target in terminals.items() if (found := cmu_side(target)) is not None
+                  and found[1] == side)
 
 COMPLIANCE_FREE_FUNCTIONS: Final[frozenset[str]] = frozenset({"pgu", "wgfmu"})
 """Sources without a compliance (50 Ohm outputs): their envelope has no current limit; R-PULSE-*/R-SPGU-01/R-WG-*
@@ -155,7 +173,8 @@ class ParamSpec(StrictModel):
 
 
 class RoleSpec(StrictModel):
-    """One DUT role of a recipe (``gate``, ``drain`` ...); bound to the pin-map terminal of the same name.
+    """One DUT role of a recipe (``gate``, ``drain`` ...); bound to the pin-map terminal of the same name, or, with
+    ``bind: cmu_side`` (MFCMU roles only), to the terminal on the role's MFCMU side (``RoleBinding``).
 
     ``module_types`` must fit the function (SMU functions on SMUs, ``pgu`` on an HV-SPGU, ``wgfmu`` on a WGFMU,
     ``cmu_high``/``cmu_low`` on an MFCMU); R-PIN-01 refuses the GNDU for anything but a plain ``ground`` role.
@@ -172,11 +191,17 @@ class RoleSpec(StrictModel):
     """The role forces and senses on separate lines (4-wire). A 16440A selector's SMU path carries Force only (Sense
     open, PG p154 (2-66)), so a Kelvin role never reaches its terminal through a selector (R-ROUTE-01)."""
     settings: dict[str, str | float] = Field(default_factory=dict)
+    bind: RoleBinding = "terminal"
+    """``cmu_side``: the role drives no DUT terminal of its own name but the MFCMU measurement path the pin map lands
+    (correction recipes); R-DUT-01 then needs no DUT profile for it (the probes are lifted, shorted or on a
+    standard)."""
 
     @model_validator(mode="after")
     def _consistent(self) -> RoleSpec:
         if len(set(self.measure)) != len(self.measure):
             raise ValueError("measure lists a quantity twice.")
+        if self.bind == "cmu_side" and self.function not in CMU_SIDES:
+            raise ValueError(f"only MFCMU roles (cmu_high, cmu_low) can bind by cmu_side, not {self.function}.")
         if self.kelvin and self.function not in SMU_FUNCTIONS:
             raise ValueError(f"only SMU roles can be Kelvin roles, not {self.function}.")
         if self.prefer is not None and self.module_types and self.prefer not in self.module_types:
@@ -189,6 +214,14 @@ class RoleSpec(StrictModel):
             if isinstance(value, str) and value.startswith("$") and not PARAM_REF.match(value):
                 raise ValueError(f"settings.{key}: {value!r} is not a valid $parameter reference.")
         return self
+
+    def pin_terminal(self, name: str, terminals: Mapping[str, object]) -> str | None:
+        """The pin-map terminal role ``name`` binds to (``None`` when the pin map has none): the terminal of the same
+        name, or the first terminal on the role's MFCMU side for ``bind: cmu_side``."""
+        if self.bind == "cmu_side":
+            found = side_terminals(self.function, terminals)
+            return found[0] if found else None
+        return name if name in terminals else None
 
     @property
     def resource(self) -> SwitchInput:

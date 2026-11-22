@@ -39,15 +39,17 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "reliability/bti-stress-measure": ["reliability.bti_sms"],  # WP7.6 (WP10.7 adds wgfmu.fast_bti)
     "reliability/igzo-bias-stress": ["igzo.bias_stress"],  # WP7.6
     "reliability/hci-silc": ["reliability.hci", "reliability.silc"],  # WP7.6
+    "cmu/cmu-correction": ["cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short",
+                           "cmu.correction_load"],  # WP8.2
 }
 STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfet-idvg": "L4", "smu/mosfet-idvd": "L4",
             "smu/gate-leakage": "L4", "nvm/fefet-dual-sweep-mw": "L7", "system/self-test-cal": "L1",
             "smu/smu-sampling": "L5", "reliability/tddb-bdv": "L9", "smu/smu-spot-kelvin": "L2",
             "system/zero-check": "L1", "reliability/bti-stress-measure": "L9", "reliability/igzo-bias-stress": "L9",
-            "reliability/hci-silc": "L9"}
+            "reliability/hci-silc": "L9", "cmu/cmu-correction": "L6"}
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
-            "interlock-open", "cleanup-failed-fault"}
+            "interlock-open", "cleanup-failed-fault", "cmu-correction-stale"}  # WP8.2: the first v2 runbook
 RUN_ID = re.compile(r"\bS\d{8}T\d{6}Z-[0-9a-f]{4}\b")
 SCENARIOS = sorted(p.stem for p in (ROOT / "config" / "sim" / "scenarios").glob("*.yaml"))
 

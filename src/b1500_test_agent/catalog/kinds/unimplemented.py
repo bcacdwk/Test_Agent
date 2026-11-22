@@ -27,7 +27,6 @@ UNIMPLEMENTED_KINDS: dict[str, str] = {
     "wgfmu_fast_bti": "WGFMU fast BTI (on-the-fly); needs the WGFMU library and async runs",
     "wgfmu_pulse_sequence": "WGFMU pulse write + read sequences (FeFET endurance/retention, FeCap PUND)",
     "spgu_program_read": "SPGU/HVSPGU program pulse + SMU read through the 16440A selector",
-    "cmu_correction": "MFCMU phase compensation and open/short/load correction",
     "cmu_cv": "MFCMU C-V sweep; needs correction, SCUU and leakage validation",
     "hspice_compare": "compare a measured curve with an HSPICE simulation; no instrument action",
 }

@@ -36,8 +36,9 @@ Do not blame the DUT before steps 1-3 are cleared. One change at a time; note ea
 | `transport_error`, timeouts, no identity on the visa backend | [visa-no-connection](runbooks/visa-no-connection.md) |
 | Interlock OPEN or unknown, errors 202, 203, 310 | [interlock-open](runbooks/interlock-open.md) |
 | `fault`, `fault_latched`, `cleanup_unverified`, fault latch set | [cleanup-failed-fault](runbooks/cleanup-failed-fault.md) |
+| C-V blocked or refused by R-CORR-01, MFCMU corrections missing, stale or lost | [cmu-correction-stale](runbooks/cmu-correction-stale.md) |
 
-C-V shape problems: C-V (CMU) is reserved (`not_implemented`) in v1. No match: follow part 2 and record a case.
+No match: follow part 2 and record a case.
 
 ## 4. Safe software checks
 

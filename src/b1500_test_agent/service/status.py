@@ -1,5 +1,5 @@
 """``station_status`` of the service facade (blueprint 5.1, v2 2.9): configuration, limits, modules vs profile, live
-state, fault latch, lock holder and the run holding the instrument.
+state, fault latch, lock holder, the run holding the instrument and the MFCMU correction freshness (WP8.2).
 
 While a run holds the instrument (an asynchronous run of this process, or any run of another process seen through
 its in-flight marker and the held lock) ``station_status`` never waits for the lock: it answers ``busy: run <id>
@@ -15,8 +15,11 @@ on a serial poll (PG p76-77 (1-56), ATV-10), so on hardware a clear bit says not
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from b1500_test_agent.archive.corrections import CorrectionStore
+from b1500_test_agent.catalog.corrections import station_mfcmus
 from b1500_test_agent.catalog.running import ActiveRun
 from b1500_test_agent.config import ConfigBundle
 from b1500_test_agent.errors import B1500Error, InvalidConfigError
@@ -30,7 +33,8 @@ from b1500_test_agent.models.results import (
     ModuleCheck,
     StationStatus,
 )
-from b1500_test_agent.models.station import LiveState, StationProfile
+from b1500_test_agent.models.station import CorrectionCheck, CorrectionFreshness, LiveState, StationProfile
+from b1500_test_agent.rules.builtin.cmu import CORRECTION_CARD
 from b1500_test_agent.service.common import clip, status_for
 from b1500_test_agent.session import InstrumentBusy
 
@@ -109,6 +113,40 @@ def limits_status(bundle: ConfigBundle) -> LimitsStatus:
     )
 
 
+def freshness_text(freshness: CorrectionFreshness) -> str:
+    """One line per MFCMU for ``station_status.corrections`` (see ``StationStatus.corrections``)."""
+    def item(check: CorrectionCheck) -> str:
+        aged = f" {check.age_h:.1f} h" if check.age_h is not None else ""
+        return f"{check.kind}{aged}" if freshness.fresh else f"{check.kind} {check.state}{aged}"
+
+    if freshness.fresh:
+        return "fresh: " + ", ".join(item(c) for c in freshness.checks)
+    return "not fresh: " + "; ".join(item(c) for c in freshness.checks)
+
+
+def correction_status(bundle: ConfigBundle, live: LiveState | None,
+                      now: datetime | None = None) -> tuple[dict[str, str], list[str]]:
+    """``station_status.corrections`` for every MFCMU of the station profile and the notes for its message (file
+    reads only: the store under ``policy.corrections``, records of this station profile and, with a live identity,
+    this mainframe)."""
+    store = CorrectionStore(bundle.paths.state_dir)
+    idn = live.identity.raw.strip() if live is not None and live.identity is not None else None
+    found: dict[str, str] = {}
+    notes: list[str] = []
+    for alias in station_mfcmus(bundle.station):
+        try:
+            freshness = store.freshness(alias, bundle.policy.corrections, now=now or datetime.now(UTC), idn=idn,
+                                        station_sha=bundle.sha256("station"))
+        except B1500Error as exc:
+            found[alias] = f"unreadable: {exc}"[:200]
+            notes.append(f"MFCMU {alias} correction store unreadable")
+            continue
+        found[alias] = freshness_text(freshness)
+        if not freshness.fresh:
+            notes.append(f"MFCMU {alias} corrections not fresh (C-V blocked by R-CORR-01; card {CORRECTION_CARD})")
+    return found, notes
+
+
 def active_run_status(active: ActiveRun) -> ActiveRunStatus:
     """``station_status.active_run`` of a running run."""
     progress = active.progress
@@ -159,6 +197,8 @@ def station_status(svc: B1500Service, bundle: ConfigBundle, refresh: bool) -> St
                      else "STB bit 3: a >42 V request was refused with the interlock open")
     if live is not None and live.errors:
         notes.append(f"{len(live.errors)} instrument error(s) drained")
+    corrections, correction_notes = correction_status(bundle, live, svc.executor.now())
+    notes += correction_notes
     library = live.wgfmu_library if live is not None else None
     if library is not None and any(m.type == "WGFMU" for m in bundle.station.modules):  # visa (WP10.2)
         notes.append(f"WGFMU library {library.machine} {library.file_version or ''} loadable".replace("  ", " ")
@@ -200,5 +240,5 @@ def station_status(svc: B1500Service, bundle: ConfigBundle, refresh: bool) -> St
         config=config_status(bundle.report()), limits=limits_status(bundle),
         pin_maps={name: pm.certainty for name, pm in sorted(bundle.pin_maps.items())},
         dut_profiles={name: d.device_type for name, d in sorted(bundle.dut_profiles.items())},
-        active_run=active_run_status(active) if active is not None else None,
+        active_run=active_run_status(active) if active is not None else None, corrections=corrections,
     )

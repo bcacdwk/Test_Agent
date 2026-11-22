@@ -382,7 +382,8 @@ def test_family_modules_hold_disjoint_builders() -> None:
         _own_functions(flex_smu))
     assert {"corrst_q", "adj_q", "imp", "fc", "acv", "dcv", "rc", "act", "lmn", "wdcv", "wtdcv", "wmdcv", "wfc",
             "wtfc", "wmfc", "wacv", "wtacv", "wmacv", "pdcv", "ptdcv", "pwdcv", "mdcv", "mtdcv", "adj", "corrl",
-            "clcorr", "corr_q", "dcorr", "corrdt", "corrst"} == set(_own_functions(flex_cmu))  # WP8.1
+            "clcorr", "corr_q", "dcorr", "corrdt", "corrst", "corrl_q", "dcorr_q"} == set(
+        _own_functions(flex_cmu))  # WP8.1; the set-up queries CORRL?, DCORR? WP8.2
     assert {"sim", "spm", "spt", "spv", "spper", "sprm", "ser", "spupd", "odsw", "stgp", "corrser_q", "alw",
             "als"} == set(_own_functions(flex_spgu))  # WP9.1
     assert {"SPST_Q", "SRP", "SPP"} <= set(_own_constants(flex_spgu))

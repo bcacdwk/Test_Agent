@@ -1,0 +1,48 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MFCMU short correction (kind cmu_correction, card cmu-correction; blueprint v2 3.2, bring-up stage L6): CORR?
+# ch,short at every frequency of freqs_hz with the AC level ac_vrms (DC 0 V), terminals SHORTED at the device end
+# (probes on a shorting bar or one metal pad) (Programming Guide Ed. 15 PDF 251, 382-389), then CORRST ch,2,1.
+# Order: after the phase compensation and the open correction. Standard: ideal short (DCORR ch,2,400,0,0). The
+# frequency list and the standards are read back (CORRL?, DCORR?) and written only when they differ:
+# CLCORR/CORRL/DCORR clear the data of every correction. Use the same AC level as the measurement and list every
+# frequency it will use (R-CORR-01 checks the coverage); the default list is the instrument's 23 default frequencies
+# (CLCORR ch,2). The roles bind by cmu_side to the terminals the C-V pin map lands on the MFCMU (run it with the C-V's
+# own pin map); no DUT profile. Always needs the human's confirmation of the physical set-up (physical_setup). The
+# executor writes the record to the correction store on success.
+# status: sim_validated by tests/integration/test_recipes_cmu_correction.py (capacitor_100p: corrected 100 pF within
+# 0.1 %); the visa path by tests/visa_loop/test_cmu_correction_visa.py; hw_validated only through a reviewed
+# validation record (stage L6).
+id: cmu.correction_short
+version: 1
+title: MFCMU short correction (CORR? short) with the measurement terminals shorted at the device end
+family: cmu
+kind: cmu_correction
+status: sim_validated
+card: .agents/skills/b1500-test/cards/cmu/cmu-correction.md
+device_types: [capacitor, moscap, fecap]   # capacitance DUTs they serve (list filter); no DUT profile needed
+roles:
+  high: {function: cmu_high, bind: cmu_side, module_types: [MFCMU]}
+  low: {function: cmu_low, bind: cmu_side, module_types: [MFCMU]}
+params:
+  correction: {type: enum, choices: [short], default: short, doc: Fixed correction of this recipe.}
+  freqs_hz:
+    type: float_list
+    unit: Hz
+    default: [1.0e+3, 2.0e+3, 5.0e+3, 1.0e+4, 2.0e+4, 5.0e+4, 1.0e+5, 2.0e+5, 5.0e+5, 1.0e+6, 1.2e+6, 1.5e+6,
+              2.0e+6, 2.5e+6, 2.7e+6, 3.0e+6, 3.2e+6, 3.5e+6, 3.7e+6, 4.0e+6, 4.2e+6, 4.5e+6, 5.0e+6]
+    range: [1.0e+3, 5.0e+6]
+    doc: Correction frequencies (every frequency the measurement uses; default = the 23 CLCORR defaults); at most 64.
+  ac_vrms:
+    unit: V
+    default: 0.03
+    recommended: [0.01, 0.05]
+    range: [0.01, 0.25]
+    doc: Oscillator level of the correction measurement (use the measurement's level; above 50 mVrms needs soft_cmu).
+quality: {}
+always_confirm: [physical_setup]
+provenance:
+  sources:
+    - blueprint v2 0 (decision 11), 2.7 (kind cmu_correction), 3.2 (cmu.correction_short)
+    - Programming Guide Ed. 15 Data Correction (PDF 251), CLCORR (PDF 379), CORR? (PDF 382-383)
+    - Programming Guide Ed. 15 CORRL/CORRL? (PDF 384-385), CORRST (PDF 387-388), DCORR/DCORR? (PDF 389-390)
+  validation_runs: []

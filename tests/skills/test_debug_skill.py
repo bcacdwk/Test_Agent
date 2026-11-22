@@ -23,8 +23,9 @@ POSITIVE = ROOT / "tests" / "fixtures" / "skills" / "positive"
 FIXTURE_CARD = ".agents/skills/b1500-test/cards/smu/mosfet-idvg.md"
 
 RUNBOOKS = ("current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
-            "interlock-open", "cleanup-failed-fault")
-"""Blueprint 6.5; test cards name these ids in ``debug:`` (``runbooks/<id>.md`` stem)."""
+            "interlock-open", "cleanup-failed-fault", "cmu-correction-stale")
+"""Blueprint 6.5 (v1 eight) + v2 6.1 (``cmu-correction-stale``, WP8.2); test cards name these ids in ``debug:``
+(``runbooks/<id>.md`` stem)."""
 
 RUNBOOK_SECTIONS = ("Symptom", "Likely causes", "First safe checks", "Physical checks to ask the human", "Do not",
                     "Stop and call safe_shutdown")

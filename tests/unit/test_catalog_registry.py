@@ -15,9 +15,11 @@ from b1500_test_agent.catalog.registry import RecipeRegistry, UnknownRecipeError
 from tests.unit.helpers import REPO_ROOT
 
 RECIPES = REPO_ROOT / "recipes"
+CORRECTION_RECIPES = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short", "cmu.correction_load")
 RESERVED_SLOTS = {"wgfmu.pulsed_iv", "wgfmu.fast_bti", "spgu.program_smu_read", "fefet.pulse_write_read",
-                  "fecap.pund", "cmu.correction", "moscap.cv", "moscap.qscv", "hspice.compare", "mosfet.cgd_cv"}
-"""Reserved ids still waiting for their kinds (WP7.6 implemented reliability.bti_sms and reliability.hci)."""
+                  "fecap.pund", "moscap.cv", "moscap.qscv", "hspice.compare", "mosfet.cgd_cv"}
+"""Reserved ids still waiting for their kinds (WP7.6 implemented reliability.bti_sms and reliability.hci; WP8.2 retired
+cmu.correction for the four cmu.* correction recipes)."""
 
 
 def minimal(recipe_id: str = "basic.thing", **changes: Any) -> dict[str, Any]:
@@ -75,6 +77,11 @@ def test_committed_statuses() -> None:
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
         assert registry.get(recipe_id).kind == "smu_spot"
     assert registry.get("mosfet.idvd").kind == "smu_stepped"
+    # WP8.2: kind cmu_correction (tests/integration/test_recipes_cmu_correction.py); always physical_setup
+    for recipe_id in CORRECTION_RECIPES:
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+        assert registry.get(recipe_id).kind == "cmu_correction"
+        assert registry.get(recipe_id).always_confirm == ["physical_setup"]
     # WP7.6: kind stress_measure (tests/integration/test_recipes_stress.py); destructive, always confirmed
     for recipe_id in ("reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "reliability.silc"):
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
@@ -93,7 +100,8 @@ def test_committed_statuses() -> None:
              "resistor.kelvin_4w": "smu/smu-spot-kelvin",  # WP7.1
              "reliability.bti_sms": "reliability/bti-stress-measure",
              "igzo.bias_stress": "reliability/igzo-bias-stress",
-             "reliability.hci": "reliability/hci-silc", "reliability.silc": "reliability/hci-silc"}  # WP7.6
+             "reliability.hci": "reliability/hci-silc", "reliability.silc": "reliability/hci-silc",  # WP7.6
+             **{r: "cmu/cmu-correction" for r in CORRECTION_RECIPES}}  # WP8.2
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):
@@ -112,6 +120,7 @@ def test_kinds() -> None:
     assert kinds["system"].implemented_on == {"sim", "visa"}  # WP6.2: self-test/cal on hardware
     assert kinds["smu_sampling"].implemented_on == {"sim", "visa"} and "smu_sampling" not in UNIMPLEMENTED_KINDS
     assert kinds["smu_spot"].implemented_on == {"sim", "visa"} and "smu_spot" not in UNIMPLEMENTED_KINDS  # WP7.1
+    assert kinds["cmu_correction"].implemented_on == {"sim", "visa"} and "cmu_correction" not in UNIMPLEMENTED_KINDS
     assert kinds["stress_measure"].implemented_on == {"sim", "visa"}  # WP7.6
     assert "stress_measure" not in UNIMPLEMENTED_KINDS and "smu_stress_measure" not in kinds
     for kind_id in ("smu_pulsed", "wgfmu_pulsed_iv", "spgu_program_read", "cmu_cv"):

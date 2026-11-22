@@ -212,8 +212,9 @@ def test_applicable_methods_list_the_family_of_every_runnable_recipe() -> None:
     checked = 0
     for recipe_id in registry.ids():
         recipe = registry.get(recipe_id)
-        if recipe.kind == "system" or registry.effective_status(recipe_id, "sim") == "not_implemented":
-            continue
+        if recipe.kind in ("system", "cmu_correction") or registry.effective_status(recipe_id, "sim") == \
+                "not_implemented":
+            continue  # kinds without a run table (no data to analyse)
         for method in ANALYSIS_METHODS.values():
             if method.applies_to(recipe_id, recipe.kind):
                 assert recipe.family in method.families, (method.name, recipe_id, recipe.family)

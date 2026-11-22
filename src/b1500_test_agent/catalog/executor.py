@@ -16,7 +16,9 @@ blueprint 2.6 docstring:
    (``blocked`` → refuse; no source command is ever sent);
 5. ``kind.acquire`` through the guarded driver; every raw read lands in ``raw/block-NNN.txt`` before parsing;
 6. after the transaction's cleanup: table (``data.csv`` or ``data.npz``), ``quality.json``, the recipe's default
-   analyses (``analysis/<method>-<n>.json``), then the manifest (written once) and the index line.
+   analyses (``analysis/<method>-<n>.json``), the MFCMU correction store (``catalog/corrections.py``: a record after a
+   successful correction run, records the instrument lost discarded, all cleared after a device clear), then the
+   manifest (written once) and the index line.
 
 ``run`` never raises to adapters (except a ``KeyboardInterrupt``/``SystemExit``, re-raised after the run folder is
 finalized as ``aborted``); every outcome is a ``RunSummary``. The run folder is created right before the
@@ -33,7 +35,8 @@ process, the MCP server's shutdown hook, the CLI's Ctrl-C): outcome ``cancelled`
 rows acquired so far in ``partial.csv``. Every run, synchronous too, polls the abort file at its checkpoints. One
 run at a time per process (a second request is ``busy`` at once) and per instrument (the lock). A run whose process
 died is finalized as ``aborted`` by the transaction that recovers its in-flight marker (``Session.on_recovery``).
-The auto-calibration state is read (``*LRN? 31``) before the pre-execute rules of every run (R-CAL-01, R-CAL-02).
+The auto-calibration state is read (``*LRN? 31``) before the pre-execute rules of every run (R-CAL-01, R-CAL-02),
+and for a plan that uses an MFCMU its correction state (``CORRST?``, ``ADJ?``; R-CORR-01, WP8.2).
 """
 
 from __future__ import annotations
@@ -53,7 +56,7 @@ from b1500_test_agent.analysis.plots import PlotSet
 from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.registry import run_method
 from b1500_test_agent.archive.audit import RUN_AUDIT_FILE
-from b1500_test_agent.archive.corrections import records_for
+from b1500_test_agent.archive.corrections import CorrectionStore, records_for
 from b1500_test_agent.archive.runfiles import PARTIAL_FILE, PROGRESS_FILE
 from b1500_test_agent.archive.store import (
     QUALITY_FILE,
@@ -62,6 +65,7 @@ from b1500_test_agent.archive.store import (
     analysis_payload,
     process_software_version,
 )
+from b1500_test_agent.catalog.corrections import read_live_corrections, record_run
 from b1500_test_agent.catalog.files import FileRoots, changed_param_files
 from b1500_test_agent.catalog.kinds import MeasurementKind
 from b1500_test_agent.catalog.planner import (
@@ -94,6 +98,7 @@ from b1500_test_agent.models.run import (
 )
 from b1500_test_agent.models.station import LiveState
 from b1500_test_agent.rules import CalibrationState, RulesEngine, with_rules
+from b1500_test_agent.rules.builtin.cmu import correction_next_steps
 from b1500_test_agent.session import (
     AbortWatch,
     CleanupUnverified,
@@ -154,6 +159,7 @@ class _RunState:
     raw: RawAcquisition | None = None
     error: BaseException | None = None
     refused: bool = False
+    correction_notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -248,6 +254,10 @@ class Executor(RunningRuns):
                 return  # the worker still owns the session; it releases the bus at the end of its transaction
         if self._session is not None:
             self._session.close()
+
+    def now(self) -> datetime:
+        """The executor's clock (plans, run ids, correction records)."""
+        return self._clock()
 
     def _planner(self, bundle: ConfigBundle, registry: RecipeRegistry | None = None) -> Planner:
         """A planner over the registry (``registry``, else the current one) with the server-written MFCMU correction
@@ -354,7 +364,7 @@ class Executor(RunningRuns):
             raise _Refusal("blocked", "blocked_by_rules", "refused",
                            f"plan {plan_id} is blocked: {_flags(report.findings, 'block')}",
                            [("explain the blocking rules and offer an in-envelope alternative; only a human edits "
-                            "config/local/")], summary=fresh.summary)
+                            "config/local/"), *correction_next_steps(report.findings)], summary=fresh.summary)
         if confirmed_summary is None:
             if report.tier == "needs_confirmation":
                 raise _Refusal("needs_confirmation", "confirmation_required", "confirmation_required",
@@ -512,6 +522,11 @@ class Executor(RunningRuns):
                     "confirm_reasons": ", ".join(checked.report.confirm_reasons),
                     "confirmed": run.confirmed_summary is not None, "mode": plan.mode})
                 state.live = tx.snapshot(wgfmu=_uses_wgfmu(plan))
+                state.live, changes = read_live_corrections(tx.driver, plan, state.live,
+                                                            CorrectionStore(bundle.paths.state_dir))
+                if changes.changed:
+                    self._emit(folder, tx, "checkpoint", {"label": "corrections_before_run", **changes.audit()})
+                    state.correction_notes += changes.notes
                 auto = self._read_auto_calibration(folder, tx)
                 calibration = calibration.model_copy(update={"auto_calibration": auto})
                 ctx = planner.context(plan, bundle, live=state.live, fault=session.fault_latch.get(),
@@ -638,13 +653,23 @@ class Executor(RunningRuns):
             except Exception as exc:  # noqa: BLE001 - the raw data stay archived; the run is failed
                 outcome, error_code = "failed", _error_code(exc)
                 message = f"processing the acquired data failed: {type(exc).__name__}: {exc}"
+        corrections = record_run(CorrectionStore(bundle.paths.state_dir), plan=plan, raw=state.raw, live=state.live,
+                                 cleanup=cleanup, completed=outcome == "completed", run_id=folder.run_id,
+                                 now=self._clock(), station=bundle.station)
+        if corrections.changed:
+            folder.audit.emit(AuditEvent.now("checkpoint", backend, run=folder.run_id,
+                                             data={"label": "corrections_after_run", **corrections.audit()}))
+        correction_notes = state.correction_notes + corrections.notes
         if outcome == "completed":
+            flags.extend(correction_notes)
             if cleanup is not None and cleanup.errors:
                 flags.append("instrument errors drained at cleanup: "
                              + ", ".join(f"{e.code} {e.message}".strip() for e in cleanup.errors))
             if flags:
                 outcome = "completed_with_flags"
                 message = "; ".join(flags)
+        elif correction_notes:
+            message = "; ".join([message, *correction_notes]) if message else "; ".join(correction_notes)
         if state.raw is not None:
             manifest = manifest.model_copy(update={"kind_result": dict(state.raw.kind_result)})
         counts = dict(quality.counts) if quality is not None else {}
@@ -680,14 +705,20 @@ class Executor(RunningRuns):
             artifacts["partial"] = f"{run_dir}/{PARTIAL_FILE}"
         if (folder.path / PROGRESS_FILE).is_file():
             artifacts["progress"] = f"{run_dir}/{PROGRESS_FILE}"
+        if corrections.path is not None:
+            artifacts["corrections"] = bundle.paths.display(corrections.path)
         ok = outcome in ("completed", "completed_with_flags")
         latched = cleanup is not None and cleanup.latched_fault
+        blocking = state.pre_report.findings if state.refused and state.pre_report is not None else []
+        next_steps = list(dict.fromkeys(self._next_steps(outcome, latched, quality, error_code)
+                                        + correction_next_steps(blocking, renew=bool(correction_notes))))
         status: ResultStatus = "ok" if ok else (
             "fault" if latched or error_code == "fault_latched" else
             "busy" if error_code == "instrument_busy" else ("blocked" if state.refused else "error"))
         return RunSummary(
             ok=ok, status=status, backend=backend, simulated=backend == "sim", message=final.message,
-            error_code=None if ok else error_code, next_steps=self._next_steps(outcome, latched, quality, error_code),
+            error_code=None if ok else error_code,
+            next_steps=next_steps,
             run_id=folder.run_id, plan_id=plan.plan_id, outcome=outcome, status_counts=counts,
             quality_verdict=quality.verdict if quality else None, analyses=analyses,
             cleanup_verified=cleanup.verified if cleanup else None, artifacts=artifacts,

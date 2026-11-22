@@ -170,11 +170,15 @@ def soft_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 @rule("R-DUT-01", {"plan"})
 def dut_envelope(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     """A recipe with DUT roles needs an existing DUT profile that describes every driven terminal; levels outside
-    the profile's envelope need confirmation (``dut_envelope``)."""
+    the profile's envelope need confirmation (``dut_envelope``). A recipe whose roles all bind by ``cmu_side`` (the
+    MFCMU correction recipes: open terminals, a short or a standard, never the DUT) needs none; a DUT profile given
+    anyway is checked as usual."""
     recipe = ctx.recipe
     if not recipe.roles:
         return
     name = ctx.plan.request.dut_profile
+    if name is None and all(r.bind == "cmu_side" for r in recipe.roles.values()):
+        return  # only MFCMU-path roles (correction recipes): the probes are lifted, shorted or on a standard
     if name is None:
         yield block(f"recipe {recipe.id} drives DUT terminals but no DUT profile was given; ask the human "
                     "(never invent a DUT profile)", source=env.plan("request.dut_profile"), observed=None,

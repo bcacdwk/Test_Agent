@@ -23,7 +23,7 @@ CORE = {"*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "*RST", "LOP?", "*TST?", "*C
         "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "CM", "*LRN?"}
 SMU = {"RI", "RV", "CMM", "DV", "WV", "WT", "WM", "DI", "WI", "WSV", "WSI", "WNX", "WNCC"}
 SAMPLING = {"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"}
-CMU = {"CORRST?", "ADJ?", "CORR?", "MM", "XE"} | set(flex.CMU_COMMANDS)  # MM/XE dispatch by mode (WP8.1)
+CMU = {"CORRST?", "ADJ?", "CORR?", "CORRL?", "DCORR?", "MM", "XE"} | set(flex.CMU_COMMANDS)  # MM/XE by mode (WP8.1)
 SPGU = {"SPST?", "SIM", "SPM", "SPT", "SPV", "SPPER", "SPRM", "SER", "SPUPD", "SRP", "SPP", "ODSW", "STGP",
         "CORRSER?", "ALW", "ALS"}  # WP9.1
 SWITCH = {"ERMOD?", "ERSSP?", "SAP", "SAR", "SAL", "SSP", "SSL"}

@@ -41,6 +41,7 @@ from b1500_test_agent.models.results import (
 )
 from b1500_test_agent.models.run import Adapter, ClientInfo, RunSummary
 from b1500_test_agent.paths import Paths
+from b1500_test_agent.rules.builtin.cmu import correction_next_steps
 from b1500_test_agent.service import runs, shutdown, status
 from b1500_test_agent.service.common import (
     CONFIG_STEPS,
@@ -401,7 +402,7 @@ class B1500Service:
             else:
                 result_status, code = "blocked", "blocked_by_rules"
                 next_steps = [("explain the blocking findings and offer an in-envelope alternative; only a human "
-                              "edits config/local/")]
+                              "edits config/local/"), *correction_next_steps(plan.rules.findings)]
             message = f"plan {plan.plan_id} is blocked: {blocks}"
         elif plan.tier == "needs_confirmation":
             ok, result_status = True, "needs_confirmation"

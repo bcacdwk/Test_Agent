@@ -6,7 +6,8 @@ Steps of ``Planner.plan`` (no instrument I/O):
    the declared type (``101.0`` → ``101``); units come from the ``ParamSpec``. A value of the wrong type is kept as
    given (unit dropped) so that rule R-PARAM-01 reports it. ``file`` parameters are read and hashed
    (``catalog/files.py``) into ``PlanRecord.files``; an unusable file skips compilation like a wrong type.
-2. **Bind** each recipe role to the pin-map terminal of the same name: a channel (with the station profile's slot,
+2. **Bind** each recipe role to the pin-map terminal of the same name (an MFCMU role with ``bind: cmu_side``: the
+   terminal on its MFCMU side, whatever its name): a channel (with the station profile's slot,
    module type, model and alias), an MFCMU side (``7H``/``7L``), a switch output (``SEL1.OUT1``: the route for the
    role's resource and the channel wired to that input, ``None`` when unknown) or the GNDU; unmapped roles stay
    unbound (R-PIN-01 decides).
@@ -231,14 +232,16 @@ def _bound(name: str, channel: int | None, station: StationProfile, **extra: obj
 
 
 def bind_roles(recipe: Recipe, pin_map: PinMap | None, station: StationProfile, pin_map_name: str) -> ChannelBinding:
-    """Bind every recipe role to the pin-map terminal of the same name (unmapped roles stay unbound).
+    """Bind every recipe role to the pin-map terminal of the same name (unmapped roles stay unbound); a role with
+    ``bind: cmu_side`` binds to the terminal on its MFCMU side instead (``RoleSpec.pin_terminal``; WP8.2).
 
     A switch target binds the role through the route ``(switch, output, state)`` whose state is the role's resource
     (``smu``, ``pgu``, ``cmu``, ``wgfmu``); the channel is the one the station wires to that input of the switch
     port (``None`` when the switch, the output or the wiring is unknown: R-PIN-01 blocks it)."""
     roles: dict[str, BoundChannel] = {}
     for name, role in recipe.roles.items():
-        target = pin_map.terminals.get(name) if pin_map is not None else None
+        terminal = role.pin_terminal(name, pin_map.terminals) if pin_map is not None else None
+        target = pin_map.terminals.get(terminal) if pin_map is not None and terminal is not None else None
         if target is None:
             continue
         if target == "GNDU":
@@ -252,6 +255,8 @@ def bind_roles(recipe: Recipe, pin_map: PinMap | None, station: StationProfile, 
             roles[name] = _bound(name, side[0], station, cmu_side=side[1])
         elif isinstance(target, int):
             roles[name] = _bound(name, target, station)
+        if name in roles and terminal != name:  # bind: cmu_side (WP8.2): the side's terminal, whatever its name
+            roles[name] = roles[name].model_copy(update={"terminal": terminal})
     return ChannelBinding(pin_map=pin_map_name, roles=roles)
 
 

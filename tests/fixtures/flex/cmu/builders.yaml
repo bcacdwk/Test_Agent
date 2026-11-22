@@ -39,10 +39,13 @@
 - {builder: adj_q, args: [9, 1], expect: "ADJ? 9,1", manual: "ADJ? 9", defaults: [1], source: "PDF 355-356 syntax ADJ? chnum[,mode] (an omitted mode is 1; the builder always writes it)"}
 - {builder: corrl, args: [9, 3000000], expect: "CORRL 9,3000000", source: "PDF 385 example"}
 - {builder: clcorr, args: [9, 1], expect: "CLCORR 9,1", source: "PDF 379 example"}
+- {builder: corrl_q, args: [9], expect: "CORRL? 9", source: "PDF 385 example"}
+- {builder: corrl_q, args: [9, 4], expect: "CORRL? 9,4", source: "PDF 385 example"}
 - {builder: clcorr, args: [9, 2], expect: "CLCORR 9,2", source: "PDF 385 example"}
 - {builder: corr_q, args: [9, load], expect: "CORR? 9,3", source: "PDF 383 example"}
 - {builder: dcorr, args: [9, load, 400, 0.00001, 49.8765], expect: "DCORR 9,3,400,1E-05,49.8765", manual: "DCORR 9,3,400,0.00001,49.8765", source: "PDF 389 example"}
 - {builder: dcorr, args: [9, open, 100, 0, 0], expect: "DCORR 9,1,100,0,0", source: "PDF 254 example (ref_cp = ref_g = 0)"}
+- {builder: dcorr_q, args: [9, load], expect: "DCORR? 9,3", source: "PDF 390 example"}
 - {builder: corrdt, args: [9, 3000000, 0, 0, 0, 0, 0, 0], expect: "CORRDT 9,3000000,0,0,0,0,0,0", source: "PDF 384 example"}
 - {builder: corrst, args: [9, load, true], expect: "CORRST 9,3,1", source: "PDF 388 example"}
 - {builder: corrst, args: [9, short, false], expect: "CORRST 9,2,0", source: "PDF 254 example"}

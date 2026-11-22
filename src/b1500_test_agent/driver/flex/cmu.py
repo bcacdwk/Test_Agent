@@ -384,6 +384,17 @@ def corrl(ch: int, freq_hz: float) -> str:
     return f"CORRL {_channel(ch)},{_num(_within(freq_hz, low, high, 'CORRL freq', 'Hz'))}"
 
 
+def corrl_q(ch: int, index: int | None = None) -> str:
+    """``CORRL? chnum[,index]``: the number of frequencies in the correction frequency list, or (``index``, 1 = first)
+    the frequency stored at that position (PG PDF 385, printed 4-67; the example ``CORRL? 9,4`` after ``CLCORR 9,2``
+    answers 10000). A query: the list, the data and the functions stay as they are."""
+    if index is None:
+        return f"CORRL? {_channel(ch)}"
+    if _int(index, "CORRL? index") < 1:
+        raise ValueError(f"CORRL? index starts at 1, got {index}")
+    return f"CORRL? {_channel(ch)},{index}"
+
+
 def clcorr(ch: int, mode: int) -> str:
     """``CLCORR chnum,mode``: turn the correction functions off, clear the correction data and the frequency list;
     mode 2 then loads the default frequencies (PG PDF 379, printed 4-61; ``CLCORR_DEFAULT_FREQS_HZ``)."""
@@ -406,6 +417,13 @@ def dcorr(ch: int, corr: CorrectionFunction, mode: int, primary: float, secondar
         raise ValueError(f"DCORR mode for the {corr} standard is {DCORR_MODES[corr]}, got {mode}")
     return f"DCORR {_channel(ch)},{code},{mode},{_num(_real(primary, 'DCORR primary'))}," \
            f"{_num(_real(secondary, 'DCORR secondary'))}"
+
+
+def dcorr_q(ch: int, corr: CorrectionFunction) -> str:
+    """``DCORR? chnum,corr``: the reference value of the open (1), short (2) or load (3) standard, answered as
+    ``mode,primary,secondary`` (PG PDF 389-390, printed 4-71 to 4-72; the example answers ``400,0.00001,49.8765`` after
+    ``DCORR 9,3,400,0.00001,49.8765``). A query: unlike ``DCORR`` it clears no correction data."""
+    return f"DCORR? {_channel(ch)},{_corr(corr, 'DCORR?')}"
 
 
 def corrdt(ch: int, freq_hz: float, open_g: float, open_b: float, short_r: float, short_x: float, load_r: float,

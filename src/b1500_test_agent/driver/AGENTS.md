@@ -1,8 +1,8 @@
 # Driver layer (`driver/`): safety-critical
 
 Owns FLEX builders (`flex/`: one module per family), `B1500Driver` (`b1500.py`, a facade over the `ops/` mixins on
-`DriverBase`: core, smu, cmu, spgu, switch), `OutputGuard` (`guard.py`), the ASCII parser (+ `cmu_data.py` for MFCMU
-blocks), discovery, instrument errors and the module spec table. Spec: blueprint v2 §2.5 (v1 §2.3, §3); layer L3.
+`DriverBase`: core, smu, cmu, spgu, switch), `WgfmuDriver` (`wgfmu.py`, guarded, over `WgfmuApi`), `OutputGuard`,
+the ASCII parser (+ `cmu_data.py`), discovery, errors and the module spec table. Spec: blueprint v2 §2.5; layer L3.
 
 - FLEX mnemonics appear as string literals only in `flex/` (lint test); `flex/__init__.py` re-exports every builder
   (`flex.dv(...)`). Builders are pure: syntax and domain checks only, never policy; `flex/` imports only `models`.
@@ -11,8 +11,9 @@ blocks), discovery, instrument errors and the module spec table. Spec: blueprint
 - `*RST` (`flex.RST`) is sent only by `B1500Driver.reset`, which only kind `system` calls (lint test).
 - Every source operation passes the guard before anything is written: `check` (SMU), `check_pulse` (SPGU, SMU
   pulse; open-load level with `SER`), `check_ac` (MFCMU), `check_route` (switches; pass the station's switches),
-  `check_waveform` (WGFMU, before `add_vectors`); `CN` needs allowlisted channels. No guard → refused; a violation
-  raises `EnvelopeViolation` and sends nothing; no bypass. Module specs and range codes: `modules.py` (R-LIM-01 ...).
+  `check_waveform` + `check_sequence` (WGFMU: whole program before its first library call; RSU connect via
+  `check_route`); `CN` needs allowlisted channels. No guard → refused; a violation raises `EnvelopeViolation` and
+  sends nothing; no bypass. Module specs and range codes: `modules.py` (R-LIM-01 ...).
 - Imports: `transport` and `models` only. Never `pyvisa` (only `transport/visa.py`), never `fastmcp`.
 - Send `AB` and `*RST` alone, never combined with other commands. Between `XE` and its read send only `AB`
   (`DZ`/`CL` abort first). Keep query reads separate from measurement-buffer reads.
@@ -25,6 +26,5 @@ blocks), discovery, instrument errors and the module spec table. Spec: blueprint
 - Return structured errors (`InstrumentError`, status byte, error codes), never opaque strings or silent retries.
   Cleanup (`AB` → `DZ` → `CL` → verify) is orchestrated by `session/transaction.py`; the driver supplies the steps.
 - Tests run on the simulator: `SimTransport`, or the real `VisaTransport` over `tests/visa_loop/`; never hardware.
-- Legacy v0.2 atoms → driver methods: `references/driver-map/` (`flex-driver-map.yaml` is generated). When you
-  add or re-attribute a command, update the tables in `scripts/build_driver_map.py` and regenerate; never
-  hand-edit the YAML.
+- Legacy v0.2 atoms → driver methods: `references/driver-map/` (generated `flex-driver-map.yaml`). A new or
+  re-attributed command: update the tables in `scripts/build_driver_map.py`, regenerate; never hand-edit the YAML.

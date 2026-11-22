@@ -13,7 +13,10 @@ switch routes. Values are compared exactly; there is no tolerance and no bypass.
 - ``check_ac``: MFCMU ``set_ac``/``set_dc``/sweeps (AC level, DC bias, frequency).
 - ``check_route``: every switch route (``ERSSP``, ``SSP``, ``SAP``, RSU connect): a route of the plan
   (``envelope.routes``), or a declared switch output going to its ``rest`` state.
-- ``check_waveform``: every WGFMU pattern before ``add_vectors`` (every level, the 10 ns grid, vector count, time).
+- ``check_waveform``: every WGFMU pattern before ``add_vectors`` (every level, the 10 ns grid, vector count, time);
+  also a WGFMU DC level (no vectors, the level as ``v0``).
+- ``check_sequence``: a WGFMU channel's whole output sequence before ``add_sequence`` (total output time with every
+  repeat, stored values): the counts a single pattern cannot show (``driver/wgfmu.py``, WP10.3).
 """
 
 from __future__ import annotations
@@ -35,6 +38,7 @@ ViolationReason = Literal[
     "no_ac_envelope", "ac_exceeds_envelope", "dc_exceeds_envelope", "frequency_outside_envelope",
     "route_not_allowed",
     "no_waveform_envelope", "invalid_waveform", "vectors_exceed_envelope", "off_grid", "time_exceeds_envelope",
+    "points_exceed_envelope",
 ]  # fmt: skip
 
 
@@ -87,6 +91,11 @@ class OutputGuard:
         self._channels: dict[int, ChannelEnvelope] = {_normalize(ch): env for ch, env in envelope.channels.items()}
         self._waveform: dict[int, WaveformLimits] = {_normalize(ch): w for ch, w in envelope.waveform.items()}
         self._switches: dict[str, SwitchSpec] = {s.id: s for s in switches}
+
+    @property
+    def switches(self) -> tuple[SwitchSpec, ...]:
+        """The station's declared switches this guard knows (the WGFMU driver finds each channel's RSU here)."""
+        return tuple(self._switches.values())
 
     def channel_envelope(self, ch: int) -> ChannelEnvelope:
         """The envelope of ``ch`` (``1`` and ``101`` are the same channel).
@@ -309,3 +318,33 @@ class OutputGuard:
             raise EnvelopeViolation("time_exceeds_envelope", f"channel {ch}: {total:g} s exceeds "
                                     f"{limits.total_time_s:g} s", channel=ch, quantity="time", level=total,
                                     limit=limits.total_time_s)
+
+    def check_sequence(self, ch: int, *, time_s: float, points: int) -> None:
+        """Refuse a WGFMU channel's whole output sequence outside its waveform envelope: ``time_s`` (every pattern
+        times its repeat count, plus the gaps between sequences) at most ``total_time_s`` and ``points`` (the values
+        the channel stores over the run) at most ``max_points``. ``check_waveform`` bounds each pattern; repeats can
+        only be bounded here (blueprint v2 2.5 "counts").
+
+        Raises:
+            EnvelopeViolation: ``channel_not_allowed``, ``no_waveform_envelope``, ``non_finite``,
+                ``invalid_waveform`` (negative values), ``time_exceeds_envelope`` or ``points_exceed_envelope``.
+        """
+        env = self.channel_envelope(ch)
+        limits = self._waveform.get(_normalize(ch))
+        if limits is None:
+            raise EnvelopeViolation("no_waveform_envelope", f"channel {ch} ({env.role}) has no waveform envelope",
+                                    channel=ch, quantity="waveform")
+        if not _finite(time_s) or isinstance(points, bool) or not isinstance(points, int):
+            raise EnvelopeViolation("non_finite", f"channel {ch}: sequence time and points must be finite numbers",
+                                    channel=ch, quantity="sequence")
+        if time_s < 0 or points < 0:
+            raise EnvelopeViolation("invalid_waveform", f"channel {ch}: negative sequence time or points",
+                                    channel=ch, quantity="sequence")
+        if time_s > limits.total_time_s * (1 + 1e-12):
+            raise EnvelopeViolation("time_exceeds_envelope", f"channel {ch}: the sequence outputs {time_s:g} s, more "
+                                    f"than {limits.total_time_s:g} s", channel=ch, quantity="time", level=time_s,
+                                    limit=limits.total_time_s)
+        if points > limits.max_points:
+            raise EnvelopeViolation("points_exceed_envelope", f"channel {ch}: the sequence stores {points} values, "
+                                    f"more than {limits.max_points}", channel=ch, quantity="points", level=points,
+                                    limit=limits.max_points)

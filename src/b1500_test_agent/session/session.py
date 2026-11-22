@@ -25,7 +25,8 @@ A run is *running* while its transaction's in-flight marker names it and the ins
 
 WGFMU library (blueprint v2 2.4, 7.1; WP10.2): on visa every snapshot carries the DLL probe of the bus's library
 binding (``LiveState.wgfmu_library``; a file read, never a load). ``check_wgfmu_session`` opens the library's own
-session with the FLEX link closed, under the instrument lock (``doctor --probe --wgfmu-session``).
+session with the FLEX link closed, under the instrument lock (``doctor --probe --wgfmu-session``). A transaction's
+WGFMU phase and cleanup step 3 (WP10.3) live in ``session/wgfmu_phase.py``.
 """
 
 from __future__ import annotations
@@ -331,8 +332,10 @@ class Session:
                            plan_id=plan_id, control=control)
 
     def safe_shutdown(self, *, reason: str, abort: bool = True, lock_timeout_s: float = 5.0) -> CleanupReport:
-        """``AB`` (when ``abort``) -> ``SPP`` (with an SPGU) -> ``DZ`` -> switches to rest -> ``CL`` -> ``ERRX?`` drain
-        -> verify (outputs and declared switches), with device clear and one retry;
+        """``AB`` (when ``abort``) -> ``SPP`` (with an SPGU) -> WGFMU safe state (with a WGFMU and an available
+        library: FLEX lock released, library session opened only to abort, initialize and disconnect every channel,
+        closed, FLEX relocked; blueprint v2 2.6 step 3, WP10.3) -> ``DZ`` -> switches to rest -> ``CL`` -> ``ERRX?``
+        drain -> verify (outputs and declared switches), with device clear and one retry;
         never gated (runs with a latched fault). An unverified result latches the fault. A stale inflight marker is
         recovered (audited ``recovery_cleanup``). It still takes the instrument lock, so a transaction in another
         process finishes its own cleanup first (``InstrumentBusy`` after ``lock_timeout_s``).

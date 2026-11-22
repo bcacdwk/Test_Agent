@@ -160,6 +160,7 @@ class _RunState:
     error: BaseException | None = None
     refused: bool = False
     correction_notes: list[str] = field(default_factory=list)
+    wgfmu_phases: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -565,6 +566,7 @@ class Executor(RunningRuns):
         except BaseException as exc:  # noqa: BLE001 - recorded in the run; interrupts re-raised after finalize
             state.error = exc
         transaction_s = time.monotonic() - t0
+        state.wgfmu_phases = tx.wgfmu_phases
         cleanup = tx.cleanup
         if isinstance(state.error, CleanupUnverified):
             cleanup = state.error.report
@@ -617,7 +619,9 @@ class Executor(RunningRuns):
             confirmed_via=None if confirmed_summary is None else (
                 "run_confirmed_plan" if client.adapter == "mcp" else "cli --confirm"),
             client=client, software_version=process_software_version(), dut_instance=dut_instance, started_at=started,
-            outcome="completed", cleanup=cleanup, assumptions=self._assumptions(bundle, plan),
+            outcome="completed", cleanup=cleanup, assumptions=self._assumptions(bundle, plan) + [
+                f"WGFMU phase {i}: GPIB link {how} while the WGFMU library had its own session (ATV-14)"
+                for i, how in enumerate(state.wgfmu_phases, 1)],
         )
         error_code: ErrorCode | None = None
         message = ""

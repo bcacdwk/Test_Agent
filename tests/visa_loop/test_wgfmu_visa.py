@@ -5,8 +5,9 @@ loaded "library" is the ctypes-shaped fake backed by ``SimWgfmu`` on the loop's 
 
 - ``b1500 doctor --probe --wgfmu-session``: the FLEX part, then the DLL probe, then the library's own session with the
   FLEX link closed (``open -> channel_ids -> status -> close``); read-only by construction; failures are lines.
-- A transaction's pre-execute snapshot of a WGFMU plan: the DLL probe and the channel ids read while the FLEX
-  exclusive lock is released, then R-WG-01 (pre) on that snapshot.
+- A transaction's pre-execute snapshot of a WGFMU plan: the DLL probe, the channel ids and the RSU states (rest path
+  accepted by the library, WP10.3) read while the FLEX exclusive lock is released, then R-WG-01 (pre) on that
+  snapshot.
 """
 
 from __future__ import annotations
@@ -223,9 +224,14 @@ def test_the_pre_execute_snapshot_reads_the_library_and_r_wg_01_passes(
     live = pre_execute_live(world.service(bus))
     assert live.backend == "visa" and live.wgfmu_channels == [201, 202]
     assert live.wgfmu_library is not None and live.wgfmu_library.loadable and live.wgfmu_library.machine == "x64"
-    # the FLEX session stayed open but released its exclusive lock for the library, then took it again
-    assert flex_state_at_library_calls == [(name, False) for name in ("WGFMU_openSession", "WGFMU_getChannelIdSize",
-                                                                       "WGFMU_getChannelIds", "WGFMU_closeSession")]
+    # the FLEX session stayed open but released its exclusive lock for the library, then took it again; each declared
+    # RSU's channel is put on its rest path, which the library accepting is the RSU reading (WP10.3)
+    assert flex_state_at_library_calls == [(name, False) for name in (
+        "WGFMU_openSession", "WGFMU_getChannelIdSize", "WGFMU_getChannelIds", "WGFMU_disconnect", "WGFMU_disconnect",
+        "WGFMU_closeSession")]
+    assert live.switch_states is not None
+    assert {k: v for k, v in live.switch_states.items() if k.startswith("RSU")} == {"RSU201.OUT": "open",
+                                                                                   "RSU202.OUT": "open"}
     assert bus.stats.locks == 2 and bus.stats.unlocks == 2 and bus.lock_is_free()
     lifecycle = [e.ev for e in world.daily_events() if e.ev in BUS_EVENTS]
     assert lifecycle == ["bus_open", "bus_lock", "bus_unlock", "bus_lock", "bus_unlock", "bus_close"]

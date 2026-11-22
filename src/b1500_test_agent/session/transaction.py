@@ -10,6 +10,9 @@ of the plan's envelope (no envelope: no guard, so every source operation refuses
 ``__exit__`` runs for ANY exit, ``BaseException`` and ``EnvelopeViolation`` included:
 1 ``AB`` if ``XE`` was issued and its read did not complete (sent alone; on timeout device clear, then ``AB``)
 1b (v2 step 2, on instruments with an HV-SPGU, WP9.1) ``SPST?`` and ``SPP`` if an SPGU output is active
+1c (v2 step 3, WP10.3: after a WGFMU phase whose safe state is unconfirmed; in ``safe_shutdown`` and recovery on a
+mainframe with a WGFMU when the library is available) WGFMU ``abort``, ``initialize``, every channel disconnected,
+library session closed, FLEX link locked again (``session/wgfmu_phase.py``)
 2 ``DZ`` (v2 step 4: first ``DCV ch,0`` and ``ACV ch,0`` on every MFCMU the transaction drove whose ``LOP?`` code
 still shows its output switch on, WP8.1) 2b ``routes`` (v2 step 5, WP9.2; on stations that declare switches): every
 declared 16440A selector, SCUU and ASU back to its ``rest`` state (``session/routes.py``) 3 ``CL`` 4 ``ERRX?`` drain
@@ -35,6 +38,10 @@ be restored); kinds switch with ``apply_routes(routes, phase=...)`` (one phase o
 guarded, ``ERMOD 1`` first, settle wait, read-back verified, audited as checkpoint ``routes``); ``snapshot`` fills
 ``LiveState.switch_states`` for the pre-execute rule R-ROUTE-01 (``ERMOD 1`` first when the station declares a
 selector).
+
+WGFMU (blueprint v2 0 #7, 2.6; WP10.3): ``with tx.wgfmu_phase() as wg:`` releases the FLEX exclusive lock, opens and
+initializes the library session and yields the guarded ``WgfmuDriver``; its exit always runs step 3 and relocks
+(``session/wgfmu_phase.py``). ``snapshot(wgfmu=True)`` reads the library's channel ids and the RSU states.
 
 Runs (blueprint v2 2.6): kinds call ``checkpoint(done, total, phase, rows)`` between segments and long readback
 loops call ``check_abort()``; with a ``RunControl`` (``session/runner.py``) this records the progress of an
@@ -82,7 +89,6 @@ from b1500_test_agent.models.routing import Route, SwitchSpec, SwitchState
 from b1500_test_agent.models.run import Adapter, CleanupReport, CleanupStep, LockHolder, PositiveControl
 from b1500_test_agent.models.station import (
     MODULE_TYPE_BY_MODEL,
-    DllProbe,
     InstrumentError,
     LiveState,
     ModuleInventory,
@@ -90,17 +96,17 @@ from b1500_test_agent.models.station import (
 )
 from b1500_test_agent.session.fault import CleanupUnverified, FaultLatched, PositiveControlFailed
 from b1500_test_agent.session.lock import atomic_write_json, host_name, remove_file
+from b1500_test_agent.session.raw_capture import RawCapture
 from b1500_test_agent.session.routes import apply_phase, cleanup_scope, read_states, restore_routes, verify_routes
-from b1500_test_agent.session.wgfmu_live import bound, read_channels
+from b1500_test_agent.session.wgfmu_phase import WgfmuLink, WgfmuPhase
 from b1500_test_agent.transport.audit import AuditingTransport, AuditSink, hold_audit
-from b1500_test_agent.transport.base import Transport, TransportError, TransportTimeout, state_hooks, unwrap
-from b1500_test_agent.transport.wgfmu.api import WgfmuError
+from b1500_test_agent.transport.base import Transport, TransportTimeout, state_hooks, unwrap
 
 if TYPE_CHECKING:
     from b1500_test_agent.session.runner import RowsSource, RunControl
     from b1500_test_agent.session.session import Session
 
-CleanupStepName = Literal["abort", "spgu_stop", "zero", "routes", "disconnect", "drain_errors", "verify",
+CleanupStepName = Literal["abort", "spgu_stop", "wgfmu", "zero", "routes", "disconnect", "drain_errors", "verify",
                           "device_clear", "restore"]
 
 STATE_SAVE_INTERVAL_S = 1.0
@@ -264,7 +270,8 @@ class CleanupOutcome:
 
 def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
                 positive: PositiveControl | None = None, spgu: bool | None = None,
-                switches: Sequence[SwitchSpec] = ()) -> CleanupOutcome:
+                switches: Sequence[SwitchSpec] = (), wgfmu: WgfmuLink | None = None,
+                shutdown: bool = False) -> CleanupOutcome:
     """``AB`` (when ``always_abort`` or a measurement is pending) -> SPGU stop -> MFCMU ``DCV 0``/``ACV 0`` (channels
     the driver drove) + ``DZ`` -> switches to rest -> ``CL`` -> ``ERRX?`` drain -> verify; after any failed step a
     device clear and one retry of the whole sequence (blueprint 2.4 steps 1-6, v2 2.6 steps 1, 2, 4-10).
@@ -277,6 +284,10 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
     when an output is active (``SPP`` also when ``SPST?`` cannot be read), and the hardware verification also needs
     ``SPST?`` = 0; an SPGU that will not stop (``spgu_no_stop``) is stopped by the retry's ``SPP`` or latches the
     fault.
+
+    ``wgfmu``: the transaction's WGFMU link; step 3 (``wgfmu``) runs when it is ``needed`` (a phase left the safe
+    state unconfirmed, or ``shutdown``, i.e. safe shutdown and recovery, on a mainframe with a WGFMU and an available
+    library); the verification then also needs the FLEX link relocked and, on hardware, step 3 complete.
 
     Every step continues after a failure of an earlier one (``CL`` turns outputs off even when ``DZ`` failed) and
     is audited as ``cleanup_step``. The result is verified only when ``DZ``, ``CL`` and the verification all
@@ -359,9 +370,14 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
 
     def verify() -> tuple[bool, str]:
         ok, detail = verify_outputs()
+        switches_after.clear()
+        if wgfmu is not None:
+            switches_after.update(wgfmu.rsu_states())  # what the library accepted (FLEX never reads an RSU)
+        if wgfmu is not None and wgfmu_ran:
+            w_ok, w_detail = wgfmu.verification(sim=sim is not None)
+            ok, detail = ok and w_ok, f"{detail}; {w_detail}"
         if not scope:
             return ok, detail
-        switches_after.clear()
         routed_ok, routed_detail, after = verify_routes(driver, scope)
         switches_after.update(after)
         return ok and routed_ok, f"{detail}; {routed_detail}"
@@ -391,6 +407,7 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
         return True, "before the retry"
 
     verified = False
+    wgfmu_ran = False
     for attempt in (1, 2):
         if attempt == 2:
             step("device_clear", attempt, clear)
@@ -401,6 +418,9 @@ def run_cleanup(driver: B1500Driver, *, always_abort: bool, emit: Emit,
             spgu = _read_spgu_installed(driver, deferred)
         if spgu:
             results["spgu_stop"] = step("spgu_stop", attempt, spgu_stop)
+        if wgfmu is not None and wgfmu.needed(driver.last_inventory, all_channels=shutdown):
+            wgfmu_ran = True
+            results["wgfmu"] = step("wgfmu", attempt, wgfmu.cleanup_step)
         results["zero"] = step("zero", attempt, zero)
         if scope:
             results["routes"] = step("routes", attempt, routes)
@@ -430,73 +450,6 @@ def _read_spgu_installed(driver: B1500Driver, deferred: list[BaseException]) -> 
 def _codes_text(codes: dict[int, str]) -> str:
     """``slot 3 01, slot 4 01`` (``LOP?`` codes by slot) for audit details and messages."""
     return ", ".join(f"slot {slot} {code}" for slot, code in sorted(codes.items()))
-
-
-# -- Raw-data tap -----------------------------------------------------------------------------------------------------
-
-
-class _RawCapture:
-    """Transport wrapper under the transaction driver: every ``read`` (measurement data; queries use ``query``) is
-    stored with ``RunHandle.save_raw`` and audited as ``data_block`` before the driver parses it."""
-
-    def __init__(self, inner: Transport, run: RunHandle, emit: Emit) -> None:
-        self.inner = inner
-        self._run = run
-        self._emit = emit
-        self.blocks = 0
-
-    @property
-    def backend(self) -> Backend:
-        return self.inner.backend
-
-    @property
-    def resource(self) -> str:
-        return self.inner.resource
-
-    def open(self) -> None:
-        self.inner.open()
-
-    def close(self) -> None:
-        self.inner.close()
-
-    def lock(self) -> None:
-        self.inner.lock()
-
-    def unlock(self) -> None:
-        self.inner.unlock()
-
-    def write(self, cmd: str) -> None:
-        self.inner.write(cmd)
-
-    def read(self, *, timeout_s: float | None = None) -> str:
-        text = self.inner.read(timeout_s=timeout_s)
-        index = self.blocks
-        self.blocks += 1
-        where = self._run.save_raw(text)
-        self._emit("data_block", {"index": index, "chars": len(text), "file": where})
-        return text
-
-    def query(self, cmd: str, *, timeout_s: float | None = None) -> str:
-        return self.inner.query(cmd, timeout_s=timeout_s)
-
-    def serial_poll(self) -> int:
-        return self.inner.serial_poll()
-
-    def device_clear(self) -> None:
-        self.inner.device_clear()
-
-    def write_block(self, cmd: str, data: bytes) -> None:
-        writer = getattr(self.inner, "write_block", None)
-        if not callable(writer):
-            raise TransportError(f"{cmd!r}: the link cannot send a binary data block")
-        writer(cmd, data)
-
-    def wait(self, seconds: float) -> None:
-        waiter = getattr(self.inner, "wait", None)
-        if callable(waiter):
-            waiter(seconds)
-        else:
-            time.sleep(seconds)
 
 
 # -- Transaction ------------------------------------------------------------------------------------------------------
@@ -563,6 +516,7 @@ class Transaction:
         """The hardware ``LOP?`` positive control of this transaction (``lop_positive_control``), if one ran."""
         self._auto_calibration_suspended = False
         self._state_saved_at: float | None = None
+        self._wgfmu: WgfmuLink | None = None
 
     # -- audit ------------------------------------------------------------------------------------------------------
 
@@ -627,7 +581,7 @@ class Transaction:
             hooks = state_hooks(transport)
             if hooks is not None:
                 hooks.load_state()
-            target: Transport = transport if self.run is None else _RawCapture(transport, self.run, self._emit)
+            target: Transport = transport if self.run is None else RawCapture(transport, self.run, self._emit)
             guard = None if self.envelope is None else OutputGuard(self.envelope, switches=session.switches)
             self.driver = B1500Driver(target, guard)
         except BaseException:
@@ -665,7 +619,7 @@ class Transaction:
 
     def _recover(self, previous: InflightMarker) -> None:
         outcome = run_cleanup(self.driver, always_abort=True, emit=self._emit, spgu=self._spgu_hint(),
-                              switches=self._session.switches)
+                              switches=self._session.switches, wgfmu=self.wgfmu_link, shutdown=True)
         report = outcome.report
         self._emit("recovery_cleanup", {"previous_tx": previous.tx, "previous_run": previous.run,
                                         "previous_pid": previous.pid, "previous_intent": previous.intent,
@@ -804,7 +758,8 @@ class Transaction:
         drain of ``__enter__``. Queries only, except ``ERMOD 1`` when a declared selector's control mode is off
         (``switch_states`` needs ``ERSSP?``; WP9.2). On visa it carries the WGFMU library probe (``wgfmu_library``);
         ``wgfmu=True`` (a plan with WGFMU roles) also reads the library's channel ids (``wgfmu_channels``) through a
-        short library session while the FLEX link's exclusive lock is released (R-WG-01 pre-execute; WP10.2)."""
+        short library session while the FLEX link's exclusive lock is released (R-WG-01 pre-execute; WP10.2), and the
+        states of the declared RSUs as the library accepts their rest path (``switch_states``; WP10.3)."""
         session = self._session
         live = read_live_state(self.driver, backend=session.backend, resource=session.transport.resource,
                                earlier_errors=self.baseline_errors, switches=session.switches,
@@ -812,7 +767,10 @@ class Transaction:
         library = session.wgfmu_library()
         update: dict[str, object] = {} if library is None else {"wgfmu_library": library}
         if wgfmu:
-            update["wgfmu_channels"] = self._wgfmu_channels(library)
+            read = self.wgfmu_link.read_live()
+            update["wgfmu_channels"] = read.channels
+            if read.rsu_states:
+                update["switch_states"] = {**(live.switch_states or {}), **read.rsu_states}
         if update:
             live = live.model_copy(update=update)
         session.last_live = live
@@ -839,26 +797,31 @@ class Transaction:
                                   "readback": ", ".join(f"{t} {s}" for t, s in sorted(states.items()))})
         return states
 
-    def _wgfmu_channels(self, library: DllProbe | None) -> list[int] | None:
-        """``WGFMU_getChannelIds`` through ``open_session``/``close_session`` with the FLEX exclusive lock released
-        meanwhile (the library opens its own VISA session, ATV-14); ``None`` (audited checkpoint
-        ``wgfmu_channels_unread``) without a loadable library or when the library fails, so R-WG-01 blocks. A
-        relock refused by another client propagates (``BusLocked``): the transaction ends with its cleanup."""
-        wgfmu = self._session.bus.wgfmu
-        if wgfmu is None or (library is not None and not library.loadable):
-            reason = "no WGFMU instrument library on this bus" if library is None else library.message
-            self._emit("checkpoint", {"label": "wgfmu_channels_unread"}, error=reason[:_DETAIL_LIMIT])
-            return None
-        transport = self._session.transport
-        transport.unlock()
-        try:
-            with bound(wgfmu, self._sink, run=self.run_id, tx=self.tx_id, intent=self.intent):
-                return read_channels(wgfmu, transport.resource)
-        except WgfmuError as exc:
-            self._emit("checkpoint", {"label": "wgfmu_channels_unread"}, error=str(exc)[:_DETAIL_LIMIT])
-            return None
-        finally:
-            transport.lock()
+    @property
+    def wgfmu_link(self) -> WgfmuLink:
+        """The WGFMU side of this transaction (library session, FLEX release, safe state; created on first use)."""
+        if self._wgfmu is None:
+            self._wgfmu = WgfmuLink(self)
+        return self._wgfmu
+
+    @property
+    def wgfmu_phases(self) -> list[str]:
+        """How the FLEX link made room in each WGFMU phase of this transaction (``unlocked``, ``closed``, ``unlocked
+        (flex_io)``); the run manifest lists them (ATV-14)."""
+        return [] if self._wgfmu is None else list(self._wgfmu.phases)
+
+    def wgfmu_phase(self, *, flex_io: bool = False) -> WgfmuPhase:
+        """``with tx.wgfmu_phase() as wg:`` (blueprint v2 2.6): FLEX lock released (or the link closed with
+        ``settings.wgfmu.flex_during_phase: close`` unless ``flex_io``, a kind that sends FLEX commands inside the
+        phase), library session opened and initialized, the guarded ``WgfmuDriver`` yielded; the exit always runs
+        cleanup step 3 and relocks (``session/wgfmu_phase.py``).
+
+        Raises:
+            WgfmuError: If no library is available (nothing was released) or the library fails on entry.
+            WgfmuSafeStateFailed: At the exit of a successful body when the safe state could not be confirmed.
+        """
+        how = self._session.settings.wgfmu.flex_during_phase
+        return WgfmuPhase(self.wgfmu_link, self.driver.guard, how=how, flex_io=flex_io)
 
     # -- exit -------------------------------------------------------------------------------------------------------
 
@@ -881,7 +844,8 @@ class Transaction:
                 self._cleanup_done = True
                 outcome = run_cleanup(self.driver, always_abort=self._always_abort, emit=self._emit,
                                       positive=self.positive_control, spgu=self._spgu_hint(),
-                                      switches=self._session.switches)
+                                      switches=self._session.switches, wgfmu=self.wgfmu_link,
+                                      shutdown=self.mode == "shutdown")
                 deferred = outcome.deferred
                 report = outcome.report
                 if report.verified == "unverified":

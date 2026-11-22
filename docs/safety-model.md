@@ -281,7 +281,8 @@ the compliance range, so a generous compliance hides small currents in the noise
 
 Every instrument action runs inside one transaction. On any exit, including errors, interrupts and guard
 violations, it: aborts a pending measurement, stops an active SPGU output (blueprint v2 2.6 step 2: on a mainframe
-with an HV-SPGU, `SPST?` and `SPP` while it reads 1), zeroes and disconnects the outputs, drains instrument errors and
+with an HV-SPGU, `SPST?` and `SPP` while it reads 1), brings the WGFMU to its safe state when needed (step 3, below),
+zeroes and disconnects the outputs, drains instrument errors and
 verifies that all outputs are off (on hardware `LOP?` and, with an SPGU, `SPST?` = 0) and every declared switch
 output at rest (routes to rest between `DZ` and `CL`, WP9.2). A failed step triggers a device clear and one retry. If the safe state still
 cannot be verified, a persistent **fault latch** is set: every sourcing path then refuses (R-FAULT-01) until a human
@@ -328,6 +329,35 @@ fails the verification; the retry after the device clear sends `SPP` again, and 
 verified, otherwise the fault latches. The guard checks every SPGU write that can raise a level (setup, apply, start,
 a `SER` change, the `CORRSER?` load measurement, which outputs a pulse) at the open-load level; the driver never lets
 the instrument set `SER` itself (`CORRSER?` mode 0 only) and never builds free run (`SPRM 0`, the `*RST` setting).
+
+**WGFMU phase and cleanup step 3 (blueprint v2 0 #7, 2.6, WP10.3).** The WGFMU is reached only inside a
+transaction's WGFMU phase (`with tx.wgfmu_phase() as wg`, `session/wgfmu_phase.py`): the FLEX link releases its
+exclusive VISA lock (the library opens its own VISA session, which the lock would refuse; ATV-14), the library session
+opens, `initialize` resets every WGFMU channel, and the kind gets the guarded `WgfmuDriver` (`driver/wgfmu.py`). The
+driver checks the whole waveform program before its first library call: every channel in the plan allowlist, every
+pattern a channel outputs through `check_waveform` (every level including the initial one, the 10 ns grid, the vector
+count, the pattern time) and every channel's sequence through `check_sequence` (output time with every repeat, stored
+values), so a vector outside the envelope never reaches `add_vectors`; a DC level passes `check_waveform` too; a
+channel connects only through its declared RSU route (`check_route`, `RSU<ch>.OUT -> wgfmu`); the run polls the
+sequencer at most 1 s apart with an abort check before each poll and each 100,000-value readback chunk. The phase
+exit ALWAYS runs step 3: `abort`, `initialize`, `disconnect` every channel it connected, `close_session`, FLEX
+relocked; a failure there fails the run (`WgfmuSafeStateFailed`) and leaves step 3 pending, so the transaction cleanup
+runs it again (new library session, every channel the library lists disconnected) between the SPGU stop and `DZ`;
+`safe_shutdown` and the in-flight recovery run it on every mainframe with a WGFMU when the library is available (on
+visa: the DLL probe says loadable), opening the session only to abort and disconnect. The verification needs the FLEX
+link locked again and, on hardware, step 3 complete: the library has no read-back of the RSU relays, so its
+acceptance of every `disconnect` and of `close_session` is the evidence (a stuck relay or a session that cannot open
+leaves the cleanup unverified and latches the fault); the simulator also checks its WGFMU state (no channel connected
+or running, no session open). Another client that takes the bus while the lock is released makes the relock fail:
+the cleanup cannot verify and latches. FLEX commands inside the phase (an SMU bias, WG Ex. 10) go out without the
+lock. Fallback `settings.wgfmu.flex_during_phase: close` (ATV-14, if L8 shows that releasing the lock is not enough):
+the FLEX link is closed during the phase and reopened and locked at its exit, except for a kind that sends FLEX
+commands inside the phase (`flex_io`, audited `flex: unlocked (flex_io)`). The pre-execute snapshot of a WGFMU plan
+reads the RSU states the same way: `disconnect` of each declared RSU's channel (its rest path) accepted by the
+library, else the output stays unread and R-ROUTE-01 blocks. Residuals: while the lock is released another VISA client
+could send commands (EasyEXPERT must be closed, deployment step); without a loadable library `safe_shutdown` cannot
+reach a WGFMU another program left connected; ATV-17 (`initialize` resets the WGFMU only, an SMU bias stays) holds in
+the simulator and is `TODO(verify)` at L8.
 
 **`LOP?` positive control (hardware, WP6.2; v1 ATV-1, ATV-23).** On hardware the verification is `LOP?` reading `00`
 for every slot. An all-`00` answer proves the outputs off only if `LOP?` reports this instrument's output switches at

@@ -23,6 +23,8 @@ visa:                           # used only with backend: visa
 
 wgfmu:                          # B1530A WGFMU instrument library; used only with backend: visa on Windows
   library: ""                   # "" = installer default %SystemRoot%\System32\wgfmu.dll (library A.03.00 or later, x64)
+  flex_during_phase: unlock     # GPIB link during a WGFMU phase: unlock (release the exclusive lock) | close (ATV-14
+                                # fallback, decided at bring-up L8)
 
 paths:                          # relative paths resolve against the repository root (gitignored directories)
   data_root: data               # run archive data/runs/ and state data/state/

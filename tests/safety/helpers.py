@@ -42,9 +42,11 @@ SWEEP = StaircaseSetup(channel=GATE, start=0.0, stop=1.5, points=11, icomp=1e-5,
 WIDTH = 2
 """Elements per step with ``FMT 1,1``: the drain current and the gate source value."""
 
-CLEANUP_ORDER = ("device_clear", "abort", "spgu_stop", "zero", "routes", "disconnect", "drain_errors", "verify")
+CLEANUP_ORDER = ("device_clear", "abort", "spgu_stop", "wgfmu", "zero", "routes", "disconnect", "drain_errors",
+                 "verify")
 """Blueprint v2 2.6 order; ``spgu_stop`` (step 2) runs on instruments with an HV-SPGU (every lab-layout scenario),
-``routes`` (step 5, WP9.2) in sessions whose station declares switches."""
+``wgfmu`` (step 3, WP10.3) after a WGFMU phase with an unconfirmed safe state and in safe shutdown/recovery on a
+mainframe with a WGFMU, ``routes`` (step 5, WP9.2) in sessions whose station declares switches."""
 
 
 class HookTransport:

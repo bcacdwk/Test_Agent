@@ -198,9 +198,15 @@ class WgfmuSettings(StrictModel):
     ``library`` is the path of ``wgfmu.dll``; empty = the library installer's default, the 64-bit
     ``%SystemRoot%\\System32\\wgfmu.dll`` of library A.03.00 or later. Only ``transport/wgfmu/dll.py`` loads it, and
     only with ``backend: visa`` on Windows.
+
+    ``flex_during_phase`` (blueprint v2 2.6, ATV-14): how a transaction's WGFMU phase makes room for the library's own
+    VISA session: ``unlock`` (default: the FLEX link stays open without its exclusive lock) or ``close`` (the ATV-14
+    fallback if bring-up L8 shows that releasing the lock is not enough: the FLEX link is closed during the phase;
+    a kind that sends FLEX commands inside the phase keeps it open without the lock, recorded in the audit).
     """
 
     library: str = ""
+    flex_during_phase: Literal["unlock", "close"] = "unlock"
 
 
 class Settings(StrictModel):

@@ -20,6 +20,7 @@ binding `WgfmuDll` (`dll.py`). The simulator implements the same protocol in `tr
   `WGFMU_FW_ERROR` string); an argument C cannot take -> `ArgumentRefused` before the library, same code.
 - The library opens its own VISA session: release the FLEX exclusive lock (transaction WGFMU phase, pre-execute
   channel read) or close the FLEX link (probe session check) first (ATV-14, ATV-16); close the library session on
-  every path. The transaction's WGFMU phase and cleanup step 3 belong to `session/` (WP10.3).
+  every path. The transaction's WGFMU phase and cleanup step 3 live in `session/wgfmu_phase.py`, the guarded
+  operations in `driver/wgfmu.py` (WP10.3); nothing else drives the library.
 - Hardware facts stay `TODO(verify)` until bring-up L0/L8: error-string format, version resource form, firmware
   codes, load from `System32` (ATV-15).

@@ -60,15 +60,17 @@ class LockHolder(StrictModel):
 
 
 class CleanupStep(StrictModel):
-    """One step of the transaction cleanup ``AB → SPP → DZ → routes → CL → ERRX drain → verify`` (blueprint 2.4, v2
-    2.6); ``spgu_stop`` (v2 step 2) reads ``SPST?`` and sends ``SPP`` when an SPGU output is active, on instruments
-    with an SPGU; ``routes`` (v2 step 5, WP9.2) returns every declared switch output to its ``rest`` state (16440A
-    ``ERMOD 1`` + ``ERSSP``, SCUU ``SSP``, ASU ``SAP``) on stations that declare switches; ``restore`` comes after
-    the verification and puts back a setting the run changed (v2 2.6, R-CAL-02: the auto-calibration state of an
-    asynchronous run), never touching an output."""
+    """One step of the transaction cleanup ``AB → SPP → WGFMU → DZ → routes → CL → ERRX drain → verify`` (blueprint
+    2.4, v2 2.6); ``spgu_stop`` (v2 step 2) reads ``SPST?`` and sends ``SPP`` when an SPGU output is active, on
+    instruments with an SPGU; ``wgfmu`` (v2 step 3, WP10.3) aborts, initializes and disconnects the WGFMU channels,
+    closes the library session and relocks the FLEX link (after a WGFMU phase whose safe state is unconfirmed, and in
+    safe shutdown/recovery on a mainframe with a WGFMU); ``routes`` (v2 step 5, WP9.2) returns every declared switch
+    output to its ``rest`` state (16440A ``ERMOD 1`` + ``ERSSP``, SCUU ``SSP``, ASU ``SAP``) on stations that declare
+    switches; ``restore`` comes after the verification and puts back a setting the run changed (v2 2.6, R-CAL-02: the
+    auto-calibration state of an asynchronous run), never touching an output."""
 
-    step: Literal["abort", "spgu_stop", "zero", "routes", "disconnect", "drain_errors", "verify", "device_clear",
-                  "restore"]
+    step: Literal["abort", "spgu_stop", "wgfmu", "zero", "routes", "disconnect", "drain_errors", "verify",
+                  "device_clear", "restore"]
     ok: bool
     attempt: int = Field(default=1, ge=1)
     detail: str = ""

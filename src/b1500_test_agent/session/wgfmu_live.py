@@ -3,8 +3,9 @@
 
 - ``library_probe(bus.wgfmu)``: the DLL probe of the bus's library binding (``WgfmuDll.probe``: a file read, cached,
   never a load), ``None`` for the simulated library. It fills ``LiveState.wgfmu_library`` on visa.
-- ``read_channels(wgfmu, resource)``: ``open_session`` -> ``channel_ids`` -> ``close_session``, the close always
-  attempted. It fills ``LiveState.wgfmu_channels`` in a transaction's pre-execute snapshot of a plan with WGFMU roles.
+- ``read_channels(wgfmu, resource, then=)``: ``open_session`` -> ``channel_ids`` (-> ``then``) -> ``close_session``,
+  the close always attempted. It fills ``LiveState.wgfmu_channels`` (and, through ``then``, the RSU states; WP10.3)
+  in a transaction's pre-execute snapshot of a plan with WGFMU roles (``session/wgfmu_phase.py``).
 - ``check_session(wgfmu, resource)``: ``open_session`` -> ``channel_ids`` -> ``status`` -> ``close_session`` for the
   probe's ``--wgfmu-session`` line; never raises a ``WgfmuError``.
 - ``bound(wgfmu, sink, ...)``: library calls in the block go to ``sink`` stamped with the run, transaction and intent
@@ -19,7 +20,7 @@ online calls while the lock is held, as the lab's VISA would (ATV-14).
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
 from b1500_test_agent.models.station import DllProbe
@@ -54,12 +55,15 @@ def bound(wgfmu: WgfmuApi, sink: AuditSink | None, *, run: str | None = None, tx
         wgfmu.sink = previous
 
 
-def read_channels(wgfmu: WgfmuApi, resource: str) -> list[int]:
-    """``open_session(resource)`` -> ``channel_ids()`` -> ``close_session()``; the close is attempted after a
-    failure too, and a close failure after a successful read raises."""
+def read_channels(wgfmu: WgfmuApi, resource: str, *, then: Callable[[list[int]], None] | None = None) -> list[int]:
+    """``open_session(resource)`` -> ``channel_ids()`` (-> ``then(channels)``, more reads in the same session) ->
+    ``close_session()``; the close is attempted after a failure too, and a close failure after a successful read
+    raises."""
     wgfmu.open_session(resource)
     try:
         channels = wgfmu.channel_ids()
+        if then is not None:
+            then(channels)
     except BaseException:
         with contextlib.suppress(Exception):
             wgfmu.close_session()

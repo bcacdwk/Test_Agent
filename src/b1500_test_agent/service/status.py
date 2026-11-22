@@ -1,6 +1,11 @@
 """``station_status`` of the service facade (blueprint 5.1, v2 2.9): configuration, limits, modules vs profile, live
 state, fault latch, lock holder, the run holding the instrument and the MFCMU correction freshness (WP8.2).
 
+Budget (blueprint 5.1): the response stays within ``TRIM_TARGET`` tokens as the configuration grows. ``config.files``
+lists every file used; when that would exceed the target, the example-layer pin-map and DUT-profile files leave the
+list first, then the other pin-map and DUT-profile files (all stay named in ``pin_maps``/``dut_profiles``), and
+``config.files_omitted`` counts them (``fit_config_files``; WP7.3). Settings, station, policy and scenario files stay.
+
 While a run holds the instrument (an asynchronous run of this process, or any run of another process seen through
 its in-flight marker and the held lock) ``station_status`` never waits for the lock: it answers ``busy: run <id>
 (<done>/<total>)`` from the last snapshot of this process (``live: cached``) and names the run in ``active_run``.
@@ -35,7 +40,7 @@ from b1500_test_agent.models.results import (
 )
 from b1500_test_agent.models.station import CorrectionCheck, CorrectionFreshness, LiveState, StationProfile
 from b1500_test_agent.rules.builtin.cmu import CORRECTION_CARD
-from b1500_test_agent.service.common import clip, status_for
+from b1500_test_agent.service.common import TRIM_TARGET, approx_tokens, clip, status_for
 from b1500_test_agent.session import InstrumentBusy
 from b1500_test_agent.session.routes import cleanup_scope
 
@@ -229,7 +234,7 @@ def station_status(svc: B1500Service, bundle: ConfigBundle, refresh: bool) -> St
                       else ["call safe_shutdown and load skill b1500-debug"])
     if mismatched and status == "ok":
         next_steps = ["ask the human to check the installed modules against config/local/station.yaml"]
-    return StationStatus(
+    return fit_config_files(StationStatus(
         ok=status == "ok", status=status, error_code=code, **svc._envelope(backend),
         message=clip(f"{head}: " + ("; ".join(notes) if notes else "no live state read")),
         next_steps=next_steps,
@@ -247,7 +252,24 @@ def station_status(svc: B1500Service, bundle: ConfigBundle, refresh: bool) -> St
         dut_profiles={name: d.device_type for name, d in sorted(bundle.dut_profiles.items())},
         active_run=active_run_status(active) if active is not None else None, corrections=corrections,
         switches=switches,
-    )
+    ))
+
+
+def fit_config_files(result: StationStatus) -> StationStatus:
+    """``result`` within ``TRIM_TARGET`` tokens (see the module docstring): drop the example pin-map and DUT-profile
+    files from ``config.files``, then the remaining ones, until it fits; ``config.files_omitted`` counts them."""
+    config = result.config
+    if config is None:
+        return result
+    profile = ("pinmaps/", "duts/")
+    for omit in (lambda f: f.source == "example" and f.key.startswith(profile), lambda f: f.key.startswith(profile)):
+        if approx_tokens(result.model_dump_json()) <= TRIM_TARGET:
+            break
+        kept = [f for f in config.files if not omit(f)]
+        config = config.model_copy(update={"files": kept, "files_omitted": config.files_omitted + len(config.files)
+                                           - len(kept)})
+        result = result.model_copy(update={"config": config})
+    return result
 
 
 def switch_status(station: StationProfile, live: LiveState | None) -> dict[str, str]:

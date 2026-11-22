@@ -778,6 +778,10 @@ class Executor(RunningRuns):
             out.append("sampling (MM 10) with automatic abort on compliance/overflow/oscillation (MSC 2,2): an "
                        "aborted block ends the run (see kind_result); t_s from the instrument time stamps since the "
                        "bias step; runs over 60 s of sampling are chains of 25 s blocks holding the stress")
+        if plan.kind == "smu_pulsed":
+            out.append("pulsed measurement (MM 3/4/5/27/28): each value is measured at the end of a pulse with the "
+                       "pulsed ADC's time (AIT 2); sweeps abort on compliance/overflow/oscillation (WM 2,1); a host "
+                       "list of pulse levels stops after a trigger that reported one (see kind_result)")
         if plan.kind == "stress_measure":
             out.append("stress-measure: the stress and recovery holds are timed by the instrument (sampling blocks of "
                        "at most 25 s, one monitor sample each); t_s is the cumulative hold time (the reads interrupt "

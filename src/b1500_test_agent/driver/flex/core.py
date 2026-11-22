@@ -88,10 +88,11 @@ MAX_CHANNELS_MM = 10
 FORMATS = frozenset({1, 5})
 """``FMT`` formats this driver sends: ASCII with header, CR/LF (1) or comma (5) terminated (Table 4-24, PDF 437)."""
 
-MEASUREMENT_MODES = frozenset({1, 2, 10, 16, 17, 18, 19, 20, 22, 23, 26})
-"""``MM`` modes this driver sends (Table 4-28, PDF 471-472): SMU 1 spot, 2 staircase sweep, 10 sampling, 16
-multi-channel sweep; MFCMU 17 spot C, 18 C-V (DC bias) sweep, 19 pulsed spot C, 20 pulsed sweep C-V, 22 C-f sweep, 23
-C-V (AC level) sweep, 26 C-t sampling."""
+MEASUREMENT_MODES = frozenset({1, 2, 3, 4, 5, 10, 16, 17, 18, 19, 20, 22, 23, 26, 27, 28})
+"""``MM`` modes this driver sends (Table 4-28, PDF 471-472): SMU 1 spot, 2 staircase sweep, 3 pulsed spot, 4 pulsed
+sweep, 5 staircase sweep with pulsed bias, 10 sampling, 16 multi-channel sweep, 27 multi-channel pulsed spot, 28
+multi-channel pulsed sweep; MFCMU 17 spot C, 18 C-V (DC bias) sweep, 19 pulsed spot C, 20 pulsed sweep C-V, 22 C-f
+sweep, 23 C-V (AC level) sweep, 26 C-t sampling."""
 
 ONE_CHANNEL_MODES = frozenset({3, 4, 5, 17, 19, 20, 22, 23, 26})
 """``MM`` modes whose syntax takes exactly one channel (PDF 470); mode 18 takes the MFCMU first, then up to nine SMU
@@ -215,7 +216,9 @@ def mm(mode: int, chs: Sequence[int]) -> str:
 
     ``mode`` 1 (spot), 2 (staircase sweep), 10 (sampling) or 16 (multi-channel sweep: ``WV``/``WI`` primary plus
     ``WNX`` sources) with one to ten channels; with several channels they measure in the given order (MM 16:
-    channels on the high-speed ADC with fixed ranging first, simultaneously, PDF 471). The MFCMU modes 17, 19, 20,
+    channels on the high-speed ADC with fixed ranging first, simultaneously, PDF 471). The SMU pulsed modes 3, 4, 5
+    take exactly one channel, the multi-channel pulsed modes 27 and 28 one to ten (measured in parallel; data in the
+    given order, PDF 94, 104). The MFCMU modes 17, 19, 20,
     22, 23, 26 take exactly one channel (the MFCMU); 18 the MFCMU first and up to nine SMU channels (they measure
     before it at each step; data in the given order, PDF 471). Other modes are refused until a measurement kind
     implements them; that the channels are the right module types is the caller's (and the instrument's) check.

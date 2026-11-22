@@ -10,7 +10,7 @@ routes: []
 bringup_stage: L5
 status: sim_validated
 confirmation: conditional
-knowledge: [knowledge/02-b1500-instrument.md#sampling-measurement-mm-10, knowledge/06-analysis-extraction.md#sampling-summary-and-relaxation-fit, knowledge/05-reliability-defects.md#igzo-instability-mechanisms, knowledge/02-b1500-instrument.md#data-status-codes]
+knowledge: [knowledge/02-b1500-instrument.md#sampling-measurement-mm-10, knowledge/06b-analysis-time-pulse.md#sampling-summary-and-relaxation-fit, knowledge/05-reliability-defects.md#igzo-instability-mechanisms, knowledge/02-b1500-instrument.md#data-status-codes]
 manual: [PG p474-475 (4-156) "MT", PG p477 (4-159) "MV", PG p472-473 (4-154) "MSC", PG p538 (4-220) "TSC"]
 debug: [vth-drift-igzo, compliance-hit, noisy-data, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 3.1 and 4.2, lwp lib/IVt_sampling.m, PG sampling measurements p112-114]
@@ -117,7 +117,7 @@ sim_scenario: igzo_transient
 - tau and beta of Id(t) equal those of Vth(t) when Id is linear in Vth (linear region, small `vd`); in saturation
   they are close (a few %). A tau beyond 3x the sampled span is flagged: sample longer or log-spaced.
 - `plot_timeseries` (`log_time: true`) for the transient. Report measured Id(t) (points, interval, status counts)
-  and the derived tau, beta with the fit window ([06](../../knowledge/06-analysis-extraction.md#sampling-summary-and-relaxation-fit)).
+  and the derived tau, beta with the fit window ([06b](../../knowledge/06b-analysis-time-pulse.md#sampling-summary-and-relaxation-fit)).
 
 ## 8. Expected result shape
 

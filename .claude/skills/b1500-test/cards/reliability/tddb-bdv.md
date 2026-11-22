@@ -10,7 +10,7 @@ routes: []
 bringup_stage: L9
 status: sim_validated
 confirmation: always
-knowledge: [knowledge/05-reliability-defects.md#tddb-constant-voltage-stress, knowledge/06-analysis-extraction.md#time-to-breakdown-and-weibull, knowledge/02-b1500-instrument.md#sampling-measurement-mm-10]
+knowledge: [knowledge/05-reliability-defects.md#tddb-constant-voltage-stress, knowledge/06b-analysis-time-pulse.md#time-to-breakdown-and-weibull, knowledge/02-b1500-instrument.md#sampling-measurement-mm-10]
 manual: [PG p472-473 (4-154) "MSC", PG p474-475 (4-156) "MT", PG p477 (4-159) "MV"]
 debug: [compliance-hit, current-too-high, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 3.1 and 4.2, JEDEC JESD92, McPherson and Mogul J. Appl. Phys. 84 1513 (1998)]
@@ -97,7 +97,7 @@ sim_scenario: dielectric_tddb
   a current jump of `jump_factor` (10) over the median of the previous `window` (5) samples, or at `i_bd_a`;
   resolution one interval (`fit.t_prev_s`, `resolution_s`). No breakdown: the last time as a lower bound,
   `classification: no_breakdown` (censored).
-- Weibull over sites (agent script; [06](../../knowledge/06-analysis-extraction.md#time-to-breakdown-and-weibull)):
+- Weibull over sites (agent script; [06b](../../knowledge/06b-analysis-time-pulse.md#time-to-breakdown-and-weibull)):
   `from b1500_test_agent.analysis import load_run, weibull_fit` then `weibull_fit([load_run(r) for r in runs])` →
   `weibull_beta`, `weibull_eta` (63 % life) by MLE with censoring; at least 2 breakdowns.
 - Report: stress (V, field if `tox` is known), interval, measured Ig(t) and status counts; derived t_bd with its

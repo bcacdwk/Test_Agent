@@ -1,0 +1,48 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Pulsed spot I-V of a two-terminal device (blueprint v2 3.1, kind smu_pulsed MM 3): terminal a pulses from `base` to
+# each level of `levels` (one PV pulse and one spot measurement of a's current at the pulse end per level, host list),
+# terminal b on the GNDU. A resistor or contact check that never holds DC (no self-heating, no electromigration
+# drift); the resistance analysis fits I(V) over the levels. HR/MP/HPSMU pulse timing (R-PULSE-01); the DUT profile's
+# terminal a needs a pulse envelope (R-PULSE-02).
+# status: sim_validated by tests/integration/test_recipes_pulsed.py (resistor_100k: R vs the 100 kOhm truth).
+id: basic.pulsed_spot
+version: 1
+title: Pulsed spot I-V (one pulse per level, current at the pulse end) - R or I(V) without DC stress
+family: smu
+kind: smu_pulsed
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/smu-pulsed-iv.md
+device_types: [resistor, diode]
+roles:
+  a:
+    function: pulse_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {base: $base, values: $levels, icomp: $icomp, width: $width, period: $period, hold: $hold_s,
+               meas_time: $meas_time}
+  b: {function: ground, allow_gndu: true}
+params:
+  levels:
+    type: float_list
+    unit: V
+    default: [-0.1, -0.05, 0.05, 0.1]
+    range: [-42.0, 42.0]
+    doc: Pulse levels of terminal a, one pulse and spot reading each, in this order.
+  base: {unit: V, default: 0.0, range: [-42.0, 42.0], doc: Level of a between pulses.}
+  icomp: {unit: A, default: 1.0e-4, recommended: [1.0e-9, 1.0e-3], range: [1.0e-12, 0.1], doc: Current compliance of a.}
+  width: {unit: s, default: 1.0e-3, recommended: [5.0e-4, 1.0e-2], range: [1.0e-5, 2.0],
+          doc: "Pulse width (HR/MP/HPSMU 500 us-2 s in 100 us steps, R-PULSE-01)."}
+  period: {unit: s, default: 0.02, recommended: [0.01, 0.1], range: [5.0e-3, 5.0],
+           doc: "Pulse period (>= width + 2 ms; 0.1 ms steps)."}
+  hold_s: {unit: s, default: 0.0, recommended: [0.0, 1.0], range: [0.0, 30.0], doc: "Hold before each pulse."}
+  meas_time: {unit: s, default: 2.0e-4, recommended: [1.0e-4, 5.0e-4], range: [2.0e-6, 0.02],
+              doc: "Pulsed ADC measurement time (AIT 2), ending with the pulse; at most the width."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: resistance, options: {r_short_ohm: 100.0, r_open_ohm: 1.0e+9}}
+provenance:
+  sources:
+    - blueprint v2 3.1 (basic.pulsed_spot, smu_pulsed MM 3)
+    - Programming Guide Ed. 15 pulsed spot (PDF 93), PT (PDF 486-487), PV (PDF 488-489), example Table 3-4 (PDF 196-197)
+    - v0.2 C pulse spot flow (tag archive/v0.2-fake-mcp)
+  validation_runs: []

@@ -77,9 +77,10 @@ DESCRIPTIONS: Final[dict[str, str]] = {
         "(status busy while a run holds the instrument). Use first in a session and before validate_plan."
     ),
     "list_recipes": (
-        "Recipe index {id, title, kind, status, card}, or with recipe_id one recipe: params (type, unit, default, "
-        "recommended, range), roles, analysis defaults, preconditions. Use after station_status, before "
-        "validate_plan; not_implemented recipes cannot run."
+        "Without arguments: recipe families (smu cmu spgu wgfmu nvm reliability system) with their runnable recipe "
+        "ids; family: that family's entries {id, title, kind, status, card}; recipe_id: one recipe's params (type, "
+        "unit, default, recommended, range), roles, analysis defaults, preconditions. device_type filters. Use after "
+        "station_status, before validate_plan; not_implemented recipes cannot run."
     ),
     "validate_plan": (
         "Check a request (recipe_id, params, pin_map, dut_profile, label) or re-check plan_id; never sources. "
@@ -152,8 +153,9 @@ def create_server(service: B1500Service | None = None, *, require_user_interacti
         return svc.station_status(refresh=refresh)
 
     @mcp.tool(description=DESCRIPTIONS["list_recipes"], annotations=READ_ONLY, output_schema=None)
-    def list_recipes(recipe_id: str | None = None, device_type: str | None = None) -> RecipeList:
-        return svc.list_recipes(recipe_id=recipe_id, device_type=device_type)
+    def list_recipes(recipe_id: str | None = None, device_type: str | None = None,
+                     family: str | None = None) -> RecipeList:
+        return svc.list_recipes(recipe_id=recipe_id, device_type=device_type, family=family)
 
     @mcp.tool(description=DESCRIPTIONS["validate_plan"], annotations=READ_ONLY, output_schema=None)
     def validate_plan(

@@ -59,12 +59,19 @@ def test_status(cli_world: World) -> None:
 def test_recipes(cli_world: World) -> None:
     index = invoke("recipes")
     assert index.exit_code == 0 and "mosfet.idvg" in index.stdout and "not_implemented" in index.stdout
+    assert "\nsmu: " in index.stdout and " runnable: " in index.stdout  # one line per family (WP7.3)
     one = invoke("recipes", "mosfet.idvg")
     assert one.exit_code == 0 and "vg_start" in one.stdout and "analysis defaults: vth_linear_extrapolation" in \
         one.stdout
-    filtered = as_json(invoke("recipes", "--device", "nmos", "--json"))
+    overview = as_json(invoke("recipes", "--device", "nmos", "--json"))
+    assert overview["recipes"] == [] and "mosfet.idvg" in overview["families"]["smu"]["runnable"]
+    filtered = as_json(invoke("recipes", "--device", "nmos", "--family", "smu", "--json"))
     assert {r["id"] for r in filtered["recipes"]} >= {"mosfet.idvg", "generic.smu_staircase"}
     assert "fefet.dual_sweep_mw" not in {r["id"] for r in filtered["recipes"]}
+    table = invoke("recipes", "--family", "smu")
+    assert table.exit_code == 0 and "mosfet.idvg_pulsed" in table.stdout and "fefet" not in table.stdout
+    bad = invoke("recipes", "--family", "pulse", "--json")
+    assert bad.exit_code == 1 and as_json(bad)["error_code"] == "invalid_input"
     unknown = invoke("recipes", "nope.nope", "--json")
     assert unknown.exit_code == 1 and as_json(unknown)["error_code"] == "invalid_input"
 

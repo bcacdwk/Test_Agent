@@ -1,0 +1,17 @@
+# DUT profile (example; committed). Schema: b1500_test_agent.models.policy.DutProfile; name = file name.
+# Generic two-terminal resistor or contact structure for SMU pulsed spot I-V (card smu-pulsed-iv, WP7.3): the DC
+# envelope of resistor-generic plus a pulse envelope on terminal a (R-PULSE-02). Example values, not a real device.
+# Per terminal: max |V| (V) and max |I| (A; also the largest compliance; R-DUT-01).
+
+device_type: resistor
+description: Generic two-terminal resistor with a pulse envelope on terminal a (example; pulsed spot I-V).
+terminals:
+  a:
+    max_abs_v: 1.0
+    max_abs_i: 1.0e-3
+    pulse: {max_abs_v: 1.0, max_width_s: 2.0, max_duty: 0.5, max_count: 100000}
+  b: {max_abs_v: 1.0, max_abs_i: 1.0e-3}
+nominal:
+  r: {value: 1.0e+5, unit: Ohm}
+notes:
+  - Pulsed spot levels stay within +-0.1 V by default, so the check never stresses the device.

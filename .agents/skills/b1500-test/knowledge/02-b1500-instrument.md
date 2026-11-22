@@ -66,22 +66,22 @@ Deck slide 11, corrected against the User's Guide. DC values; v1 sources DC only
 ## Measurement modes
 
 Folded from the former mode-map stub and checked against PG Chapter 2 (PDF 91-132) and the `XE` required-command
-table (PDF 571-572). Implemented: modes 1, 2, 10 and 16 (WP7.2 added the current, synchronous and multi-channel
-sweeps; WP7.1 the spot, mode 1).
+table (PDF 571-572). Implemented: modes 1, 2, 3, 4, 5, 10, 16, 27 and 28 (WP7.2 added the current, synchronous and
+multi-channel sweeps; WP7.1 the spot, mode 1; WP7.3 the pulsed modes).
 
 | MM | Mode | Modules | v1 |
 |---|---|---|---|
 | — | high-speed spot (`TI`, `TV`, no `MM`/`XE`) | SMU | not used |
 | 1 | spot | SMU | `smu_spot` (all measured roles at once; host list of levels, range survey) |
 | 2 | staircase sweep (`WV`/`WI` lin/log, single/double; one synchronous `WSV`/`WSI` source) | SMU | `smu_staircase`, `smu_stepped` (host loop over a stepped V or I bias) |
-| 3, 4, 5 | pulsed spot, pulsed sweep, staircase with pulsed bias | SMU | reserved |
+| 3, 4, 5 | pulsed spot, pulsed sweep, staircase with pulsed bias | SMU | `smu_pulsed` (section below) |
 | 9 | quasi-pulsed spot | SMU | reserved |
 | 10 | sampling | SMU | `smu_sampling` (I(t) transients, TDDB; section below) |
 | 13 | quasi-static C-V | SMU | reserved |
 | 14, 15 | linear / binary search | SMU | reserved |
 | 16 | multi-channel sweep (`WV`/`WI` primary + `WNX` sources, either mode; PDF 102) | SMU | `smu_staircase` with two or more sweep roles |
 | 17-20, 22, 23, 26 | spot C, C-V, pulsed C, C-f, C-V(AC level), C-t | MFCMU | driver + simulator (WP8.1); recipes M8 |
-| 27, 28 | multi-channel pulsed spot / sweep | SMU | reserved |
+| 27, 28 | multi-channel pulsed spot / sweep | SMU | `smu_pulsed` with two pulse or measuring roles |
 
 WGFMU waveforms run through the B1530A instrument library and SPGU pulses through their own commands, not through
 `MM` (the old stub listed them under sampling and pulsed sweep) `TODO(verify)` against the B1530A guide.
@@ -100,6 +100,19 @@ measurements PG p112-114 (2-24), `MT` PG p474-476 (4-156).
   `199.999E+99`, dropped from the table) and the sources go to their base value; a normal end keeps the bias.
 - Runs with more than 60 s of linear sampling are chains of 25 s blocks: continuation blocks hold the stress
   (base = bias) and the time stamps run on, so `t_s` stays exact; each block is a checkpoint (progress, cancel).
+
+## Pulsed measurements MM 3 4 5 27 28
+
+Kind `smu_pulsed` (card `smu-pulsed-iv`); PG p93-105 (2-5), `PT` PG p486-487 (4-168), `MCPT` PG p464 (4-146).
+
+- A pulse source sits at its base, pulses to its peak for `width` once per `period` and returns to base; the
+  measurement (pulsed ADC, `AIT 2,3,<time>`) ends with the pulse. MM 3: one pulse, one reading; MM 4: one pulse per
+  step of a `PWV` pulsed sweep; MM 5: a `WV`/`WI` staircase with one `PV` pulse per step; MM 27/28: up to ten
+  channels pulse together (`MCPNX` bias, `MCPWNX` sweep, `WNX` staircase) and measure in parallel.
+- HR/MP/HPSMU: width 500 us-2 s in 100 us steps, period 5 ms-5 s with period >= width + 2 ms (10 ms above 100 ms),
+  no delay, one common width (R-PULSE-01, PG p462 (4-144)); MM 4/5 sweep linearly only (error 226).
+- Auto ranging in a pulsed measurement means the compliance range (PG p337 (4-19)): set a tight compliance or
+  `irange` for small pulsed currents. A pulse far shorter than the thermal time constant reads the device cold.
 
 ## Measurement sequence and cleanup
 

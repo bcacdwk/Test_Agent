@@ -11,7 +11,8 @@ package adds its guarded operations to the same mixin. Every command comes from
 an ``OutputGuard`` and check every channel and value against it before the first byte is written. The driver
 orchestrates nothing else: cleanup order (``AB`` -> ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify) belongs to
 ``session/transaction.py``.
-``SamplingOps`` (WP7.4) adds time stamps, guarded ``MV``/``MI`` and the ``MM 10`` sampling setup.
+``SamplingOps`` (WP7.4) adds time stamps, guarded ``MV``/``MI`` and the ``MM 10`` sampling setup; ``PulsedOps``
+(WP7.3) the guarded SMU pulsed setups ``MM 3/4/5/27/28`` (``PT``, ``PV``/``PI``, ``PWV``/``PWI``, ``MCP*``).
 
 ``StaircaseSetup``, ``SweepSource``, ``RawBlock``, the ADC code tables and the MFCMU setup models are re-exported
 here, so callers import the driver API from one module.
@@ -33,6 +34,7 @@ from b1500_test_agent.driver.ops.cmu import (
     PulsedSpotCSetup,
 )
 from b1500_test_agent.driver.ops.core import CoreOps, RawBlock
+from b1500_test_agent.driver.ops.pulsed import PulsedOps, PulsedSetup, PulseSource
 from b1500_test_agent.driver.ops.sampling import SamplingOps, SamplingSetup, SamplingSource
 from b1500_test_agent.driver.ops.smu import ADC_MODE_CODES, ADC_TYPE_CODES, SmuOps, StaircaseSetup, SweepSource
 from b1500_test_agent.driver.ops.spgu import SpguOps
@@ -40,10 +42,11 @@ from b1500_test_agent.driver.ops.switch import SwitchOps
 
 __all__ = [
     "ADC_MODE_CODES", "ADC_TYPE_CODES", "PHASE_COMPENSATION_TIMEOUT_S", "AcLevelSweepSetup", "B1500Driver",
-    "CfSweepSetup", "CmuBlock", "CmuSignal", "CmuSweepTiming", "CtSamplingSetup", "CvSweepSetup", "PulsedCvSweepSetup",
-    "PulsedSpotCSetup", "RawBlock", "SamplingSetup", "SamplingSource", "StaircaseSetup", "SweepSource",
+    "CfSweepSetup", "CmuBlock", "CmuSignal", "CmuSweepTiming", "CtSamplingSetup", "CvSweepSetup", "PulseSource",
+    "PulsedCvSweepSetup", "PulsedSetup", "PulsedSpotCSetup", "RawBlock", "SamplingSetup", "SamplingSource",
+    "StaircaseSetup", "SweepSource",
 ]
 
 
-class B1500Driver(CoreOps, SmuOps, SamplingOps, CmuOps, SpguOps, SwitchOps):
+class B1500Driver(CoreOps, SmuOps, SamplingOps, PulsedOps, CmuOps, SpguOps, SwitchOps):
     """FLEX driver of one B1500A. ``guard`` is required for every source operation (blueprint 2.5)."""

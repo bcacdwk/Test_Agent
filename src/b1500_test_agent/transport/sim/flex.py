@@ -35,6 +35,16 @@ ERR_NO_MM = 214
 ERR_NO_SWEEP = 220
 ERR_SWEEP_COMPLIANCE = 223
 ERR_SYNC_MODE = 224
+ERR_NO_PULSE_SWEEP = 221
+ERR_NO_PULSE_BIAS = 222
+ERR_NO_SYNC_DATA = 225
+ERR_PULSE_LINEAR = 226
+ERR_NO_PULSE_SOURCE = 230
+ERR_PULSE_COMPLIANCE = 231
+ERR_PULSE_SETUP = 232
+ERR_PULSE_TIMING = 233
+ERR_PULSE_WIDTH_MAX = 238
+ERR_PULSE_WIDTH_MIN = 239
 ERR_NO_CV_SWEEP = 280
 ERR_NO_CV_PULSE = 281
 ERR_NO_CV_PULSE_SWEEP = 282
@@ -105,6 +115,16 @@ ERROR_MESSAGES: dict[int, str] = {
     220: "Send WV or WI to set primary sweep source.",
     223: "Compliance must be set correctly.",
     224: "Sweep and sync output modes must be the same.",
+    221: "Send PWV or PWI to set pulse sweep source.",
+    222: "Send PV or PI to set pulse source.",
+    225: "Send WSV, WSI, or WNX to get sync sweep data.",
+    226: "Set linear sweep for MM4 or MM5.",
+    230: "Pulse source must be set.",
+    231: "Compliance must be set correctly.",
+    232: "Invalid pulse output setup",
+    233: "Invalid pulse timing setup",
+    238: "Too large pulse width (max. 2 s).",
+    239: "Pulse width must be 0.01 ms or more.",
     227: "Sweep measurement was aborted.",
     280: "Send WDCV to set CV sweep source.",
     281: "Send PDCV to set CV pulse source.",
@@ -182,6 +202,9 @@ QUERIES = frozenset({
 SAMPLING_COMMANDS = frozenset({"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"})
 """The SMU sampling setup (``MM 10``) and the timer reset (``units/sampling.py``, v2 kind ``smu_sampling``)."""
 
+PULSED_COMMANDS = frozenset({"PT", "PV", "PI", "PWV", "PWI", "MCPT", "MCPNT", "MCPNX", "MCPWS", "MCPWNX"})
+"""The SMU pulsed setup (``MM 3/4/5/27/28``, ``units/pulsed.py``, v2 kind ``smu_pulsed``, WP7.3)."""
+
 CMU_COMMANDS = frozenset({
     "IMP", "FC", "ACV", "DCV", "RC", "ACT", "LMN", "WDCV", "WTDCV", "WMDCV", "WFC", "WTFC", "WMFC", "WACV", "WTACV",
     "WMACV", "PDCV", "PTDCV", "PWDCV", "MDCV", "MTDCV", "ADJ", "CORRL", "CLCORR", "DCORR", "CORRDT", "CORRST",
@@ -189,7 +212,7 @@ CMU_COMMANDS = frozenset({
 """MFCMU setting commands (WP8.1, blueprint v2 4.1; their queries ``ADJ?``, ``CORR?``, ``CORRST?`` and, WP8.2,
 ``CORRL?``, ``DCORR?`` are in ``QUERIES``)."""
 
-SUPPORTED = QUERIES | SAMPLING_COMMANDS | CMU_COMMANDS | frozenset({
+SUPPORTED = QUERIES | SAMPLING_COMMANDS | PULSED_COMMANDS | CMU_COMMANDS | frozenset({
     "*RST", "FMT", "BC", "TSC", "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "RI", "RV",
     "MM", "CMM", "DV", "WV", "WT", "WM", "XE", "CM",
     "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
@@ -202,8 +225,9 @@ SUPPORTED = QUERIES | SAMPLING_COMMANDS | CMU_COMMANDS | frozenset({
 state queries of the bring-up probe, v2 7.1: ``ERMOD?``, ``ERSSP?``, ``SPST?``, ``CORRST?``, ``ADJ?`` mode 0, the
 sampling commands of WP7.4 and the v2 sweep sources of WP7.2: ``DI``, ``WI``, ``WSV``/``WSI``, ``WNX``/``WNCC`` with
 ``MM 16``), the ASU commands of WP7.1 (``SAP``, ``SAR``, ``SAL`` with ``*LRN?`` types 62 and 63), the MFCMU and
-SCUU commands of WP8.1 with ``MM`` 17-26 and ``*LRN?`` types 70-73, 80, 81, 90, the HV-SPGU commands of WP9.1 and
-the 16440A selector settings ``ERMOD``/``ERSSP`` of WP9.2; anything else is error 100 and logged ``unsupported``."""
+SCUU commands of WP8.1 with ``MM`` 17-26 and ``*LRN?`` types 70-73, 80, 81, 90, the HV-SPGU commands of WP9.1,
+the 16440A selector settings ``ERMOD``/``ERSSP`` of WP9.2 and the SMU pulsed commands of WP7.3 with ``MM`` 3, 4, 5,
+27, 28; anything else is error 100 and logged ``unsupported``."""
 
 ALONE_ONLY = frozenset({"AB", "*RST", "FMT", "BC"})
 """Mnemonics that must be sent alone: the simulator rejects the whole line (error 103) otherwise (PDF 44, 364,
@@ -211,7 +235,7 @@ ALONE_ONLY = frozenset({"AB", "*RST", "FMT", "BC"})
 driver bug is loud."""
 
 SOURCE_COMMANDS = frozenset({
-    "DV", "DI", "WV", "WI", "WSV", "WSI", "WNX", "MV", "MI",
+    "DV", "DI", "WV", "WI", "WSV", "WSI", "WNX", "MV", "MI", "PV", "PI", "PWV", "PWI", "MCPNX", "MCPWNX",
     "ACV", "DCV", "WDCV", "WACV", "PDCV", "PWDCV", "MDCV", "SSP",
 })  # fmt: skip
 """Commands that set an output level or connect an output (the safety spy watches these): the SMU sources, the MFCMU

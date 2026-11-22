@@ -1,0 +1,56 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOSFET pulsed transfer curve (blueprint v2 3.1, kind smu_pulsed MM 4): the gate pulses from vg_base to each sweep
+# level (PWV pulsed sweep, one pulse per step) while the drain holds a DC bias and measures Id at the end of every
+# pulse (pulsed ADC, AIT 2). A pulse far shorter than the device's thermal time constant reads the (almost)
+# isothermal current, so pulsed - DC (analysis pulsed_vs_dc with reference_run = a mosfet.idvg run at the same vd)
+# shows the self-heating; short pulses also keep slow traps from charging (oxide/IGZO hysteresis).
+# HR/MP/HPSMU pulses: width 500 us-2 s in 100 us steps, period >= width + 2 ms (R-PULSE-01, PG p486-487 (4-168));
+# MM 4 sweeps linearly only (PG error 226). The DUT profile's gate terminal needs a pulse envelope (R-PULSE-02).
+# status: sim_validated by tests/integration/test_recipes_pulsed.py (nmos_selfheat: pulsed - DC Id = model +-10 %).
+id: mosfet.idvg_pulsed
+version: 1
+title: MOSFET pulsed transfer curve (gate pulsed sweep, Id at the pulse end) - isothermal Id-Vg, Vth, pulsed vs DC
+family: smu
+kind: smu_pulsed
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/smu-pulsed-iv.md
+device_types: [nmos, pmos, igzo_tft]
+roles:
+  gate:
+    function: pulse_v
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {base: $vg_base, start: $vg_start, stop: $vg_stop, points: $vg_points, icomp: $icomp_gate,
+               width: $width, period: $period, hold: $hold_s, meas_time: $meas_time}
+  drain:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {v: $vd, icomp: $icomp_drain}
+  source: {function: ground, allow_gndu: true}
+params:
+  vg_base: {unit: V, default: 0.0, recommended: [-1, 0], range: [-10, 10], doc: Gate level between pulses (off).}
+  vg_start: {unit: V, default: 0.0, recommended: [-1, 0], range: [-10, 10], doc: First gate pulse level.}
+  vg_stop: {unit: V, default: 3.0, recommended: [1, 5], range: [-10, 10], doc: Last gate pulse level.}
+  vg_points: {type: int, default: 61, recommended: [31, 101], range: [2, 1001], doc: Pulses (sweep steps).}
+  vd: {unit: V, default: 1.0, recommended: [0.05, 3], range: [-5, 5],
+       doc: "Drain DC bias (self-heating needs power: compare with mosfet.idvg at the same vd)."}
+  icomp_gate: {unit: A, default: 1.0e-4, range: [1.0e-12, 1.0e-2], doc: "Gate compliance (covers the edge charging)."}
+  icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-2], doc: Drain current compliance.}
+  width: {unit: s, default: 1.0e-3, recommended: [5.0e-4, 1.0e-2], range: [1.0e-5, 2.0],
+          doc: "Pulse width (HR/MP/HPSMU 500 us-2 s in 100 us steps, R-PULSE-01)."}
+  period: {unit: s, default: 0.02, recommended: [0.01, 0.1], range: [5.0e-3, 5.0],
+           doc: "Pulse period (>= width + 2 ms; 0.1 ms steps); duty = width/period."}
+  hold_s: {unit: s, default: 0.0, recommended: [0.0, 1.0], range: [0.0, 30.0], doc: "Hold before the first pulse."}
+  meas_time: {unit: s, default: 2.0e-4, recommended: [1.0e-4, 5.0e-4], range: [2.0e-6, 0.02],
+              doc: "Pulsed ADC measurement time (AIT 2), ending with the pulse; at most the width."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: vth_constant_current, options: {i_crit_a: 1.0e-7}}
+  - {method: gm_max}
+provenance:
+  sources:
+    - blueprint v2 3.1 (mosfet.idvg_pulsed, smu_pulsed MM 4), 4.2 (mosfet +selfheat)
+    - Programming Guide Ed. 15 pulsed sweep (PDF 100-101), PT (PDF 486-487), PWV (PDF 492-493), example Table 3-8 (PDF 209-211)
+    - v0.2 C pulse sweep flow (tag archive/v0.2-fake-mcp)
+  validation_runs: []

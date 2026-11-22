@@ -33,7 +33,8 @@ M2 = {"vth_constant_current", "vth_max_gm", "subthreshold_swing", "gm_max", "ion
 M5 = {"plot_timeseries"}
 M7 = {"sampling_summary", "time_to_breakdown", "dibl", "body_effect", "forward_voltage",  # WP7.4, WP7.2
       "kelvin_resistance", "zero_floor",  # WP7.1
-      "bti_power_law", "degradation_vs_time", "silc"}  # WP7.6
+      "bti_power_law", "degradation_vs_time", "silc",  # WP7.6
+      "pulsed_vs_dc", "pulse_plateau"}  # WP7.3
 
 
 def idvg_run(recipe_id: str = "mosfet.idvg", drain_status: list[str] | None = None) -> RunData:

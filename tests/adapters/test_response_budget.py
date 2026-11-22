@@ -44,6 +44,7 @@ def test_every_tool_response_fits(world: World, count: budget.TokenCounter) -> N
         ("station_status", {}),
         ("list_recipes", {}),
         ("list_recipes", {"recipe_id": "mosfet.idvg"}),
+        ("list_recipes", {"family": "smu"}),
         ("validate_plan", {**IDVG, "params": {"vg_stop": 60.0, "icomp_drain": 1.0}}),
         ("list_runs", {}),
         ("get_run", {"run_id": run_id}),
@@ -57,9 +58,9 @@ def test_every_tool_response_fits(world: World, count: budget.TokenCounter) -> N
     ])
     for payload in [plan, run, *payloads]:
         check(count, payload)
-    data_only = payloads[7]["data"]
+    data_only = payloads[8]["data"]
     assert data_only["rows_total"] == 1001 and 20 <= data_only["rows_returned"] < 1001
-    everything = payloads[6]
+    everything = payloads[7]
     assert everything["data"]["rows_returned"] >= 10 and everything["audit"]
 
 
@@ -79,6 +80,28 @@ def test_list_runs_is_trimmed_to_the_budget(world: World, count: budget.TokenCou
     check(count, payload)
     assert payload["total"] == 301 and 5 <= len(payload["runs"]) < 200
     assert payload["runs"][0]["run_id"] == run["run_id"]  # newest first
+
+
+def test_station_status_names_every_profile_as_the_config_grows(world: World, count: budget.TokenCounter) -> None:
+    """``config.files`` drops example pin-map and DUT-profile files first, then the others (``fit_config_files``,
+    WP7.3); every profile stays named and settings, station and policy stay listed."""
+    world.write_config("policy.yaml", {"soft_limits": {"voltage_v": 2.0}})
+    server = mcp_server(world)
+    payload = call_tool(server, "station_status")
+    check(count, payload)
+    keys = {f["key"]: f["source"] for f in payload["config"]["files"]}
+    assert payload["config"]["files_omitted"] > 0 and not any(
+        k.startswith(("pinmaps/", "duts/")) and src == "example" for k, src in keys.items())
+    assert {"settings", "station"} <= set(keys) and keys["policy"] == "override"
+    profile = {"device_type": "resistor", "description": "budget check",
+               "terminals": {"a": {"max_abs_v": 1.0, "max_abs_i": 1e-3}, "b": {"max_abs_v": 1.0, "max_abs_i": 1e-3}}}
+    for n in range(40):
+        world.write_config(f"duts/resistor-budget-{n:02d}.yaml", profile)
+    payload = call_tool(mcp_server(world), "station_status")
+    check(count, payload)
+    assert len(payload["dut_profiles"]) >= 40 and not any(
+        f["key"].startswith(("pinmaps/", "duts/")) for f in payload["config"]["files"])
+    assert payload["config"]["files_omitted"] >= 40 + len(payload["pin_maps"])
 
 
 NOTES = ["测量完成，探针重新落针后漏电流正常。" * 20, "Vth = 0.4306 V; dVth < 5 mV, uA range, SIMULATED HRSMU " * 20,

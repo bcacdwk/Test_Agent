@@ -243,12 +243,12 @@ def test_wnx_replaces_a_repeated_channel_and_wncc_clears(make_sim) -> None:
 
 
 @pytest.mark.parametrize(("setup", "command", "code"), [
-    ((), "WNX 2,3,1,0,0,1,1E-3", 220),  # WNX before WV/WI
+    (("CN 1,3", "MM 16,1", "WNX 2,3,1,0,0,1,1E-3"), "XE", 220),  # WNX without WV/WI (MM 28 takes it, WP7.3)
     (("WV 1,1,0,0,1,3,1E-3",), "WNX 11,3,1,0,0,1,1E-3", 120),
     (("WV 1,1,0,0,1,3,1E-3",), "WNX 2,3,3,0,0,1,1E-3", 120),
     (("WV 1,1,0,0,1,3,1E-3",), "WNX 2,3,1,0,0,1,0", 223),
     (("WV 1,2,0,0.1,1,3,1E-3",), "WNX 2,3,1,0,0,1,1E-3", 130),  # log primary: the source must avoid 0
-    (("WV 1,1,0,0,1,3,1E-3",), "WNX 1,3,1,0,0,1,1E-3", 100),  # N = 1 belongs to MM 28
+    (("CN 1,3", "MM 16,1", "WV 1,1,0,0,1,3,1E-3", "WNX 1,3,1,0,0,1,1E-3"), "XE", 120),  # N = 1 is MM 28's
 ])
 def test_wnx_errors(make_sim, setup: tuple[str, ...], command: str, code: int) -> None:
     sim = make_sim()

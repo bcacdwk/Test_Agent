@@ -1,0 +1,56 @@
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario. Name = file name.
+# An n-channel transistor with strong self-heating (blueprint v2 3.1 rows mosfet.idvg_pulsed and mosfet.idvd_pulsed,
+# 4.2 `mosfet` +selfheat: "pulsed vs DC Id = model +-10 %"), wired like pin map mosfet-4t (gate SMU4, drain SMU3, both
+# HRSMU, source and bulk on the GNDU) on the lab mainframe.
+#
+# Truth (tests/integration/test_recipes_pulsed.py asserts the analyses against it): model `mosfet` (EKV + the
+# self-heating of models/sim_devices.py): the channel temperature rises by Rth x |Id x Vds| (3e4 K/W, a thin-film or
+# SOI-like device on a poor heat sink) with the thermal time constant tau_th 10 ms; the threshold falls by 1 mV/K and
+# the mobility scales by (T/T0)^-1.5. A DC staircase measures the self-heated steady state (Id(Vg 3 V, Vd 3 V) about
+# 0.46 mA at +42 K); an SMU pulse of 1 ms at 1 % duty stays almost cold (+4 K, about 0.54 mA): pulsed - DC = +16 % of
+# the DC current at the top of the transfer curve, about +2 % at Vg 1.5 V and nothing in the linear region at Vd 0.05 V
+# (the power is too small). Example values, not a measured device; the minimum SMU pulse (500 us) is 5 % of tau_th, so
+# the pulsed reading is within 5 % of the isothermal (cold) current. Noise: HRSMU floor and 0.1 % relative noise.
+
+description: >-
+  n-channel MOSFET with self-heating (Rth 3e4 K/W, tau_th 10 ms) wired as pin map mosfet-4t (gate SMU4, drain SMU3,
+  source and bulk GNDU); DC Id-Vg reads the heated device, SMU pulses read it almost cold; instant timing.
+idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101
+slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
+  - {slot: 7, model: B1520A}
+interlock_closed: false
+wiring:
+  dut:
+    gate: 4
+    drain: 3
+    source: GNDU
+    bulk: GNDU
+models:
+  dut:
+    model: mosfet
+    params:
+      polarity: n
+      vth0: 0.5                 # V (cold)
+      slope_factor: 1.3
+      beta: 3.0e-4              # A/V^2 (cold)
+      theta: 0.2                # 1/V
+      lambda: 0.05              # 1/V
+      rs_ohm: 20.0
+      gate_leak_s: 1.0e-12
+      temperature_k: 300.0
+      rth_k_per_w: 3.0e+4       # K/W: steady temperature rise per watt of Id x Vds
+      tau_th_s: 0.01            # s: thermal time constant (an SMU pulse of 0.5-2 ms stays mostly cold)
+      vth_tc_v_per_k: 1.0e-3    # V/K
+      mobility_t_exp: 1.5
+noise:
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  rel: 1.0e-3
+  seed: 73
+faults: null
+timing: instant

@@ -29,7 +29,7 @@ Use the `b1500` MCP tools (or the `b1500` CLI). Backend `sim`: every value is SI
 1. Clarify the goal: quantity, device type, pin map, DUT profile, die label.
 2. Find the card via the family router (part 4); read it before planning.
 3. `station_status`: backend, fault, lock holder, active run, errors, pin maps and DUT profiles.
-4. Pin map or DUT profile missing, or device unknown: stop and ask the human for them. Never guess pins.
+4. Pin map or DUT profile missing, or device unknown: stop and ask the human. Never guess pins.
 5. `list_recipes(recipe_id=...)` for params; take values from the card's parameter table.
 6. `validate_plan`, then handle the tier (part 5). A request above a limit: name the rule ids that stop it
    (hard limit R-LIM-02, module rating R-LIM-01, recipe range R-PARAM-01, interlock R-IL-01); with pin map and
@@ -43,7 +43,8 @@ Use the `b1500` MCP tools (or the `b1500` CLI). Backend `sim`: every value is SI
 
 ## 3. Tools
 
-`station_status` first; `list_recipes` (with `recipe_id`: params, roles, analyses; defaults fill omitted params);
+`station_status` first; `list_recipes` (bare: families, runnable ids; `family`: titles, cards, status; `recipe_id`:
+params, roles, analyses; defaults fill gaps);
 `validate_plan`; `run_plan` (`ok` only); `run_confirmed_plan` (`plan_id` + `summary` verbatim, after consent);
 `list_runs`, `get_run` (summary, quality, data, audit, notes, progress); `analyze_run`; `annotate_run`;
 `safe_shutdown` (never gated: cancels a run, zeroes, verifies). One plan serves a die batch: vary only
@@ -81,8 +82,7 @@ Reserved (`not_implemented`): say so, offer the named alternative, never emulate
 | `invalid_config` | Report the problems `station_status` lists; stop for the human. |
 | `invalid_input` | Fix names, types from `list_recipes(recipe_id)`. |
 
-Explain each confirm reason, e.g. `soft_pulse` (pulse above policy bands), `soft_cmu` (CMU AC/DC above soft
-bands), `long_run` (async, part 6), `physical_setup` (the human moves probes: wait until they say it is done),
+Explain each confirm reason, e.g. `soft_pulse` (pulse above policy bands), `soft_cmu` (CMU AC/DC above bands), `long_run` (async, part 6), `physical_setup` (the human moves probes: wait until they say it is done),
 `unverified_topology` (unverified switch or wiring).
 
 Outcomes: `completed`; `completed_with_flags` (check quality first); `failed`, `aborted` (raw data kept; debug
@@ -92,11 +92,11 @@ before re-running); `running`, `cancelled` (part 6).
 
 - `validate_plan` shows `mode` and `est_s`; long plans run async (very long ones need `long_run` consent).
 - Async runs return `outcome: running`, `run_id`, `eta_s`: say so, then poll `get_run(run_id, include=[progress])`
-  (state, done/total, eta); other calls may answer `busy` meanwhile.
-- `completed`: quality gate and analysis as usual. `cancelled`/`failed`: rows are partial; say so, report the
-  cleanup; extract only what the card allows.
-- Stop: `safe_shutdown(reason)` from any process (human: `uv run b1500 shutdown`): cancels at the next checkpoint,
-  then verified cleanup.
+  (state, done/total, eta); other calls may answer `busy`.
+- `completed`: quality gate and analysis as usual. `cancelled`/`failed`: partial rows; say so, report the cleanup;
+  extract only what the card allows.
+- Stop: `safe_shutdown(reason)` from any process (human: `uv run b1500 shutdown`): cancels at a checkpoint, then
+  verified cleanup.
 
 ## 7. Manual lookup
 
@@ -141,5 +141,5 @@ fit = d.trusted()               # trusted points only
 out = work_dir_for(d.run_id)    # work/<run_id>/: the only place you write
 ```
 
-Import nothing else from the package. Save the script in `work/<run_id>/`, cite its path, report results as
-derived with method and window.
+Import nothing else from the package. Save the script in `work/<run_id>/`, cite its path; results are derived
+(method, window).

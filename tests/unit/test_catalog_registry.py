@@ -90,6 +90,10 @@ def test_committed_statuses() -> None:
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
         assert registry.get(recipe_id).kind == "stress_measure"
         assert registry.get(recipe_id).always_confirm == ["destructive"]
+    # WP7.3: kind smu_pulsed (tests/integration/test_recipes_pulsed.py)
+    for recipe_id in ("mosfet.idvg_pulsed", "mosfet.idvd_pulsed", "basic.pulsed_spot", "generic.smu_multi_pulsed"):
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+        assert registry.get(recipe_id).kind == "smu_pulsed"
     cards = {"mosfet.idvg": "smu/mosfet-idvg", "mosfet.idvd": "smu/mosfet-idvd",
              "mosfet.gate_leakage": "smu/gate-leakage", "basic.contact_resistor": "smu/contact-resistor-check",
              "basic.diode_iv": "smu/diode-iv", "fefet.dual_sweep_mw": "nvm/fefet-dual-sweep-mw",
@@ -105,7 +109,9 @@ def test_committed_statuses() -> None:
              "igzo.bias_stress": "reliability/igzo-bias-stress",
              "reliability.hci": "reliability/hci-silc", "reliability.silc": "reliability/hci-silc",  # WP7.6
              **{r: "cmu/cmu-correction" for r in CORRECTION_RECIPES},  # WP8.2
-         "system.selector_check": "spgu/selector-check"}  # WP9.2
+         "system.selector_check": "spgu/selector-check",  # WP9.2
+         "mosfet.idvg_pulsed": "smu/smu-pulsed-iv", "mosfet.idvd_pulsed": "smu/smu-pulsed-iv",
+         "basic.pulsed_spot": "smu/smu-pulsed-iv", "generic.smu_multi_pulsed": "smu/smu-pulsed-iv"}  # WP7.3
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):
@@ -127,7 +133,8 @@ def test_kinds() -> None:
     assert kinds["cmu_correction"].implemented_on == {"sim", "visa"} and "cmu_correction" not in UNIMPLEMENTED_KINDS
     assert kinds["stress_measure"].implemented_on == {"sim", "visa"}  # WP7.6
     assert "stress_measure" not in UNIMPLEMENTED_KINDS and "smu_stress_measure" not in kinds
-    for kind_id in ("smu_pulsed", "wgfmu_pulsed_iv", "spgu_program_read", "cmu_cv"):
+    assert kinds["smu_pulsed"].implemented_on == {"sim", "visa"} and "smu_pulsed" not in UNIMPLEMENTED_KINDS  # WP7.3
+    for kind_id in ("wgfmu_pulsed_iv", "spgu_program_read", "cmu_cv"):
         assert kind_id in UNIMPLEMENTED_KINDS and kinds[kind_id].implemented_on == frozenset()
 
 
@@ -172,7 +179,7 @@ def test_existing_card_and_listing(tmp_path: Path) -> None:
         "basic/thing.yaml": minimal(card="cards/c.md", device_types=["nmos"]),
         "basic/other.yaml": minimal("basic.other", device_types=["diode"]),
         "generic/any.yaml": minimal("generic.any"),
-        "basic/later.yaml": minimal("basic.later", kind="smu_pulsed"),
+        "basic/later.yaml": minimal("basic.later", kind="spgu_program_read"),
     })
     assert registry.problems() == []
     # recipes without device types (basic.later, generic.any) match every device type

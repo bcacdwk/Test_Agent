@@ -13,7 +13,9 @@ dispatched by measurement mode in ``units/cmu.py`` (WP8.1): the MFCMU modes ther
 ``WSI`` 560-561; ``WNX`` 556-559; ``WNCC`` 556; ``WT`` 564-565; ``WM`` 552-553; ``XE`` 570; current/voltage source
 limits Tables 4-6/4-7 (PDF 341-342); interlock in the high-voltage state 577; multi-channel sweep 102-103; errors
 220, 223, 224 (PDF 578-579).
-``MM 10`` (sampling) triggers are handed to ``SamplingUnit._start_sampling`` (``units/sampling.py``, WP7.4).
+``MM 10`` (sampling) triggers are handed to ``SamplingUnit._start_sampling`` (``units/sampling.py``, WP7.4), the pulsed
+modes ``MM 3/4/5/27/28`` to ``PulsedUnit._start_pulsed`` (``units/pulsed.py``, WP7.3); ``WSV``/``WSI`` may follow a
+``PWV``/``PWI`` pulsed sweep and ``WNX`` (N = 1-10) the ``MCPWS`` steps of MM 28 when no ``WV``/``WI`` primary is set.
 
 Current sources (``DI``, ``WI``, ``WSI``, ``WNX`` mode 2): the channel's voltage is solved so that its current equals
 the programmed current, unless that needs more than the voltage compliance (then the channel sits at ±Vcomp and
@@ -36,6 +38,12 @@ from b1500_test_agent.transport.sim.faults import GARBAGE_ELEMENT
 from b1500_test_agent.transport.sim.format import DUMMY_VALUE, Element, worst_status
 from b1500_test_agent.transport.sim.state import ChannelState
 from b1500_test_agent.transport.sim.units.base import DEFAULT_ICOMP, Measurement, Unsupported, handles
+
+PULSED_MODES = frozenset({3, 4, 5, 27, 28})
+"""The SMU pulsed measurement modes, evaluated by ``PulsedUnit`` (``units/pulsed.py``, WP7.3; PDF 471)."""
+
+PULSED_SINGLE_CHANNEL_MODES = frozenset({3, 4, 5})
+"""Pulsed modes whose ``MM`` takes exactly one measurement channel (PDF 470)."""
 
 OVERRANGE = 1.15
 """Fixed current range overflow threshold, as a fraction of full scale (simulator convention)."""
@@ -180,16 +188,18 @@ class SmuUnit:
 
     def _cmd_mm(self, cmd: flex.Command) -> None:
         """``MM 1|2|10|16,ch...``: spot, staircase sweep, sampling (``units/sampling.py``) or multi-channel sweep;
-        other modes are unsupported (PDF 470-471)."""
+        ``MM 3|4|5,ch`` (one channel) and ``MM 27|28,ch...``: the pulsed modes (``units/pulsed.py``, WP7.3); other
+        modes are unsupported (PDF 470-471)."""
         if not cmd.args:
             raise flex.FlexError(flex.ERR_TERMINATOR)
         mode = flex.integer(cmd.args[0])
         if not 1 <= mode <= 28:
             raise flex.FlexError(flex.ERR_PARAMETER)
-        if mode not in (1, 2, 10, MULTI_CHANNEL_SWEEP):
+        if mode not in (1, 2, 10, MULTI_CHANNEL_SWEEP, *PULSED_MODES):
             raise Unsupported(f"MM {mode}")
         channels = [self._smu(a) for a in cmd.args[1:]]
-        if not 1 <= len(channels) <= 10 or len(set(channels)) != len(channels):
+        limit = 1 if mode in PULSED_SINGLE_CHANNEL_MODES else 10
+        if not 1 <= len(channels) <= limit or len(set(channels)) != len(channels):
             raise flex.FlexError(flex.ERR_CHANNEL_COUNT)
         self._mm = (mode, channels)
 
@@ -307,15 +317,15 @@ class SmuUnit:
 
     @handles("WNX")
     def _cmd_wnx(self, cmd: flex.Command) -> None:
-        """``WNX N,chnum,mode,range,start,stop[,comp[,Pcomp]]`` (PDF 556-559): sweep source ``N`` (2-10) of the
-        multi-channel sweep, after ``WV``/``WI`` (error 220 otherwise); a repeated ``N`` or channel replaces the
-        earlier setting. ``N`` = 1 belongs to MM 28 (not simulated)."""
+        """``WNX N,chnum,mode,range,start,stop[,comp[,Pcomp]]`` (PDF 556-559): sweep source ``N`` of the
+        multi-channel sweep (MM 16: 2-10 after ``WV``/``WI``, N = 1 is refused at ``XE``) or of the multi-channel
+        pulsed sweep (MM 28: 1-10, following ``MCPWS``; WP7.3); a repeated ``N`` or channel replaces the earlier
+        setting (also an ``MCPNX``/``MCPWNX`` source, PDF 463). Without a primary the source follows ``MCPWS``; an
+        MM 16 trigger without ``WV``/``WI`` is error 220."""
         flex.arity(cmd, 6, 8)
         n = flex.integer(cmd.args[0])
         if not 1 <= n <= 10:
             raise flex.FlexError(flex.ERR_PARAMETER, f"N {n}")
-        if n == 1:
-            raise Unsupported("WNX N=1 (multi-channel pulsed sweep MM 28)")
         mode = flex.integer(cmd.args[2])
         if mode not in (1, 2):
             raise flex.FlexError(flex.ERR_PARAMETER, f"mode {mode}")
@@ -323,6 +333,7 @@ class SmuUnit:
         item = self._follower("WNX", source, cmd.args[1], cmd.args[3], cmd.args[4], cmd.args[5], cmd.args[6:])
         self._wnx = {k: v for k, v in self._wnx.items() if v.channel != item.channel}
         self._wnx[n] = item
+        self._mcp_forget(n, item.channel)
 
     @handles("WNCC")
     def _cmd_wncc(self, cmd: flex.Command) -> None:
@@ -375,9 +386,10 @@ class SmuUnit:
 
     def _follower(self, mnemonic: str, source: Forced, channel_arg: str, range_arg: str, start_arg: str,
                   stop_arg: str, rest: tuple[str, ...]) -> SweepSource:
-        """A ``WSV``/``WSI``/``WNX`` source: needs a primary sweep (error 220), the primary's log polarity rule."""
-        if self._sweep is None:
-            raise flex.FlexError(flex.ERR_NO_SWEEP, f"{mnemonic} before WV/WI")
+        """A ``WSV``/``WSI``/``WNX`` source: follows the ``WV``/``WI`` primary sweep or, without one, a ``PWV``/
+        ``PWI`` pulsed sweep (``WSV``/``WSI``, error 221 without it) or ``MCPWS`` (``WNX``); the followed sweep's log
+        polarity rule."""
+        sweep_mode = self._sweep.mode if self._sweep is not None else self._pulsed_follow_mode(mnemonic)
         channel = self._smu(channel_arg)
         if source == "V":
             rng = flex.integer(range_arg)
@@ -385,7 +397,7 @@ class SmuUnit:
                 raise flex.FlexError(flex.ERR_RANGE, f"range {rng}")
         else:
             rng = self._output_irange(channel, range_arg)
-        start, stop = self._levels(start_arg, stop_arg, self._sweep.mode, current=source == "I")
+        start, stop = self._levels(start_arg, stop_arg, sweep_mode, current=source == "I")
         if len(rest) > 1:
             raise Unsupported(f"{mnemonic} power compliance (Pcomp)")
         comp_arg = rest[0] if rest else None
@@ -528,6 +540,9 @@ class SmuUnit:
         if mode == 10:
             self._start_sampling(channels)
             return
+        if mode in PULSED_MODES:
+            self._start_pulsed(mode, channels)
+            return
         sweep = self._staircase(mode)
         for channel in [*channels, *(src.channel for src in sweep.sources)] if sweep else channels:
             if not self.state.channels[channel].output_on:
@@ -552,6 +567,8 @@ class SmuUnit:
                 raise flex.FlexError(flex.ERR_SYNC_MODE)
         else:
             followers = tuple(self._wnx[n] for n in sorted(self._wnx))
+            if 1 in self._wnx:
+                raise flex.FlexError(flex.ERR_PARAMETER, "WNX N=1 in MM 16 (N=1 is the WV/WI primary)")
             if any(item.channel == primary.channel for item in followers):
                 raise flex.FlexError(flex.ERR_SYNC_MODE, "WNX source on the primary channel")
         return Sweep(primary, self._sweep.mode, self._sweep.steps, followers)

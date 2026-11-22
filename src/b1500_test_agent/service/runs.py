@@ -28,6 +28,7 @@ from b1500_test_agent.analysis.dataset import (
     MANIFEST_FILE,
     NPZ_FILE,
     PREVIEW_FILE,
+    RunData,
     load_manifest,
     load_run,
     read_table_excerpt,
@@ -360,6 +361,16 @@ def require_finished(svc: B1500Service, bundle: ConfigBundle, run_id: str, actio
     raise InvalidInputError(f"run {run_id} has no manifest (starting or interrupted); {action} needs a finished run")
 
 
+def reference_run(svc: B1500Service, bundle: ConfigBundle, run_id: str) -> RunData:
+    """The reference run of a two-run analysis (``options.reference_run``): a finished run with a measurement table
+    in this data root (blueprint v2 2.9)."""
+    folder = require_finished(svc, bundle, run_id, "compare against")
+    if run_table_path(folder.path) is None:
+        raise InvalidInputError(f"reference run {run_id} has no complete measurement table (outcome "
+                                f"{load_manifest(folder.path).outcome})")
+    return load_run(run_id, data_root=bundle.paths.data_root)
+
+
 def analyze_run(svc: B1500Service, bundle: ConfigBundle, run_id: str, method: str,
                 options: dict[str, Any] | None) -> AnalysisResult:
     """Run an analysis method on a finished run and archive its result."""
@@ -377,7 +388,8 @@ def analyze_run(svc: B1500Service, bundle: ConfigBundle, run_id: str, method: st
     registry = svc.executor.registry(bundle)
     recipe_id = data.manifest.recipe_id
     criteria = registry.get(recipe_id).quality if recipe_id in registry.ids() else bundle.policy.quality
-    out = run_method(method, data, options, criteria=criteria)
+    out = run_method(method, data, options, criteria=criteria,
+                     load_reference=lambda ref: reference_run(svc, bundle, ref))
     plots = folder.add_plots(out) if isinstance(out, PlotSet) else None
     rel = folder.add_analysis(method, analysis_payload(method, options, out, source="analyze_run", plots=plots))
     artifact = bundle.paths.display(folder.path / rel)

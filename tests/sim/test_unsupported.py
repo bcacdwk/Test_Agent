@@ -10,7 +10,7 @@ from tests.sim.helpers import errx_all, run
 
 @pytest.mark.parametrize(
     "command",
-    ["ERR?", "EMG? 100", "TSR 1", "PV 1,0,0,1", "TC 7,0", "PWV 1,1,0,0,0,1,5,1E-3", "MCPWS 1,5", "TMACV 7,0",
+    ["ERR?", "EMG? 100", "TSR 1", "TI 1,0", "TC 7,0", "TV 1,0", "TTI 1,0", "TMACV 7,0",
      "*LRN? 33", "INTLKVTH 0", "IN", "RZ 1", "FOO", "*SRE 32"],
 )  # fmt: skip
 def test_unsupported_command_queues_error_100_and_is_logged(make_sim, command: str) -> None:
@@ -53,6 +53,7 @@ def test_supported_commands_are_exactly_the_v1_subset() -> None:
         "CM", "*LRN?",
         "ERMOD?", "ERSSP?", "SPST?", "CORRST?", "ADJ?", "CORR?", "CORRL?", "DCORR?",
         "MCC", "ML", "MT", "MSC", "MV", "MI", "TSR",
+        "PT", "PV", "PI", "PWV", "PWI", "MCPT", "MCPNT", "MCPNX", "MCPWS", "MCPWNX",
         "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
         "SAP", "SAR", "SAL",
         "SSP", "SSL",

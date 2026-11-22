@@ -15,7 +15,8 @@ priority_scale:
     with MCC, ML, MT, MSC, MV, MI and the time stamps TSC/TSR by WP7.4, the sweep sources DI, WI, WSV, WSI, WNX
     and MM 16 by WP7.2, MM 1 spot and the ASU commands SAP, SAR, SAL by WP7.1, the MFCMU commands, MM 17-26 and
     the SCUU's SSP/SSL by WP8.1, the correction set-up queries CORRL?/DCORR? by WP8.2, the HV-SPGU PG/ALWG commands
-    by WP9.1, the 16440A selector settings ERMOD/ERSSP by WP9.2)
+    by WP9.1, the 16440A selector settings ERMOD/ERSSP by WP9.2, the SMU pulsed modes MM 3, 4, 5, 27, 28 with PT,
+    PV, PI, PWV, PWI, MCPT, MCPNT, MCPNX, MCPWS, MCPWNX by WP7.3)
   m2: M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the simulator's
     FLEX subset v1 (AV, BC, NUB?, TSC)
   later: 'reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC units
@@ -28,10 +29,10 @@ counts:
     D: 42
     total: 282
   atoms_by_priority:
-    m1: 56
+    m1: 63
     m2: 12
-    later: 214
-  atoms_unmapped: 188
+    later: 207
+  atoms_unmapped: 184
   flows:
     A: 20
     B: 16
@@ -41,8 +42,8 @@ counts:
     CD: 4
     total: 97
   commands: 280
-  commands_mapped: 97
-driver_targets: [B1500Driver.identify, B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte, B1500Driver.output_state, B1500Driver.abort, B1500Driver.zero, B1500Driver.disconnect, B1500Driver.reset, B1500Driver.self_test, B1500Driver.self_calibrate, B1500Driver.set_format, B1500Driver.set_integration, B1500Driver.set_range, B1500Driver.enable, B1500Driver.force_v, B1500Driver.force_i, B1500Driver.staircase_v, B1500Driver.staircase, B1500Driver.execute_and_read, B1500Driver.wait_complete, B1500Driver.auto_calibration, B1500Driver.set_auto_calibration, B1500Driver.selector_control_mode, B1500Driver.selector_state, B1500Driver.pulse_output_active, B1500Driver.correction_enabled, B1500Driver.phase_compensation_result, B1500Driver.set_time_stamp, B1500Driver.reset_timer, B1500Driver.sampling_setup, B1500Driver.sampling_update, B1500Driver.spot_setup, B1500Driver.asu_paths, B1500Driver.asu_1pa_auto, B1500Driver.set_asu_path, B1500Driver.set_asu_1pa_auto, B1500Driver.set_asu_indicator, B1500Driver.set_impedance_model, B1500Driver.apply_cmu_signal, B1500Driver.set_cmu_range, B1500Driver.set_cmu_integration, B1500Driver.set_cmu_monitor, B1500Driver.spot_c, B1500Driver.cv_sweep, B1500Driver.cf_sweep, B1500Driver.ac_level_sweep, B1500Driver.pulsed_spot_c, B1500Driver.pulsed_cv_sweep, B1500Driver.ct_sampling, B1500Driver.set_phase_compensation_mode, B1500Driver.set_correction_frequencies, B1500Driver.measure_correction, B1500Driver.set_correction_standard, B1500Driver.set_correction_data, B1500Driver.set_correction, B1500Driver.scuu_route, B1500Driver.set_scuu_indicator, B1500Driver.correction_frequencies, B1500Driver.correction_standard, B1500Driver.configure_spgu, B1500Driver.apply_pulse_setup, B1500Driver.start_pulses, B1500Driver.stop_pulses, B1500Driver.measure_pulse_load, B1500Driver.set_selector_control, B1500Driver.route_selector, flex.cn, flex.cl, flex.dz, flex.fmt, flex.mm, flex.cmm, flex.aad, flex.ait, flex.ri, flex.rv, flex.wt, flex.wm, flex.dv, flex.wv, flex.cm, flex.lrn_q, flex.di, flex.wi, flex.wsv, flex.wsi, flex.wnx, flex.erssp_q, flex.corrst_q, flex.adj_q, flex.tsc, flex.tsr, flex.mcc, flex.ml, flex.mt, flex.msc, flex.mv, flex.mi, flex.sap, flex.sar, flex.sal, flex.imp, flex.fc, flex.acv, flex.dcv, flex.rc, flex.act, flex.lmn, flex.wdcv, flex.wtdcv, flex.wmdcv, flex.wfc, flex.wtfc, flex.wmfc, flex.wacv, flex.wtacv, flex.wmacv, flex.pdcv, flex.ptdcv, flex.pwdcv, flex.mdcv, flex.mtdcv, flex.adj, flex.corrl, flex.clcorr, flex.corr_q, flex.dcorr, flex.corrdt, flex.corrst, flex.ssp, flex.ssl, flex.corrl_q, flex.dcorr_q, flex.sim, flex.spm, flex.spt, flex.spv, flex.spper, flex.sprm, flex.ser, flex.spupd, flex.odsw, flex.stgp, flex.corrser_q, flex.alw, flex.als, flex.ermod, flex.erssp, flex.XE, flex.AB, flex.IDN_Q, flex.UNT_Q, flex.ERRX_Q, flex.STB_Q, flex.OPC_Q, flex.LOP_Q, flex.RST, flex.TST_Q, flex.CAL_Q, flex.ERMOD_Q, flex.SPST_Q, flex.SRP, flex.SPP]
+  commands_mapped: 107
+driver_targets: [B1500Driver.identify, B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte, B1500Driver.output_state, B1500Driver.abort, B1500Driver.zero, B1500Driver.disconnect, B1500Driver.reset, B1500Driver.self_test, B1500Driver.self_calibrate, B1500Driver.set_format, B1500Driver.set_integration, B1500Driver.set_range, B1500Driver.enable, B1500Driver.force_v, B1500Driver.force_i, B1500Driver.staircase_v, B1500Driver.staircase, B1500Driver.execute_and_read, B1500Driver.wait_complete, B1500Driver.auto_calibration, B1500Driver.set_auto_calibration, B1500Driver.selector_control_mode, B1500Driver.selector_state, B1500Driver.pulse_output_active, B1500Driver.correction_enabled, B1500Driver.phase_compensation_result, B1500Driver.set_time_stamp, B1500Driver.reset_timer, B1500Driver.sampling_setup, B1500Driver.sampling_update, B1500Driver.spot_setup, B1500Driver.asu_paths, B1500Driver.asu_1pa_auto, B1500Driver.set_asu_path, B1500Driver.set_asu_1pa_auto, B1500Driver.set_asu_indicator, B1500Driver.set_impedance_model, B1500Driver.apply_cmu_signal, B1500Driver.set_cmu_range, B1500Driver.set_cmu_integration, B1500Driver.set_cmu_monitor, B1500Driver.spot_c, B1500Driver.cv_sweep, B1500Driver.cf_sweep, B1500Driver.ac_level_sweep, B1500Driver.pulsed_spot_c, B1500Driver.pulsed_cv_sweep, B1500Driver.ct_sampling, B1500Driver.set_phase_compensation_mode, B1500Driver.set_correction_frequencies, B1500Driver.measure_correction, B1500Driver.set_correction_standard, B1500Driver.set_correction_data, B1500Driver.set_correction, B1500Driver.scuu_route, B1500Driver.set_scuu_indicator, B1500Driver.correction_frequencies, B1500Driver.correction_standard, B1500Driver.configure_spgu, B1500Driver.apply_pulse_setup, B1500Driver.start_pulses, B1500Driver.stop_pulses, B1500Driver.measure_pulse_load, B1500Driver.set_selector_control, B1500Driver.route_selector, B1500Driver.pulsed_setup, B1500Driver.pulsed_update, flex.cn, flex.cl, flex.dz, flex.fmt, flex.mm, flex.cmm, flex.aad, flex.ait, flex.ri, flex.rv, flex.wt, flex.wm, flex.dv, flex.wv, flex.cm, flex.lrn_q, flex.di, flex.wi, flex.wsv, flex.wsi, flex.wnx, flex.erssp_q, flex.corrst_q, flex.adj_q, flex.tsc, flex.tsr, flex.mcc, flex.ml, flex.mt, flex.msc, flex.mv, flex.mi, flex.sap, flex.sar, flex.sal, flex.imp, flex.fc, flex.acv, flex.dcv, flex.rc, flex.act, flex.lmn, flex.wdcv, flex.wtdcv, flex.wmdcv, flex.wfc, flex.wtfc, flex.wmfc, flex.wacv, flex.wtacv, flex.wmacv, flex.pdcv, flex.ptdcv, flex.pwdcv, flex.mdcv, flex.mtdcv, flex.adj, flex.corrl, flex.clcorr, flex.corr_q, flex.dcorr, flex.corrdt, flex.corrst, flex.ssp, flex.ssl, flex.corrl_q, flex.dcorr_q, flex.sim, flex.spm, flex.spt, flex.spv, flex.spper, flex.sprm, flex.ser, flex.spupd, flex.odsw, flex.stgp, flex.corrser_q, flex.alw, flex.als, flex.ermod, flex.erssp, flex.XE, flex.AB, flex.IDN_Q, flex.UNT_Q, flex.ERRX_Q, flex.STB_Q, flex.OPC_Q, flex.LOP_Q, flex.RST, flex.TST_Q, flex.CAL_Q, flex.ERMOD_Q, flex.SPST_Q, flex.SRP, flex.SPP, flex.pt, flex.pv, flex.pi, flex.pwv, flex.pwi, flex.mcpt, flex.mcpnt, flex.mcpnx, flex.mcpws, flex.mcpwnx]
 atoms:
 - {id: A_atom_flex_connect, class: A, basis: ['*IDN?', 'UNT?'], flex: ['*IDN?', 'UNT?'], target: [B1500Driver.identify, B1500Driver.modules], priority: m1}
 - {id: A_atom_flex_disconnect, class: A, basis: [session.close], flex: [], target: unmapped, priority: m1, note: 'successor: Transport.close via Session (sections 2.2, 2.4); B1500Driver.disconnect is CL'}
@@ -185,7 +186,7 @@ atoms:
 - {id: B_atom_calibration_easyexpert_zero_cancel_off, class: B, basis: [':CALibration:...:OFF:ALL'], flex: [], target: unmapped, priority: later}
 - {id: B_atom_calibration_easyexpert_measure_zero_cancel, class: B, basis: [':CALibration:...:MEASure'], flex: [], target: unmapped, priority: later}
 - {id: B_atom_calibration_easyexpert_query_zero_cancel_state, class: B, basis: [':CALibration:...:STATe?'], flex: [], target: unmapped, priority: later}
-- {id: C_atom_smu_set_measurement_mode, class: C, basis: [MM], flex: [MM], target: [B1500Driver.staircase], priority: m1, note: 'staircase sends MM 2 and MM 16 (WP7.2), sampling_setup MM 10 (WP7.4), spot_setup MM 1 (WP7.1); other modes later'}
+- {id: C_atom_smu_set_measurement_mode, class: C, basis: [MM], flex: [MM], target: [B1500Driver.staircase], priority: m1, note: 'staircase sends MM 2 and MM 16 (WP7.2), sampling_setup MM 10 (WP7.4), spot_setup MM 1 (WP7.1), pulsed_setup MM 3/4/5/27/28 (WP7.3); other modes later'}
 - {id: C_atom_smu_set_measurement_operation, class: C, basis: [CMM], flex: [CMM], target: [B1500Driver.staircase], priority: m1}
 - {id: C_atom_smu_configure_integration, class: C, basis: [AAD, AIT, AV], flex: [AAD, AIT, AV], target: [B1500Driver.set_integration], unmapped_flex: [AV], priority: m1, note: AV (averaging) is m2}
 - {id: C_atom_smu_set_measurement_ranging, class: C, basis: [RI, RV, RM], flex: [RI, RV, RM], target: [B1500Driver.set_range], unmapped_flex: [RM], priority: m1, note: RM (auto-ranging limit) is later}
@@ -196,17 +197,17 @@ atoms:
 - {id: C_atom_smu_configure_sweep_timing, class: C, basis: [WT], flex: [WT], target: [B1500Driver.staircase], priority: m1}
 - {id: C_atom_smu_execute, class: C, basis: [XE], flex: [XE], target: [B1500Driver.execute_and_read], priority: m1}
 - {id: C_atom_smu_read_measurement_data, class: C, basis: [output data buffer read], flex: [], target: [B1500Driver.execute_and_read], priority: m1}
-- {id: C_atom_smu_configure_pulse_timing, class: C, basis: [PT], flex: [PT], target: unmapped, priority: later}
-- {id: C_atom_smu_configure_pulsed_spot_source, class: C, basis: [PV, PI], flex: [PV, PI], target: unmapped, priority: later}
+- {id: C_atom_smu_configure_pulse_timing, class: C, basis: [PT], flex: [PT], target: [B1500Driver.pulsed_setup], priority: m1}
+- {id: C_atom_smu_configure_pulsed_spot_source, class: C, basis: [PV, PI], flex: [PV, PI], target: [B1500Driver.pulsed_setup], priority: m1}
 - {id: C_atom_smu_configure_sweep_abort, class: C, basis: [WM], flex: [WM], target: [B1500Driver.staircase], priority: m1}
 - {id: C_atom_smu_configure_synchronous_sweep_source, class: C, basis: [WSV, WSI], flex: [WSV, WSI], target: [B1500Driver.staircase], priority: m1}
-- {id: C_atom_smu_configure_pulsed_sweep, class: C, basis: [PWV, PWI], flex: [PWV, PWI], target: unmapped, priority: later}
-- {id: C_atom_smu_execute_pulsed_spot, class: C, basis: [MM, XE], flex: [MM 3, XE], target: [B1500Driver.execute_and_read], unmapped_flex: [MM 3], priority: later}
-- {id: C_atom_smu_execute_pulsed_sweep, class: C, basis: [MM, XE], flex: [MM 4, XE], target: [B1500Driver.execute_and_read], unmapped_flex: [MM 4], priority: later}
+- {id: C_atom_smu_configure_pulsed_sweep, class: C, basis: [PWV, PWI], flex: [PWV, PWI], target: [B1500Driver.pulsed_setup], priority: m1}
+- {id: C_atom_smu_execute_pulsed_spot, class: C, basis: [MM, XE], flex: [MM 3, XE], target: [B1500Driver.pulsed_setup, B1500Driver.execute_and_read], priority: m1}
+- {id: C_atom_smu_execute_pulsed_sweep, class: C, basis: [MM, XE], flex: [MM 4, XE], target: [B1500Driver.pulsed_setup, B1500Driver.execute_and_read], priority: m1}
 - {id: C_atom_smu_configure_sampling, class: C, basis: [MCC, ML, MT, MSC, MI, MV, MSP], flex: [MCC, ML, MT, MSC, MI, MV, MSP], target: [B1500Driver.sampling_setup], unmapped_flex: [MSP], priority: later}
 - {id: C_atom_smu_execute_sampling, class: C, basis: [MM, XE], flex: [MM 10, XE], target: [B1500Driver.sampling_setup, B1500Driver.execute_and_read], priority: m1}
 - {id: C_atom_smu_configure_multi_sweep, class: C, basis: [WNX], flex: [WNX], target: [B1500Driver.staircase], priority: m1}
-- {id: C_atom_smu_configure_multi_pulsed, class: C, basis: [MCPT, MCPNT, MCPNX, MCPWS, MCPWNX], flex: [MCPT, MCPNT, MCPNX, MCPWS, MCPWNX], target: unmapped, priority: later}
+- {id: C_atom_smu_configure_multi_pulsed, class: C, basis: [MCPT, MCPNT, MCPNX, MCPWS, MCPWNX], flex: [MCPT, MCPNT, MCPNX, MCPWS, MCPWNX], target: [B1500Driver.pulsed_setup], priority: m1}
 - {id: C_atom_smu_configure_quasi_pulse, class: C, basis: [BD*], flex: [BDM, BDT, BDV], target: unmapped, priority: later}
 - {id: C_atom_smu_configure_search, class: C, basis: [LS*, BS*], flex: [LSTM, LSVM, LSI, LSSI, LSV, LSSV, LSM, BSM, BST, BSVM, BSI, BSSI, BSV, BSSV], target: unmapped, priority: later}
 - {id: C_atom_smu_configure_signal_monitor, class: C, basis: [DSMPL*], flex: [DSMPLSETUP, DSMPLARM, DSMPLFLUSH], target: unmapped, priority: later}
@@ -214,7 +215,7 @@ atoms:
 - {id: C_atom_smu_force_timer_start_current, class: C, basis: [TDI], flex: [TDI], target: unmapped, priority: later}
 - {id: C_atom_smu_configure_qscv, class: C, basis: [QSV, QST, QSM, QSL, QSO, QSC, QSR], flex: [QSV, QST, QSM, QSL, QSO, QSC, QSR], target: unmapped, priority: later}
 - {id: C_atom_smu_execute_qscv, class: C, basis: [MM13, XE], flex: [MM 13, XE], target: [B1500Driver.execute_and_read], unmapped_flex: [MM 13], priority: later}
-- {id: C_atom_smu_configure_staircase_sweep_pulsed_bias, class: C, basis: [WV, WI, PT, PV, PI], flex: [WV, WI, PT, PV, PI], target: [B1500Driver.staircase], unmapped_flex: [PT, PV, PI], priority: later}
+- {id: C_atom_smu_configure_staircase_sweep_pulsed_bias, class: C, basis: [WV, WI, PT, PV, PI], flex: [WV, WI, PT, PV, PI], target: [B1500Driver.staircase, B1500Driver.pulsed_setup], priority: m1}
 - {id: C_atom_smu_set_parallel_measurement, class: C, basis: [PAD, PCH], flex: [PAD, PCH], target: unmapped, priority: later}
 - {id: C_atom_smu_configure_trigger_io, class: C, basis: [TGP, TGPC, TGSI, TGSO, TGXO, TGMO], flex: [TGP, TGPC, TGSI, TGSO, TGXO, TGMO], target: unmapped, priority: later}
 - {id: C_atom_smu_set_trigger_mode, class: C, basis: [TM], flex: [TM], target: unmapped, priority: later}
@@ -449,7 +450,7 @@ commands:
 - {command: 'NUB?', source: detailed, pdf_pages: [478], printed_pages: [4-160], target: unmapped, priority: m2, atoms: [A_atom_flex_query_buffer_count]}
 - {command: '*STB?', source: detailed, pdf_pages: [523], printed_pages: [4-205], target: B1500Driver.status_byte, builder: flex.STB_Q, priority: m1, atoms: [A_atom_flex_get_status, A_atom_flex_read_status_byte, B_atom_safety_b1500_preflight], note: bit 3 = interlock open}
 - {command: '*SRE', source: detailed, pdf_pages: [517], printed_pages: [4-199], target: unmapped, priority: later, atoms: [A_atom_flex_configure_srq]}
-- {command: MM, source: detailed, pdf_pages: [470], printed_pages: [4-152], target: B1500Driver.staircase, builder: flex.mm, priority: m1, atoms: [C_atom_smu_set_measurement_mode, C_atom_smu_execute_pulsed_spot, C_atom_smu_execute_pulsed_sweep, C_atom_smu_execute_sampling, C_atom_smu_execute_qscv, C_atom_cmu_execute_spot_c, C_atom_cmu_execute_cv_dc_sweep, C_atom_cmu_execute_cf_sweep, C_atom_cmu_execute_ac_level_sweep, C_atom_cmu_execute_pulsed_spot_c, C_atom_cmu_execute_pulsed_cv_sweep, C_atom_cmu_execute_ct_sampling], note: 'staircase sends MM 2 (staircase) and MM 16 (multi-channel sweep, WP7.2), sampling_setup MM 10, spot_setup MM 1 (WP7.1), the MFCMU setups MM 17-26 (WP8.1) (MM_MODE_TARGETS); every other mode is unmapped'}
+- {command: MM, source: detailed, pdf_pages: [470], printed_pages: [4-152], target: B1500Driver.staircase, builder: flex.mm, priority: m1, atoms: [C_atom_smu_set_measurement_mode, C_atom_smu_execute_pulsed_spot, C_atom_smu_execute_pulsed_sweep, C_atom_smu_execute_sampling, C_atom_smu_execute_qscv, C_atom_cmu_execute_spot_c, C_atom_cmu_execute_cv_dc_sweep, C_atom_cmu_execute_cf_sweep, C_atom_cmu_execute_ac_level_sweep, C_atom_cmu_execute_pulsed_spot_c, C_atom_cmu_execute_pulsed_cv_sweep, C_atom_cmu_execute_ct_sampling], note: 'staircase sends MM 2 (staircase) and MM 16 (multi-channel sweep, WP7.2), sampling_setup MM 10, spot_setup MM 1 (WP7.1), the MFCMU setups MM 17-26 (WP8.1), pulsed_setup MM 3/4/5/27/28 (WP7.3) (MM_MODE_TARGETS); every other mode is unmapped'}
 - {command: XE, source: detailed, pdf_pages: [570, 571, 572], printed_pages: [4-252 to 4-254], target: B1500Driver.execute_and_read, builder: flex.XE, priority: m1, atoms: [C_atom_smu_execute, C_atom_smu_execute_pulsed_spot, C_atom_smu_execute_pulsed_sweep, C_atom_smu_execute_sampling, C_atom_smu_execute_qscv, C_atom_cmu_execute, C_atom_cmu_execute_spot_c, C_atom_cmu_execute_cv_dc_sweep, C_atom_cmu_execute_cf_sweep, C_atom_cmu_execute_ac_level_sweep, C_atom_cmu_execute_pulsed_spot_c, C_atom_cmu_execute_pulsed_cv_sweep, C_atom_cmu_execute_ct_sampling]}
 - {command: DV, source: detailed, pdf_pages: [396], printed_pages: [4-78], target: B1500Driver.force_v, builder: flex.dv, priority: m1, atoms: [C_atom_smu_force_voltage], note: OutputGuard-checked}
 - {command: DI, source: detailed, pdf_pages: [391], printed_pages: [4-73], target: B1500Driver.force_i, builder: flex.di, priority: m1, atoms: [C_atom_smu_force_current], note: 'OutputGuard-checked (current level vs |I|, Vcomp vs |V|); bias_i and step_i roles (WP7.2), kind smu_spot bias_i roles (WP7.1)'}
@@ -527,22 +528,22 @@ commands:
 - {command: WM, source: grouped, pdf_pages: [552, 553], printed_pages: [4-234 to 4-235], target: B1500Driver.staircase, builder: flex.wm, priority: m1, atoms: [C_atom_smu_configure_sweep_abort]}
 - {command: WSI, source: grouped, pdf_pages: [560, 561], printed_pages: [4-242 to 4-243], target: B1500Driver.staircase, builder: flex.wsi, priority: m1, atoms: [C_atom_smu_configure_synchronous_sweep_source], note: 'synchronous current source after WI, MM 2; sync_i roles (WP7.2)'}
 - {command: WSV, source: grouped, pdf_pages: [561, 562, 563], printed_pages: [4-243 to 4-245], target: B1500Driver.staircase, builder: flex.wsv, priority: m1, atoms: [C_atom_smu_configure_synchronous_sweep_source], note: 'synchronous voltage source after WV, MM 2; sync_v roles (WP7.2)'}
-- {command: WNX, source: grouped, pdf_pages: [556, 557, 558, 559], printed_pages: [4-238 to 4-241], target: B1500Driver.staircase, builder: flex.wnx, priority: m1, atoms: [C_atom_smu_configure_multi_sweep], note: 'multi-channel sweep sources N = 2-10 after WV/WI, MM 16; the second and later sweep roles of a recipe (WP7.2)'}
+- {command: WNX, source: grouped, pdf_pages: [556, 557, 558, 559], printed_pages: [4-238 to 4-241], target: B1500Driver.staircase, builder: flex.wnx, priority: m1, atoms: [C_atom_smu_configure_multi_sweep], note: 'multi-channel sweep sources N = 2-10 after WV/WI, MM 16; the second and later sweep roles of a recipe (WP7.2); MM 28 staircase sources N = 1-10 in pulsed_setup (WP7.3)'}
 - {command: SOPC, source: grouped, target: unmapped, priority: later, atoms: [B_atom_correction_spgu_set_open_comp]}
 - {command: 'SOPC?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_spgu_open_comp, B_atom_correction_spgu_set_open_comp]}
 - {command: SOVC, source: grouped, target: unmapped, priority: later, atoms: [B_atom_correction_spgu_set_short_comp]}
 - {command: 'SOVC?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_spgu_short_comp, B_atom_correction_spgu_set_short_comp]}
-- {command: PT, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_pulse_timing, C_atom_smu_configure_staircase_sweep_pulsed_bias]}
-- {command: PI, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_pulsed_spot_source, C_atom_smu_configure_staircase_sweep_pulsed_bias]}
-- {command: PV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_pulsed_spot_source, C_atom_smu_configure_staircase_sweep_pulsed_bias]}
-- {command: PWI, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_pulsed_sweep]}
-- {command: PWV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_pulsed_sweep]}
+- {command: PT, source: grouped, pdf_pages: [486, 487], printed_pages: [4-168 to 4-169], target: B1500Driver.pulsed_setup, builder: flex.pt, priority: m1, atoms: [C_atom_smu_configure_pulse_timing, C_atom_smu_configure_staircase_sweep_pulsed_bias], note: 'MM 3/4/5 hold, width, period (always sent); OutputGuard.check_pulse'}
+- {command: PI, source: grouped, pdf_pages: [485, 486], printed_pages: [4-167 to 4-168], target: B1500Driver.pulsed_setup, builder: flex.pi, priority: m1, atoms: [C_atom_smu_configure_pulsed_spot_source, C_atom_smu_configure_staircase_sweep_pulsed_bias], note: current pulse (driver only; no pulse_i role function); check at its Vcomp}
+- {command: PV, source: grouped, pdf_pages: [488, 489], printed_pages: [4-170 to 4-171], target: B1500Driver.pulsed_setup, builder: flex.pv, priority: m1, atoms: [C_atom_smu_configure_pulsed_spot_source, C_atom_smu_configure_staircase_sweep_pulsed_bias], note: OutputGuard.check at base and pulse + check_pulse; also pulsed_update (host list of pulse levels)}
+- {command: PWI, source: grouped, pdf_pages: [490, 491], printed_pages: [4-172 to 4-173], target: B1500Driver.pulsed_setup, builder: flex.pwi, priority: m1, atoms: [C_atom_smu_configure_pulsed_sweep], note: MM 4 current pulsed sweep (driver only)}
+- {command: PWV, source: grouped, pdf_pages: [492, 493], printed_pages: [4-174 to 4-175], target: B1500Driver.pulsed_setup, builder: flex.pwv, priority: m1, atoms: [C_atom_smu_configure_pulsed_sweep], note: 'MM 4 pulsed sweep, linear only (error 226); guard at base/start/stop'}
 - {command: WNCC, source: grouped, target: unmapped, priority: later, atoms: []}
-- {command: MCPT, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_multi_pulsed]}
-- {command: MCPNT, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_multi_pulsed]}
-- {command: MCPNX, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_multi_pulsed]}
-- {command: MCPWS, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_multi_pulsed]}
-- {command: MCPWNX, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_multi_pulsed]}
+- {command: MCPT, source: grouped, pdf_pages: [464, 465], printed_pages: [4-146 to 4-147], target: B1500Driver.pulsed_setup, builder: flex.mcpt, priority: m1, atoms: [C_atom_smu_configure_multi_pulsed], note: 'MM 27/28 hold, period, Mdelay 0 (automatic), average'}
+- {command: MCPNT, source: grouped, pdf_pages: [461, 462], printed_pages: [4-143 to 4-144], target: B1500Driver.pulsed_setup, builder: flex.mcpnt, priority: m1, atoms: [C_atom_smu_configure_multi_pulsed], note: per pulse channel; delay 0 and one width on HR/MP/HPSMU}
+- {command: MCPNX, source: grouped, pdf_pages: [462, 463], printed_pages: [4-144 to 4-145], target: B1500Driver.pulsed_setup, builder: flex.mcpnx, priority: m1, atoms: [C_atom_smu_configure_multi_pulsed], note: MM 27/28 pulsed bias source N; also pulsed_update}
+- {command: MCPWS, source: grouped, pdf_pages: [465], printed_pages: [4-147], target: B1500Driver.pulsed_setup, builder: flex.mcpws, priority: m1, atoms: [C_atom_smu_configure_multi_pulsed], note: MM 28 sweep mode and steps}
+- {command: MCPWNX, source: grouped, pdf_pages: [465, 466, 467], printed_pages: [4-147 to 4-149], target: B1500Driver.pulsed_setup, builder: flex.mcpwnx, priority: m1, atoms: [C_atom_smu_configure_multi_pulsed], note: MM 28 pulsed sweep source N}
 - {command: BDM, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_quasi_pulse]}
 - {command: BDT, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_quasi_pulse]}
 - {command: BDV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_configure_quasi_pulse]}

@@ -1,0 +1,59 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOSFET pulsed output family (blueprint v2 3.1, kind smu_pulsed MM 5, staircase sweep with pulsed bias): the drain
+# sweeps a DC staircase while the gate pulses to one level per step (PV pulsed bias, synchronized with the staircase),
+# so the channel conducts only during the gate pulse and Id is read at its end; one trigger per gate level of
+# vg_levels (host list, PV re-programmed in between). Avoids the self-heating of a DC Id-Vd (negative output
+# conductance at high power) and the drift of slow traps. MM 5 sweeps linearly only (PG error 226); HR/MP/HPSMU pulse
+# timing as mosfet.idvg_pulsed (R-PULSE-01). The DUT profile's gate terminal needs a pulse envelope (R-PULSE-02).
+# status: sim_validated by tests/integration/test_recipes_pulsed.py (nmos_selfheat: the top curve vs model truth).
+id: mosfet.idvd_pulsed
+version: 1
+title: MOSFET pulsed output family (drain staircase, gate pulsed per step) - Ron, gds, Vd_sat without self-heating
+family: smu
+kind: smu_pulsed
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/smu-pulsed-iv.md
+device_types: [nmos, pmos, igzo_tft]
+roles:
+  drain:
+    function: sweep_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {start: $vd_start, stop: $vd_stop, points: $vd_points, icomp: $icomp_drain}
+  gate:
+    function: pulse_v
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {base: $vg_base, values: $vg_levels, icomp: $icomp_gate, width: $width, period: $period,
+               hold: $hold_s, meas_time: $meas_time}
+  source: {function: ground, allow_gndu: true}
+params:
+  vd_start: {unit: V, default: 0.0, range: [-10, 10], doc: Drain staircase start.}
+  vd_stop: {unit: V, default: 3.0, recommended: [1, 3], range: [-10, 10], doc: Drain staircase stop.}
+  vd_points: {type: int, default: 31, recommended: [21, 101], range: [2, 1001], doc: Drain steps (one gate pulse each).}
+  vg_levels:
+    type: float_list
+    unit: V
+    default: [1.0, 1.5, 2.0, 2.5, 3.0]
+    range: [-10.0, 10.0]
+    doc: Gate pulse levels, one output curve each, in this order.
+  vg_base: {unit: V, default: 0.0, recommended: [-1, 0], range: [-10, 10], doc: Gate level between pulses (off).}
+  icomp_drain: {unit: A, default: 1.0e-3, recommended: [1.0e-4, 1.0e-2], range: [1.0e-12, 1.0e-1],
+                doc: Drain current compliance.}
+  icomp_gate: {unit: A, default: 1.0e-4, range: [1.0e-12, 1.0e-2], doc: "Gate compliance (covers the edge charging)."}
+  width: {unit: s, default: 1.0e-3, recommended: [5.0e-4, 1.0e-2], range: [1.0e-5, 2.0],
+          doc: "Gate pulse width (HR/MP/HPSMU 500 us-2 s in 100 us steps, R-PULSE-01)."}
+  period: {unit: s, default: 0.02, recommended: [0.01, 0.1], range: [5.0e-3, 5.0],
+           doc: "Pulse period = drain step time (>= width + 2 ms; 0.1 ms steps)."}
+  hold_s: {unit: s, default: 0.0, recommended: [0.0, 1.0], range: [0.0, 30.0], doc: "Hold before the first pulse."}
+  meas_time: {unit: s, default: 2.0e-4, recommended: [1.0e-4, 5.0e-4], range: [2.0e-6, 0.02],
+              doc: "Pulsed ADC measurement time (AIT 2), ending with the pulse; at most the width."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: output_metrics}
+provenance:
+  sources:
+    - blueprint v2 3.1 (mosfet.idvd_pulsed, smu_pulsed MM 5), 4.2 (mosfet +selfheat)
+    - Programming Guide Ed. 15 staircase sweep with pulsed bias (PDF 98-99), PT (PDF 486-487), PV (PDF 488-489), example Table 3-9 (PDF 213-214)
+    - v0.2 C staircase-with-pulsed-bias flow (tag archive/v0.2-fake-mcp)
+  validation_runs: []

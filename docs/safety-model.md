@@ -265,6 +265,18 @@ outputs stay at the stress level between hold blocks and from a hold to the next
 milliseconds); a hold's monitor sample never forces anything, so an automatic abort in a hold leaves the DC stress on,
 current-limited, until the cleanup.
 
+**SMU pulses (`smu_pulsed`, WP7.3).** Every pulse source (`PV`/`PI`, `PWV`/`PWI`, `MCPNX`/`MCPWNX`) passes the guard
+twice before anything is written: `check` at its base and every pulse or sweep level against its compliance, and
+`check_pulse` for the train one trigger starts (width, duty, pulses per trigger, on-time) against the compiled pulse
+envelope; the staircase sources of the pulsed modes (`WV`/`WI`, `WSV`/`WSI`, `WNX`) are checked at both ends, and a
+host list of pulse levels re-checks every re-programmed level (`pulsed_update`). An SMU pulse has a compliance, so its
+short-circuit bound is the compliance (`max_short_circuit_a` 0 in the envelope: no SPGU-style residual). R-PULSE-01
+blocks widths, periods and resolutions outside the SMU `PT` table (HR/MP/HPSMU 500 us-2 s at 100 us, period >= width
++ 2 ms); R-PULSE-02 requires the DUT terminal's pulse envelope; R-PULSE-03 asks for `soft_pulse` above the policy
+bands. Sweeps run with `WM 2,1` (automatic abort; the pulse sources return to base, the staircases to start); a host
+list stops after a trigger with compliance, overflow or oscillation. Residual: in pulsed mode auto ranging measures on
+the compliance range, so a generous compliance hides small currents in the noise (the card asks for a tight one).
+
 ## Cleanup and fault latch
 
 Every instrument action runs inside one transaction. On any exit, including errors, interrupts and guard

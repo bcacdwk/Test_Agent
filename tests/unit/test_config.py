@@ -46,7 +46,8 @@ def test_committed_examples_validate(repo_paths: Paths) -> None:
                                     "open-smus", "capacitor-cmu"}  # WP7.1: mosfet-4t-body .. open-smus; WP8.1
     assert set(bundle.dut_profiles) == {"nmos-generic", "fefet-generic", "diode-generic", "resistor-generic",
                                         "fefet-lab", "fecap-generic", "moscap-generic", "capacitor-100p",
-                                        "dielectric-generic", "resistor-1r", "open-circuit"}
+                                        "dielectric-generic", "resistor-1r", "open-circuit",
+                                        "nmos-pulsed", "resistor-pulsed"}  # WP7.3: pulse envelopes (smu-pulsed-iv)
     assert bundle.sim_scenario is not None and bundle.sim_scenario.name == "nmos_basic"
     assert {f.source for f in bundle.files.values()} == {"example"}
     assert bundle.warnings == []

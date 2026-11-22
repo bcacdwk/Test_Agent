@@ -12,11 +12,18 @@ option, or a method that does not apply to the run's recipe/kind, and ``MethodNo
 Every method carries ``families`` (blueprint v2 2.10): the recipe families (``smu cmu spgu wgfmu nvm reliability
 system``, ``Recipe.family``) whose runs it serves; ``methods_for(family)`` lists them. A method applicable (by
 ``recipes``/``kinds``) to a runnable recipe lists that recipe's family (a registry test checks it).
+
+Two-run methods (blueprint v2 2.9 ``analyze_run`` ``options.reference_run``; WP7.3): a method whose function takes the
+keyword ``reference`` (a ``RunData``) is offered the option ``reference_run`` (a run id) instead; ``run`` loads that
+run with ``load_reference`` (the service passes one that only accepts finished runs of its data root) or, without one,
+``load_run`` from the data root that holds ``data`` (the ``runs/`` folder above its run folder), and passes it as
+``reference``. A missing or unknown ``reference_run`` is ``InvalidInputError``.
 """
 
 from __future__ import annotations
 
 import inspect
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
@@ -25,7 +32,7 @@ from typing import Any, Literal, get_args
 
 from pydantic import ValidationError
 
-from b1500_test_agent.analysis.dataset import RunData
+from b1500_test_agent.analysis.dataset import RunData, load_run
 from b1500_test_agent.analysis.diode import diode_fit, forward_voltage
 from b1500_test_agent.analysis.errors import MethodNotImplementedError
 from b1500_test_agent.analysis.fefet import memory_window
@@ -42,6 +49,7 @@ from b1500_test_agent.analysis.mosfet import (
 )
 from b1500_test_agent.analysis.mosfet_family import body_effect, dibl
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv_method
+from b1500_test_agent.analysis.pulse import pulse_plateau, pulsed_vs_dc
 from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.reliability import plot_timeseries_method, sampling_summary, time_to_breakdown
 from b1500_test_agent.analysis.resistor import kelvin_resistance, resistance
@@ -56,10 +64,17 @@ FAMILIES: tuple[RecipeFamily, ...] = get_args(RecipeFamily)
 MethodOutput = Literal["quality_report", "extraction", "plots"]
 MethodResult = list[ExtractionResult] | QualityReport | PlotSet
 
-_RESERVED_ARGS = frozenset({"d", "criteria"})
+_RESERVED_ARGS = frozenset({"d", "criteria", "reference"})
+REFERENCE_OPTION = "reference_run"
+"""Option of a two-run method: the run id of the reference run (blueprint v2 2.9)."""
+_RUN_ID = re.compile(r"^[SH]\d{8}T\d{6}Z-[0-9a-f]{4}$")
+ReferenceLoader = Callable[[str], RunData]
 
-_TRANSFER = ("mosfet.idvg", "mosfet.idvg_sync", "fefet.dual_sweep_mw", "generic.*")
+_TRANSFER = ("mosfet.idvg", "mosfet.idvg_sync", "mosfet.idvg_pulsed", "fefet.dual_sweep_mw", "generic.*")
 _STAIRCASE = ("smu_staircase",)
+_PULSED = ("smu_pulsed",)
+_TRANSFER_KINDS = (*_STAIRCASE, *_PULSED)
+_PULSED_RECIPES = ("mosfet.idvg_pulsed", "mosfet.idvd_pulsed", "basic.pulsed_spot", "generic.*")
 _SWEEPS = ("smu_staircase", "smu_stepped")
 _SPOT = ("smu_spot",)
 _SMU: tuple[RecipeFamily, ...] = ("smu",)
@@ -98,21 +113,29 @@ class AnalysisMethod:
                              f"{list(self.families)}.")
 
     @property
+    def two_run(self) -> bool:
+        """True for a two-run method (its function takes ``reference``; option ``reference_run``)."""
+        return self.status != "declared" and "reference" in inspect.signature(self.fn).parameters
+
+    @property
     def options(self) -> tuple[str, ...]:
-        """Option names ``run`` accepts (keyword parameters of ``fn`` except ``criteria``); empty when declared."""
+        """Option names ``run`` accepts (keyword parameters of ``fn`` except ``criteria``; ``reference_run`` for a
+        two-run method); empty when declared."""
         if self.status == "declared":
             return ()
         parameters = inspect.signature(self.fn).parameters.values()
-        return tuple(p.name for p in parameters if p.kind is p.KEYWORD_ONLY and p.name not in _RESERVED_ARGS)
+        names = tuple(p.name for p in parameters if p.kind is p.KEYWORD_ONLY and p.name not in _RESERVED_ARGS)
+        return (REFERENCE_OPTION, *names) if self.two_run else names
 
     def applies_to(self, recipe_id: str, kind: str) -> bool:
         """True when ``recipe_id`` matches one of ``recipes`` and ``kind`` one of ``kinds``."""
         return any(fnmatchcase(recipe_id, p) for p in self.recipes) and any(fnmatchcase(kind, k) for k in self.kinds)
 
     def run(
-        self, data: RunData, options: Mapping[str, Any] | None = None, *, criteria: TrustPolicy | None = None
+        self, data: RunData, options: Mapping[str, Any] | None = None, *, criteria: TrustPolicy | None = None,
+        load_reference: ReferenceLoader | None = None,
     ) -> MethodResult:
-        """Run the method on ``data`` (see the module docstring for errors and refusals)."""
+        """Run the method on ``data`` (see the module docstring for errors, refusals and two-run methods)."""
         if self.status == "declared":
             raise MethodNotImplementedError(_not_implemented_message(self.name, self.milestone))
         opts = dict(options or {})
@@ -125,11 +148,26 @@ class AnalysisMethod:
                 f"{self.name} does not apply to run {data.run_id} (recipe {recipe_id}, kind {kind}); it applies to "
                 f"recipes {list(self.recipes)} of kinds {list(self.kinds)}."
             )
+        if self.two_run:
+            opts["reference"] = _reference(self.name, data, opts.pop(REFERENCE_OPTION, None), load_reference)
         try:
             out = self.fn(data, criteria=criteria, **opts)
         except ValidationError as exc:
             raise InvalidInputError(f"Invalid options for {self.name}: {exc}") from exc
         return [out] if isinstance(out, ExtractionResult) else out
+
+
+def _reference(method: str, data: RunData, run_id: Any, load_reference: ReferenceLoader | None) -> RunData:
+    """The reference run of a two-run method (``InvalidInputError`` when missing, malformed or the run itself)."""
+    if not isinstance(run_id, str) or not _RUN_ID.match(run_id):
+        raise InvalidInputError(f"{method} compares two runs: options.{REFERENCE_OPTION} must be the run id of the "
+                                f"reference run (e.g. a DC run of the same device), got {run_id!r}.")
+    if run_id == data.run_id:
+        raise InvalidInputError(f"{method}: the reference run must be another run than {data.run_id}.")
+    if load_reference is not None:
+        return load_reference(run_id)
+    root = next((p.parent for p in (data.path.parents if data.path is not None else []) if p.name == "runs"), None)
+    return load_run(run_id, data_root=root)
 
 
 def _not_implemented_message(name: str, milestone: str) -> str:
@@ -166,26 +204,29 @@ _METHODS = [
     ),
     AnalysisMethod(
         name="vth_linear_extrapolation", status="implemented", output="extraction", fn=vth_linear_extrapolation,
-        families=_SMU_NVM, recipes=_TRANSFER, kinds=_STAIRCASE,
+        families=_SMU_NVM, recipes=_TRANSFER, kinds=_TRANSFER_KINDS,
         summary="Vth = Vg-axis intercept of the tangent at max gm (or a given window) minus Vd/2.",
     ),
     _method("vth_constant_current", "extraction", vth_constant_current,
-            "Vth where |Id| first reaches i_crit_a (x w_over_l when given).", _TRANSFER, families=_SMU_NVM),
+            "Vth where |Id| first reaches i_crit_a (x w_over_l when given).", _TRANSFER, _TRANSFER_KINDS,
+            families=_SMU_NVM),
     _method("vth_max_gm", "extraction", vth_max_gm,
-            "Vth at the maximum of dgm/dVg (transconductance change) minus Vd/2.", _TRANSFER, families=_SMU_NVM),
+            "Vth at the maximum of dgm/dVg (transconductance change) minus Vd/2.", _TRANSFER, _TRANSFER_KINDS,
+            families=_SMU_NVM),
     _method("subthreshold_swing", "extraction", subthreshold_swing,
             "Minimum dVg/dlog10|Id| in mV/dec over fit_points points (or `decades` decades).", _TRANSFER,
-            families=_SMU_NVM),
+            _TRANSFER_KINDS, families=_SMU_NVM),
     _method("gm_max", "extraction", gm_max, "Maximum transconductance and its gate voltage.", _TRANSFER,
-            families=_SMU_NVM),
+            _TRANSFER_KINDS, families=_SMU_NVM),
     _method("ion_ioff", "extraction", ion_ioff, "Ion at v_on, Ioff at v_off (default: sweep ends) and their ratio.",
-            _TRANSFER, families=_SMU_NVM),
+            _TRANSFER, _TRANSFER_KINDS, families=_SMU_NVM),
     _method("output_metrics", "extraction", output_metrics,
             "Output family per step: Ron at the lowest |Vd|, gds in saturation, saturation onset Vd_sat.",
-            ("mosfet.idvd", "generic.*"), _SWEEPS, families=_SMU),
+            ("mosfet.idvd", "mosfet.idvd_pulsed", "generic.*"), (*_SWEEPS, *_PULSED), families=_SMU),
     _method("resistance", "extraction", resistance,
             "Resistance, linearity and offset of an I-V line; classification open|short|in_range.",
-            ("basic.contact_resistor", "generic.*"), (*_STAIRCASE, *_SPOT), families=_SMU),
+            ("basic.contact_resistor", "basic.pulsed_spot", "generic.*"), (*_STAIRCASE, *_SPOT, *_PULSED),
+            families=_SMU),
     _method("kelvin_resistance", "extraction", kelvin_resistance,
             "Four-wire R = slope of sensed V vs forced I, offset voltage, linearity; open|short|in_range.",
             ("resistor.kelvin_4w", "generic.*"), _SPOT, families=_SMU, milestone="M7"),
@@ -235,6 +276,17 @@ _METHODS = [
             families=_RELIABILITY, milestone="M7"),
 ]
 
+_METHODS += [
+    _method("pulsed_vs_dc", "extraction", pulsed_vs_dc,
+            "Pulsed minus DC current at v (default: the largest pulsed current) against a DC reference run "
+            "(options.reference_run), the ratio and the largest relative difference.", _PULSED_RECIPES, _PULSED,
+            families=_SMU, milestone="M7"),
+    _method("pulse_plateau", "extraction", pulse_plateau,
+            "Plateau current (or voltage) of a pulse: per-pulse mean with edge trimming (time-resolved data) or the "
+            "pulse-end reading, at level v, pulse number or the strongest pulse.", (*_PULSED_RECIPES, "wgfmu.*"),
+            (*_PULSED, "wgfmu_waveform"), families=("smu", "wgfmu"), milestone="M7"),
+]
+
 ANALYSIS_METHODS: Mapping[str, AnalysisMethod] = MappingProxyType({m.name: m for m in _METHODS})
 """All analysis methods by name (implemented and declared)."""
 
@@ -247,10 +299,12 @@ def methods_for(family: RecipeFamily) -> list[AnalysisMethod]:
 
 
 def run_method(
-    name: str, data: RunData, options: Mapping[str, Any] | None = None, *, criteria: TrustPolicy | None = None
+    name: str, data: RunData, options: Mapping[str, Any] | None = None, *, criteria: TrustPolicy | None = None,
+    load_reference: ReferenceLoader | None = None,
 ) -> MethodResult:
-    """Run registered method ``name`` on ``data`` with JSON ``options`` and the recipe's trust ``criteria``."""
+    """Run registered method ``name`` on ``data`` with JSON ``options`` and the recipe's trust ``criteria``
+    (``load_reference``: how a two-run method loads ``options.reference_run``)."""
     method = ANALYSIS_METHODS.get(name)
     if method is None:
         raise InvalidInputError(f"Unknown analysis method {name!r}; known: {sorted(ANALYSIS_METHODS)}.")
-    return method.run(data, options, criteria=criteria)
+    return method.run(data, options, criteria=criteria, load_reference=load_reference)

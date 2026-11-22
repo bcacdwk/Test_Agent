@@ -250,6 +250,13 @@ def recipes_lines(result: RecipeList) -> list[str]:
             lines.append("always confirm: " + ", ".join(r.always_confirm))
         lines += [f"precondition: {p}" for p in r.preconditions]
         return lines
+    if result.families:
+        lines = []
+        for name, family in result.families.items():
+            ids = ", ".join(family.runnable) or "-"
+            reserved = f"; not_implemented: {', '.join(family.not_implemented)}" if family.not_implemented else ""
+            lines.append(f"{name}: {family.recipes} recipes, {len(family.runnable)} runnable: {ids}{reserved}")
+        return lines
     return _table(["id", "status", "kind", "title"], [[r.id, r.status, r.kind, r.title] for r in result.recipes])
 
 
@@ -257,10 +264,12 @@ def recipes_lines(result: RecipeList) -> list[str]:
 def recipes_command(
     recipe_id: Annotated[str | None, typer.Argument(help="Show one recipe in detail.")] = None,
     device: Annotated[str | None, typer.Option("--device", help="Filter by device type, e.g. nmos.")] = None,
+    family: Annotated[str | None, typer.Option(
+        "--family", help="List one family's recipes: smu, cmu, spgu, wgfmu, nvm, reliability or system.")] = None,
     as_json: JsonOption = False,
 ) -> None:
-    """List recipes or show one (MCP list_recipes)."""
-    result = make_service().list_recipes(recipe_id=recipe_id, device_type=device)
+    """Recipe families with their runnable ids, one family's recipes (--family) or one recipe (MCP list_recipes)."""
+    result = make_service().list_recipes(recipe_id=recipe_id, device_type=device, family=family)
     emit(result, as_json, recipes_lines(result))
 
 

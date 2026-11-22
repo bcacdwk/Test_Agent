@@ -2,7 +2,8 @@
 
 ``SimInstrument`` dispatches through ``units.base.handler_table``; ``units/core.py`` holds the family-independent
 handlers, ``units/smu.py`` the SMU handlers and measurement engine, ``units/sampling.py`` the SMU sampling setup and
-engine (WP7.4), ``units/cmu.py`` the MFCMU (and the ``MM``/``XE`` dispatch by measurement mode, WP8.1),
+engine (WP7.4), ``units/pulsed.py`` the SMU pulsed setups and engine (WP7.3), ``units/cmu.py`` the MFCMU (and the
+``MM``/``XE`` dispatch by measurement mode, WP8.1),
 ``units/{spgu,switch}.py`` the SPGU and switch handlers (selector queries, ASU, SCUU).
 """
 
@@ -14,6 +15,7 @@ from b1500_test_agent.transport.sim import SimInstrument, flex
 from b1500_test_agent.transport.sim.units.base import HANDLES_ATTR, handler_table, handles
 from b1500_test_agent.transport.sim.units.cmu import CmuUnit
 from b1500_test_agent.transport.sim.units.core import CoreUnit
+from b1500_test_agent.transport.sim.units.pulsed import PulsedUnit
 from b1500_test_agent.transport.sim.units.sampling import SamplingUnit
 from b1500_test_agent.transport.sim.units.smu import SmuUnit
 from b1500_test_agent.transport.sim.units.spgu import SpguUnit
@@ -23,6 +25,7 @@ CORE = {"*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "*RST", "LOP?", "*TST?", "*C
         "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "CM", "*LRN?"}
 SMU = {"RI", "RV", "CMM", "DV", "WV", "WT", "WM", "DI", "WI", "WSV", "WSI", "WNX", "WNCC"}
 SAMPLING = {"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"}
+PULSED = {"PT", "PV", "PI", "PWV", "PWI", "MCPT", "MCPNT", "MCPNX", "MCPWS", "MCPWNX"}  # WP7.3
 CMU = {"CORRST?", "ADJ?", "CORR?", "CORRL?", "DCORR?", "MM", "XE"} | set(flex.CMU_COMMANDS)  # MM/XE by mode (WP8.1)
 SPGU = {"SPST?", "SIM", "SPM", "SPT", "SPV", "SPPER", "SPRM", "SER", "SPUPD", "SRP", "SPP", "ODSW", "STGP",
         "CORRSER?", "ALW", "ALS"}  # WP9.1
@@ -36,7 +39,8 @@ def test_every_supported_mnemonic_has_exactly_one_handler() -> None:
 
 
 def test_units_split_the_supported_subset_by_family() -> None:
-    families = {CoreUnit: CORE, SmuUnit: SMU, SamplingUnit: SAMPLING, CmuUnit: CMU, SpguUnit: SPGU, SwitchUnit: SWITCH}
+    families = {CoreUnit: CORE, SmuUnit: SMU, SamplingUnit: SAMPLING, PulsedUnit: PULSED, CmuUnit: CMU, SpguUnit: SPGU,
+                SwitchUnit: SWITCH}
     for unit, mnemonics in families.items():
         assert set(handler_table(unit)) == mnemonics, unit.__name__
     assert set().union(*families.values()) == flex.SUPPORTED

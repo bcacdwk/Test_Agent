@@ -1,0 +1,60 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Generic multi-channel SMU pulsed measurement (blueprint v2 3.1, kind smu_pulsed MM 27/28; ad-hoc): terminal a pulses
+# from `base` through a sweep start..stop in `points` pulses (MCPWNX; points 1 = one pulse at `start`: the
+# multi-channel pulsed spot MM 27), optional terminal c pulses to `peak_c` together with a (MCPNX pulsed bias), optional
+# terminal d holds a DC bias; every measuring terminal is read at the pulse end in parallel; b returns to the GNDU.
+# Two pulse roles make it multi-channel even when c is left unbound. HR/MP/HPSMU pulse together with one width (PG
+# Table 4-27); pulse envelopes of the DUT terminals a and c (R-PULSE-02); ad-hoc (R-REC-01 adhoc_recipe on visa).
+# status: sim_validated by tests/integration/test_recipes_pulsed.py (resistor_100k: R vs the 100 kOhm truth).
+id: generic.smu_multi_pulsed
+version: 1
+title: Generic multi-channel SMU pulsed spot/sweep (MM 27/28; ad-hoc; pulsed sweep a, optional pulse c, bias d)
+family: smu
+kind: smu_pulsed
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/smu-pulsed-iv.md
+device_types: []
+roles:
+  a:
+    function: pulse_v
+    measure: [I]
+    settings: {base: $base, start: $start, stop: $stop, points: $points, icomp: $icomp, width: $width,
+               period: $period, hold: $hold_s, meas_time: $meas_time, average: $average}
+  c:
+    function: pulse_v
+    measure: [I]
+    optional: true
+    settings: {base: $base_c, peak: $peak_c, icomp: $icomp_c}
+  d:
+    function: bias_v
+    measure: [I]
+    optional: true
+    settings: {v: $bias_v, icomp: $bias_icomp}
+  b: {function: ground, allow_gndu: true}
+params:
+  start: {unit: V, default: 0.0, range: [-42, 42], doc: "Terminal a: first pulse level."}
+  stop: {unit: V, default: 0.5, range: [-42, 42], doc: "Terminal a: last pulse level (ignored with points 1)."}
+  points: {type: int, default: 11, range: [1, 1001], doc: "Pulses of the sweep; 1 = one pulse at start (MM 27)."}
+  base: {unit: V, default: 0.0, range: [-42, 42], doc: "Terminal a between pulses."}
+  icomp: {unit: A, default: 1.0e-4, recommended: [1.0e-9, 1.0e-3], range: [1.0e-12, 0.1],
+          doc: "Current compliance of terminal a."}
+  base_c: {unit: V, default: 0.0, range: [-42, 42], doc: "Terminal c between pulses."}
+  peak_c: {unit: V, default: 0.1, range: [-42, 42], doc: "Terminal c pulse level (every pulse)."}
+  icomp_c: {unit: A, default: 1.0e-4, range: [1.0e-12, 0.1], doc: "Current compliance of terminal c."}
+  bias_v: {unit: V, default: 0.0, range: [-42, 42], doc: "DC bias of terminal d."}
+  bias_icomp: {unit: A, default: 1.0e-4, range: [1.0e-12, 0.1], doc: "Current compliance of terminal d."}
+  width: {unit: s, default: 1.0e-3, recommended: [5.0e-4, 1.0e-2], range: [1.0e-5, 2.0],
+          doc: "Pulse width of every pulse terminal (HR/MP/HPSMU 500 us-2 s in 100 us steps)."}
+  period: {unit: s, default: 0.02, recommended: [0.01, 0.1], range: [5.0e-3, 5.0], doc: "Pulse period (>= width + 2 ms)."}
+  hold_s: {unit: s, default: 0.0, recommended: [0.0, 1.0], range: [0.0, 30.0], doc: "Hold before the first pulse."}
+  meas_time: {unit: s, default: 2.0e-4, recommended: [1.0e-4, 5.0e-4], range: [2.0e-6, 0.02],
+              doc: "Pulsed ADC measurement time (AIT 2), ending with the pulse; at most the width."}
+  average: {type: int, default: 1, recommended: [1, 16], range: [1, 1023], doc: "Pulses averaged per reading (MCPT)."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults: []
+provenance:
+  sources:
+    - blueprint v2 3.1 (generic.smu_multi_pulsed, smu_pulsed MM 27/28), 2.7
+    - Programming Guide Ed. 15 MM 27/28 (PDF 94-95, 104-105), MCPT/MCPNT/MCPNX/MCPWS/MCPWNX (PDF 461-467), examples Tables 3-14/3-15 (PDF 230-235)
+    - v0.2 multi-channel pulse flow; generic.* recipes are ad-hoc (rule R-REC-01 adhoc_recipe on visa)
+  validation_runs: []

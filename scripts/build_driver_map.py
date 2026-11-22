@@ -51,7 +51,8 @@ PRIORITY_SCALE = {
     "sampling MM 10 with MCC, ML, MT, MSC, MV, MI and the time stamps TSC/TSR by WP7.4, the sweep sources DI, WI, "
     "WSV, WSI, WNX and MM 16 by WP7.2, MM 1 spot and the ASU commands SAP, SAR, SAL by WP7.1, the MFCMU commands, "
     "MM 17-26 and the SCUU's SSP/SSL by WP8.1, the correction set-up queries CORRL?/DCORR? by WP8.2, the HV-SPGU "
-    "PG/ALWG commands by WP9.1, the 16440A selector settings ERMOD/ERSSP by WP9.2)",
+    "PG/ALWG commands by WP9.1, the 16440A selector settings ERMOD/ERSSP by WP9.2, the SMU pulsed modes MM 3, 4, 5, "
+    "27, 28 with PT, PV, PI, PWV, PWI, MCPT, MCPNT, MCPNX, MCPWS, MCPWNX by WP7.3)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
     "simulator's FLEX subset v1 (AV, BC, NUB?, TSC)",
     "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
@@ -74,6 +75,7 @@ DRIVER_METHODS = (
     "correction_standard",
     "configure_spgu", "apply_pulse_setup", "start_pulses", "stop_pulses", "measure_pulse_load",
     "set_selector_control", "route_selector",
+    "pulsed_setup", "pulsed_update",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
@@ -86,6 +88,7 @@ COMMAND_BUILDERS = (
     "ermod", "erssp",
     "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q", "ERMOD_Q", "SPST_Q",
     "SRP", "SPP",
+    "pt", "pv", "pi", "pwv", "pwi", "mcpt", "mcpnt", "mcpnx", "mcpws", "mcpwnx",
 )  # fmt: skip
 DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
 
@@ -133,8 +136,8 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "DI": CommandTarget("force_i", "di", "OutputGuard-checked (current level vs |I|, Vcomp vs |V|); bias_i and "
                         "step_i roles (WP7.2), kind smu_spot bias_i roles (WP7.1)"),
     "MM": CommandTarget("staircase", "mm", "staircase sends MM 2 (staircase) and MM 16 (multi-channel sweep, "
-                        "WP7.2), sampling_setup MM 10, spot_setup MM 1 (WP7.1), the MFCMU setups MM 17-26 (WP8.1) "
-                        "(MM_MODE_TARGETS); every other mode is unmapped"),
+                        "WP7.2), sampling_setup MM 10, spot_setup MM 1 (WP7.1), the MFCMU setups MM 17-26 (WP8.1), "
+                        "pulsed_setup MM 3/4/5/27/28 (WP7.3) (MM_MODE_TARGETS); every other mode is unmapped"),
     "CMM": CommandTarget("staircase", "cmm", "sent inside the staircase, sampling and spot setups"),
     "WV": CommandTarget("staircase", "wv", "OutputGuard-checked voltage primary sweep"),
     "WI": CommandTarget("staircase", "wi", "OutputGuard-checked current primary sweep, lin/log single/double "
@@ -142,7 +145,8 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "WSV": CommandTarget("staircase", "wsv", "synchronous voltage source after WV, MM 2; sync_v roles (WP7.2)"),
     "WSI": CommandTarget("staircase", "wsi", "synchronous current source after WI, MM 2; sync_i roles (WP7.2)"),
     "WNX": CommandTarget("staircase", "wnx", "multi-channel sweep sources N = 2-10 after WV/WI, MM 16; the "
-                         "second and later sweep roles of a recipe (WP7.2)"),
+                         "second and later sweep roles of a recipe (WP7.2); MM 28 staircase sources N = 1-10 in "
+                         "pulsed_setup (WP7.3)"),
     "WT": CommandTarget("staircase", "wt"),
     "WM": CommandTarget("staircase", "wm"),
     "XE": CommandTarget("execute_and_read", "XE"),
@@ -231,13 +235,28 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "SSP": CommandTarget("scuu_route", "ssp", "OutputGuard.check_route per output; resets the SMUs (ATV-27); path "
                          "read back with *LRN? 81 (no SSP? exists)"),
     "SSL": CommandTarget("set_scuu_indicator", "ssl"),
+    # SMU pulsed measurements (WP7.3, kind smu_pulsed)
+    "PT": CommandTarget("pulsed_setup", "pt", "MM 3/4/5 hold, width, period (always sent); OutputGuard.check_pulse"),
+    "PV": CommandTarget("pulsed_setup", "pv", "OutputGuard.check at base and pulse + check_pulse; also pulsed_update "
+                        "(host list of pulse levels)"),
+    "PI": CommandTarget("pulsed_setup", "pi", "current pulse (driver only; no pulse_i role function); check at its "
+                        "Vcomp"),
+    "PWV": CommandTarget("pulsed_setup", "pwv", "MM 4 pulsed sweep, linear only (error 226); guard at base/start/stop"),
+    "PWI": CommandTarget("pulsed_setup", "pwi", "MM 4 current pulsed sweep (driver only)"),
+    "MCPT": CommandTarget("pulsed_setup", "mcpt", "MM 27/28 hold, period, Mdelay 0 (automatic), average"),
+    "MCPNT": CommandTarget("pulsed_setup", "mcpnt", "per pulse channel; delay 0 and one width on HR/MP/HPSMU"),
+    "MCPNX": CommandTarget("pulsed_setup", "mcpnx", "MM 27/28 pulsed bias source N; also pulsed_update"),
+    "MCPWS": CommandTarget("pulsed_setup", "mcpws", "MM 28 sweep mode and steps"),
+    "MCPWNX": CommandTarget("pulsed_setup", "mcpwnx", "MM 28 pulsed sweep source N"),
 }
 MM_MODE_TARGETS: dict[int, str] = {1: "B1500Driver.spot_setup", 2: "B1500Driver.staircase",
                                    10: "B1500Driver.sampling_setup", 16: "B1500Driver.staircase",
                                    17: "B1500Driver.spot_c", 18: "B1500Driver.cv_sweep",
                                    19: "B1500Driver.pulsed_spot_c", 20: "B1500Driver.pulsed_cv_sweep",
                                    22: "B1500Driver.cf_sweep", 23: "B1500Driver.ac_level_sweep",
-                                   26: "B1500Driver.ct_sampling"}
+                                   26: "B1500Driver.ct_sampling", 3: "B1500Driver.pulsed_setup",
+                                   4: "B1500Driver.pulsed_setup", 5: "B1500Driver.pulsed_setup",
+                                   27: "B1500Driver.pulsed_setup", 28: "B1500Driver.pulsed_setup"}
 """``MM <mode>`` entries of the legacy atoms: the driver method that sends each mapped mode (others unmapped)."""
 # Mapped commands are all m1; these unmapped ones are m2; everything else is `later`.
 M2_COMMANDS = frozenset({"AV", "BC", "NUB?", "TSC"})
@@ -325,6 +344,17 @@ GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "CORRDT": ([383, 384], ["4-65 to 4-66"]),
     "SSP": ([519, 520, 521], ["4-201 to 4-203"]),
     "SSL": ([519], ["4-201"]),
+    # SMU pulsed (WP7.3)
+    "PT": ([486, 487], ["4-168 to 4-169"]),
+    "PV": ([488, 489], ["4-170 to 4-171"]),
+    "PI": ([485, 486], ["4-167 to 4-168"]),
+    "PWV": ([492, 493], ["4-174 to 4-175"]),
+    "PWI": ([490, 491], ["4-172 to 4-173"]),
+    "MCPT": ([464, 465], ["4-146 to 4-147"]),
+    "MCPNT": ([461, 462], ["4-143 to 4-144"]),
+    "MCPNX": ([462, 463], ["4-144 to 4-145"]),
+    "MCPWS": ([465], ["4-147"]),
+    "MCPWNX": ([465, 466, 467], ["4-147 to 4-149"]),
 }
 CHAPTER_4_PDF_OFFSET = 318
 
@@ -399,7 +429,8 @@ ATOM_OVERRIDES: dict[str, dict[str, str]] = {
         "note": "successor: Transaction cleanup AB -> DZ -> CL -> verify and the safe_shutdown tool"
     },
     "C_atom_smu_set_measurement_mode": {"note": "staircase sends MM 2 and MM 16 (WP7.2), sampling_setup MM 10 "
-                                        "(WP7.4), spot_setup MM 1 (WP7.1); other modes later"},
+                                        "(WP7.4), spot_setup MM 1 (WP7.1), pulsed_setup MM 3/4/5/27/28 (WP7.3); "
+                                        "other modes later"},
     "C_atom_smu_configure_integration": {"priority": "m1", "note": "AV (averaging) is m2"},
     "C_atom_smu_set_measurement_ranging": {"priority": "m1", "note": "RM (auto-ranging limit) is later"},
     "C_atom_smu_configure_staircase_sweep": {

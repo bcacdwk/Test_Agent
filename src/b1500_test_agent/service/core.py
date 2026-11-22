@@ -12,7 +12,7 @@ import threading
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, TypeVar, get_args
 
 from pydantic import ValidationError
 
@@ -25,9 +25,10 @@ from b1500_test_agent.errors import B1500Error, InvalidConfigError, InvalidInput
 from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.common import Backend, ErrorCode, ResultEnvelope
 from b1500_test_agent.models.plan import PlanRecord, PlanRequest, RunProgress
-from b1500_test_agent.models.recipe import RecipeSummary
+from b1500_test_agent.models.recipe import RecipeFamily, RecipeSummary
 from b1500_test_agent.models.results import (
     AnalysisResult,
+    FamilyIndex,
     GetRunSection,
     NoteResult,
     PlanValidation,
@@ -59,6 +60,17 @@ from b1500_test_agent.session import state_audit_sink
 from b1500_test_agent.transport.audit import AuditSink
 
 R = TypeVar("R", bound=ResultEnvelope)
+
+RECIPE_FAMILIES: tuple[str, ...] = get_args(RecipeFamily)
+"""The recipe families of ``list_recipes(family=...)`` in index order (blueprint v2 2.9)."""
+
+
+def card_id(card: str | None) -> str | None:
+    """The card id ``<family>/<name>`` of a card path (``.agents/skills/b1500-test/cards/smu/diode-iv.md`` ->
+    ``smu/diode-iv``); other values unchanged."""
+    if card is None or "/cards/" not in card:
+        return card
+    return card.split("/cards/", 1)[1].removesuffix(".md")
 
 
 class B1500Service:
@@ -95,10 +107,13 @@ class B1500Service:
                           lambda bundle: status.station_status(self, bundle, refresh),
                           on_invalid_config=lambda exc: status.status_invalid(self, exc))
 
-    def list_recipes(self, recipe_id: str | None = None, device_type: str | None = None) -> RecipeList:
-        """The recipe index (``device_type`` filters it) or one recipe with params, roles and analysis defaults."""
-        return self._call("list_recipes", {"recipe_id": recipe_id, "device_type": device_type}, RecipeList,
-                          lambda bundle: self._recipes(bundle, recipe_id, device_type))
+    def list_recipes(self, recipe_id: str | None = None, device_type: str | None = None,
+                     family: str | None = None) -> RecipeList:
+        """The overview by family (runnable ids), one family's entries (``family``) or one recipe with params, roles
+        and analysis defaults (``recipe_id``); ``device_type`` filters the overview and the family."""
+        args = {"recipe_id": recipe_id, "device_type": device_type, "family": family}
+        return self._call("list_recipes", args, RecipeList,
+                          lambda bundle: self._recipes(bundle, recipe_id, device_type, family))
 
     def validate_plan(self, recipe_id: str | None = None, params: dict[str, Any] | None = None,
                       pin_map: str | None = None, dut_profile: str | None = None, label: str | None = None,
@@ -292,7 +307,8 @@ class B1500Service:
 
     # == list_recipes ================================================================================================
 
-    def _recipes(self, bundle: ConfigBundle, recipe_id: str | None, device_type: str | None) -> RecipeList:
+    def _recipes(self, bundle: ConfigBundle, recipe_id: str | None, device_type: str | None,
+                 family: str | None = None) -> RecipeList:
         registry = self.executor.registry(bundle)
         backend = bundle.backend
         problems = registry.problems()
@@ -318,29 +334,85 @@ class B1500Service:
             return RecipeList(ok=True, status="ok", **self._envelope(backend), recipe=detail,
                               message=f"{recipe.id}@{recipe.version}: {effective} on {backend}{warning}",
                               next_steps=next_steps)
+        if family is not None and family not in RECIPE_FAMILIES:
+            raise InvalidInputError(f"unknown recipe family {family!r}; families: {', '.join(RECIPE_FAMILIES)}")
         recipes = registry.list(device_type=device_type, backend=backend)
-        return self._recipe_index(recipes, backend, warning)
+        if family is None:
+            return self._family_overview(recipes, backend, warning)
+        listed = [r.model_copy(update={"card": card_id(r.card)}) for r in recipes if r.family == family]
+        return self._recipe_index(listed, backend, warning, family=family)
 
-    def _recipe_index(self, recipes: list[RecipeSummary], backend: Backend, warning: str) -> RecipeList:
-        """The index within the response budget: every recipe while it fits; else the ``not_implemented`` ones are
-        named in the message instead of listed, then the runnable ones are trimmed from the end (``showing N of M``,
-        like ``list_runs``) and named in the message (``not shown: ...``) while the names fit, so every recipe id
-        stays visible."""
+    def _family_overview(self, recipes: list[RecipeSummary], backend: Backend, warning: str) -> RecipeList:
+        """The default index (blueprint v2 2.9): per family the number of recipes and the ids of the runnable and the
+        ``not_implemented`` ones, within the response budget: over it, the ``not_implemented`` id lists go first
+        (their count stays in the message), then the runnable ids of the largest families (named in the message:
+        ``list_recipes(family=...)`` lists them), so the call always answers within the budget."""
+        families: dict[str, FamilyIndex] = {}
+        for name in RECIPE_FAMILIES:
+            members = [r for r in recipes if r.family == name]
+            if members:
+                families[name] = FamilyIndex(
+                    recipes=len(members), runnable=[r.id for r in members if r.status != "not_implemented"],
+                    not_implemented=[r.id for r in members if r.status == "not_implemented"])
+        runnable = sum(len(f.runnable) for f in families.values())
+
+        def build(index: dict[str, FamilyIndex], note: str) -> RecipeList:
+            return RecipeList(
+                ok=True, status="ok", **self._envelope(backend), families=index,
+                message=(f"{len(recipes)} recipes in {len(families)} families, {runnable} runnable on {backend}"
+                         f"{note}{warning}"),
+                next_steps=["list_recipes(family=<family>) for titles, kinds, status and cards",
+                            "list_recipes(recipe_id) for params, roles and the test card"])
+
+        def fits(result: RecipeList) -> bool:
+            return approx_tokens(result.model_dump_json()) <= TRIM_TARGET
+
+        result = build(families, "")
+        if fits(result):
+            return result
+        reserved = sum(len(f.not_implemented) for f in families.values())
+        index = {k: f.model_copy(update={"not_implemented": []}) for k, f in families.items()}
+        note = f"; {reserved} not_implemented ids not listed"
+        result = build(index, note)
+        omitted: list[str] = []
+        for name in sorted(index, key=lambda k: -len(index[k].runnable)):
+            if fits(result):
+                break
+            index[name] = index[name].model_copy(update={"runnable": []})
+            omitted.append(name)
+            result = build(index, f"{note}; runnable ids omitted for {', '.join(omitted)} (list_recipes(family=...) "
+                                  "lists them)")
+        return result
+
+    def _recipe_index(self, recipes: list[RecipeSummary], backend: Backend, warning: str, *,
+                      family: str | None = None) -> RecipeList:
+        """The entries of one family within the response budget: every entry while it fits; else every entry without
+        its ``device_types`` (``device_type`` filters them); else the ``not_implemented`` ones are named in the
+        message instead of listed, then the runnable ones are trimmed from the end (``showing N of M``, like
+        ``list_runs``) and named in the message (``not shown: ...``) while the names fit, so every recipe id stays
+        visible."""
         runnable = [r for r in recipes if r.status != "not_implemented"]
         reserved = [r.id for r in recipes if r.status == "not_implemented"]
+        scope = f" in family {family}" if family is not None else ""
 
         def build(shown: list[RecipeSummary], note: str) -> RecipeList:
             steps = ["list_recipes(recipe_id) for params, roles and the test card"]
             if note:
-                steps.append("list_recipes(device_type) for a shorter index")
+                steps.append("list_recipes(family, device_type) for a shorter list")
             return RecipeList(ok=True, status="ok", **self._envelope(backend), recipes=shown,
-                              message=f"{len(recipes)} recipes, {len(runnable)} runnable on {backend}{note}{warning}",
+                              message=(f"{len(recipes)} recipes{scope}, {len(runnable)} runnable on {backend}{note}"
+                                       f"{warning}"),
                               next_steps=steps)
 
         def fits(result: RecipeList) -> bool:
             return approx_tokens(result.model_dump_json()) <= TRIM_TARGET
 
         result = build(recipes, "")
+        if fits(result):
+            return result
+        recipes = [r.model_copy(update={"device_types": []}) for r in recipes]
+        runnable = [r for r in recipes if r.status != "not_implemented"]
+        result = build(recipes, "; device types omitted (device_type filters)")
         if fits(result):
             return result
         listed, hidden = (runnable, f"; not_implemented (not listed): {', '.join(reserved)}") if reserved else (

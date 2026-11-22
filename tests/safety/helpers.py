@@ -204,8 +204,9 @@ def source_levels(record: CommandRecord) -> tuple[int, list[float], float | None
 
 def source_request(record: CommandRecord) -> tuple[int, str, list[float], float | None]:
     """Channel, forced quantity (``V``/``I``), forced levels and compliance of a source record: ``DV``/``DI`` (PG PDF
-    396, 391), ``WV``/``WI`` (568, 551), ``WSV``/``WSI`` (561-562, 560), ``WNX`` (557: mode 1 V, 2 I) and the
-    sampling sources ``MV``/``MI`` (477, 468; levels base and bias)."""
+    396, 391), ``WV``/``WI`` (568, 551), ``WSV``/``WSI`` (561-562, 560), ``WNX`` (557: mode 1 V, 2 I), the
+    sampling sources ``MV``/``MI`` (477, 468; levels base and bias) and the pulse sources ``PV``/``PI``,
+    ``PWV``/``PWI``, ``MCPNX``/``MCPWNX`` (488, 485, 492, 490, 462, 465; levels base, pulse or start/stop)."""
     args = record.args
     mnemonic = record.mnemonic
 
@@ -222,6 +223,15 @@ def source_request(record: CommandRecord) -> tuple[int, str, list[float], float 
         return int(args[1]), "V" if int(args[2]) == 1 else "I", [float(args[4]), float(args[5])], comp(6)
     if mnemonic in ("MV", "MI"):
         return int(args[0]), mnemonic[1], [float(args[2]), float(args[3])], comp(4)
+    if mnemonic in ("PV", "PI"):  # PG PDF 488, 485: base and pulse (WP7.3)
+        return int(args[0]), mnemonic[1], [float(args[2]), float(args[3])], comp(4)
+    if mnemonic in ("PWV", "PWI"):  # PDF 492, 490: base, start and stop
+        return int(args[0]), mnemonic[2], [float(args[3]), float(args[4]), float(args[5])], comp(7)
+    if mnemonic == "MCPNX":  # PDF 462: N, channel, mode 1 V / 2 I, range, base, pulse
+        return int(args[1]), "V" if int(args[2]) == 1 else "I", [float(args[4]), float(args[5])], comp(6)
+    if mnemonic == "MCPWNX":  # PDF 465: N, channel, mode, range, base, start, stop
+        levels = [float(args[4]), float(args[5]), float(args[6])]
+        return int(args[1]), "V" if int(args[2]) == 1 else "I", levels, comp(7)
     raise AssertionError(f"source command the invariant does not know: {record.command}")
 
 

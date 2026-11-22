@@ -14,6 +14,7 @@ skill's rules, a card, a recipe, the policy or a DUT profile, and it never autho
 | [04 ferroelectric and oxide](04-ferroelectric-oxide.md) | Ec/Pr/Ps, FeFET operation, memory window by dual sweep, read disturb, pulse write (reserved), PUND (reserved), IGZO TFTs | FeFET or FeCap requests; oxide TFT measurements |
 | [05 reliability and defects](05-reliability-defects.md) | gate leakage safe envelope, BTI/HCI/TDDB (reserved), Dit, SILC and trapping, IGZO instability, wake-up/imprint/fatigue | gate leakage; drift or hysteresis; any stress request |
 | [06 analysis and extraction](06-analysis-extraction.md) | run table and trust, quality gate, gm, Vth (3 methods), SS, Ion/Ioff, Ron/gds, R, diode fit, leakage, MW, plots, reporting rules | before `analyze_run`; writing the report; ad-hoc analysis |
+| [06b time series and pulsed runs](06b-analysis-time-pulse.md) | sampling summary and relaxation fit, time to breakdown and Weibull, pulsed vs DC (two-run), pulse plateau | analysing a sampling, TDDB or pulsed run |
 | [07 HSPICE simulation](07-hspice-simulation.md) | reserved workflow: level-1 model card, netlist, comparison, BSIM4/Verilog-A later | a simulation-comparison request (answer: reserved) |
 | 08 debug | skill `b1500-debug`: triage order, runbooks, cases | noisy, impossible, compliance-limited or drifting data; faults; VISA errors |
 | [11 switching and routing](11-switching-routing.md) | switches in the station profile, routes per phase, 16440A selector (ERSSP, PGU open, Force only), SCUU/ASU paths, RSU, guard and R-ROUTE rules, cleanup to rest, selector check, simulator | any plan through a switch target; selector wiring (L7); a run blocked or failed on a route |
@@ -44,6 +45,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [SMU and module table](02-b1500-instrument.md#smu-and-module-table)
 - [Channel numbering and UNT](02-b1500-instrument.md#channel-numbering-and-unt)
 - [Measurement modes](02-b1500-instrument.md#measurement-modes)
+- [Pulsed measurements MM 3 4 5 27 28](02-b1500-instrument.md#pulsed-measurements-mm-3-4-5-27-28)
 - [Measurement sequence and cleanup](02-b1500-instrument.md#measurement-sequence-and-cleanup)
 - [Lab scripts vs the kernel](02-b1500-instrument.md#lab-scripts-vs-the-kernel)
 - [FLEX glossary for reading plans and audit logs](02-b1500-instrument.md#flex-glossary-for-reading-plans-and-audit-logs)
@@ -111,10 +113,15 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Leakage at bias](06-analysis-extraction.md#leakage-at-bias)
 - [Memory window](06-analysis-extraction.md#memory-window)
 - [Plots](06-analysis-extraction.md#plots)
-- [Sampling summary and relaxation fit](06-analysis-extraction.md#sampling-summary-and-relaxation-fit)
-- [Time to breakdown and Weibull](06-analysis-extraction.md#time-to-breakdown-and-weibull)
 - [Reporting rules measured versus derived](06-analysis-extraction.md#reporting-rules-measured-versus-derived)
 - [C-V extraction reserved](06-analysis-extraction.md#c-v-extraction-reserved)
+
+### 06b time series and pulsed runs
+
+- [Sampling summary and relaxation fit](06b-analysis-time-pulse.md#sampling-summary-and-relaxation-fit)
+- [Time to breakdown and Weibull](06b-analysis-time-pulse.md#time-to-breakdown-and-weibull)
+- [Pulsed versus DC](06b-analysis-time-pulse.md#pulsed-versus-dc)
+- [Pulse plateau](06b-analysis-time-pulse.md#pulse-plateau)
 
 ### 07 HSPICE simulation
 

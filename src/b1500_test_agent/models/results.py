@@ -62,6 +62,9 @@ class ConfigStatus(StrictModel):
     problems: list[ConfigProblem] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     digest: ShortDigest | None = None
+    files_omitted: int = 0
+    """Pin-map and DUT-profile files left out of ``files`` to keep ``station_status`` within its token budget (they
+    stay named in ``pin_maps``/``dut_profiles``; ``b1500 config check`` lists every file)."""
 
 
 class ModuleCheck(StrictModel):
@@ -174,11 +177,22 @@ class RecipeDetail(StrictModel):
     source: str = ""
 
 
+class FamilyIndex(StrictModel):
+    """One family of the default ``list_recipes`` overview (blueprint v2 2.9): how many recipes it has and their ids,
+    runnable (effective status not ``not_implemented`` on the backend) and not."""
+
+    recipes: int = Field(ge=0)
+    runnable: list[str] = Field(default_factory=list)
+    not_implemented: list[str] = Field(default_factory=list)
+
+
 class RecipeList(ResultEnvelope):
-    """Result of ``list_recipes``: the index (``recipes``) or one recipe (``recipe``)."""
+    """Result of ``list_recipes``: the overview by family (``families``, no arguments), the entries of one family
+    (``recipes``, ``family``; their ``card`` is the card id ``<family>/<name>``) or one recipe (``recipe``)."""
 
     recipes: list[RecipeSummary] = Field(default_factory=list)
     recipe: RecipeDetail | None = None
+    families: dict[str, FamilyIndex] = Field(default_factory=dict)
 
 
 # -- validate_plan ---------------------------------------------------------------------------------------------------

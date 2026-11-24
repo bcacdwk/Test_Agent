@@ -4,7 +4,9 @@
 # the agent's pin map); `models` holds the truth parameters tests compare extractions against; noise, faults and
 # timing as documented in nmos_basic.yaml.
 
-description: 100 kOhm resistor wired like pin map resistor-2t (a on SMU3/HRSMU, b on GNDU); instant timing.
+description: >-
+  100 kOhm resistor wired like pin map resistor-2t (a on SMU3/HRSMU, b on GNDU) and a second 100 kOhm resistor wired
+  like pin map resistor-wgfmu (a on WGFMU 201 through its RSU, b on GNDU); instant timing.
 idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101
 slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
   - {slot: 1, model: B1525A}
@@ -19,13 +21,20 @@ wiring:
   dut:
     a: 3
     b: GNDU
+  dut_wg:                       # WP10.4: the WGFMU DC check (wgfmu.dc_spot, bring-up L8 "DC into known R via RSU");
+    a: 201                      # it floats while RSU201 is off its WGFMU path, so the SMU runs never see it
+    b: GNDU
 models:
   dut:
     model: resistor
     params:
       r_ohm: 1.0e+5              # truth for the contact/resistance check (1 uA at 0.1 V)
+  dut_wg:
+    model: resistor
+    params:
+      r_ohm: 1.0e+5              # truth for wgfmu.dc_spot (I(R) +-3 %, stage L8)
 noise:
-  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13, WGFMU: 2.0e-6}
   rel: 1.0e-3
   seed: 4
 faults: null

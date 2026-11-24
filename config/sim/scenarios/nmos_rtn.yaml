@@ -1,0 +1,63 @@
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario. Name = file name.
+# An n-channel transistor with drain-current noise on the two WGFMU channels (blueprint v2 3.4 rows
+# wgfmu.custom_waveform, wgfmu.rtn, wgfmu.lfn; 4.2 `noise`): gate on WGFMU 201, drain on WGFMU 202 (each through its
+# RSU), source and bulk on the GNDU, wired like pin map mosfet-wgfmu (the lab's LFN layout: lwp/1530
+# LFN_noise_meas.cpp drives channel 201 and measures the current of channel 202).
+#
+# Truth: model `mosfet` (no self-heating) plus attached noise `rtn` on the drain current: white noise, 1/f noise
+# (Hooge form, gamma 1) and one random-telegraph trap (mean capture time 1 ms, emission time 0.5 ms, current step
+# 5 % of Id while occupied). WP10.4 runs lab-shaped custom waveforms on it (event timing, 504,000-point runs, npz
+# archive); WP10.5 (wgfmu.rtn, wgfmu.lfn) extracts gamma, tau_c, tau_e and dI/I against these values and may retune
+# them. Example values, not a measured device.
+
+description: >-
+  n-channel MOSFET on WGFMU 201 (gate) and 202 (drain) through their RSUs, source and bulk GNDU, with 1/f and
+  random-telegraph drain-current noise (tau_c 1 ms, tau_e 0.5 ms, dI/I 5 %); instant timing.
+idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101
+slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
+  - {slot: 7, model: B1520A}
+interlock_closed: false
+wiring:
+  dut:
+    gate: 201
+    drain: 202
+    source: GNDU
+    bulk: GNDU
+  rtn: {}
+models:
+  dut:
+    model: mosfet
+    params:
+      polarity: n
+      vth0: 0.5                 # V
+      slope_factor: 1.3
+      beta: 3.0e-4              # A/V^2
+      theta: 0.2                # 1/V
+      lambda: 0.05              # 1/V
+      rs_ohm: 20.0
+      gate_leak_s: 1.0e-12
+      temperature_k: 300.0
+  rtn:
+    model: noise
+    params:
+      attach: dut
+      terminal: drain
+      white_frac: 1.0e-4        # of the measurement range, per sample
+      flicker_k: 1.0e-6         # one-sided PSD flicker_k x I^2 / f^gamma
+      flicker_gamma: 1.0
+      rtn_tau_c_s: 1.0e-3       # mean time to capture (trap empty -> occupied)
+      rtn_tau_e_s: 5.0e-4       # mean time to emission (occupied -> empty)
+      rtn_delta_rel: 0.05       # current drop while occupied, relative to Id
+      seed: 7
+noise:
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13, WGFMU: 2.0e-6}
+  rel: 0.0
+  seed: 105
+faults: null
+timing: instant

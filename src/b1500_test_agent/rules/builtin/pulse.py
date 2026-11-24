@@ -425,7 +425,8 @@ def wgfmu_waveform_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     0.020971512 s (3315) and not above the interval (3316); range events only with Fast IV current measurement,
     outside averaging windows and, three or more in a pattern, more than 2 us apart (WG p128 (4-58)); stored values
     per channel within ``policy.run_limits.max_points.wgfmu`` and about 4,000,000 (WG p125 (4-55)); the program
-    within the channel's ``WaveformLimits`` (vectors, values, time, 10 ns grid)."""
+    within the channel's ``WaveformLimits`` (vectors, values, time, 10 ns grid); DC levels (``dc_spot``) inside the
+    channel's force range in DC mode and its envelope (WG p89 (4-19))."""
     sources, problem = source_plan_of(ctx)
     if problem is not None:
         return  # R-PULSE-01 reports an invalid source plan
@@ -444,6 +445,7 @@ def wgfmu_waveform_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     yield from _wg_patterns(ctx, env, program, spec_src)
     yield from _wg_sequences(program, spec_src)
     yield from _wg_events(program, spec_src)
+    yield from _wg_dc(ctx, env, program, spec_src)
     yield from _wg_points_and_envelope(ctx, env, program, spec_src)
 
 
@@ -508,6 +510,24 @@ def _wg_patterns(ctx: RuleContext, env: RuleEnv, program: WaveformProgram, sourc
         if entry is not None and peak > entry.max_abs_v:
             yield block(f"channel {ch}: waveform level {peak:g} V exceeds the channel envelope {entry.max_abs_v:g} V "
                         "(the guard would refuse it)", subject=entry.role,
+                        source=env.plan(f"envelope.channels.{ch}.max_abs_v"), observed=peak, limit=entry.max_abs_v)
+
+
+def _wg_dc(ctx: RuleContext, env: RuleEnv, program: WaveformProgram, source: str) -> Iterator[Finding]:
+    """DC-mode levels (``WaveformProgram.dc``): inside the channel's force range and its channel envelope."""
+    for ch, levels in sorted(program.dc.items()):
+        setup = program.channels[ch]
+        bottom, top = WGFMU_SPEC.range_bounds("dc", setup.force_range)
+        outside = [v for v in levels if not bottom <= v <= top]
+        if outside:
+            yield block(f"channel {ch}: DC level {outside[0]:g} V is outside the {setup.force_range} range "
+                        f"{bottom:g}..{top:g} V ({len(outside)} levels)", source=source, observed=outside[0],
+                        limit=f"{bottom:g}..{top:g}")
+        entry = channel_envelope(ctx, ch)
+        peak = max(abs(v) for v in levels)
+        if entry is not None and peak > entry.max_abs_v:
+            yield block(f"channel {ch}: DC level {peak:g} V exceeds the channel envelope {entry.max_abs_v:g} V (the "
+                        "guard would refuse it)", subject=entry.role,
                         source=env.plan(f"envelope.channels.{ch}.max_abs_v"), observed=peak, limit=entry.max_abs_v)
 
 

@@ -109,6 +109,17 @@ def _chain(*edits: Any) -> Any:
     return edit
 
 
+def _dc_top(levels: list[float], force_range: str = "3v") -> Any:
+    """Channel 201 in DC mode forcing ``levels`` (builder ``dc_spot``, WP10.4) instead of its sequence."""
+    def edit(data: dict[str, Any]) -> None:
+        data["channels"]["201"] = {"mode": "dc", "force_range": force_range, "measure": "current",
+                                   "current_range": "1ma"}
+        data["sequences"].pop("201")
+        data["events"] = [e for e in data["events"] if e["pattern"] != "drive"]
+        data["dc"] = {"201": levels}
+    return edit
+
+
 SEL1_PGU_OPEN_CH2 = Route(switch="SEL1", output="OUT2", state="pgu_open")
 SEL9 = Route(switch="SEL9", output="OUT1", state="smu")
 CURRENT_FORCE = {"force": {"function": "bias_i", "measure": ["V"], "settings": {"i": "$icomp", "vcomp": "$v"}},
@@ -417,6 +428,11 @@ CASES: list[Case] = [
          partial(v2.wgfmu, mutate=_chain(_event(1, average=0.0),
                                          _add_event(kind="range", pattern="sense", event="r", t=1e-6,
                                                     range="10ma")))),
+    Case("wg2-ok-dc-levels", "R-WG-02", partial(v2.wgfmu, mutate=_dc_top([-1.0, 0.0, 2.5]))),
+    Case("wg2-dc-level-outside-range", "R-WG-02", partial(v2.wgfmu, mutate=_dc_top([0.0, 3.5])),
+         (F("block", 3.5, "-3..3", WG), F("block", 3.5, 3.0, "plan:envelope.channels.201.max_abs_v"))),
+    Case("wg2-dc-level-in-the-negative-range", "R-WG-02", partial(v2.wgfmu, mutate=_dc_top([-0.5, 0.5], "-10v")),
+         (F("block", 0.5, "-10..0", WG),)),
     Case("wg2-range-events-too-close", "R-WG-02",
          partial(v2.wgfmu, mutate=_chain(_event(1, average=0.0), *(
              _add_event(kind="range", pattern="sense", event=f"r{i}", t=i * 1e-6, range="10ma") for i in range(3)))),

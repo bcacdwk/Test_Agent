@@ -1,0 +1,7 @@
+# WGFMU waveform library: drain companion of lwp_sample.csv (synthetic, not lab data). 0 V -> 0.1 V in 10 us,
+# held, back to 0 V in the last 10 us; the same 5.52 ms as lwp_sample.csv. Layout as lwp_sample.csv.
+time_s,level_v
+0,0
+1e-05,0.1
+0.00551,0.1
+0.00552,0

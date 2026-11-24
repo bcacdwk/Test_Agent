@@ -390,6 +390,22 @@ could send commands (EasyEXPERT must be closed, deployment step); without a load
 reach a WGFMU another program left connected; ATV-17 (`initialize` resets the WGFMU only, an SMU bias stays) holds in
 the simulator and is `TODO(verify)` at L8.
 
+**WGFMU waveform kind (blueprint v2 2.7, 2.7.1, decision 21, WP10.4).** Kind `wgfmu_waveform` compiles one
+`WaveformProgram` from the recipe's builder (`catalog/waveforms.py`: `pulsed_iv`, `pulse_train`, `fast_iv_ramp`,
+`dc_spot`, `table`); the program, its nominal pulse trains and every WGFMU channel's `WaveformLimits` (most vectors per
+pattern, stored values, output time: exactly the program's) are part of the hashed plan, so R-WG-02, R-PULSE-01..03,
+the summary and the guard judge exactly what runs. A WGFMU channel's envelope is its largest |level| (no current
+limit); a pulse builder's gate also gets a pulse envelope (open-load level = set level, width, duty, pulses per start),
+so its DUT terminal needs a human-declared `pulse` envelope (R-PULSE-02). `file` parameters (builder `table`, the lab's
+CSV layout) are read at validation through `read_param_file` (sha256 re-verified) and their digests join the plan; a
+file from `work/waveforms/` always needs confirmation (`adhoc_recipe`); a file changed after validation makes the
+run `plan_stale`; `program.json` records the program and the file records before anything is sourced. SMU roles of
+the kind (`bias_v`, a grounded SMU) are switched on and set over FLEX before the WGFMU phase (`LOP?` positive control
+on hardware) and stay on through it (`flex_io`); the cleanup's `DZ`/`CL` turns them off. A DC level (`dc_spot`) is
+checked with the whole program at `load` and again at each `force_dc`. Residuals: the WGFMU has no compliance, so a
+short at a terminal draws up to the full scale of its range (10 mA range; PG mode about 100 mA into a short), which
+R-GNDU-01 budgets; an over-range reading saturates and is flagged `V`, never trusted.
+
 **`LOP?` positive control (hardware, WP6.2; v1 ATV-1, ATV-23).** On hardware the verification is `LOP?` reading `00`
 for every slot. An all-`00` answer proves the outputs off only if `LOP?` reports this instrument's output switches at
 all, so every run that switches outputs on reads `LOP?` once right after `CN`, before any level is applied (the

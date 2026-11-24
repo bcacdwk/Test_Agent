@@ -1,0 +1,19 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Transistor on the two WGFMU channels through their RSUs (the lab's layout, lwp/1530 LFN_noise_meas.cpp: channel 201
+# drives, channel 202 measures): gate RSU201.OUT (WGFMU 201), drain RSU202.OUT (WGFMU 202), source on the GNDU. A
+# wgfmu role binds through the route RSU20x.OUT -> wgfmu; the kind connects the RSU only while its waveform runs.
+#
+# certainty: verified here because this map matches the simulator scenarios nmos_wgfmu and nmos_rtn; the RSUs of the
+# station example stay `unverified`, so every plan through them needs confirmation (unverified_topology, R-ROUTE-02).
+# On a real station set `unverified` until a human has checked the wiring. The visa backend never reads this file.
+
+description: Transistor; gate RSU201.OUT (WGFMU 201), drain RSU202.OUT (WGFMU 202), source GNDU.
+certainty: verified
+terminals:
+  gate: RSU201.OUT
+  drain: RSU202.OUT
+  source: GNDU
+notes:
+  - The bulk is left out (floating at the source potential on the simulator); mosfet-wgfmu-body adds it on SMU5.
+  - The RSU's normal path is its SMU input (WG p19 (1-7)); a DC reference with SMUs on the same landing needs the
+    SMUs cabled to the RSU inputs (scenario nmos_wgfmu) and pin map mosfet-4t.

@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 
 UNIMPLEMENTED_KINDS: dict[str, str] = {
     "smu_qscv": "quasi-static C-V with SMUs; needs leakage compensation flows",
-    "wgfmu_pulsed_iv": "WGFMU fast pulsed I-V; needs the WGFMU instrument library extraction",
     "wgfmu_fast_bti": "WGFMU fast BTI (on-the-fly); needs the WGFMU library and async runs",
     "wgfmu_pulse_sequence": "WGFMU pulse write + read sequences (FeFET endurance/retention, FeCap PUND)",
 }

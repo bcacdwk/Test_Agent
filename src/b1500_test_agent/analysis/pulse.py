@@ -20,17 +20,18 @@ Definitions (the source of knowledge file ``06b-analysis-pulse-stress.md``; chan
   self-heating), and ``max_rel_difference`` (the largest |r| over the window, its x in ``fit``). A positive difference
   on an n-type transistor at high power is DC self-heating (mobility loss) removed by the pulses; a difference at
   negligible power points to charge trapping (slow traps charge during DC) or to a mismatch of the two runs.
-- **pulse_plateau** reads the plateau level of pulses. A time-resolved table (``t_s`` with several rows per pulse,
-  e.g. a WGFMU waveform) is cut into pulses: by its ``event`` column when it has one (each run of one event label is
-  a pulse), else on the pulsed voltage ``x``: rows more than ``threshold`` (V, default 0.05) away from the base level
-  (the first row's ``x``), split where ``x`` jumps by more than ``threshold`` between samples (pulses that do not
-  return to base); each pulse's plateau drops the ``edge`` fraction of its samples at both ends (at least one sample
-  stays) and averages ``y`` over its trusted samples. A table with one row per pulse (SMU pulsed spot/sweep: the
-  instrument already measured at the pulse end over the pulsed ADC time) uses every row as one plateau. Result
-  ``plateau_current`` (A) or ``plateau_voltage`` (V) of the pulse at level ``v`` (interpolated between pulse
-  levels), of pulse number ``pulse`` (0-based; negative counts from the end), or by default of the pulse with the
-  largest |level|; ``fit``: ``level_v``, ``samples``, ``std``, ``pulses``, ``plateau_s`` (time-resolved only);
-  ``window``: the plateau's ``t_s`` span.
+- **pulse_plateau** reads the plateau level of pulses. A time-resolved table (``t_s``, e.g. a WGFMU waveform) is cut
+  into pulses: by its ``cycle`` column when it has one (each run of one cycle, and of one event label within it, is a
+  pulse: a WGFMU pulse train's pattern repeat, or one averaged point per pulse of a WGFMU pulsed sweep), else by its
+  ``event`` column (each run of one event label is a pulse), else on the pulsed voltage ``x``: rows more than
+  ``threshold`` (V, default 0.05) away from the base level (the first row's ``x``), split where ``x`` jumps by more
+  than ``threshold`` between samples (pulses that do not return to base); each pulse's plateau drops the ``edge``
+  fraction of its samples at both ends (at least one sample stays) and averages ``y`` over its trusted samples. A
+  table with one row per pulse (SMU pulsed spot/sweep: the instrument already measured at the pulse end over the
+  pulsed ADC time) uses every row as one plateau. Result ``plateau_current`` (A) or ``plateau_voltage`` (V) of the
+  pulse at level ``v`` (interpolated between pulse levels), of pulse number ``pulse`` (0-based; negative counts from
+  the end), or by default of the pulse with the largest |level|; ``fit``: ``level_v``, ``samples``, ``std``,
+  ``pulses``, ``plateau_s`` (time-resolved only); ``window``: the plateau's ``t_s`` span.
 
 - **vth_search_value** reads the result of a threshold-voltage search (kind ``smu_search``, e.g. ``mosfet.vth_search``):
   the one-row table's search column ``x`` (``kind_result.result_column``, default ``gate_V``: ``Data_search``, the gate
@@ -82,7 +83,15 @@ from b1500_test_agent.analysis.common import (
     varying_sources,
     window_of,
 )
-from b1500_test_agent.analysis.dataset import EVENT, T_S, RunData, Segment, parse_value_column, status_column
+from b1500_test_agent.analysis.dataset import (
+    CYCLE,
+    EVENT,
+    T_S,
+    RunData,
+    Segment,
+    parse_value_column,
+    status_column,
+)
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QuantityRange, TrustPolicy, Unit
 
@@ -262,10 +271,19 @@ def pulsed_vs_dc(
     return results
 
 
-def _pulse_runs(x: np.ndarray, threshold: float, events: np.ndarray | None) -> list[np.ndarray]:
-    """Index arrays of the pulses: runs of one ``events`` label, else runs of rows more than ``threshold`` away from
-    the base (the first ``x``) split at jumps above ``threshold`` (module docstring)."""
+def _pulse_runs(x: np.ndarray, threshold: float, events: np.ndarray | None,
+                cycles: np.ndarray | None = None) -> list[np.ndarray]:
+    """Index arrays of the pulses: runs of one ``(cycle, event)`` pair or of one ``events`` label, else runs of rows
+    more than ``threshold`` away from the base (the first ``x``) split at jumps above ``threshold`` (module
+    docstring)."""
     runs: list[np.ndarray] = []
+    if cycles is not None:
+        labels = pd.Series(cycles).astype(str)
+        if events is not None:
+            labels = labels + "|" + pd.Series(events).astype(str)
+        starts = np.flatnonzero(labels.ne(labels.shift()).to_numpy())
+        bounds = [*starts.tolist(), len(labels)]
+        return [np.arange(lo, hi) for lo, hi in itertools.pairwise(bounds)]
     if events is not None:
         labels = pd.Series(events).astype(str)
         starts = np.flatnonzero(labels.ne(labels.shift()).to_numpy())
@@ -330,7 +348,8 @@ def pulse_plateau(
     """``(level, mean, std, samples, t_start, t_end)`` per pulse."""
     if time_resolved:
         events = table[EVENT].to_numpy() if EVENT in table.columns else None
-        runs = _pulse_runs(xv, threshold, events)
+        cycles = table[CYCLE].to_numpy() if CYCLE in table.columns else None
+        runs = _pulse_runs(xv, threshold, events, cycles)
         times = table[T_S].to_numpy(dtype=float)
         for run in runs:
             cut = int(len(run) * edge)

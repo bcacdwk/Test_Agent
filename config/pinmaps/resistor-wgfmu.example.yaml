@@ -1,0 +1,15 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Two-terminal resistor on WGFMU channel 201 through its RSU (wgfmu.dc_spot, bring-up stage L8 "DC into known R via
+# RSU"): a on RSU201.OUT, b on the GNDU. The DC check forces and measures on the same channel (DC mode).
+#
+# certainty: verified here because this map matches the simulator scenario resistor_100k (resistor dut_wg); the RSUs
+# of the station example stay `unverified` (unverified_topology). The visa backend never reads this file.
+
+description: 2-terminal resistor; a on RSU201.OUT (WGFMU 201), b on GNDU.
+certainty: verified
+terminals:
+  a: RSU201.OUT
+  b: GNDU
+notes:
+  - The WGFMU's smallest current range is 1 uA (WG p142 (4-72)); a 100 kOhm standard at +-0.1 V reads +-1 uA, so the
+    check uses the 10 uA range.

@@ -30,8 +30,8 @@ from b1500_test_agent.devtools.skills.common import (
     StageId,
 )
 from b1500_test_agent.devtools.skills.markdown import parse_markdown
-from b1500_test_agent.devtools.skills.params import split_param_cell
-from b1500_test_agent.models.recipe import RecipeFamily
+from b1500_test_agent.devtools.skills.params import ParamRow, check_param_row, split_param_cell
+from b1500_test_agent.models.recipe import ParamSpec, RecipeFamily
 from b1500_test_agent.models.station import ModuleType
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -82,6 +82,21 @@ def test_card_folder_problem() -> None:
 ])
 def test_split_param_cell(cell: str, name: str, recipes: tuple[str, ...]) -> None:
     assert split_param_cell(cell) == (name, recipes)
+
+
+def test_file_parameter_rows_name_the_library_default_and_no_window() -> None:
+    """WP10.4: a ``file`` parameter row states the recipe's default path; recommended and recipe range are ``-``."""
+    spec = ParamSpec(type="file", default="recipes/waveforms/lwp_sample.csv")
+
+    def row(default: str, recommended: str = "-", range_: str = "-") -> ParamRow:
+        return ParamRow(name="gate_wave", default=default, recommended=recommended, range=range_, line=1)
+
+    assert check_param_row(row("`recipes/waveforms/lwp_sample.csv`"), "wgfmu.custom_waveform", spec) == []
+    assert [c for c, _ in check_param_row(row("recipes/waveforms/other.csv"), "r.x", spec)] == ["param_range"]
+    assert [c for c, _ in check_param_row(row("recipes/waveforms/lwp_sample.csv", "1..2"), "r.x", spec)] == [
+        "param_table"]
+    assert [c for c, _ in check_param_row(row("-"), "r.x", spec)] == ["param_range"]
+    assert check_param_row(row("required"), "r.x", ParamSpec(type="file")) == []
 
 
 def test_command_alternatives_and_problems() -> None:

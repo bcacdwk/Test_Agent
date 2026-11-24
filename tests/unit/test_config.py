@@ -44,15 +44,16 @@ def test_committed_examples_validate(repo_paths: Paths) -> None:
     assert set(bundle.pin_maps) == {"mosfet-4t", "diode-2t", "resistor-2t", "mosfet-3t-lab", "fefet-sel",
                                     "fecap-wgfmu", "moscap-cmu", "mosfet-4t-body", "resistor-4w",
                                     "open-smus", "capacitor-cmu", "mosfet-cp", "mosfet-split-cv", "moscap-scuu",
-                                    "fecap-cmu"}
+                                    "fecap-cmu", "mosfet-wgfmu", "mosfet-wgfmu-body", "resistor-wgfmu"}
     # WP7.1: mosfet-4t-body .. open-smus; WP8.1: capacitor-cmu; WP9.3: mosfet-cp; WP8.3: mosfet-split-cv, moscap-scuu;
-    # WP8.4: fecap-cmu
+    # WP8.4: fecap-cmu; WP10.4: mosfet-wgfmu, mosfet-wgfmu-body, resistor-wgfmu
     assert set(bundle.dut_profiles) == {"nmos-generic", "fefet-generic", "diode-generic", "resistor-generic",
                                         "fefet-lab", "fecap-generic", "moscap-generic", "capacitor-100p",
                                         "dielectric-generic", "resistor-1r", "open-circuit",
                                         "nmos-pulsed", "resistor-pulsed",  # WP7.3: pulse envelopes (smu-pulsed-iv)
                                         "nmos-cv",  # WP9.3 (WP8.3: + AC envelopes for split C-V)
-                                        "dielectric-thick"}  # WP7.5: quasi-pulsed BDV (tddb-bdv)
+                                        "dielectric-thick",  # WP7.5: quasi-pulsed BDV (tddb-bdv)
+                                        "nmos-wgfmu"}  # WP10.4
     assert bundle.sim_scenario is not None and bundle.sim_scenario.name == "nmos_basic"
     assert {f.source for f in bundle.files.values()} == {"example"}
     assert bundle.warnings == []
@@ -302,7 +303,8 @@ def test_lab_example_is_unverified(repo_paths: Paths) -> None:
     assert bundle.station.switches and all(s.certainty == "unverified" for s in bundle.station.switches)
     assert all(ch is None for s in bundle.station.switches if s.kind == "selector_16440a"
                for port in s.ports.values() for ch in port.inputs.values())
-    simulated = {"mosfet-4t", "diode-2t", "resistor-2t", "mosfet-4t-body", "resistor-4w", "open-smus"}
+    simulated = {"mosfet-4t", "diode-2t", "resistor-2t", "mosfet-4t-body", "resistor-4w", "open-smus",
+                 "mosfet-wgfmu", "mosfet-wgfmu-body", "resistor-wgfmu"}  # WP10.4: through the (unverified) RSUs
     assert all(bundle.pin_maps[name].certainty == "verified" for name in simulated)
     lab = {name: pm.certainty for name, pm in bundle.pin_maps.items() if name not in simulated}
     assert lab == dict.fromkeys(["mosfet-3t-lab", "fefet-sel", "fecap-wgfmu", "moscap-cmu", "capacitor-cmu",

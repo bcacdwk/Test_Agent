@@ -1,0 +1,16 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# mosfet-wgfmu plus the bulk on SMU5 (MPSMU): an SMU body bias held around the WGFMU waveform (kind wgfmu_waveform,
+# optional role bulk of wgfmu.pulsed_iv; WG Ex. 10 combines an SMU DC bias with WGFMU pulses).
+#
+# certainty: verified here because this map matches the simulator scenario nmos_wgfmu (bulk wired to SMU5); the RSUs
+# of the station example stay `unverified` (unverified_topology). The visa backend never reads this file.
+
+description: Transistor; gate RSU201.OUT (WGFMU 201), drain RSU202.OUT (WGFMU 202), source GNDU, bulk SMU5 (MPSMU).
+certainty: verified
+terminals:
+  gate: RSU201.OUT
+  drain: RSU202.OUT
+  source: GNDU
+  bulk: 5
+notes:
+  - SMU5 is switched on and biased before the WGFMU phase and switched off by the transaction's cleanup.

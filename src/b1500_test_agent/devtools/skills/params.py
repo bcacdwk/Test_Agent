@@ -206,6 +206,17 @@ def check_param_row(row: ParamRow, recipe_id: str, spec: ParamSpec) -> list[tupl
                 flag("param_range", f"{where}: recipe range {items} differs from the recipe choices "
                      f"{choices}")
         return out
+    if spec.type == "file":  # a CSV path (WP10.4): the default is the recipe's library file, no window
+        if _is_none(row.default, required_ok=True):
+            if spec.default is not None:
+                flag("param_range", f"{where}: default is empty but the recipe default is {spec.default}")
+        elif _clean(row.default) != spec.default:
+            flag("param_range", f"{where}: default {_clean(row.default)!r} differs from the recipe default "
+                 f"{spec.default!r}")
+        for column, cell in (("recommended", row.recommended), ("recipe range", row.range)):
+            if not _is_none(cell):
+                flag("param_table", f"{where}: a file parameter has no {column} (use -)")
+        return out
     if spec.type == "bool":
         if not _is_none(row.default, required_ok=True):
             value = _clean(row.default).lower()

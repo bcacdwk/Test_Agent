@@ -94,15 +94,20 @@ REFERENCE_OPTION = "reference_run"
 _RUN_ID = re.compile(r"^[SH]\d{8}T\d{6}Z-[0-9a-f]{4}$")
 ReferenceLoader = Callable[[str], RunData]
 
-_TRANSFER = ("mosfet.idvg", "mosfet.idvg_sync", "mosfet.idvg_pulsed", "fefet.dual_sweep_mw", "generic.*")
+_WGFMU_TRANSFER = ("wgfmu.pulsed_iv", "wgfmu.fast_iv")
+"""WGFMU transfer curves (kind ``wgfmu_waveform``, WP10.4): gate level (programmed) against drain current."""
+_TRANSFER = ("mosfet.idvg", "mosfet.idvg_sync", "mosfet.idvg_pulsed", "fefet.dual_sweep_mw", *_WGFMU_TRANSFER,
+             "generic.*")
 _STAIRCASE = ("smu_staircase",)
 _PULSED = ("smu_pulsed",)
-_TRANSFER_KINDS = (*_STAIRCASE, *_PULSED)
-_PULSED_RECIPES = ("mosfet.idvg_pulsed", "mosfet.idvd_pulsed", "basic.pulsed_spot", "generic.*")
+_WGFMU = ("wgfmu_waveform",)
+_TRANSFER_KINDS = (*_STAIRCASE, *_PULSED, *_WGFMU)
+_PULSED_RECIPES = ("mosfet.idvg_pulsed", "mosfet.idvd_pulsed", "basic.pulsed_spot", *_WGFMU_TRANSFER, "generic.*")
 _SWEEPS = ("smu_staircase", "smu_stepped")
 _SPOT = ("smu_spot",)
 _SMU: tuple[RecipeFamily, ...] = ("smu",)
 _SMU_NVM: tuple[RecipeFamily, ...] = ("smu", "nvm")
+_TRANSFER_FAMILIES: tuple[RecipeFamily, ...] = ("smu", "nvm", "wgfmu")
 _SMU_RELIABILITY: tuple[RecipeFamily, ...] = ("smu", "reliability")
 _SAMPLING = ("generic.smu_sampling", "mosfet.id_t_sampling", "reliability.tddb_cvs", "generic.*")
 _SAMPLING_KINDS = ("smu_sampling",)
@@ -241,29 +246,29 @@ _METHODS = [
     ),
     AnalysisMethod(
         name="vth_linear_extrapolation", status="implemented", output="extraction", fn=vth_linear_extrapolation,
-        families=_SMU_NVM, recipes=_TRANSFER, kinds=_TRANSFER_KINDS,
+        families=_TRANSFER_FAMILIES, recipes=_TRANSFER, kinds=_TRANSFER_KINDS,
         summary="Vth = Vg-axis intercept of the tangent at max gm (or a given window) minus Vd/2.",
     ),
     _method("vth_constant_current", "extraction", vth_constant_current,
             "Vth where |Id| first reaches i_crit_a (x w_over_l when given).", _TRANSFER, _TRANSFER_KINDS,
-            families=_SMU_NVM),
+            families=_TRANSFER_FAMILIES),
     _method("vth_max_gm", "extraction", vth_max_gm,
             "Vth at the maximum of dgm/dVg (transconductance change) minus Vd/2.", _TRANSFER, _TRANSFER_KINDS,
-            families=_SMU_NVM),
+            families=_TRANSFER_FAMILIES),
     _method("subthreshold_swing", "extraction", subthreshold_swing,
             "Minimum dVg/dlog10|Id| in mV/dec over fit_points points (or `decades` decades).", _TRANSFER,
-            _TRANSFER_KINDS, families=_SMU_NVM),
+            _TRANSFER_KINDS, families=_TRANSFER_FAMILIES),
     _method("gm_max", "extraction", gm_max, "Maximum transconductance and its gate voltage.", _TRANSFER,
-            _TRANSFER_KINDS, families=_SMU_NVM),
+            _TRANSFER_KINDS, families=_TRANSFER_FAMILIES),
     _method("ion_ioff", "extraction", ion_ioff, "Ion at v_on, Ioff at v_off (default: sweep ends) and their ratio.",
-            _TRANSFER, _TRANSFER_KINDS, families=_SMU_NVM),
+            _TRANSFER, _TRANSFER_KINDS, families=_TRANSFER_FAMILIES),
     _method("output_metrics", "extraction", output_metrics,
             "Output family per step: Ron at the lowest |Vd|, gds in saturation, saturation onset Vd_sat.",
             ("mosfet.idvd", "mosfet.idvd_pulsed", "generic.*"), (*_SWEEPS, *_PULSED), families=_SMU),
     _method("resistance", "extraction", resistance,
             "Resistance, linearity and offset of an I-V line; classification open|short|in_range.",
-            ("basic.contact_resistor", "basic.pulsed_spot", "generic.*"), (*_STAIRCASE, *_SPOT, *_PULSED),
-            families=_SMU),
+            ("basic.contact_resistor", "basic.pulsed_spot", "wgfmu.dc_spot", "generic.*"),
+            (*_STAIRCASE, *_SPOT, *_PULSED, *_WGFMU), families=("smu", "wgfmu")),
     _method("kelvin_resistance", "extraction", kelvin_resistance,
             "Four-wire R = slope of sensed V vs forced I, offset voltage, linearity; open|short|in_range.",
             ("resistor.kelvin_4w", "generic.*"), _SPOT, families=_SMU, milestone="M7"),
@@ -357,8 +362,8 @@ _METHODS = [
 _METHODS += [
     _method("pulsed_vs_dc", "extraction", pulsed_vs_dc,
             "Pulsed minus DC current at v (default: the largest pulsed current) against a DC reference run "
-            "(options.reference_run), the ratio and the largest relative difference.", _PULSED_RECIPES, _PULSED,
-            families=_SMU, milestone="M7"),
+            "(options.reference_run), the ratio and the largest relative difference.", _PULSED_RECIPES,
+            (*_PULSED, *_WGFMU), families=("smu", "wgfmu"), milestone="M7"),
     _method("memory_window_pulse", "extraction", memory_window_pulse,
             "Program/read runs: memory window Vth(erase) - Vth(program) of the reads after the pulses (or the read "
             "currents and their ratio for spot reads), per state mean and spread.",
@@ -367,7 +372,7 @@ _METHODS += [
     _method("pulse_plateau", "extraction", pulse_plateau,
             "Plateau current (or voltage) of a pulse: per-pulse mean with edge trimming (time-resolved data) or the "
             "pulse-end reading, at level v, pulse number or the strongest pulse.", (*_PULSED_RECIPES, "wgfmu.*"),
-            (*_PULSED, "wgfmu_waveform"), families=("smu", "wgfmu"), milestone="M7"),
+            (*_PULSED, *_WGFMU), families=("smu", "wgfmu"), milestone="M7"),
     _method("vth_search_value", "extraction", vth_search_value,
             "Threshold voltage of a search run: the gate voltage the instrument found at the critical drain current "
             "(status N), with the reading vs the target.", ("mosfet.vth_search", "generic.*"), ("smu_search",),

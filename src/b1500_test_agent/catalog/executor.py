@@ -57,7 +57,7 @@ from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.registry import run_method
 from b1500_test_agent.archive.audit import RUN_AUDIT_FILE
 from b1500_test_agent.archive.corrections import CorrectionStore, records_for
-from b1500_test_agent.archive.runfiles import PARTIAL_FILE, PROGRESS_FILE
+from b1500_test_agent.archive.runfiles import PARTIAL_FILE, PROGRAM_FILE, PROGRESS_FILE
 from b1500_test_agent.archive.store import (
     QUALITY_FILE,
     RunFolder,
@@ -714,6 +714,8 @@ class Executor(RunningRuns):
             artifacts["partial"] = f"{run_dir}/{PARTIAL_FILE}"
         if (folder.path / PROGRESS_FILE).is_file():
             artifacts["progress"] = f"{run_dir}/{PROGRESS_FILE}"
+        if (folder.path / PROGRAM_FILE).is_file():
+            artifacts["program"] = f"{run_dir}/{PROGRAM_FILE}"
         if corrections.path is not None:
             artifacts["corrections"] = bundle.paths.display(corrections.path)
         ok = outcome in ("completed", "completed_with_flags")
@@ -810,6 +812,10 @@ class Executor(RunningRuns):
                        "routes of its phases (selector PGU -> SMU, rest at the end; see kind_result.routes); phase of "
                        "a read row = the operation it follows; the run stops after a read or SMU pulse that reported "
                        "compliance/overflow/oscillation (see kind_result)")
+        if plan.kind == "wgfmu_waveform":
+            out.append("WGFMU waveform (program.json): each value as the library returns it (averaged over its event's "
+                       "window, t_s at the window centre); programmed levels (source columns) are computed from the "
+                       "program, not measured; no compliance: a reading at its range's full scale is status V")
         if plan.mode == "async":
             out.append("asynchronous run: progress.json and partial.csv written at the checkpoints; auto-calibration "
                        "off (CM 0) during the run and restored by the cleanup (R-CAL-02)")

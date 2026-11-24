@@ -164,8 +164,10 @@ def test_a_station_without_a_wgfmu_opens_no_library_session(world: VisaWorld) ->
     station["modules"] = [m for m in station["modules"] if m["type"] != "WGFMU"]
     station["switches"] = [s for s in station["switches"] if s["kind"] != "rsu"]
     world.write_local("station.yaml", station)
-    for rel in ("pinmaps/fecap-wgfmu.yaml",):  # the only pin map wired to the RSUs
-        (world.local / rel).unlink()
+    for path in sorted((world.local / "pinmaps").glob("*.yaml")):  # the pin maps wired to the RSUs
+        terminals = yaml.safe_load(path.read_text(encoding="utf-8")).get("terminals") or {}
+        if any(str(target).startswith("RSU") for target in terminals.values()):
+            path.unlink()
     from tests.sim.helpers import load_scenario
 
     scenario = load_scenario("lab_station")

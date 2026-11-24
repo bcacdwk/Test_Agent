@@ -13,11 +13,13 @@ Steps of ``Planner.plan`` (no instrument I/O):
    unbound (R-PIN-01 decides). Binding, compilation and the rules read ``planning_station`` (on the simulator, null
    16440A selector inputs take the scenario's cabling).
 3. **Compile** through the recipe's kind (pure): envelope (incl. allowed routes), estimate, FLEX preview, program
-   and the routes per phase. When parameters have the wrong type compilation is skipped (empty envelope); a kind's
-   ``CompileError`` is reported as ``invalid_input`` unless R-PARAM-01 already blocks the plan (then the blocked
-   plan explains it). The execution ``mode`` follows the estimate (blueprint v2 2.6, R-RUN-02): ``async`` above
-   ``policy.run_limits.max_sync_run_s``, else ``sync``; R-RUN-02 then confirms long runs, blocks over-long ones and
-   checks the kind's checkpoint spacing (``estimate.max_segment_s``).
+   and the routes per phase. A kind that builds its program from CSV content (``reads_files``) also gets the plan's
+   ``file`` parameters (``ParamFiles``: bytes re-verified against the digests just recorded). When parameters have
+   the wrong type compilation is skipped (empty envelope); a kind's ``CompileError`` is reported as ``invalid_input``
+   unless R-PARAM-01 already blocks the plan (then the blocked plan explains it). The execution ``mode`` follows the
+   estimate (blueprint v2 2.6, R-RUN-02): ``async`` above ``policy.run_limits.max_sync_run_s``, else ``sync``;
+   R-RUN-02 then confirms long runs, blocks over-long ones and checks the kind's checkpoint spacing
+   (``estimate.max_segment_s``).
 4. **Hash**: ``plan_hash`` = sha256 of the canonical JSON of everything except the label, rule reports, tier,
    summary and timestamps; ``plan_id`` = ``"P-" + base32(sha256 digest)[:10]``. Identical requests give the same
    plan id whatever their label, so one plan serves a die batch.
@@ -41,7 +43,7 @@ from typing import Any, ClassVar, Literal
 
 from pydantic import ValidationError
 
-from b1500_test_agent.catalog.files import FileRoots, resolve_param_files
+from b1500_test_agent.catalog.files import FileRoots, ParamFiles, resolve_param_files
 from b1500_test_agent.catalog.registry import RecipeRegistry
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError
 from b1500_test_agent.config import ConfigBundle
@@ -326,7 +328,8 @@ class Planner:
         recipe = self.registry.get(req.recipe_id)
         now = now or self._clock()
         params, mistyped = resolve_params(recipe, dict(req.params))
-        files = resolve_param_files(recipe, params, FileRoots.of(self.registry.root, bundle.paths.work_dir))
+        roots = FileRoots.of(self.registry.root, bundle.paths.work_dir)
+        files = resolve_param_files(recipe, params, roots)
         mistyped = sorted({*mistyped, *(name for name, f in files.items() if f.problem is not None)})
         pin_map, _ = lookup(bundle, req)
         station = planning_station(bundle)
@@ -336,7 +339,8 @@ class Planner:
         error: CompileError | None = None
         if kind is not None and not mistyped:
             try:
-                compiled = kind.compile(recipe, params, binding, station)
+                extra = {"files": ParamFiles(files, roots)} if getattr(kind, "reads_files", False) else {}
+                compiled = kind.compile(recipe, params, binding, station, **extra)
             except CompileError as exc:
                 error = exc
             except (ValueError, TypeError) as exc:

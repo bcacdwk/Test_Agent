@@ -273,19 +273,34 @@ class WaveformProgram(StrictModel):
 
     ``builder``: the builder that produced it (``pulse_train``, ``dc_sample``, ``table`` ...; shown in the summary).
     ``channels``: setup per WGFMU channel. ``patterns``: by name. ``events``: measure and range events, each naming
-    its pattern. ``sequences``: per channel, ``(pattern, count)`` in output order. Every sequence channel has a setup,
-    every sequence and event names an existing pattern; the limits (vectors, sequences, points, grid, event rules)
-    are checked by R-WG-02, not here.
+    its pattern. ``sequences``: per channel, ``(pattern, count)`` in output order. ``dc``: per DC-mode channel, the
+    levels it forces one after the other with ``WGFMU_dcforceVoltage`` (WG p89 (4-19); builder ``dc_spot``, WP10.4):
+    every list has the same length (one DC step per index), a DC channel has a ``dc`` setup and no sequence (the
+    sequencer runs only Fast IV/PG channels). Every sequence channel has a setup, every sequence and event names an
+    existing pattern, a program has at least one pattern or DC channel; the limits (vectors, sequences, points, grid,
+    event rules, DC levels) are checked by R-WG-02, not here.
     """
 
     builder: str = Field(min_length=1, max_length=40, pattern=r"^[a-z][a-z0-9_]*$")
     channels: dict[Channel, ChannelSetup] = Field(min_length=1)
-    patterns: dict[str, Pattern] = Field(min_length=1)
+    patterns: dict[str, Pattern] = Field(default_factory=dict)
     events: list[WaveformEvent] = Field(default_factory=list)
     sequences: dict[Channel, list[tuple[str, float]]] = Field(default_factory=dict)
+    dc: dict[Channel, list[float]] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _references_resolve(self) -> WaveformProgram:
+        if not self.patterns and not self.dc:
+            raise ValueError("a waveform program needs at least one pattern or DC channel")
+        steps = {len(levels) for levels in self.dc.values()}
+        if 0 in steps or len(steps) > 1:
+            raise ValueError(f"every DC channel lists the same number (>= 1) of levels, got {sorted(steps)}")
+        for ch in self.dc:
+            setup = self.channels.get(ch)
+            if setup is None or setup.mode != "dc":
+                raise ValueError(f"DC channel {ch} needs a channel setup in dc mode")
+            if ch in self.sequences:
+                raise ValueError(f"DC channel {ch} cannot also run a sequence")
         for ch, items in self.sequences.items():
             if ch not in self.channels:
                 raise ValueError(f"sequence channel {ch} has no channel setup")
@@ -329,8 +344,14 @@ class WaveformProgram(StrictModel):
         return total
 
     def levels(self, ch: int) -> list[float]:
-        """Every level channel ``ch`` outputs (``v0`` and vector levels of its patterns)."""
-        return [v for name in self.channel_patterns(ch) for v in self.patterns[name].levels()]
+        """Every level channel ``ch`` outputs (``v0`` and vector levels of its patterns, or its DC levels)."""
+        return [v for name in self.channel_patterns(ch) for v in self.patterns[name].levels()] + list(
+            self.dc.get(ch, []))
+
+    @property
+    def dc_steps(self) -> int:
+        """DC steps of the program (the common length of the ``dc`` lists; 0 without DC channels)."""
+        return len(next(iter(self.dc.values()))) if self.dc else 0
 
     def intervals(self, ch: int) -> list[float]:
         """Sampling intervals of the measure events of channel ``ch``'s patterns."""
@@ -356,6 +377,8 @@ class WaveformProgram(StrictModel):
                 lines.append(f"range {event.event} @{event.pattern}: t {event.t:.6g} s -> {event.range}")
         for ch, items in sorted(self.sequences.items()):
             lines.append(f"sequence {ch}: " + ", ".join(f"{name} x{round(count)}" for name, count in items))
+        for ch, levels in sorted(self.dc.items()):
+            lines.append(f"dc {ch}: {len(levels)} levels {min(levels):g}..{max(levels):g} V")
         return lines
 
 

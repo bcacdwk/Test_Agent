@@ -51,7 +51,8 @@ def test_status(cli_world: World) -> None:
     assert ("pin maps: capacitor-cmu (unverified), diode-2t (verified), fecap-cmu (unverified), fecap-wgfmu "
             "(unverified), fefet-sel (unverified), moscap-cmu (unverified), moscap-scuu (unverified), mosfet-3t-lab "
             "(unverified), mosfet-4t (verified), mosfet-4t-body (verified), mosfet-cp (unverified), mosfet-split-cv "
-            "(unverified), open-smus (verified), resistor-2t (verified), resistor-4w (verified)") in human.stdout
+            "(unverified), mosfet-wgfmu (verified), mosfet-wgfmu-body (verified), open-smus (verified), resistor-2t "
+            "(verified), resistor-4w (verified), resistor-wgfmu (verified)") in human.stdout
     assert "limits: hard 42 V / 0.1 A" in human.stdout
     payload = as_json(invoke("status", "--no-refresh", "--json"))
     assert payload["simulated"] is True and payload["live"] == "not_read" and payload["config"]["ok"] is True

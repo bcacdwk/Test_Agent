@@ -16,12 +16,14 @@ from tests.unit.helpers import REPO_ROOT
 
 RECIPES = REPO_ROOT / "recipes"
 CORRECTION_RECIPES = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short", "cmu.correction_load")
-RESERVED_SLOTS = {"wgfmu.pulsed_iv", "wgfmu.fast_bti", "fecap.pund", "moscap.qscv"}
+RESERVED_SLOTS = {"wgfmu.fast_bti", "fecap.pund", "moscap.qscv"}
 """Reserved ids still waiting for their kinds (WP7.6 implemented reliability.bti_sms and reliability.hci; WP8.2 retired
 cmu.correction for the four cmu.* correction recipes; WP8.3 implemented moscap.cv and mosfet.cgd_cv; WP9.4
 implemented fefet.pulse_write_read and spgu.program_smu_read with kind pulse_read; WP7.7 retired hspice.compare:
 compact models are the analysis methods compact_model_fit, model_compare and export_spice_netlist, card
-smu/compact-model-spice)."""
+smu/compact-model-spice; WP10.4 implemented wgfmu.pulsed_iv)."""
+WGFMU_RECIPES = ("wgfmu.pulsed_iv", "wgfmu.fast_iv", "wgfmu.pulse_train", "wgfmu.custom_waveform", "wgfmu.dc_spot")
+"""Kind wgfmu_waveform (WP10.4; tests/integration/test_recipes_wgfmu.py)."""
 
 
 def minimal(recipe_id: str = "basic.thing", **changes: Any) -> dict[str, Any]:
@@ -120,6 +122,10 @@ def test_committed_statuses() -> None:
         assert registry.get(recipe_id).kind == "smu_search"
     assert registry.get("basic.breakdown_search").always_confirm == registry.get("dielectric.bdv").always_confirm \
         == ["destructive"]
+    # WP10.4: kind wgfmu_waveform (tests/integration/test_recipes_wgfmu.py)
+    for recipe_id in WGFMU_RECIPES:
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+        assert registry.get(recipe_id).kind == "wgfmu_waveform" and registry.get(recipe_id).family == "wgfmu"
     cards = {"mosfet.idvg": "smu/mosfet-idvg", "mosfet.idvd": "smu/mosfet-idvd",
              "mosfet.gate_leakage": "smu/gate-leakage", "basic.contact_resistor": "smu/contact-resistor-check",
              "basic.diode_iv": "smu/diode-iv", "fefet.dual_sweep_mw": "nvm/fefet-dual-sweep-mw",
@@ -147,7 +153,10 @@ def test_committed_statuses() -> None:
          "fefet.pulse_write_read": "nvm/fefet-pulse-write-read",
          "spgu.program_smu_read": "nvm/fefet-pulse-write-read",  # WP9.4
          "moscap.cv_ac_level": "cmu/moscap-cv", "moscap.pulsed_cv": "cmu/moscap-cv", "moscap.cf": "cmu/moscap-cf-ct",
-         "moscap.ct": "cmu/moscap-cf-ct", "fecap.cv_butterfly": "nvm/fecap-pund"}  # WP8.4
+         "moscap.ct": "cmu/moscap-cf-ct", "fecap.cv_butterfly": "nvm/fecap-pund",  # WP8.4
+         **{r: "wgfmu/wgfmu-pulsed-iv" for r in ("wgfmu.pulsed_iv", "wgfmu.fast_iv", "wgfmu.pulse_train")},
+         "wgfmu.custom_waveform": "wgfmu/wgfmu-custom-waveform", "wgfmu.dc_spot": "wgfmu/wgfmu-custom-waveform"}
+    # WP10.4
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):
@@ -173,7 +182,9 @@ def test_kinds() -> None:
     assert kinds["cmu_measure"].implemented_on == {"sim", "visa"} and "cmu_cv" not in kinds  # WP8.3 replaced cmu_cv
     assert kinds["pulse_read"].implemented_on == {"sim", "visa"}  # WP9.4
     assert "pulse_read" not in UNIMPLEMENTED_KINDS and "spgu_program_read" not in kinds
-    for kind_id in ("wgfmu_pulsed_iv", "wgfmu_pulse_sequence"):
+    assert kinds["wgfmu_waveform"].implemented_on == {"sim", "visa"}  # WP10.4
+    assert "wgfmu_waveform" not in UNIMPLEMENTED_KINDS and "wgfmu_pulsed_iv" not in kinds
+    for kind_id in ("wgfmu_fast_bti", "wgfmu_pulse_sequence"):
         assert kind_id in UNIMPLEMENTED_KINDS and kinds[kind_id].implemented_on == frozenset()
 
 

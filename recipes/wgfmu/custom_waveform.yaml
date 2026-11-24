@@ -1,0 +1,46 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# WGFMU custom waveform from CSV files (blueprint v2 decision 21, 3.4; kind wgfmu_waveform, builder table): the lab's
+# layout (lwp/1530 LFN_noise_meas.cpp): one waveform file per channel (rows time,level: absolute time from 0, one
+# vector per row) and one events file (rows t,points,interval,average,range1,range2: a measure event E<row> on both
+# channels, averaged when average > 0, else raw; range codes 1..5 = 1 uA..10 mA, at time 0 the initial range). The
+# gate (WGFMU 201) measures its voltage, the drain (WGFMU 202) its current, as in the lab code. Files come from the
+# committed library recipes/waveforms/ or from work/waveforms/ (ad hoc: every plan needs confirmation, adhoc_recipe,
+# R-ALWAYS-01); their sha256 is part of the plan, every vector passes the OutputGuard, R-WG-02 checks the limits
+# (2,048 vectors per pattern, 10 ns grid, events inside their pattern, ~4 M values per channel). Tables above 200,000
+# rows are archived as data.npz + preview.csv; the raw readback as raw/wgfmu-<ch>-000.npz.
+# status: sim_validated by tests/integration/test_recipes_wgfmu.py (nmos_rtn: the library sample on its 55,200-point
+# event, a lab-shaped 1,825-vector table with a 504,000-point event archived as npz, timing exact on the 10 ns grid).
+id: wgfmu.custom_waveform
+version: 1
+title: WGFMU custom waveform from CSV files (lab layout; gate voltage and drain current sampled)
+family: wgfmu
+kind: wgfmu_waveform
+status: sim_validated
+card: .agents/skills/b1500-test/cards/wgfmu/wgfmu-custom-waveform.md
+device_types: [nmos, pmos, igzo_tft, fefet]
+roles:
+  gate:
+    function: wgfmu
+    measure: [V]
+    module_types: [WGFMU]
+    settings: {wave: $gate_wave}
+  drain:
+    function: wgfmu
+    measure: [I]
+    module_types: [WGFMU]
+    settings: {wave: $drain_wave, range: $irange}
+  source: {function: ground, allow_gndu: true}
+params:
+  builder: {type: enum, choices: [table], default: table, doc: Fixed waveform builder.}
+  gate_wave: {type: file, default: recipes/waveforms/lwp_sample.csv, doc: "Gate waveform CSV (time,level rows; channel 1 of the lab layout)."}
+  drain_wave: {type: file, default: recipes/waveforms/lwp_sample_drain.csv, doc: "Drain waveform CSV (time,level rows; channel 2)."}
+  events: {type: file, default: recipes/waveforms/lwp_sample_events.csv, doc: "Measurement rows t,points,interval,average,range1,range2."}
+  irange: {type: enum, choices: [1ua, 10ua, 100ua, 1ma, 10ma], default: 100ua, doc: "Initial drain current range unless the events file sets one at time 0."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults: []
+provenance:
+  sources:
+    - blueprint v2 decision 21 (waveform files), 2.7.1 (builder table), 3.4 (wgfmu.custom_waveform), 4.4 (lab sample)
+    - lwp/1530 LFN_noise_meas.cpp (CSV layout, Fast IV, 5 V range, ch1 voltage / ch2 current, 100,000-value readback)
+    - WGFMU guide Ed. 8 setMeasureEvent (PDF 125-126), setRangeEvent (PDF 128), current ranges Table 4-9 (PDF 142)
+  validation_runs: []

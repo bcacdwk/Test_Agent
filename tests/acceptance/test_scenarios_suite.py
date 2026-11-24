@@ -257,8 +257,8 @@ def _service(tmp: Path, scenario_id: str) -> B1500Service:
             "dut_profile": "nmos-generic"}, "blocked", None, {"R-LIM-02", "R-PARAM-01"}),
     ("S2", {"recipe_id": "mosfet.gate_leakage", "params": {}, "pin_map": "mosfet-4t", "dut_profile": "nmos-generic"},
      "ok", set(), set()),
-    ("S3", {"recipe_id": "wgfmu.pulsed_iv", "params": {}, "pin_map": "mosfet-4t", "dut_profile": "fefet-generic"},
-     "blocked", None, {"R-REC-01"}),
+    ("S3", {"recipe_id": "fecap.pund", "params": {}, "pin_map": "mosfet-4t", "dut_profile": "fefet-generic"},
+     "blocked", None, {"R-REC-01"}),  # WP10.4 implemented wgfmu.pulsed_iv (v1 S3 retires; fecap.pund still reserved)
     ("S3", {"recipe_id": "generic.smu_staircase", "params": {"start": -4.0, "stop": 4.0, "points": 3,
                                                              "mode": "double"},
             "pin_map": "fefet-adhoc-3t", "dut_profile": "fefet-adhoc"}, "ok", set(), set()),

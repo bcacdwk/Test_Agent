@@ -87,9 +87,9 @@ counts:
         open: 19
     wgfmu:
       atoms:
-        mapped: 0
+        mapped: 1
         out_of_scope: 0
-        open: 54
+        open: 53
       flows:
         mapped: 0
         out_of_scope: 0
@@ -357,7 +357,7 @@ atoms:
 - {id: D_atom_ingest_smu_build_dataset, class: D, basis: [PG Ed.15 Tables 1-6 to 1-11], flex: [], target: unmapped, priority: m1, legacy_priority: P0, successor: kind.to_table + analysis.load_run, family: smu, scope: mapped}
 - {id: D_atom_ingest_easyexpert_build_dataset, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P1, family: system, scope: open}
 - {id: D_atom_ingest_cmu_build_dataset, class: D, basis: [PG Ed.15 Table 4-16 (IMP)], flex: [], target: unmapped, priority: later, legacy_priority: P2, family: cmu, scope: open}
-- {id: D_atom_ingest_wgfmu_build_series, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P2, family: wgfmu, scope: open}
+- {id: D_atom_ingest_wgfmu_build_series, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P2, successor: 'kind wgfmu_waveform: waveform_table (point_layout, program_levels) + analysis.load_run of data.npz; raw/wgfmu-<ch>-<n>.npz (WP10.4)', family: wgfmu, scope: mapped}
 - {id: D_atom_qualify_dataset_classify_status, class: D, basis: [PG Ed.15 Tables 1-7 to 1-10], flex: [], target: unmapped, priority: m1, legacy_priority: P0, successor: analysis.assess_quality (per-column status), family: system, scope: mapped}
 - {id: D_atom_qualify_dataset_check_completeness, class: D, basis: [], flex: [], target: unmapped, priority: m1, legacy_priority: P0, successor: analysis.assess_quality, family: system, scope: mapped}
 - {id: D_atom_qualify_iv_check_compliance, class: D, basis: [PG Ed.15 Table 1-10 (C/T), 'LIM?', 'LOP?'], flex: [], target: unmapped, priority: m1, legacy_priority: P0, successor: analysis.assess_quality (C/T status codes), family: smu, scope: mapped}

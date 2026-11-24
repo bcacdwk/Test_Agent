@@ -3,8 +3,9 @@
 visa; WP8.3), the composite ``stress_measure`` (sim + visa; built from ``catalog/blocks.py``, so it is imported after
 the kinds those blocks use), ``system`` (sim + visa), ``spgu_pulse`` (sim + visa; its ``route_only`` mode since WP9.2,
 the ``pg``/``alwg`` pulse modes since WP9.3), the composite ``pulse_read`` (sim + visa, WP9.4; HV-SPGU and SMU pulse
-sources, built from ``catalog/blocks.py`` and ``catalog/kinds/pulse_sources.py``) and the declared
-``UnimplementedKind`` ids. ``default_kinds()`` is the mapping the recipe registry loads against."""
+sources, built from ``catalog/blocks.py`` and ``catalog/kinds/pulse_sources.py``), ``wgfmu_waveform`` (sim + visa;
+WP10.4) and the declared ``UnimplementedKind`` ids. ``default_kinds()`` is the mapping the recipe registry loads
+against."""
 
 from b1500_test_agent.catalog.kinds.base import MeasurementKind, implemented_on
 from b1500_test_agent.catalog.kinds.cmu_correction import CmuCorrectionKind
@@ -18,6 +19,7 @@ from b1500_test_agent.catalog.kinds.smu_stepped import SmuSteppedKind, SteppedPr
 from b1500_test_agent.catalog.kinds.spgu_pulse import SpguPulseKind
 from b1500_test_agent.catalog.kinds.system import SystemKind
 from b1500_test_agent.catalog.kinds.unimplemented import UNIMPLEMENTED_KINDS, UnimplementedKind, unimplemented_kinds
+from b1500_test_agent.catalog.kinds.wgfmu_waveform import WgfmuWaveformKind
 
 from b1500_test_agent.catalog.kinds.stress_measure import StressMeasureKind, StressProgram  # isort: skip  # after smu_*
 from b1500_test_agent.catalog.kinds.pulse_read import PulseReadKind, PulseReadProgram  # isort: skip  # after the above
@@ -28,7 +30,7 @@ def default_kinds() -> dict[str, MeasurementKind]:
     kinds: dict[str, MeasurementKind] = dict(unimplemented_kinds())
     for kind in (SmuStaircaseKind(), SmuSteppedKind(), SmuSamplingKind(), SystemKind(), SmuSpotKind(),
                  StressMeasureKind(), CmuCorrectionKind(), SpguPulseKind(), SmuPulsedKind(), SmuSearchKind(),
-                 CmuMeasureKind(), PulseReadKind()):
+                 CmuMeasureKind(), PulseReadKind(), WgfmuWaveformKind()):
         kinds[kind.kind_id] = kind
     return kinds
 
@@ -58,6 +60,7 @@ __all__ = [
     "StressProgram",
     "SystemKind",
     "UnimplementedKind",
+    "WgfmuWaveformKind",
     "default_kinds",
     "implemented_on",
 ]

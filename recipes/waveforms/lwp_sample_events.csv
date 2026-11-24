@@ -1,0 +1,7 @@
+# WGFMU events library for wgfmu.custom_waveform (builder table; synthetic parameters in the lab layout of
+# lwp/1530/LFN_noise_meas.cpp): rows t,points,interval,average,range1,range2 (s, count, s, s, range codes per
+# channel in role order: 0 none, 1..5 = 1 uA, 10 uA, 100 uA, 1 mA, 10 mA). One event over the whole 5.52 ms of
+# lwp_sample.csv: 55,200 points every 100 ns, each averaged over 100 ns; the drain (second channel) on 100 uA from
+# the start (a range code at time 0 is the initial range).
+t_s,points,interval_s,average_s,range1,range2
+0,55200,1e-07,1e-07,0,3

@@ -41,7 +41,9 @@ def test_vertical_path_status_validate_run_get_analyze(world: World, monkeypatch
                                "moscap-cmu": "unverified", "mosfet-4t-body": "verified", "resistor-4w": "verified",
                                "open-smus": "verified", "capacitor-cmu": "unverified", "mosfet-cp": "unverified",
                                "moscap-scuu": "unverified", "mosfet-split-cv": "unverified",  # WP8.3
-                               "fecap-cmu": "unverified"}  # WP8.4
+                               "fecap-cmu": "unverified",  # WP8.4
+                               "mosfet-wgfmu": "verified", "mosfet-wgfmu-body": "verified",
+                               "resistor-wgfmu": "verified"}  # WP10.4 (through the unverified RSUs)
     assert "nmos-generic" in status.dut_profiles
     assert status.config is not None and status.config.ok and status.limits is not None
 
@@ -107,7 +109,7 @@ def test_blocked_and_not_implemented_plans(world: World) -> None:
     blocked = service.validate_plan(**IDVG, params={"vg_stop": 60.0})
     assert not blocked.ok and (blocked.status, blocked.error_code) == ("blocked", "blocked_by_rules")
     assert {f.rule_id for f in blocked.findings if f.severity == "block"} >= {"R-PARAM-01", "R-LIM-02"}
-    reserved = service.validate_plan(recipe_id="wgfmu.pulsed_iv", pin_map="mosfet-4t", dut_profile="nmos-generic")
+    reserved = service.validate_plan(recipe_id="wgfmu.fast_bti", pin_map="mosfet-4t", dut_profile="nmos-generic")
     assert (reserved.status, reserved.error_code, reserved.tier) == ("not_implemented", "not_implemented", "blocked")
     both = service.validate_plan(recipe_id="mosfet.idvg", plan_id=blocked.plan_id)
     assert (both.status, both.error_code) == ("refused", "invalid_input")

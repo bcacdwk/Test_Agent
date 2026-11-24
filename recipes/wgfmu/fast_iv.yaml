@@ -1,0 +1,48 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# WGFMU fast I-V (blueprint v2 3.4, kind wgfmu_waveform, builder fast_iv_ramp; the 1 us flash I-V app note): the gate
+# (WGFMU, Fast IV) ramps vg_start -> vg_stop in `ramp` and back (double) `cycles` times while the drain (WGFMU, Fast
+# IV, current on `irange`) holds vd; the drain current is sampled every `interval` with averaging over the whole
+# interval (events up = segment fwd, down = rev), so a microsecond Id-Vg shows the device before slow traps respond
+# (the up/down difference is fast hysteresis). The gate level of each point is the programmed ramp at its time stamp
+# (a source column). Pin map mosfet-wgfmu (RSUs); no pulse envelope needed (a ramp within the DC limits).
+# status: sim_validated by tests/integration/test_recipes_wgfmu.py (nmos_wgfmu: up and down ramps = the model's
+# quasi-static Id +-2 %, gm_max within 2 % of the DC curve's).
+id: wgfmu.fast_iv
+version: 1
+title: WGFMU fast I-V (gate ramped in microseconds, drain current sampled on the up and down ramps)
+family: wgfmu
+kind: wgfmu_waveform
+status: sim_validated
+card: .agents/skills/b1500-test/cards/wgfmu/wgfmu-pulsed-iv.md
+device_types: [nmos, pmos, igzo_tft, fefet]
+roles:
+  gate:
+    function: wgfmu
+    module_types: [WGFMU]
+    settings: {start: $vg_start, stop: $vg_stop}
+  drain:
+    function: wgfmu
+    measure: [I]
+    module_types: [WGFMU]
+    settings: {v: $vd, range: $irange}
+  source: {function: ground, allow_gndu: true}
+params:
+  builder: {type: enum, choices: [fast_iv_ramp], default: fast_iv_ramp, doc: Fixed waveform builder.}
+  vg_start: {unit: V, default: 0.0, recommended: [-1.0, 0.5], range: [-5.0, 5.0], doc: Ramp start (and end) level.}
+  vg_stop: {unit: V, default: 2.0, recommended: [1.0, 3.0], range: [-5.0, 5.0], doc: Ramp top level.}
+  vd: {unit: V, default: 1.0, recommended: [0.05, 2.0], range: [-5.0, 5.0], doc: Drain bias held during the run.}
+  irange: {type: enum, choices: [1ua, 10ua, 100ua, 1ma, 10ma], default: 1ma, doc: Drain current range (full scale).}
+  ramp: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-3], range: [2.0e-8, 1.0], doc: "Time of one ramp (a whole number >= 2 of intervals)."}
+  interval: {unit: s, default: 1.0e-7, recommended: [1.0e-8, 1.0e-5], range: [1.0e-8, 0.02], doc: Sampling interval (each point averages it).}
+  double: {type: bool, default: true, doc: Ramp back down (segment rev) after the up ramp.}
+  cycles: {type: int, default: 1, recommended: [1, 10], range: [1, 1000], doc: Up/down ramp pairs (double only).}
+  edge: {unit: s, default: 1.0e-7, range: [1.0e-8, 1.0e-4], doc: Time to reach the start level and to return to 0 V.}
+  settle: {unit: s, default: 1.0e-6, range: [0.0, 1.0e-3], doc: Hold at the start level before the first ramp.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: gm_max}
+provenance:
+  sources:
+    - blueprint v2 2.7.1 (builder fast_iv_ramp), 3.4 (wgfmu.fast_iv)
+    - WGFMU guide Ed. 8 setMeasureEvent (PDF 125-126), addSequence (PDF 80); 1 us flash I-V application note (AN-FIV)
+  validation_runs: []

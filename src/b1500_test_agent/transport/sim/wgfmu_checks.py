@@ -143,11 +143,13 @@ def static_drive(state: Mapping[int, WgfmuChannelState], rsu_smu: Mapping[int, i
                                                                                             dict[int, int]]:
     """Levels the WGFMU channels drive through their RSUs (canonical channel -> V) and the RSUs on their SMU path
     whose "From SMU" input is cabled (canonical WGFMU channel -> canonical SMU channel). An RSU is on the WGFMU path
-    while its channel is connected in a mode other than ``smu``, else on its SMU path (WG p19 (1-7))."""
+    while its channel is connected in a mode other than ``smu``, else on its SMU path (WG p19 (1-7)), also before
+    any library session recorded a state for the channel (power-on: disconnected)."""
     levels: dict[int, float] = {}
     aliases: dict[int, int] = {}
-    for ch, hw in state.items():
-        if hw.connected and hw.mode != "smu":
+    for ch in sorted(set(state) | set(rsu_smu)):
+        hw = state.get(ch)
+        if hw is not None and hw.connected and hw.mode != "smu":
             levels[canonical_channel(ch)] = hw.voltage
         elif ch in rsu_smu:
             aliases[canonical_channel(ch)] = canonical_channel(rsu_smu[ch])

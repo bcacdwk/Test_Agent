@@ -10,6 +10,9 @@ A kind turns a recipe into instrument work in three steps:
 
 ``implemented_on`` lists the backends the kind has a validated code path for; on any other backend the registry
 reports the recipe's effective status as ``not_implemented`` and the executor refuses with zero I/O.
+
+A kind that builds its program from the content of ``file`` parameters sets ``reads_files = True``; the planner then
+calls ``compile(..., files=ParamFiles)`` (``catalog/files.py``: the verified bytes of the plan's files; WP10.4).
 """
 
 from __future__ import annotations

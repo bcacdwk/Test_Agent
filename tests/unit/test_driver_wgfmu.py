@@ -236,6 +236,21 @@ def test_a_failed_connect_still_counts_for_the_safe_state() -> None:
     assert report.ok and ("disconnect 201", True, "") in report.steps and wg.connected == frozenset()
 
 
+def test_a_dc_program_level_outside_the_envelope_raises_before_any_library_call() -> None:
+    """WP10.4: ``WaveformProgram.dc`` levels (builder ``dc_spot``) are checked with the whole program."""
+    data = wave()
+    data["channels"]["201"] = {"mode": "dc", "measure": "current", "current_range": "1ma"}
+    data["sequences"].pop("201")
+    data["dc"] = {"201": [0.5, 3.2]}
+    wg, fake, _ = make()
+    with pytest.raises(EnvelopeViolation) as caught:
+        wg.load(WaveformProgram.model_validate(data))
+    assert caught.value.reason == "level_exceeds_envelope" and caught.value.level == 3.2 and fake.calls == []
+    data["dc"] = {"201": [0.5, -2.9]}
+    wg.load(WaveformProgram.model_validate(data))
+    assert "dc_force_voltage" not in fake.names()  # load configures; the kind forces each step through force_dc
+
+
 def test_dc_levels_pass_the_guard() -> None:
     wg, fake, _ = make()
     wg.force_dc(TOP, -2.5)

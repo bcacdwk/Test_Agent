@@ -56,7 +56,8 @@ WGFMU with RSU: fast pulsed I-V, pulse trains, RTN and 1/f noise, custom wavefor
 
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
-| wgfmu | reserved: WGFMU fast pulsed I-V (Id-Vg/Id-Vd with short pulses) | [reserved](reserved/README.md) | `wgfmu.pulsed_iv` | not_implemented | - | - |
+| wgfmu | WGFMU, custom waveform, arbitrary waveform, CSV waveform, waveform file, lab waveform, lwp, fast sampling, WGFMU DC, DC spot, RSU check, known resistor | [wgfmu-custom-waveform](wgfmu/wgfmu-custom-waveform.md) | `wgfmu.custom_waveform`, `wgfmu.dc_spot` | sim_validated | WGFMU, GNDU | L8 |
+| wgfmu | WGFMU, pulsed Id-Vg, fast IV, fast I-V, ultra-fast IV, pulse train, short pulses, self-heating, isothermal, pulsed vs DC, fast hysteresis, RSU | [wgfmu-pulsed-iv](wgfmu/wgfmu-pulsed-iv.md) | `wgfmu.pulsed_iv`, `wgfmu.fast_iv`, `wgfmu.pulse_train` | sim_validated | WGFMU, MPSMU, HRSMU, GNDU | L8 |
 
 ## nvm
 

@@ -10,10 +10,11 @@ refusal (``EnvelopeViolation``) means nothing of that operation reached the libr
   DC function applies them (WG p134 (4-64)).
 - ``load(program)``: the whole ``WaveformProgram`` is checked before the first library call: every channel in the
   allowlist, ``check_waveform`` on every pattern of every channel that outputs it (each level including ``v0``, the
-  10 ns grid, the vector count, the pattern time) and ``check_sequence`` on every channel's sequence (time with every
-  repeat, stored values). Only then: ``clear`` (a load replaces any earlier software setup), ``configure`` per
-  channel, ``create_pattern``/``add_vectors`` per pattern a channel outputs, its measure and range events,
-  ``add_sequence`` per item. A pattern no channel outputs is not sent (nothing could output it).
+  10 ns grid, the vector count, the pattern time), ``check_sequence`` on every channel's sequence (time with every
+  repeat, stored values) and every DC-mode level of the program (``WaveformProgram.dc``). Only then: ``clear`` (a
+  load replaces any earlier software setup), ``configure`` per channel, ``create_pattern``/``add_vectors`` per
+  pattern a channel outputs, its measure and range events, ``add_sequence`` per item. A pattern no channel outputs
+  is not sent (nothing could output it).
 - ``connect(ch)``: the channel's RSU route (``RSU<ch>.<output>`` -> ``wgfmu``, or ``smu`` for a channel in SMU mode)
   through ``check_route``, then ``WgfmuApi.connect`` (WG p85 (4-15): enables the channel and its RSU). The channel
   counts as connected from the attempt on, so the safe state disconnects it even when the call failed.
@@ -260,6 +261,9 @@ class WgfmuDriver:
                 levels = [v for _, v in pattern.vectors]
                 guard.check_waveform(ch, dts, levels, v0=pattern.v0)
             guard.check_sequence(ch, time_s=program.sequence_time_s(ch), points=program.points(ch))
+        for ch, levels in sorted(program.dc.items()):  # DC-mode levels (dc_spot): each checked like force_dc's
+            for level in levels:
+                guard.check_waveform(ch, (), (), v0=level)
 
     def load(self, program: WaveformProgram) -> None:
         """Check the whole program, then set it up in the library (module docstring).

@@ -10,6 +10,7 @@ the data rows are exactly those of one ``IdVg_test_*.csv`` of the lab.
 
 from __future__ import annotations
 
+import itertools
 import re
 from pathlib import Path
 
@@ -43,8 +44,9 @@ def manual_mnemonics() -> set[str]:
 
 
 def test_the_lab_folder_holds_exactly_the_planned_files() -> None:
-    """Only the transcripts and the one Id-Vg curve; the second lwp data sample (``wave_sample.csv``) is WP10.4's."""
-    assert sorted(p.name for p in LAB_DIR.iterdir()) == sorted([*(f"{n}.txt" for n in SEQUENCES), "idvg_real.csv"])
+    """Only the transcripts, the one Id-Vg curve and the second lwp data sample ``wave_sample.csv`` (WP10.4)."""
+    assert sorted(p.name for p in LAB_DIR.iterdir()) == sorted([*(f"{n}.txt" for n in SEQUENCES), "idvg_real.csv",
+                                                                "wave_sample.csv"])
 
 
 @pytest.mark.parametrize("name", SEQUENCES)
@@ -115,6 +117,29 @@ def test_every_cited_line_sends_that_command(name: str) -> None:
             assert "query(" in text and step.mnemonic in text, (step, text)
         else:
             assert "fprintf(" in text and step.mnemonic in text, (step, text)
+
+
+def wave_rows(path: Path) -> list[str]:
+    """The data rows of a waveform CSV (``#`` comments and the one ``time_s,level_v`` header dropped)."""
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line and not line.startswith("#")]
+    return lines[1:] if lines and not lines[0][:1].isdigit() else lines
+
+
+def test_the_wave_sample_is_the_library_sample() -> None:
+    """WP10.4: ``wave_sample.csv`` (the second lwp-derived sample) holds 200 waveform rows (time 0 first, the 10 ns
+    grid) and ``recipes/waveforms/lwp_sample.csv`` carries the same rows into the waveform library."""
+    rows = wave_rows(LAB_DIR / "wave_sample.csv")
+    assert len(rows) == 200 and rows[0] == "0,0"
+    assert rows == wave_rows(ROOT / "recipes" / "waveforms" / "lwp_sample.csv")
+    times = [float(r.split(",")[0]) for r in rows]
+    assert all(b > a for a, b in itertools.pairwise(times))
+    assert all(abs(t / 1e-8 - round(t / 1e-8)) < 1e-6 for t in times)
+
+
+@needs_lwp
+def test_the_wave_sample_is_the_first_200_rows_of_the_lab_waveform() -> None:
+    lab = (lwp_dir().parent / "1530" / "ch1_wave_pt.csv").read_text(encoding="utf-8").splitlines()
+    assert wave_rows(LAB_DIR / "wave_sample.csv") == lab[:200]
 
 
 @needs_lwp

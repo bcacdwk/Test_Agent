@@ -117,6 +117,30 @@ def test_pulse_plateau_of_a_time_resolved_train() -> None:
     assert pulse_plateau(data, v=4.0).outcome == "failed"
 
 
+def test_pulse_plateau_splits_wgfmu_trains_by_cycle() -> None:
+    """WP10.4: a WGFMU pulse train samples only the flat tops, so consecutive pulses touch (same level, one event
+    name): the ``cycle`` column (pattern repeat) separates them; a pulsed sweep has one row per cycle."""
+    rows = []
+    for cycle, current in enumerate((1e-4, 2e-4, 3e-4)):
+        for k in range(5):
+            rows.append({"t_s": cycle * 1e-4 + k * 1e-6, "cycle": cycle, "event": "pulse", "gate_V": 2.0,
+                         "drain_I": current * (0.5 if k == 0 else 1.0)})
+    table = pd.DataFrame(rows)
+    table.insert(0, "step", np.arange(len(table)))
+    table["drain_I_status"] = "N"
+    data = RunData(manifest(recipe_id="wgfmu.pulse_train", kind="wgfmu_waveform"), with_trust(table))
+    last = pulse_plateau(data, x="gate_V", y="drain_I")
+    assert last.fit["pulses"] == 3 and last.value == pytest.approx(3e-4) and last.fit["samples"] == 3
+    assert pulse_plateau(data, x="gate_V", y="drain_I", pulse=0).value == pytest.approx(1e-4)
+    sweep = pd.DataFrame({"step": np.arange(3), "t_s": [1e-5, 1e-3, 2e-3], "cycle": [0, 1, 2],
+                          "event": ["plateau"] * 3, "gate_V": [0.5, 1.0, 1.5], "drain_I": [1e-6, 2e-5, 6e-5],
+                          "drain_I_status": ["N"] * 3})
+    data = RunData(manifest(recipe_id="wgfmu.pulsed_iv", kind="wgfmu_waveform"), with_trust(sweep))
+    result = pulse_plateau(data, x="gate_V", y="drain_I")
+    assert result.fit["pulses"] == 3 and result.fit["level_v"] == 1.5 and result.value == pytest.approx(6e-5)
+    assert pulse_plateau(data, x="gate_V", y="drain_I", v=0.75).value == pytest.approx(1.05e-5)
+
+
 def test_pulse_plateau_of_one_reading_per_pulse() -> None:
     data = pulsed()
     result = pulse_plateau(data, x="gate_V", y="drain_I", v=2.0)

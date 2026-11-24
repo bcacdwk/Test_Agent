@@ -149,3 +149,19 @@ def test_estimate_segment() -> None:
     assert Estimate(points=1, duration_s=600.0, max_segment_s=30.0).max_segment_s == 30.0
     with pytest.raises(ValidationError):
         Estimate(points=1, duration_s=1.0, max_segment_s=-1.0)
+
+
+def test_dc_levels_of_a_dc_spot_program() -> None:
+    """WP10.4: ``WaveformProgram.dc``: DC-mode channels only, no sequence, equal step counts, part of ``levels``."""
+    base = {"builder": "dc_spot", "channels": {201: {"mode": "dc", "measure": "current", "current_range": "10ua"},
+                                               202: {"mode": "dc"}}}
+    program = WaveformProgram.model_validate({**base, "dc": {201: [-0.1, 0.1], 202: [0.0, 0.0]}})
+    assert program.dc_steps == 2 and program.levels(201) == [-0.1, 0.1] and program.points(201) == 0
+    assert program.preview()[-2:] == ["dc 201: 2 levels -0.1..0.1 V", "dc 202: 2 levels 0..0 V"]
+    for dc, match in (({201: [0.1], 202: [0.0, 0.1]}, "same number"), ({301: [0.1]}, "dc mode"),
+                      ({}, "at least one pattern or DC channel")):
+        with pytest.raises(ValidationError, match=match):
+            WaveformProgram.model_validate({**base, "dc": dc})
+    with pytest.raises(ValidationError, match="cannot also run a sequence"):
+        WaveformProgram.model_validate({**base, "patterns": {"p": {"v0": 0.0, "vectors": [[1e-6, 0.0]]}},
+                                        "sequences": {201: [["p", 1]]}, "dc": {201: [0.1]}})

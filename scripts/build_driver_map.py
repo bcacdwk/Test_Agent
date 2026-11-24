@@ -517,7 +517,8 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
     "D_atom_ingest_smu_build_dataset": ("kind.to_table + analysis.load_run", "m1"),
     "D_atom_ingest_easyexpert_build_dataset": (None, "later"),
     "D_atom_ingest_cmu_build_dataset": (None, "later"),
-    "D_atom_ingest_wgfmu_build_series": (None, "later"),
+    "D_atom_ingest_wgfmu_build_series": (("kind wgfmu_waveform: waveform_table (point_layout, program_levels) + "
+                                          "analysis.load_run of data.npz; raw/wgfmu-<ch>-<n>.npz (WP10.4)"), "later"),
     "D_atom_qualify_dataset_classify_status": ("analysis.assess_quality (per-column status)", "m1"),
     "D_atom_qualify_dataset_check_completeness": ("analysis.assess_quality", "m1"),
     "D_atom_qualify_iv_check_compliance": ("analysis.assess_quality (C/T status codes)", "m1"),

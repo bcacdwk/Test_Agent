@@ -1,0 +1,49 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# WGFMU DC spot measurement (blueprint v2 3.4, kind wgfmu_waveform, builder dc_spot; WG "DC measurement", PDF 70):
+# WGFMU channels in DC mode (no sequencer): terminal `a` steps through a list of voltages (dcforceVoltage, PDF 89) and
+# measures its current (dcmeasureValue, PDF 90) `samples` times per level after `settle`; `b` is the return (GNDU);
+# the optional `c` holds a constant voltage and measures its current. Roles bind to pin-map terminals of the same name
+# (resistor-wgfmu: a on RSU201.OUT, b on GNDU). Bring-up stage L8: a known resistor through the RSU, I(R) +-3 %. The
+# smallest WGFMU current range is 1 uA full scale; an over-range reading saturates (status V).
+# status: sim_validated by tests/integration/test_recipes_wgfmu.py (resistor_100k: R = 100 kOhm +-3 % through RSU201).
+id: wgfmu.dc_spot
+version: 1
+title: WGFMU DC spot measurement (DC mode; one terminal stepped through voltage levels, current measured)
+family: wgfmu
+kind: wgfmu_waveform
+status: sim_validated
+card: .agents/skills/b1500-test/cards/wgfmu/wgfmu-custom-waveform.md
+device_types: []
+roles:
+  a:
+    function: wgfmu
+    measure: [I]
+    module_types: [WGFMU]
+    settings: {values: $a_levels, range: $irange}
+  b: {function: ground, allow_gndu: true}
+  c:
+    function: wgfmu
+    measure: [I]
+    optional: true
+    module_types: [WGFMU]
+    settings: {v: $c_v, range: $irange}
+params:
+  builder: {type: enum, choices: [dc_spot], default: dc_spot, doc: Fixed waveform builder.}
+  a_levels:
+    type: float_list
+    unit: V
+    default: [-0.1, -0.05, 0.0, 0.05, 0.1]
+    range: [-10.0, 10.0]
+    doc: Voltages of terminal a, one DC step each, in this order.
+  c_v: {unit: V, default: 0.0, range: [-10.0, 10.0], doc: Constant voltage of the optional terminal c.}
+  irange: {type: enum, choices: [1ua, 10ua, 100ua, 1ma, 10ma], default: 10ua, doc: "Current range of the measured terminals (full scale)."}
+  samples: {type: int, default: 1, recommended: [1, 10], range: [1, 100], doc: Readings per level.}
+  settle: {unit: s, default: 1.0e-3, recommended: [1.0e-4, 1.0e-2], range: [0.0, 1.0], doc: Wait after each DC step.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: resistance, options: {r_short_ohm: 100.0, r_open_ohm: 1.0e+9}}
+provenance:
+  sources:
+    - blueprint v2 2.7.1 (builder dc_spot), 3.4 (wgfmu.dc_spot), 7.4 stage L8 (DC into known R via RSU)
+    - WGFMU guide Ed. 8 DC measurement (PDF 70), dcforceVoltage (PDF 89), dcmeasureValue (PDF 90), Table 4-9 (PDF 142)
+  validation_runs: []

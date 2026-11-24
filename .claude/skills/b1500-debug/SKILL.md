@@ -22,9 +22,8 @@ plans; the human does every physical step. Backend `sim`: symptoms and fixes are
 1. Physical connection: probe contact, cables, Guard, grounding, shield box.
 2. Instrument state: calibration, correction, range, integration time, error queue.
 3. Data: status codes, quality verdict, noise and SNR, shape against the card's expected result.
-4. DUT: process defect, damage, material effects (oxide TFTs, ferroelectrics).
-
-Do not blame the DUT before steps 1-3 are cleared. One change at a time; note each result.
+4. DUT: process defect, damage, material effects (oxide TFTs, ferroelectrics); never blamed before steps 1-3 are
+   cleared. One change at a time; note each result.
 
 ## 3. Symptom index
 
@@ -44,6 +43,7 @@ Do not blame the DUT before steps 1-3 are cleared. One change at a time; note ea
 | Pulse level at the pad not the set level, R-SPGU-01 SER/high_z block | [spgu-load-mismatch](runbooks/spgu-load-mismatch.md) |
 | Sampling run with skipped samples, `index_gaps`, host/index time, early abort | [smu-sampling-skips](runbooks/smu-sampling-skips.md) |
 | BTI/HCI/SILC/IGZO stress: no shift, wrong sign, huge shift, odd exponent | [stress-degradation-unexpected](runbooks/stress-degradation-unexpected.md) |
+| WGFMU: library/session error or 30xx/33xx code; status V at full scale; too many stored values or 3050 | [wgfmu-library-error](runbooks/wgfmu-library-error.md), [wgfmu-range-overflow](runbooks/wgfmu-range-overflow.md), [wgfmu-memory-budget](runbooks/wgfmu-memory-budget.md) |
 
 No match: follow part 2 and record a case.
 

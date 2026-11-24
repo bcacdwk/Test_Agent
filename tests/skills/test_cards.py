@@ -52,15 +52,19 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "nvm/fefet-pulse-write-read": ["fefet.pulse_write_read", "spgu.program_smu_read"],  # WP9.4
     "cmu/moscap-cf-ct": ["moscap.cf", "moscap.ct"], "nvm/fecap-pund": ["fecap.cv_butterfly"],  # WP8.4
     "smu/compact-model-spice": [],  # WP7.7: analysis only (compact_model_fit, model_compare, export_spice_netlist)
+    "wgfmu/wgfmu-pulsed-iv": ["wgfmu.pulsed_iv", "wgfmu.fast_iv", "wgfmu.pulse_train"],  # WP10.4
+    "wgfmu/wgfmu-custom-waveform": ["wgfmu.custom_waveform", "wgfmu.dc_spot"],  # WP10.4
 }
 CARDS["cmu/moscap-cv"] = ["moscap.cv", "moscap.cv_ac_level", "moscap.pulsed_cv"]  # WP8.4 adds the AC-level/pulsed C-V
 ROUTES = {"spgu/selector-check": ["selector_16440a:smu", "selector_16440a:pgu", "selector_16440a:pgu_open"],
           "spgu/spgu-pulse-train": ["selector_16440a:pgu"], "spgu/charge-pumping": ["selector_16440a:pgu"],
           "cmu/cmu-correction": ["scuu:cmu"], "cmu/moscap-cv": ["scuu:cmu"], "cmu/mosfet-split-cv": ["scuu:cmu"],
           "nvm/fefet-pulse-write-read": ["selector_16440a:pgu", "selector_16440a:smu"],
-          "cmu/moscap-cf-ct": ["scuu:cmu"]}  # WP8.4
+          "cmu/moscap-cf-ct": ["scuu:cmu"],  # WP8.4
+          "wgfmu/wgfmu-pulsed-iv": ["rsu:wgfmu"], "wgfmu/wgfmu-custom-waveform": ["rsu:wgfmu"]}
 """Cards whose recipes set switch routes (WP9.2, WP9.3; WP8.3: the MFCMU recipes through an SCUU when the pin map says
-so; WP9.4: program/read through the selector); every other card's recipes route nothing ("Routes: none")."""
+so; WP9.4: program/read through the selector; WP10.4: the RSU path of the WGFMU); every other card's recipes route
+nothing ("Routes: none")."""
 STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfet-idvg": "L4", "smu/mosfet-idvd": "L4",
             "smu/gate-leakage": "L4", "nvm/fefet-dual-sweep-mw": "L7", "system/self-test-cal": "L1",
             "smu/smu-sampling": "L5", "reliability/tddb-bdv": "L9", "smu/smu-spot-kelvin": "L2",
@@ -71,12 +75,14 @@ STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfe
             "cmu/cmu-spot": "L6", "cmu/moscap-cv": "L6", "cmu/mosfet-split-cv": "L6",  # WP8.3
             "nvm/fefet-pulse-write-read": "L7",  # WP9.4
             "cmu/moscap-cf-ct": "L6", "nvm/fecap-pund": "L6",  # WP8.4
-            "smu/compact-model-spice": "L4"}  # WP7.7
+            "smu/compact-model-spice": "L4",  # WP7.7
+            "wgfmu/wgfmu-pulsed-iv": "L8", "wgfmu/wgfmu-custom-waveform": "L8"}  # WP10.4
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault", "cmu-correction-stale",  # WP8.2: the first v2 runbook
             "spgu-selector-state", "spgu-pulse-no-effect", "spgu-load-mismatch",  # WP9.3
-            "smu-sampling-skips", "stress-degradation-unexpected"}  # WP7.7
+            "smu-sampling-skips", "stress-degradation-unexpected",  # WP7.7
+            "wgfmu-library-error", "wgfmu-range-overflow", "wgfmu-memory-budget"}  # WP10.4
 RUN_ID = re.compile(r"\bS\d{8}T\d{6}Z-[0-9a-f]{4}\b")
 SCENARIOS = sorted(p.stem for p in (ROOT / "config" / "sim" / "scenarios").glob("*.yaml"))
 

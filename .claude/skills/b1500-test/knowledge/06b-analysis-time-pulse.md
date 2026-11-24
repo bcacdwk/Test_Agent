@@ -42,9 +42,10 @@ Implemented (`time_to_breakdown`, WP7.4; recipe `reliability.tddb_cvs`) and the 
 
 ## Pulsed versus DC
 
-Implemented (`pulsed_vs_dc`, WP7.3; kind `smu_pulsed`): a two-run method. `analyze_run(run_id=<pulsed run>,
-method="pulsed_vs_dc", options={"reference_run": "<DC run id>"})`; the reference is a finished DC run of the same
-roles and bias (`mosfet.idvg` for `mosfet.idvg_pulsed`, `mosfet.idvd` for `mosfet.idvd_pulsed`).
+Implemented (`pulsed_vs_dc`, WP7.3; kinds `smu_pulsed`, `wgfmu_waveform` since WP10.4): a two-run method.
+`analyze_run(run_id=<pulsed run>, method="pulsed_vs_dc", options={"reference_run": "<DC run id>"})`; the reference is
+a finished DC run of the same roles and bias (`mosfet.idvg` for `mosfet.idvg_pulsed`, `wgfmu.pulsed_iv` and
+`wgfmu.fast_iv`, `mosfet.idvd` for `mosfet.idvd_pulsed`).
 
 - `x` defaults to the swept voltage, `y` to the measured current (of another role when several: Id of a gate
   sweep); constant source columns of both runs (e.g.
@@ -58,12 +59,13 @@ roles and bias (`mosfet.idvg` for `mosfet.idvg_pulsed`, `mosfet.idvd` for `mosfe
 
 ## Pulse plateau
 
-Implemented (`pulse_plateau`, WP7.3; SMU pulsed runs, WGFMU waveforms later).
+Implemented (`pulse_plateau`, WP7.3; SMU pulsed runs; WGFMU waveforms since WP10.4).
 
-- Time-resolved runs (`t_s`, several rows per pulse): pulses are the runs of one `event` label, else the rows more
-  than `threshold` (0.05 V) from the first row's level, split at jumps above `threshold`; each plateau drops `edge`
-  (0.2) of its samples at both ends and averages `y` over the rest (`fit`: `level_v`, `samples`, `std`,
-  `plateau_s`; `window` = its `t_s` span).
+- Time-resolved runs (`t_s`): pulses are the runs of one `cycle` (and one `event` label within it; WGFMU pulse
+  trains: the pattern repeat, WGFMU pulsed sweeps: one averaged point per pulse), else of one `event` label, else
+  the rows more than `threshold` (0.05 V) from the first row's level, split at jumps above `threshold`; each plateau
+  drops `edge` (0.2) of its samples at both ends and averages `y` over the rest (`fit`: `level_v`, `samples`,
+  `std`, `plateau_s`; `window` = its `t_s` span).
 - One row per pulse (SMU pulsed spot/sweep): each row already is the pulse-end reading over the ADC time.
 - Result `plateau_current` (or `plateau_voltage`) at level `v` (interpolated), pulse number `pulse`, or by default
   the pulse with the largest |level|.

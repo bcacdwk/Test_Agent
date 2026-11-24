@@ -1,0 +1,58 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# WGFMU pulsed transfer curve (blueprint v2 3.4, kind wgfmu_waveform, builder pulsed_iv; WG Ex. 9 with pulses): the
+# gate (WGFMU, Fast IV) pulses from vg_base to each of vg_points levels vg_start..vg_stop (edge, flat top `width`,
+# edge back, the rest of the `period` at base), the drain (WGFMU, Fast IV, current measurement on `irange`) holds vd
+# throughout and takes one point per pulse averaged over the flat top minus `settle` at both ends. Short pulses at low
+# duty read the device before it self-heats or slow traps charge: compare with a DC Id-Vg at the same vd (analysis
+# pulsed_vs_dc, reference_run = a mosfet.idvg run on mosfet-4t when the RSU SMU inputs carry the SMUs). Both channels
+# reach the DUT through their RSUs (pin map mosfet-wgfmu); the optional bulk role holds an SMU body bias (pin map
+# mosfet-wgfmu-body). The WGFMU has no compliance: the gate terminal needs a pulse envelope (R-PULSE-02) and the drain
+# range must cover the expected Id (an over-range point saturates and reads status V).
+# status: sim_validated by tests/integration/test_recipes_wgfmu.py (nmos_wgfmu: pulsed Id at 1 % duty = DC Id +-2 %).
+id: wgfmu.pulsed_iv
+version: 1
+title: WGFMU pulsed transfer curve (gate pulses, drain bias, Id averaged on each pulse plateau)
+family: wgfmu
+kind: wgfmu_waveform
+status: sim_validated
+card: .agents/skills/b1500-test/cards/wgfmu/wgfmu-pulsed-iv.md
+device_types: [nmos, pmos, igzo_tft, fefet]
+roles:
+  gate:
+    function: wgfmu
+    module_types: [WGFMU]
+    settings: {base: $vg_base, start: $vg_start, stop: $vg_stop, points: $vg_points}
+  drain:
+    function: wgfmu
+    measure: [I]
+    module_types: [WGFMU]
+    settings: {v: $vd, range: $irange}
+  source: {function: ground, allow_gndu: true}
+  bulk:
+    function: bias_v
+    optional: true
+    module_types: [MPSMU, HRSMU]
+    settings: {v: $vb, icomp: $icomp_bulk}
+params:
+  builder: {type: enum, choices: [pulsed_iv], default: pulsed_iv, doc: Fixed waveform builder.}
+  vg_base: {unit: V, default: 0.0, recommended: [-1.0, 0.0], range: [-5.0, 5.0], doc: Gate level between pulses.}
+  vg_start: {unit: V, default: 0.0, recommended: [-1.0, 0.5], range: [-5.0, 5.0], doc: First gate pulse level.}
+  vg_stop: {unit: V, default: 2.0, recommended: [1.0, 3.0], range: [-5.0, 5.0], doc: Last gate pulse level.}
+  vg_points: {type: int, default: 21, recommended: [11, 101], range: [1, 500], doc: "Pulses (levels, linear); at most 500 (4 vectors each in one 2,048-vector pattern)."}
+  vd: {unit: V, default: 1.0, recommended: [0.05, 2.0], range: [-5.0, 5.0], doc: Drain bias held during the whole run.}
+  irange: {type: enum, choices: [1ua, 10ua, 100ua, 1ma, 10ma], default: 1ma, doc: "Drain current range (full scale; no compliance: over-range reads saturate, status V)."}
+  width: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-4], range: [1.0e-7, 1.0e-2], doc: Flat top of each pulse (10 ns grid).}
+  period: {unit: s, default: 1.0e-3, recommended: [1.0e-4, 1.0e-2], range: [1.0e-6, 1.0], doc: "Pulse period (> width + 2 edge); duty = width/period."}
+  edge: {unit: s, default: 1.0e-7, recommended: [1.0e-8, 1.0e-6], range: [1.0e-8, 1.0e-4], doc: Rise and fall time of each pulse.}
+  settle: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-5], range: [0.0, 1.0e-3], doc: "Time from each edge to the averaging window (the point averages width - 2 settle)."}
+  vb: {unit: V, default: 0.0, range: [-2.0, 2.0], doc: Body bias of the optional SMU bulk role.}
+  icomp_bulk: {unit: A, default: 1.0e-4, range: [1.0e-12, 1.0e-3], doc: Compliance of the bulk SMU.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: pulse_plateau, options: {x: gate_V, y: drain_I}}
+  - {method: gm_max}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind wgfmu_waveform), 2.7.1 (builder pulsed_iv), 3.4 (wgfmu.pulsed_iv, reserved id implemented)
+    - WGFMU guide Ed. 8 Example 9 Id-Vg (PDF 63-65), setMeasureEvent (PDF 125-126), Fast IV mode and ranges (PDF 123, 142)
+  validation_runs: []

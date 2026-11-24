@@ -121,3 +121,25 @@ def read_param_file(record: ParamFile, roots: FileRoots) -> bytes:
     if _digest(data) != record.sha256:
         raise ParamFileChanged(f"{record.path} changed while being read; validate again")
     return data
+
+
+@dataclass(frozen=True)
+class ParamFiles:
+    """The plan's ``file`` parameters and where they live, handed by the planner to a kind that builds its program
+    from CSV content (``reads_files = True``, e.g. ``wgfmu_waveform`` builder ``table``): ``read(name)`` returns the
+    validated bytes through ``read_param_file`` (sha256 re-verified), so the compiled program, and with it the plan
+    hash, always matches the digest in ``PlanRecord.files``."""
+
+    records: Mapping[str, ParamFile]
+    roots: FileRoots
+
+    def read(self, name: str) -> bytes:
+        """The bytes of ``file`` parameter ``name``.
+
+        Raises:
+            ParamFileChanged: If the parameter has no usable file or its content changed since it was hashed.
+        """
+        record = self.records.get(name)
+        if record is None:
+            raise ParamFileChanged(f"no file parameter {name!r} was resolved for this plan")
+        return read_param_file(record, self.roots)

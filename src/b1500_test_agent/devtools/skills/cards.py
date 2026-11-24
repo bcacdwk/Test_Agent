@@ -5,7 +5,8 @@ a card).
 
 A capacitance example plan (``cmu_measure``) validated in a fresh data folder is blocked by R-CORR-01 alone (no
 correction records yet): the lint then runs the policy-required correction recipes with the plan's pin map on the
-simulator (phase, open, short, confirmed with their own summaries, as the card prescribes) and validates the example
+simulator (phase, open, short, confirmed with their own summaries, as the card prescribes; over the example's own
+frequency list when the default correction list does not hold it, e.g. a C-f sweep, WP8.4) and validates the example
 again (WP8.3)."""
 
 
@@ -50,6 +51,7 @@ from b1500_test_agent.devtools.skills.links import exists_exact
 from b1500_test_agent.devtools.skills.markdown import MarkdownDoc, norm_title
 from b1500_test_agent.devtools.skills.params import check_param_row, param_rows
 from b1500_test_agent.devtools.sync_harness import SOURCE_DIR
+from b1500_test_agent.driver.flex import CLCORR_DEFAULT_FREQS_HZ
 from b1500_test_agent.models.recipe import FUNCTION_MODULE_TYPES, Recipe
 from b1500_test_agent.models.results import PlanValidation
 from b1500_test_agent.models.routing import STATE_INPUT, SWITCH_STATES
@@ -365,7 +367,8 @@ def validate_examples(lint: Lint, cards: list[Card], registry: RecipeRegistry) -
                     result = service.validate_plan(recipe_id=plan.recipe_id, params=dict(plan.params),
                                                    pin_map=plan.pin_map, dut_profile=plan.dut_profile,
                                                    label=plan.label)
-                    if blocked_by_corrections_only(result) and run_corrections(service, plan.pin_map):
+                    if blocked_by_corrections_only(result) and run_corrections(
+                            service, plan.pin_map, example_frequencies(registry, plan.recipe_id, plan.params)):
                         result = service.validate_plan(recipe_id=plan.recipe_id, params=dict(plan.params),
                                                        pin_map=plan.pin_map, dut_profile=plan.dut_profile,
                                                        label=plan.label)
@@ -384,12 +387,29 @@ def blocked_by_corrections_only(result: PlanValidation) -> bool:
     return result.tier == "blocked" and bool(blocks) and all(f.rule_id == "R-CORR-01" for f in blocks)
 
 
-def run_corrections(service: B1500Service, pin_map: str) -> bool:
+def example_frequencies(registry: RecipeRegistry, recipe_id: str, params: dict[str, object]) -> list[float] | None:
+    """The frequencies (Hz parameters, the example's values or the recipe defaults) of an example plan when the
+    default correction list (``CLCORR`` defaults) does not hold them all, else ``None``."""
+    found: set[float] = set()
+    for name, spec in registry.get(recipe_id).params.items():
+        if spec.unit != "Hz":
+            continue
+        value = params.get(name, spec.default)
+        values = value if isinstance(value, list) else [value]
+        found |= {float(v) for v in values if isinstance(v, int | float) and not isinstance(v, bool)}
+    if all(any(abs(f - d) <= 1e-6 * d for d in CLCORR_DEFAULT_FREQS_HZ) for f in found):
+        return None
+    return sorted(found)
+
+
+def run_corrections(service: B1500Service, pin_map: str, freqs: list[float] | None = None) -> bool:
     """Run the policy-required correction recipes (``policy.corrections.require`` order) with ``pin_map`` on the
-    simulator, each confirmed with its own summary; True when all completed."""
+    simulator (open/short over ``freqs`` when given), each confirmed with its own summary; True when all
+    completed."""
     required = service.config.get().policy.corrections.require
     for kind in required:
-        plan = service.validate_plan(recipe_id=CORRECTION_RECIPES[kind], pin_map=pin_map)
+        params = {"freqs_hz": freqs} if freqs is not None and kind != "phase" else None
+        plan = service.validate_plan(recipe_id=CORRECTION_RECIPES[kind], params=params, pin_map=pin_map)
         if plan.tier != "needs_confirmation" or plan.plan_id is None or plan.summary is None:
             return False
         if not service.run_confirmed_plan(plan.plan_id, summary=plan.summary).ok:

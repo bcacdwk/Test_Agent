@@ -1,10 +1,12 @@
 """``cmu_measure`` rows of the safety matrix with the global invariant v2 (blueprint v2 2.6, 4.3, 8.1 ``safety/``;
-WP8.3).
+WP8.3; the C-V variants of WP8.4).
 
 The body is the real ``cmu_measure`` kind (``CmuMeasureKind.acquire``) running committed recipes compiled by the real
 planner: ``cmu.spot`` (MM 17, two frequencies, three samples each; ``capacitor_100p``), ``moscap.cv`` (MM 18;
-``moscap_basic``) and ``mosfet.cgd_cv`` (MM 18 with the source SMU at 0 V; ``nmos_cv``), each inside ONE transaction
-on the noiseless scenario. Positions: ``configure`` = right before the first measurement mode is set (``MM``),
+``moscap_basic``), ``mosfet.cgd_cv`` (MM 18 with the source SMU at 0 V; ``nmos_cv``), ``moscap.cv_ac_level`` (MM 23)
+and ``moscap.pulsed_cv`` (MM 20; ``moscap_basic``), ``moscap.cf`` (MM 22) and ``moscap.ct`` (MM 26 with time stamps;
+``moscap_dit``) and ``fecap.cv_butterfly`` (MM 18 double; ``fecap_basic``), each inside ONE transaction on the
+noiseless scenario. Positions: ``configure`` = right before the first measurement mode is set (``MM``),
 ``during_read`` = at the first data read, ``during_cleanup`` = after the body. Faults: ``cmu_overload`` (excess
 current: error 320, the MFCMU output switched off), a hang of ``XE``, ``disconnect``, an ``ERRX?`` entry, ``ignore_dz``
 on the MFCMU, ``cleanup_failure``, ``garbage_data``, KeyboardInterrupt and an ``EnvelopeViolation`` (a buggy kind
@@ -53,20 +55,27 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 KIND = CmuMeasureKind()
 CMU = 7
 REGISTRY = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)
-CASES = {
+CASES: dict[str, tuple[str, str, str, str] | tuple[str, str, str, str, dict[str, object]]] = {
     "spot": ("cmu.spot", "capacitor_100p", "capacitor-cmu", "capacitor-100p"),
     "cv": ("moscap.cv", "moscap_basic", "moscap-cmu", "moscap-generic"),
     "cgd": ("mosfet.cgd_cv", "nmos_cv", "mosfet-split-cv", "nmos-cv"),
+    "acv": ("moscap.cv_ac_level", "moscap_basic", "moscap-cmu", "moscap-generic"),
+    "pulsed": ("moscap.pulsed_cv", "moscap_basic", "moscap-cmu", "moscap-generic", {"points": 21}),
+    "cf": ("moscap.cf", "moscap_dit", "moscap-cmu", "moscap-generic"),
+    "ct": ("moscap.ct", "moscap_dit", "moscap-cmu", "moscap-generic", {"points": 51}),
+    "butterfly": ("fecap.cv_butterfly", "fecap_basic", "fecap-cmu", "fecap-generic", {"points": 41}),
 }
+"""Case -> (recipe, scenario, pin map, DUT profile[, parameters]): fewer points where the default is long."""
 POSITIONS = ("configure", "during_read", "during_cleanup")
 FAULTS = ("cmu_overload", "timeout", "disconnect", "errx", "ignore_dz", "cleanup_failure", "garbage_data",
           "keyboard_interrupt", "envelope_violation")
 
 
 def plan_of(name: str) -> PlanRecord:
-    recipe_id, _, pin_map, dut = CASES[name]
+    recipe_id, _, pin_map, dut, *rest = CASES[name]
     cfg = load_config(Paths.from_env({}, repo_root=REPO_ROOT))
-    req = PlanRequest.model_validate({"recipe_id": recipe_id, "pin_map": pin_map, "dut_profile": dut})
+    req = PlanRequest.model_validate({"recipe_id": recipe_id, "pin_map": pin_map, "dut_profile": dut,
+                                      "params": rest[0] if rest else {}})
     plan = Planner(REGISTRY, clock=lambda: T0).plan(req, cfg, RulesEngine(cfg, clock=lambda: T0))
     blocks = {f.rule_id for f in plan.rules.findings if f.severity == "block"}
     assert blocks == {"R-CORR-01"}, plan.summary  # no correction records here; the body runs regardless

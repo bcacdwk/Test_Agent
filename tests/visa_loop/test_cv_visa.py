@@ -1,5 +1,5 @@
 """The capacitance recipes of kind ``cmu_measure`` on backend visa through the real ``VisaTransport`` (blueprint v2
-7.1 visa-loop, 10 per-recipe AC; WP8.3).
+7.1 visa-loop, 10 per-recipe AC; WP8.3; the C-V variants of WP8.4: AC-level, pulsed, C-f, C-t, FeCap butterfly).
 
 Each ``CV_CASES`` request (the card example) runs through ``B1500Service`` exactly as on the lab PC, after the
 phase/open/short corrections of its pin map (R-CORR-01; each confirmed with its summary). Every run is
@@ -36,15 +36,29 @@ CV_CASES: list[dict[str, Any]] = [
      "request": {"params": {}, "pin_map": "mosfet-split-cv", "dut_profile": "nmos-cv"}},
     {"recipe_id": "mosfet.cgd_cv", "scenario": "nmos_cv", "source": "card mosfet-split-cv",
      "request": {"params": {}, "pin_map": "mosfet-split-cv", "dut_profile": "nmos-cv"}},
+    {"recipe_id": "moscap.cv_ac_level", "scenario": "moscap_basic", "source": "card moscap-cv",
+     "request": {"params": {}, "pin_map": "moscap-cmu", "dut_profile": "moscap-generic"}},
+    {"recipe_id": "moscap.pulsed_cv", "scenario": "moscap_basic", "source": "card moscap-cv",
+     "request": {"params": {"points": 21}, "pin_map": "moscap-cmu", "dut_profile": "moscap-generic"}},
+    {"recipe_id": "moscap.cf", "scenario": "moscap_dit", "source": "card moscap-cf-ct",
+     "request": {"params": {}, "pin_map": "moscap-cmu", "dut_profile": "moscap-generic"},
+     "corrections": {"freqs_hz": [1e3, 1778.279, 3162.278, 5623.413, 1e4, 17782.79, 31622.78, 56234.13, 1e5,
+                                  177827.9, 316227.8, 562341.3, 1e6]}},
+    {"recipe_id": "moscap.ct", "scenario": "moscap_dit", "source": "card moscap-cf-ct",
+     "request": {"params": {"points": 101}, "pin_map": "moscap-cmu", "dut_profile": "moscap-generic"}},
+    {"recipe_id": "fecap.cv_butterfly", "scenario": "fecap_basic", "source": "card fecap-pund",
+     "request": {"params": {"points": 41}, "pin_map": "fecap-cmu", "dut_profile": "fecap-generic"}},
 ]
-"""The four WP8.3 recipes with their card example requests and scenarios."""
+"""The WP8.3 recipes and the WP8.4 C-V variants with their card example requests (fewer points where the default is
+long) and scenarios; ``corrections``: parameters of the open/short corrections (the C-f list)."""
 
 CORRECTIONS = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short")
 
 
-def correct(service: B1500Service, pin_map: str) -> None:
+def correct(service: B1500Service, pin_map: str, params: dict[str, Any] | None = None) -> None:
     for recipe_id in CORRECTIONS:
-        result = run_case(service, {"recipe_id": recipe_id, "request": {"params": {}, "pin_map": pin_map}})
+        extra = {} if recipe_id == "cmu.phase_compensation" else (params or {})
+        result = run_case(service, {"recipe_id": recipe_id, "request": {"params": extra, "pin_map": pin_map}})
         assert result.ok, result.message
 
 
@@ -54,7 +68,7 @@ def sim_data(case: dict[str, Any], tmp_path: Path) -> bytes:
     world.use_scenario(case["scenario"])
     service = world.service()
     try:
-        correct(service, case["request"]["pin_map"])
+        correct(service, case["request"]["pin_map"], case.get("corrections"))
         result = run_case(service, case)
     finally:
         service.close()
@@ -68,7 +82,7 @@ def test_cv_recipe_completes_on_backend_visa_with_cleanup_verified(case: dict[st
                                                                    tmp_path: Path) -> None:
     bus = world.bus(case["scenario"], chunk_size=CHUNK)
     service = world.service(bus)
-    correct(service, case["request"]["pin_map"])
+    correct(service, case["request"]["pin_map"], case.get("corrections"))
     validation = service.validate_plan(recipe_id=case["recipe_id"], **case["request"])
     assert validation.backend == "visa" and not validation.simulated and validation.tier == "needs_confirmation"
     assert {"first_hw_run", "unverified_pin_map"} <= set(validation.confirm_reasons)

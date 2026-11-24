@@ -20,8 +20,9 @@ Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_f
 ``dibl``, ``body_effect``, ``resistance``, ``diode_fit``, ``forward_voltage``, ``leakage_at``, ``memory_window``,
 ``plot_iv``, ``plot_timeseries``, ``sampling_summary``, ``time_to_breakdown``, ``bti_power_law``,
 ``degradation_vs_time``, ``silc``, the C-V methods of ``cv.py`` (``cv_cox``, ``cv_flatband``, ``cv_doping_profile``,
-``cv_vth``, ``cv_hysteresis``, ``impedance_convert``, ``plot_cv``; ``convert_table`` converts a whole run),
-``memory_window_pulse`` (``nvm.py``); library helper over a run list: ``weibull_fit``.
+``cv_vth``, ``cv_hysteresis``, ``impedance_convert``, ``plot_cv``; ``convert_table`` converts a whole run), the C-V
+variants of ``cv_variants.py`` (``cf_dispersion``, ``ct_recovery``, ``cv_ac_dependence``, ``cv_butterfly``, the
+two-run ``cv_pulsed_vs_dc``), ``memory_window_pulse`` (``nvm.py``); library helper over a run list: ``weibull_fit``.
 The run-table contract (``data.csv`` or ``data.npz`` +
 ``preview.csv``, columns) is defined in ``dataset.py``.
 
@@ -39,6 +40,13 @@ from b1500_test_agent.analysis.cv import (
     cv_vth,
     impedance_convert,
     plot_cv,
+)
+from b1500_test_agent.analysis.cv_variants import (
+    cf_dispersion,
+    ct_recovery,
+    cv_ac_dependence,
+    cv_butterfly,
+    cv_pulsed_vs_dc,
 )
 from b1500_test_agent.analysis.dataset import (
     CSV_MAX_ROWS,
@@ -128,12 +136,17 @@ __all__ = [
     "assess_quality",
     "body_effect",
     "bti_power_law",
+    "cf_dispersion",
     "column_unit",
     "convert_table",
+    "ct_recovery",
+    "cv_ac_dependence",
+    "cv_butterfly",
     "cv_cox",
     "cv_doping_profile",
     "cv_flatband",
     "cv_hysteresis",
+    "cv_pulsed_vs_dc",
     "cv_vth",
     "degradation_vs_time",
     "dibl",

@@ -42,6 +42,13 @@ from b1500_test_agent.analysis.cv import (
     impedance_convert,
     plot_cv_method,
 )
+from b1500_test_agent.analysis.cv_variants import (
+    cf_dispersion,
+    ct_recovery,
+    cv_ac_dependence,
+    cv_butterfly,
+    cv_pulsed_vs_dc,
+)
 from b1500_test_agent.analysis.dataset import RunData, load_run
 from b1500_test_agent.analysis.diode import diode_fit, forward_voltage
 from b1500_test_agent.analysis.errors import MethodNotImplementedError
@@ -96,8 +103,12 @@ _SAMPLING_KINDS = ("smu_sampling",)
 _STRESS_KINDS = ("stress_measure",)
 _RELIABILITY: tuple[RecipeFamily, ...] = ("reliability",)
 _CMU: tuple[RecipeFamily, ...] = ("cmu",)
+_CMU_NVM: tuple[RecipeFamily, ...] = ("cmu", "nvm")
+"""Families with ``cmu_measure`` runs: the MFCMU recipes and the FeCap C-V butterfly (``fecap.cv_butterfly``)."""
 _CV_KINDS = ("cmu_measure",)
-_MOSCAP = ("moscap.*",)
+_MOSCAP = ("moscap.cv", "moscap.cv_multi_freq", "moscap.pulsed_cv")
+"""The MOS-C DC bias sweeps (C-V, multi-frequency C-V, pulsed C-V); the C-f, C-t and AC-level runs have their own
+methods (WP8.4)."""
 _NOT_CMU = ("[!c]*",)
 """Every kind but the MFCMU kinds ``cmu_*`` (``fnmatch``): capacitance runs plot with ``plot_cv``, not ``plot_iv``."""
 _SYSTEM: tuple[RecipeFamily, ...] = ("system",)
@@ -307,10 +318,26 @@ _METHODS = [
             _MOSCAP, _CV_KINDS, families=_CMU, milestone="M8"),
     _method("impedance_convert", "extraction", impedance_convert,
             "MFCMU readings in another pair (Cp-G, Cp-D, Cs-Rs, Cs-D, Z-theta) per frequency; series-R removal.",
-            ("*",), _CV_KINDS, families=_CMU, milestone="M8"),
+            ("*",), _CV_KINDS, families=_CMU_NVM, milestone="M8"),
     _method("plot_cv", "plots", plot_cv_method,
-            "C-V (or C-f) plots per frequency and segment, 1/C^2 for a MOS-C; PNGs under plots/.", ("*",),
-            _CV_KINDS, families=_CMU, milestone="M8"),
+            "C-V, C-f, C-t or C-ACV plots per frequency and segment, 1/C^2 for a MOS-C; PNGs under plots/.", ("*",),
+            _CV_KINDS, families=_CMU_NVM, milestone="M8"),
+    _method("cf_dispersion", "extraction", cf_dispersion,
+            "C-f at a depletion bias: Gp/w (Nicollian-Goetzberger, Cox from options or geometry), continuum fit -> "
+            "Dit, trap time constant, peak frequency; C dispersion.", ("moscap.cf",), _CV_KINDS, families=_CMU,
+            milestone="M8"),
+    _method("ct_recovery", "extraction", ct_recovery,
+            "C-t after a bias step: 1/C^2 relaxation -> recovery time constant (inversion-layer formation), beta, "
+            "deep-depletion and equilibrium capacitance.", ("moscap.ct",), _CV_KINDS, families=_CMU, milestone="M8"),
+    _method("cv_ac_dependence", "extraction", cv_ac_dependence,
+            "C against the oscillator level: small-signal C0 (C = C0 + C'' Vac^2/4), curvature, largest level within "
+            "a tolerance.", ("moscap.cv_ac_level",), _CV_KINDS, families=_CMU, milestone="M8"),
+    _method("cv_butterfly", "extraction", cv_butterfly,
+            "FeCap C-V double sweep: peak voltages of the rising and falling branch -> coercive voltage, imprint, "
+            "Ec (film thickness).", ("fecap.cv_butterfly",), _CV_KINDS, families=("nvm",), milestone="M8"),
+    _method("cv_pulsed_vs_dc", "extraction", cv_pulsed_vs_dc,
+            "Pulsed against a DC C-V reference run (options.reference_run): Vfb difference, Cox ratio, C ratio at the "
+            "inversion end (deep depletion).", ("moscap.pulsed_cv",), _CV_KINDS, families=_CMU, milestone="M8"),
     _method("silc", "extraction", silc,
             "Stress-induced leakage: (Ig - Ig0)/Ig0 at v_sense, its power-law exponent, Ig0 and injected charge.",
             ("reliability.silc", "reliability.bti_sms", "reliability.hci", "generic.*"), _STRESS_KINDS,

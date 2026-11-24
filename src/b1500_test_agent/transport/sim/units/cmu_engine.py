@@ -8,16 +8,22 @@ MFCMU measurements on the scenario circuit, independently of ``driver/cmu_data.p
   that MFCMU (``scenario.scuu``) the ``SSP`` path decides (PG p520 (4-202) Table 4-30): the side is the MFCMU, the
   SMU in slot ``slot - 1`` (High/Force1) or ``slot - 2`` (Low/Force2), or open; an SMU-routed side carries that SMU's
   level and its current counts as the SMU's.
-- **Impedance** (``_dut_admittance``): the small-signal admittance between the two sides: ``AcDevice.admittance``
-  of two-terminal devices (``capacitor``, ``moscap``, ``fecap``, ``dielectric``) at their DC bias, a ``mosfet``'s
-  ``gate_admittance`` towards the terminals on the other side (split C-V), and for every other device the numeric DC
-  small-signal conductance. Current into terminals on SMUs or the GNDU (AC ground) is not seen by the Low side.
+- **Impedance** (``_dut_admittance``): the admittance between the two sides: ``AcDevice.admittance`` of two-terminal
+  devices (``capacitor``, ``moscap``, ``fecap``, ``dielectric``) at their DC bias, a ``mosfet``'s ``gate_admittance``
+  towards the terminals on the other side (split C-V), and for every other device the numeric DC small-signal
+  conductance. Current into terminals on SMUs or the GNDU (AC ground) is not seen by the Low side. The oscillator
+  swing is not infinitesimal (WP8.4, the C-ACV sweep MM 23): the MFCMU reports the fundamental of the current, which
+  for a quasi-static nonlinear element is the describing function ``Y_1 = (2/π) ∫ Y(V0 + Vp u) √(1 - u²) du`` over
+  the swing ``Vp = √2·Vac`` of the High side (``AC_QUADRATURE``: Gauss-Chebyshev nodes; exact for a linear element,
+  ``C_1 ≈ C(V0) + C''(V0)·Vac²/4`` for a curved C-V).
 - **Measurement path** (``_reading``): the ``fixture`` device wired to the sides (an ideal one when the scenario has
   none) adds its parasitics and, unless phase compensation is in effect (``ADJ`` mode 1 with a completed ``ADJ?``,
   or mode 2), the cable phase error (``FixtureDevice.measured``); the stored open/short/load data of the listed
   frequency, for the correction functions switched on, are removed (``fixture.compensate``; a non-ideal ``DCORR``
   open or short reference is removed from its standard's reading first); then the scenario's relative noise
-  (``noise.rel``, scaled by the averaging time) and the ``IMP`` conversion (Table 4-16, PDF 347).
+  (``noise.rel`` at ``CMU_NOISE_REF_VRMS``, scaled by the averaging time and inversely by the oscillator level: the
+  impedance error is a fixed current-measurement error over a smaller or larger signal) and the ``IMP`` conversion
+  (Table 4-16, PDF 347).
 - **Timing and data**: steps follow ``WT*``-style hold/delay/step delay (sweeps), ``PTDCV`` (pulses) and ``MTDCV``
   (C-t). Dynamic devices are advanced through every interval with the levels applied then, so a fast sweep into
   inversion shows deep depletion and a FeCap's polarization follows the bias. Data blocks per PDF 46-49 (see
@@ -62,6 +68,18 @@ CMU_AUTO_UNIT_S = 8e-3
 
 CMU_NOISE_REF_S = 16e-3
 """Averaging time of the initial ``ACT 0,2``; noise scales with ``sqrt(CMU_NOISE_REF_S / time)``."""
+
+CMU_NOISE_REF_VRMS = 0.03
+"""Oscillator level at which the relative noise is ``noise.rel``; it scales with ``CMU_NOISE_REF_VRMS / Vac``
+(simulator convention; the level is floored at ``CMU_NOISE_MIN_VRMS``)."""
+
+CMU_NOISE_MIN_VRMS = 1e-3
+"""Smallest oscillator level the noise scaling uses (the MFCMU measures from 10 mVrms; R-CMU-01)."""
+
+AC_QUADRATURE: tuple[tuple[float, float], ...] = tuple(
+    (math.cos(k * math.pi / 9), 2.0 / 9 * math.sin(k * math.pi / 9) ** 2) for k in range(1, 9))
+"""(node ``u``, weight) of the eight-point Gauss-Chebyshev rule of the second kind for ``(2/π) ∫ f(u) √(1 - u²) du``
+over ``-1..1`` (weights sum to 1; exact for polynomials up to degree 15)."""
 
 SATURATION_RATIO = 100.0
 """A fixed range larger than ``SATURATION_RATIO`` x |Z| saturates the IV amplifier (status ``D``; convention)."""
@@ -203,9 +221,12 @@ class CmuEngine:
                 return device
         return FixtureDevice("ideal", IDEAL_FIXTURE)
 
-    def _dut_admittance(self, cmu: int, levels: dict[int | str, float], f: float) -> complex | None:
-        """Admittance (S) between the High and Low side of ``cmu`` (``None``: nothing connects them)."""
+    def _dut_admittance(self, cmu: int, levels: dict[int | str, float], f: float,
+                        ac_vrms: float = 0.0) -> complex | None:
+        """Admittance (S) between the High and Low side of ``cmu`` (``None``: nothing connects them); with an
+        oscillator level ``ac_vrms`` the describing function over the High side's swing (module docstring)."""
         high, low = f"{cmu}H", f"{cmu}L"
+        swing = math.sqrt(2.0) * ac_vrms
         total = 0j
         found = False
         for name, device in self.circuit.devices.items():
@@ -217,7 +238,13 @@ class CmuEngine:
             if not hi or not lo:
                 continue
             found = True
-            total += self._device_admittance(device, self.circuit.terminal_voltages(name, levels), hi, lo, f)
+            if swing <= 0.0 or high not in levels:
+                total += self._device_admittance(device, self.circuit.terminal_voltages(name, levels), hi, lo, f)
+                continue
+            for u, weight in AC_QUADRATURE:
+                shifted = {**levels, high: levels[high] + swing * u}
+                total += weight * self._device_admittance(device, self.circuit.terminal_voltages(name, shifted), hi,
+                                                          lo, f)
         return total if found else None
 
     @staticmethod
@@ -306,14 +333,16 @@ class CmuEngine:
         chosen = [r for r in available if r <= max(value, 50.0)]
         return chosen[-1] if chosen else available[0]
 
-    def _reading(self, cmu: int, levels: dict[int | str, float], f: float, rng: random.Random,
+    def _reading(self, cmu: int, levels: dict[int | str, float], f: float, rng: random.Random, ac_vrms: float,
                  ) -> tuple[complex, str]:
-        """The impedance the MFCMU reports at ``f`` with ``levels`` applied, and its status letter."""
-        y = self._dut_admittance(cmu, levels, f) if self._cmu_connected(cmu) else None
+        """The impedance the MFCMU reports at ``f`` and oscillator level ``ac_vrms`` with ``levels`` applied, and its
+        status letter."""
+        y = self._dut_admittance(cmu, levels, f, ac_vrms) if self._cmu_connected(cmu) else None
         z_dut = None if y is None or y == 0 else 1.0 / y
         z = self._corrected(cmu, self._cmu_fixture(cmu).measured(z_dut, f, phase_adjusted=self._phase_adjusted(cmu)),
                             f)
-        sigma = self.scenario.noise.rel * math.sqrt(CMU_NOISE_REF_S / max(self._cmu_time(), 1e-6))
+        sigma = (self.scenario.noise.rel * math.sqrt(CMU_NOISE_REF_S / max(self._cmu_time(), 1e-6))
+                 * CMU_NOISE_REF_VRMS / max(ac_vrms, CMU_NOISE_MIN_VRMS))
         if sigma > 0:
             z *= complex(1.0 + rng.gauss(0.0, sigma), rng.gauss(0.0, sigma))
         fixed = self._fixed_range(cmu, f)
@@ -362,7 +391,7 @@ class CmuEngine:
             if aborted:
                 blocks.append(self._cmu_block(mode, cmu, smus, step, stamp, None, "V", [], i == last))
                 continue
-            z, status = self._reading(cmu, levels, step.f, rng)
+            z, status = self._reading(cmu, levels, step.f, rng, step.ac)
             if condition is not None:
                 status = "D" if condition == "saturation" else "U"
             currents: list[float] = []

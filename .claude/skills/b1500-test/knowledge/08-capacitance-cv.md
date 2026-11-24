@@ -8,15 +8,18 @@ sources:
   - Nicollian & Brews, MOS Physics and Technology (Wiley 1982) ch. 5, 9; Sze & Ng, Physics of Semiconductor Devices (2007) ch. 4
   - Koomen, Solid-State Electron. 16, 801 (1973); Sodini et al., Solid-State Electron. 25, 833 (1982) (split C-V)
   - src/b1500_test_agent/analysis/cv.py, catalog/kinds/cmu_measure.py (v2 WP8.3)
+  - src/b1500_test_agent/analysis/cv_variants.py, catalog/kinds/cmu_variants.py (v2 WP8.4)
+  - Zerbst, Z. Angew. Phys. 22, 30 (1966) (C-t recovery); Miller et al., J. Appl. Phys. 68, 6463 (1990) (FeCap C-V)
 last_reviewed: null
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
 # Capacitance and C-V (knowledge domain 08)
 
-What the MFCMU measures, how a C-V curve becomes Cox, doping, flatband and threshold voltage, and what the split
-C-V of a MOSFET adds. The definitions are those of `analysis/cv.py` (its module docstring is the source); every
-value they return is derived. Debugging (distortion, series resistance, stale corrections) is skill `b1500-debug`.
+What the MFCMU measures, how a C-V curve becomes Cox, doping, flatband and threshold voltage, what the split C-V of
+a MOSFET adds, and the variants (AC level, pulsed, C-f, C-t, FeCap butterfly). The definitions are those of
+`analysis/cv.py` and `analysis/cv_variants.py` (their module docstrings are the source); every value they return is
+derived. Debugging (distortion, series resistance, stale corrections) is skill `b1500-debug`.
 
 ## Contents
 
@@ -31,15 +34,22 @@ value they return is derived. Debugging (distortion, series resistance, stale co
 - [Hysteresis](#hysteresis)
 - [Split C-V Cgc and Cgd](#split-c-v-cgc-and-cgd)
 - [SCUU same-landing I-V and C-V](#scuu-same-landing-i-v-and-c-v)
+- [AC level dependence](#ac-level-dependence)
+- [Pulsed C-V](#pulsed-c-v)
+- [C-f and frequency dispersion](#c-f-and-frequency-dispersion)
+- [C-t and deep-depletion recovery](#c-t-and-deep-depletion-recovery)
+- [FeCap C-V butterfly](#fecap-c-v-butterfly)
 - [Reporting C-V results](#reporting-c-v-results)
 
 ## Scope and status
 
 - Recipes (kind `cmu_measure`): `cmu.spot` (MM 17 spot C), `moscap.cv` (MM 18 C-V, single or double),
-  `mosfet.cgc_cv`, `mosfet.cgd_cv` (split C-V). Methods: `cv_cox`, `cv_flatband`, `cv_doping_profile`, `cv_vth`,
-  `cv_hysteresis`, `impedance_convert`, `plot_cv`.
-- Not covered here: pulsed C-V, C-f, C-t, AC-level sweeps, QSCV and interface-trap density (conductance and
-  high-low methods). Those arrive with the C-V variants and the Dit work packages and extend this file.
+  `mosfet.cgc_cv`, `mosfet.cgd_cv` (split C-V); `moscap.cv_ac_level` (MM 23), `moscap.pulsed_cv` (MM 20, MM 19 for
+  one point), `moscap.cf` (MM 22), `moscap.ct` (MM 26), `fecap.cv_butterfly` (MM 18 double). Methods: `cv_cox`,
+  `cv_flatband`, `cv_doping_profile`, `cv_vth`, `cv_hysteresis`, `impedance_convert`, `plot_cv`; `cv_ac_dependence`,
+  `cv_pulsed_vs_dc`, `cf_dispersion`, `ct_recovery`, `cv_butterfly`.
+- Not covered here: QSCV and Dit over the band gap (multi-bias conductance and high-low methods); they arrive with
+  the Dit work package and extend this file.
 - Every C-V run needs fresh phase, open and short corrections of the same pin map (rule R-CORR-01; card
   `cmu/cmu-correction`).
 
@@ -64,7 +74,9 @@ value they return is derived. Debugging (distortion, series resistance, stale co
 - Uncorrected, the open capacitance of cables and probe (about 0.3 pF in the simulator) adds to every reading; the
   short path (resistance, inductance) matters above about 1 MHz and for large capacitances.
 - Corrections act only at listed frequencies: list every C-V frequency in the correction recipes' `freqs_hz` (the
-  23 default frequencies cover 1 kHz to 5 MHz in 1-2-5 steps).
+  23 default frequencies cover 1 kHz to 5 MHz in 1-2-5 steps). A C-f sweep's list (4 per decade, log) is not in
+  them: run open and short with `freqs_hz` = the C-f list (plus the C-V frequencies); the new list clears the old
+  corrections of that MFCMU, so all are measured again (phase, open, short).
 - Known-capacitor check: `cmu.spot` on a reference capacitor reads its value within its tolerance after the
   corrections (bring-up stage L6).
 
@@ -153,10 +165,65 @@ value they return is derived. Debugging (distortion, series resistance, stale co
 - Corrections through the SCUU are their own records: run them with the SCUU pin map. Details on routes:
   [11](11-switching-routing.md#scuu-and-asu-paths).
 
+## AC level dependence
+
+- The MFCMU reports the fundamental of the current. On a curved C-V the reading at bias V0 with level Vac (rms) is
+  the average of C over the swing `+-sqrt(2) Vac`: `C = C(V0) + C''(V0) Vac^2 / 4` to second order; flat C-V
+  regions (accumulation, strong inversion) do not move, depletion and the FeCap peaks do.
+- `moscap.cv_ac_level` steps the level (WACV) at one bias; `cv_ac_dependence` fits C against Vac^2: `c_small_signal`
+  (C0), the curvature (`fit.d2c_dv2`) and `ac_limit`, the level where C departs from C0 by `tolerance` (1 %).
+- Choose `ac_vrms` of C-V runs below `ac_limit` of the most curved region; a larger level averages the transition
+  and shifts the flatband slightly. Noise falls with the level (a fixed current error over a larger signal).
+
+## Pulsed C-V
+
+- `moscap.pulsed_cv` rests the gate at `v_base` and pulses it to each level (PWDCV; width >= 8 ms above 200 kHz,
+  10 ms up to 200 kHz, 50 ms up to 10 kHz; period 0 = width + 2 ms); C is read during the pulse.
+- From an accumulation base each point starts with no inversion charge and with emptied border traps: in inversion
+  the pulse is shorter than the inversion-layer formation, so C stays below the HF minimum (deep depletion; the
+  1/C^2 line continues, a deeper doping profile); in accumulation and depletion it equals a DC C-V swept from the
+  same state (`cv_pulsed_vs_dc`: `delta_vfb` about 0, `cox_ratio` about 1, `c_ratio_inversion` < 1).
+- A DC sweep that starts in inversion charges the border traps: its Vfb then differs from the pulsed one by the
+  hysteresis. Compare like with like.
+
+## C-f and frequency dispersion
+
+- At a depletion bias interface traps exchange carriers with the bands with time constant `tau = 1/(sigma v_th
+  p_s)` (p substrate): below `1/(2 pi tau)` they add capacitance (C falls with frequency: `c_dispersion`) and a
+  conductance; towards midgap tau grows (peak at lower f), towards flatband it shrinks.
+- `cf_dispersion` (conductance method): `Gp/w = w Cox^2 Gm / (Gm^2 + w^2 (Cox - Cm)^2)` from the measured Cm, Gm;
+  continuum model `Gp/w = q A Dit ln(1 + (w tau)^2) / (2 w tau)`, peak `0.402 q A Dit` at `w tau = 1.98` (single
+  level: `q A Dit / 2` at `w tau = 1`), fitted over the list: `dit`, `tau_it`, `f_peak`, `gp_w_max`.
+- Cox: `options.cox_f` (the `cv_cox` result of a C-V) is better than the geometry estimate (`3.9 eps0 A / tox`,
+  warned). Series resistance raises G at high frequency: `rs_ohm`. A peak outside the list fails: move the bias.
+- One bias = Dit at one energy. Dit(E) over the gap: many biases (conductance method) or QSCV + HF (high-low).
+
+## C-t and deep-depletion recovery
+
+- `moscap.ct`: base (accumulation) for `hold_base_s`, step to the bias (inversion side), sample C every
+  `interval_s` (MDCV, MTDCV; time stamps, `t_s` from the step). At the step no inversion charge exists: deep
+  depletion, C below the HF minimum; thermal generation forms the inversion layer and C rises to equilibrium.
+- In the depletion approximation 1/C^2 is linear in the inversion charge, so `ct_recovery` fits `1/C^2 = y_inf +
+  (y0 - y_inf) exp(-(t/tau)^beta)`: `tau_recovery`, `beta` (1: one time constant), `c_initial`, `c_final`.
+  A generation lifetime needs the doping and the Zerbst plot (ad-hoc, `work/`).
+- Records longer than 60 s run as chained 25 s blocks holding the bias (time stamps run on); over 300 s async.
+  Light generates carriers too: keep the shield box closed (S0).
+
+## FeCap C-V butterfly
+
+- A ferroelectric capacitor's small-signal C is the dielectric part plus the reversible polarization response
+  `dP/dV` of the branch being travelled: a peak near +Vc while the bias rises, near -Vc while it falls (two "wings").
+- `fecap.cv_butterfly` (MM 18 double, beyond +-2 Vc); `cv_butterfly`: per branch the peak (parabola vertex):
+  `vc` = half the peak distance, `v_imprint` = the mean (built-in field, imprint), `ec = vc / t` with
+  `geometry.tox_nm` as the film thickness. The sweep poles and cycles the film: record the history.
+- The butterfly gives the coercive voltage, not Pr; PUND through the WGFMU gives the switching charge
+  ([04](04-ferroelectric-oxide.md#fecap-p-v-and-pund)).
+
 ## Reporting C-V results
 
 - Measured: the C-V table (pair, frequency, AC level, DC bias), status counts, correction ages (summary `corr`).
 - Derived (method, window, options): Cox (and EOT), Nsub (depth window), Vfb (C_FB), Vth (method), hysteresis,
-  plateau Cox W L and floor. Say SIMULATED for simulator runs and name the geometry used.
+  plateau Cox W L and floor; Dit, tau and the Cox used (C-f); tau_recovery (C-t); C0 and ac_limit; Vc, Ec, imprint.
+  Say SIMULATED for simulator runs and name the geometry used.
 - Red flags: Cmax rising with falling frequency (series R or leakage), G/w peaks in depletion (traps), C below Cmin
   in inversion (deep depletion), a stretched transition (interface traps), status `U`/`D` (unbalance, saturation).

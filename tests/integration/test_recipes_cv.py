@@ -5,7 +5,7 @@ C-V) through ``B1500Service``, each after the phase/open/short corrections of it
 Fidelity (blueprint v2 4.2) against the model truth of the scenario's device (built from the committed scenario):
 ``moscap_basic`` Cox +-1 %, Vfb +-20 mV (the forward branch's flatband: border traps charged at the start),
 Nsub +-10 %, hysteresis +-10 mV; ``nmos_cv`` (its split C-V transistor ``cv``) Cgc plateau = Cox*W*L +-2 %, Cgd =
-the model's Cgd; the 100 pF
+the model's Cgd over the oscillator swing (the describing function the simulator reports since WP8.4); the 100 pF
 standard within 0.1 %. 0.3 Vrms is blocked (R-CMU-01 and the recipe range). The SCUU path routes both outputs to
 the MFCMU and back to rest (scenario variant with an SCUU, pin map ``moscap-scuu``).
 """
@@ -29,6 +29,7 @@ from b1500_test_agent.rules.builtin.cmu import CORRECTION_NEXT_STEP
 from b1500_test_agent.service import B1500Service
 from b1500_test_agent.transport.sim.devices.moscap import MoscapDevice
 from b1500_test_agent.transport.sim.devices.mosfet import Mosfet
+from b1500_test_agent.transport.sim.units.cmu_engine import AC_QUADRATURE
 from tests.integration.helpers import REPO_ROOT, World
 
 CORRECTIONS = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short")
@@ -223,8 +224,9 @@ def test_cgd_sees_the_drain_half_of_the_channel(recipe_id: str, world: World, sv
     assert result.ok and result.outcome == "completed", result.message
     device = mosfet_truth()
     table = load_run(result.run_id, data_root=world.data).table  # type: ignore[arg-type]
-    expected = [device.gate_capacitance({"gate": v, "drain": 0.0, "source": 0.0, "bulk": 0.0}, 1e5, ("drain",))
-                for v in table["dc_v"]]
+    swing = np.sqrt(2.0) * 0.03  # the MFCMU reports the fundamental over the 30 mVrms swing (describing function)
+    expected = [sum(w * device.gate_capacitance({"gate": v + swing * u, "drain": 0.0, "source": 0.0, "bulk": 0.0},
+                                                1e5, ("drain",)) for u, w in AC_QUADRATURE) for v in table["dc_v"]]
     assert np.allclose(table["gate_Cp"], expected, rtol=0.01, atol=1e-15)
     truth = device.cv_truth()
     assert table["gate_Cp"].max() == pytest.approx(truth["cox_wl_f"] / 2, rel=0.03)

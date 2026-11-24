@@ -58,8 +58,9 @@ at the largest capacitance (strong accumulation; Nicollian & Brews eq. 5.12), re
 as ``rs``. The full converted curve is ``convert_table`` (ad-hoc scripts) and ``plot_cv(model=...)``.
 
 **plot_cv** draws C-V (``C`` and ``G/w`` or the pair's second quantity, per frequency and segment; trusted points as
-lines, limited as circles, untrusted as crosses), ``1/C^2`` against ``V`` for a MOS capacitor and ``C`` against
-frequency for a spot run with several frequencies. Plots never refuse and never extract anything.
+lines, limited as circles, untrusted as crosses), ``1/C^2`` against ``V`` for a MOS capacitor, ``C`` against
+frequency for a C-f run or a spot run with several frequencies, against ``t_s`` for a C-t run and against the AC level
+for a C-V (AC level) run (WP8.4). Plots never refuse and never extract anything.
 """
 
 from __future__ import annotations
@@ -84,9 +85,11 @@ from b1500_test_agent.analysis.common import (
     window_of,
 )
 from b1500_test_agent.analysis.dataset import (
+    AC_VRMS,
     DC_V,
     FREQ_HZ,
     SEGMENT,
+    T_S,
     RunData,
     Segment,
     parse_value_column,
@@ -828,11 +831,14 @@ def render_cv(d: RunData, *, model: Model | None = None, criteria: TrustPolicy |
     freqs = frequencies(d)
     segments = list(pd.unique(table[SEGMENT])) if SEGMENT in table.columns else [None]
     dc = table[DC_V].to_numpy(dtype=float)
-    spot = len(pd.unique(table[DC_V])) == 1
+    x_name = (T_S if T_S in table.columns else AC_VRMS if len(pd.unique(table[AC_VRMS])) > 1
+              else FREQ_HZ if len(pd.unique(table[DC_V])) == 1 else DC_V)
+    spot = x_name == FREQ_HZ
     title = f"{d.run_id} {d.manifest.recipe_id} ({'SIMULATED' if d.manifest.simulated else 'measured'})"
     plots: list[RenderedPlot] = []
     warnings: list[str] = []
-    x_values = table[FREQ_HZ].to_numpy(dtype=float) if spot else dc
+    x_values = table[x_name].to_numpy(dtype=float)
+    x_labels = {T_S: "t_s (s)", AC_VRMS: f"{AC_VRMS} (V rms)", FREQ_HZ: "frequency (Hz)", DC_V: f"{DC_V} (V)"}
     figure = new_figure(width_in=6.5, height_in=6.0)
     skipped = 0
     for panel, quantity in enumerate((first, second)):
@@ -857,7 +863,7 @@ def render_cv(d: RunData, *, model: Model | None = None, criteria: TrustPolicy |
                         axes.plot(xv[pick], yv[pick], marker, mfc="none", color=color, markersize=5)
         if spot:
             axes.set_xscale("log")
-        axes.set_xlabel("frequency (Hz)" if spot else f"{DC_V} (V)")
+        axes.set_xlabel(x_labels[x_name])
         axes.set_ylabel(labels[quantity])
         axes.grid(True, alpha=0.3)
         if len(freqs) * len(segments) > 1 and not spot:
@@ -865,8 +871,9 @@ def render_cv(d: RunData, *, model: Model | None = None, criteria: TrustPolicy |
     figure.suptitle(title, fontsize=9)
     if skipped:
         warnings.append(f"{skipped} point(s) not drawn (invalid data)")
-    plots.append(RenderedPlot(name="cf" if spot else "cv", png=figure_png(figure)))
-    if not spot and structure_of(d, "auto") == "moscap" and first in ("Cp", "Cs"):
+    plots.append(RenderedPlot(name={T_S: "ct", AC_VRMS: "cv-ac", FREQ_HZ: "cf", DC_V: "cv"}[x_name],
+                              png=figure_png(figure)))
+    if x_name == DC_V and structure_of(d, "auto") == "moscap" and first in ("Cp", "Cs"):
         figure = new_figure(width_in=6.5, height_in=3.5)
         axes = figure.add_subplot(1, 1, 1)
         c = values[first]
@@ -882,8 +889,8 @@ def render_cv(d: RunData, *, model: Model | None = None, criteria: TrustPolicy |
         axes.grid(True, alpha=0.3)
         figure.suptitle(title, fontsize=9)
         plots.append(RenderedPlot(name="cv-inverse-square", png=figure_png(figure)))
-    return PlotSet(plots=tuple(plots), x=FREQ_HZ if spot else DC_V, y=(f"{role}_{primary}", f"{role}_{secondary}"),
-                   scale="linear", warnings=tuple(warnings))
+    return PlotSet(plots=tuple(plots), x=x_name, y=(f"{role}_{primary}", f"{role}_{secondary}"), scale="linear",
+                   warnings=tuple(warnings))
 
 
 @validate_call(config=_CALL_CONFIG)

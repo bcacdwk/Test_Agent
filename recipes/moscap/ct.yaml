@@ -1,0 +1,56 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOS capacitor C-t transient (kind cmu_measure, MM 26; card moscap-cf-ct; blueprint v2 3.2, bring-up stage L6): the
+# gate holds v_base (accumulation) for hold_base_s, steps to v_bias (inversion side) and Cp-G (IMP 100) is sampled
+# every interval_s, `points` samples from hold_bias_s after the step (MDCV base,bias,bias; MTDCV; time stamps TSC 1,
+# TSR before the transient), at every frequency of freqs_hz (one transient each). A step into inversion faster than
+# the inversion layer forms gives deep depletion (C below the HF minimum) that recovers as minority carriers are
+# generated. A transient longer than 60 s runs as chained MM 26 blocks of at most 25 s (the bias holds; time stamps
+# run on), each a checkpoint. Needs fresh phase/open/short corrections at every frequency (R-CORR-01). Default
+# analysis: ct_recovery (1/C^2 = a + b exp(-(t/tau)^beta): recovery time constant, initial and final capacitance).
+# Programming Guide Ed. 15: C-t sampling (PDF 280-284), MDCV (PDF 467-468), MTDCV (PDF 476-477), MM 26 (PDF 470).
+# status: sim_validated by tests/integration/test_recipes_cv_variants.py (moscap_dit: recovery tau within 10 %,
+# final C within 1 % of the model truth); the visa path by tests/visa_loop/test_cv_visa.py; hw_validated only
+# through a reviewed validation record (stage L6).
+id: moscap.ct
+version: 1
+title: MOS capacitor C-t transient after a bias step (deep depletion and its recovery; chained for long runs)
+family: cmu
+kind: cmu_measure
+status: sim_validated
+card: .agents/skills/b1500-test/cards/cmu/moscap-cf-ct.md
+device_types: [moscap]
+roles:
+  gate:
+    function: cmu_high
+    module_types: [MFCMU]
+    settings: {measurement: ct, freqs: $freqs_hz, ac: $ac_vrms, base: $v_base, dc: $v_bias, interval: $interval_s,
+               points: $points, hold_bias: $hold_bias_s, hold: $hold_base_s, model: cp_g}
+  bulk: {function: cmu_low, module_types: [MFCMU]}
+params:
+  freqs_hz:
+    type: float_list
+    unit: Hz
+    default: [1.0e+6]
+    range: [1.0e+3, 5.0e+6]
+    doc: Measurement frequencies, one transient each (high frequency; every one in the correction list).
+  ac_vrms: {unit: V, default: 0.03, recommended: [0.01, 0.05], range: [0.01, 0.25], doc: Oscillator level (V rms).}
+  v_base: {unit: V, default: -2.5, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: Gate level before the step (accumulation).}
+  v_bias: {unit: V, default: 2.0, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: Gate level after the step (inversion side).}
+  interval_s: {unit: s, default: 0.02, recommended: [0.01, 1.0], range: [0.008, 655.35], doc: Sampling interval (1 ms grid; at least one measurement time).}
+  points: {type: int, default: 301, recommended: [101, 2001], range: [10, 10001], doc: Samples of the transient.}
+  hold_bias_s: {unit: s, default: 0.0, recommended: [0.0, 0.1], range: [0.0, 655.35], doc: From the step to the first sample (10 ms grid).}
+  hold_base_s: {unit: s, default: 1.0, recommended: [0.5, 10.0], range: [0.0, 655.35], doc: Hold at v_base before the step (10 ms grid).}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: short
+    doc: MFCMU averaging (short ACT 0,1 = 8 ms fits a 10 ms interval; medium ACT 0,2; long ACT 2,2 = two PLC).
+quality: {limited: [], untrusted: [U, D, V, X, C, T, F, G, S], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: ct_recovery, options: {}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind cmu_measure MM 26), 3.2 (moscap.ct), 4.2 (moscap deep depletion), 4.1 (virtual time)
+    - Programming Guide Ed. 15 C-t sampling (PDF 280-284), MDCV (PDF 467-468), MTDCV (PDF 476-477)
+    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 9; Zerbst, Z. Angew. Phys. 22, 30 (1966) (C-t recovery)
+  validation_runs: []

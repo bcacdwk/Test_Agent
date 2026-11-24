@@ -1,0 +1,65 @@
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario; device params are typed by
+# b1500_test_agent.models.sim (DEVICE_PARAMS); consumed by the simulator (transport/sim/). Name = file name. The
+# slots mirror config/station.example.yaml; `wiring` is the physical wiring of the simulated prober (independent of
+# the agent's pin map); `models` holds the truth parameters tests compare extractions against; noise, faults and
+# timing as documented in nmos_basic.yaml.
+#
+# Ferroelectric capacitors of blueprint v2 4.2 (`ferro` FeCap: Preisach-lite P(E) + linear dielectric; fidelity Pr,
+# Ps, Ec +-5 %), two identical devices on two landings (as nmos_cv carries two transistors):
+# - `dut` between the WGFMU channels 201 (top) and 202 (bottom), behind the RSUs (pin map fecap-wgfmu): PUND
+#   (fecap.pund, fecap.endurance_pund; WGFMU work packages, acceptance scenario S13);
+# - `cv` on the MFCMU (top 7H, bottom 7L; pin map fecap-cmu) behind the fixture parasitics: the C-V butterfly
+#   (fecap.cv_butterfly, WP8.4, card fecap-pund, bring-up stage L6). The small-signal capacitance is the dielectric
+#   C = eps0 eps_r A / t plus the reversible part k_rev A Ps dP/dV of the branch last travelled, so an ascending sweep
+#   peaks at +Vc and a descending one at -Vc (FecapDevice.butterfly_truth).
+# Both: 50 um x 50 um (2500 um2, the DUT profile fecap-generic's geometry), 10 nm film, Pr 20 uC/cm2, Ps 25 uC/cm2,
+# Ec 1 MV/cm (Vc = 1.0 V), eps_r 30 (C_lin = 66.4 pF), k_rev 0.05, no leakage; initial state P = 0 (virgin).
+
+description: >-
+  Two ferroelectric capacitors (10 nm HfZrO-like film, 50 um x 50 um, Pr 20 uC/cm2, Ec 1 MV/cm): `dut` between WGFMU
+  201/202 (PUND), `cv` on CMU1 (top 7H, bottom 7L) behind the fixture parasitics (C-V butterfly); instant timing.
+idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101
+slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
+  - {slot: 7, model: B1520A}
+interlock_closed: false
+wiring:
+  dut:
+    top: 201
+    bottom: 202
+  cv:
+    top: 7H
+    bottom: 7L
+  path:
+    high: 7H
+    low: 7L
+models:
+  dut:
+    model: fecap
+    params: &fecap
+      area_um2: 2500.0
+      thickness_nm: 10.0
+      pr_uc_cm2: 20.0           # truth of PUND Pr (+-5 %)
+      ps_uc_cm2: 25.0
+      ec_mv_cm: 1.0             # Vc = Ec x t = 1.0 V: the butterfly peaks at +-1.0 V (+-5 %)
+      eps_r: 30.0
+      k_rev: 0.05
+      leak_s: 0.0
+      p_init: 0.0
+  cv:
+    model: fecap
+    params: *fecap
+  path:
+    model: fixture
+    params: {}                  # blueprint 4.2 defaults (models.sim_devices.FixtureParams); TODO(verify) at M12 L6
+noise:
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  rel: 2.0e-4
+  seed: 23
+faults: null
+timing: instant

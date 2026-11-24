@@ -1,0 +1,15 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Ferroelectric capacitor on the MFCMU in slot 7 for the C-V butterfly (fecap.cv_butterfly): the top electrode on the
+# High pair (7H: DC bias sweep and AC drive), the bottom electrode on the Low pair (7L). Recipe roles bind to the
+# terminal of the same name (`top` cmu_high, `bottom` cmu_low). The phase compensation and the open/short corrections
+# are measured with this map (rule R-CORR-01).
+#
+# certainty: unverified (every plan needs confirmation, unverified_pin_map). The visa backend never reads this file.
+
+description: FeCap; top electrode on CMU1 High (7H), bottom electrode on CMU1 Low (7L).
+certainty: unverified
+terminals:
+  top: 7H
+  bottom: 7L
+notes:
+  - PUND of the same film runs through the WGFMU (pin map fecap-wgfmu); a re-landing makes the corrections stale.

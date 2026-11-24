@@ -1,0 +1,60 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOS capacitor pulsed C-V (kind cmu_measure, MM 20; MM 19 pulsed spot C when points is 1; card moscap-cv; blueprint
+# v2 3.2, bring-up stage L6): the gate rests at v_base and is pulsed to each level from v_start to v_stop (linear,
+# single or double; PWDCV), width_s wide every period_s (0 = automatic width + 2 ms; PTDCV), Cp-G (IMP 100) measured
+# during each pulse at every frequency of freqs_hz. The pulse is too short for the inversion layer to form (deep
+# depletion in inversion) and returns the gate to the base between points (a fresh trap state each point), so it
+# matches a DC C-V from accumulation in accumulation and depletion and lies below it in inversion. Width: at least
+# 8 ms above 200 kHz, 10 ms up to 200 kHz, 50 ms up to 10 kHz (PTDCV, error 284). WMDCV 2,1: automatic abort. Needs
+# fresh phase/open/short corrections at every frequency (R-CORR-01). Default analyses (moscap_fit): Cox, Vfb, Nsub;
+# compare with a DC run by cv_pulsed_vs_dc (options.reference_run). Programming Guide Ed. 15: pulsed spot C / pulsed
+# sweep C-V (PDF 261-269), PDCV (PDF 484-485), PTDCV (PDF 487-488), PWDCV (PDF 489-490), MM 19/20 (PDF 470).
+# status: sim_validated by tests/integration/test_recipes_cv_variants.py (moscap_basic: Cox +-1 %, Vfb +-20 mV of
+# the model and of the DC C-V; deep depletion in inversion); the visa path by tests/visa_loop/test_cv_visa.py;
+# hw_validated only through a reviewed validation record (stage L6).
+id: moscap.pulsed_cv
+version: 1
+title: MOS capacitor pulsed C-V (gate pulsed from a base, Cp-G during each pulse) - trap-free and deep-depletion C-V
+family: cmu
+kind: cmu_measure
+status: sim_validated
+card: .agents/skills/b1500-test/cards/cmu/moscap-cv.md
+device_types: [moscap]
+roles:
+  gate:
+    function: cmu_high
+    module_types: [MFCMU]
+    settings: {measurement: pulsed, freqs: $freqs_hz, ac: $ac_vrms, base: $v_base, start: $v_start, stop: $v_stop,
+               points: $points, mode: $sweep_mode, hold: $hold_s, width: $width_s, period: $period_s, model: cp_g}
+  bulk: {function: cmu_low, module_types: [MFCMU]}
+params:
+  freqs_hz:
+    type: float_list
+    unit: Hz
+    default: [1.0e+6]
+    range: [1.0e+3, 5.0e+6]
+    doc: Measurement frequencies, one pulsed sweep each (every one in the correction list).
+  ac_vrms: {unit: V, default: 0.03, recommended: [0.01, 0.05], range: [0.01, 0.25], doc: Oscillator level (V rms).}
+  v_base: {unit: V, default: -2.5, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: Gate level between pulses (accumulation).}
+  v_start: {unit: V, default: -2.5, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: First pulse level.}
+  v_stop: {unit: V, default: 2.0, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: Last pulse level.}
+  points: {type: int, default: 91, recommended: [51, 201], range: [1, 1001], doc: Pulse levels per sweep direction (1 = pulsed spot C with MM 19).}
+  sweep_mode: {type: enum, choices: [single, double], default: single, doc: single start->stop; double and back.}
+  hold_s: {unit: s, default: 1.0, recommended: [0.5, 5.0], range: [0.0, 60.0], doc: Hold at v_base before the first pulse (PTDCV hold).}
+  width_s: {unit: s, default: 0.01, recommended: [0.008, 0.1], range: [0.008, 10.0], doc: Pulse width (PTDCV; frequency-dependent minimum).}
+  period_s: {unit: s, default: 0.0, recommended: [0.0, 0.2], range: [0.0, 20.0], doc: Pulse period (0 = automatic width + 2 ms).}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: short
+    doc: MFCMU averaging (short ACT 0,1 = 8 ms fits a short pulse; medium ACT 0,2; long ACT 2,2).
+quality: {limited: [], untrusted: [U, D, V, X, C, T, F, G, S], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: cv_cox, options: {}}
+  - {method: cv_flatband, options: {}}
+  - {method: cv_doping_profile, options: {}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind cmu_measure MM 19/20), 3.2 (moscap.pulsed_cv), 4.2 (moscap deep depletion, border traps)
+    - Programming Guide Ed. 15 pulsed C-V (PDF 261-269), PDCV (PDF 484-485), PTDCV (PDF 487-488), PWDCV (PDF 489-490)
+  validation_runs: []

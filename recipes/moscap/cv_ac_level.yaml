@@ -1,0 +1,56 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOS capacitor C-V (AC level) sweep (kind cmu_measure, MM 23; card moscap-cv; blueprint v2 3.2, bring-up stage L6):
+# Cp-G (IMP 100) at one gate DC bias dc_v while the oscillator level steps from ac_start to ac_stop (V rms; WACV,
+# linear or log), at every frequency of freqs_hz. The MFCMU reports the fundamental of the current: on a curved C-V
+# the capacitance moves with the level (C = C0 + C'' Vac^2 / 4), so the sweep shows how large a level stays in the
+# small-signal regime. Levels above 50 mVrms need soft_cmu confirmation and stay within the DUT terminals' AC
+# envelope. WMACV 2,1: automatic abort. Needs fresh phase/open/short corrections at every frequency (R-CORR-01).
+# Default analysis: cv_ac_dependence (C0 extrapolated to 0 V rms, curvature, largest level within 1 %).
+# Programming Guide Ed. 15: C-V (AC level) sweep (PDF 270-274), WACV (PDF 547), WTACV (PDF 565-566), WMACV (PDF
+# 553-554), MM 23 (PDF 470).
+# status: sim_validated by tests/integration/test_recipes_cv_variants.py (moscap_basic: C0 within 0.5 % of the
+# small-signal model, the curvature of the model's C-V); the visa path by tests/visa_loop/test_cv_visa.py;
+# hw_validated only through a reviewed validation record (stage L6).
+id: moscap.cv_ac_level
+version: 1
+title: MOS capacitor C-V (AC level) sweep at one DC bias - small-signal limit of the oscillator level
+family: cmu
+kind: cmu_measure
+status: sim_validated
+card: .agents/skills/b1500-test/cards/cmu/moscap-cv.md
+device_types: [moscap]
+roles:
+  gate:
+    function: cmu_high
+    module_types: [MFCMU]
+    settings: {measurement: acv, freqs: $freqs_hz, ac: $ac_start, ac_stop: $ac_stop, points: $points,
+               sweep: $ac_sweep, mode: $sweep_mode, dc: $dc_v, hold: $hold_s, delay: $delay_s, model: cp_g}
+  bulk: {function: cmu_low, module_types: [MFCMU]}
+params:
+  freqs_hz:
+    type: float_list
+    unit: Hz
+    default: [1.0e+6]
+    range: [1.0e+3, 5.0e+6]
+    doc: Measurement frequencies, one AC level sweep each (every one in the correction list).
+  ac_start: {unit: V, default: 0.01, recommended: [0.01, 0.03], range: [0.01, 0.25], doc: First oscillator level (V rms).}
+  ac_stop: {unit: V, default: 0.1, recommended: [0.05, 0.1], range: [0.01, 0.25], doc: Last oscillator level (V rms; DUT ac envelope).}
+  points: {type: int, default: 10, recommended: [5, 25], range: [2, 1001], doc: Levels per sweep direction.}
+  ac_sweep: {type: enum, choices: [linear, log], default: linear, doc: Level spacing (WACV linear or log).}
+  sweep_mode: {type: enum, choices: [single, double], default: single, doc: single start->stop; double and back.}
+  dc_v: {unit: V, default: -0.6, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: Gate DC bias (the bias whose C is measured).}
+  hold_s: {unit: s, default: 0.5, recommended: [0.0, 2.0], range: [0.0, 60.0], doc: Hold at the bias before the first level (WTACV hold).}
+  delay_s: {unit: s, default: 0.0, recommended: [0.0, 0.1], range: [0.0, 10.0], doc: Delay per level step (WTACV delay).}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: MFCMU averaging (short ACT 0,1; medium ACT 0,2 = initial; long ACT 2,2 = two power-line cycles).
+quality: {limited: [], untrusted: [U, D, V, X, C, T, F, G, S], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: cv_ac_dependence, options: {}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind cmu_measure MM 23), 3.2 (moscap.cv_ac_level), 4.2 (moscap)
+    - Programming Guide Ed. 15 C-V (AC level) sweep (PDF 270-274), WACV (PDF 547), WTACV (PDF 565-566), WMACV (PDF 553-554)
+  validation_runs: []

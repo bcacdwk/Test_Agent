@@ -21,7 +21,7 @@ Owns run loading, the run-table contract, quality, extraction, plots and the met
   exceptions only for unusable calls (unknown run/column/option, declared method → `not_implemented`).
 - Definitions live in the module docstrings (`mosfet.py` ... `pulse.py`; shared `common.py`) and must match skill
   `b1500-test` knowledge `06-analysis-extraction.md` (time series, pulses, `nvm.py`: `06b-...`; `stress.py`: `05-...`;
-  `cv.py`: `08-capacitance-cv.md`); change both together. Two-run methods take `reference` (option `reference_run`).
+  `cv.py`, `cv_variants.py`: `08-...`); change both together. Two-run methods take `reference` (option `reference_run`).
 - Deterministic algorithms only (language-model text narrates, never computes). Units on every quantity; tables
   are pandas DataFrames. Plot raw data before extraction; semilog axes for currents over decades.
 - Run folders are written only by the server (`analyze_run`); ad-hoc results go to `work/<run_id>/` with the

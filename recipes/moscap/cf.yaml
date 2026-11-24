@@ -1,0 +1,55 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOS capacitor C-f sweep (kind cmu_measure, MM 22; card moscap-cf-ct; blueprint v2 3.2, bring-up stage L6): Cp-G
+# (IMP 100) at one gate DC bias dc_v over the frequency list freqs_hz, which IS the sweep: one WFC stair from its
+# first to its last frequency, equally spaced in log (default: 1 kHz to 1 MHz, 4 per decade, each value rounded to
+# the MFCMU setting resolution) or linear steps. R-CORR-01 checks the phase/open/short corrections at every listed
+# frequency, so the correction recipes run with freqs_hz = this same list first (card moscap-cf-ct). WMFC 2,1:
+# automatic abort on an unbalanced or saturated reading. At a depletion bias (between Vfb and Vth of a moscap.cv
+# run) the interface traps give the frequency dispersion; default analysis: cf_dispersion (Gp/w by Nicollian-
+# Goetzberger with Cox from options or the DUT geometry; continuum fit -> Dit and tau). Programming Guide Ed. 15:
+# C-f sweep (PDF 275-279), WFC (PDF 550-551), WTFC (PDF 567-568), WMFC (PDF 555-556), MM 22 (PDF 470-471).
+# status: sim_validated by tests/integration/test_recipes_cv_variants.py (moscap_dit: Dit at the bias within 25 %,
+# tau within 10 % of the model truth); the visa path by tests/visa_loop/test_cv_visa.py; hw_validated only through
+# a reviewed validation record (stage L6).
+id: moscap.cf
+version: 1
+title: MOS capacitor C-f sweep (Cp-G over a log or linear frequency list at one DC bias) for dispersion and Dit
+family: cmu
+kind: cmu_measure
+status: sim_validated
+card: .agents/skills/b1500-test/cards/cmu/moscap-cf-ct.md
+device_types: [moscap]
+roles:
+  gate:
+    function: cmu_high
+    module_types: [MFCMU]
+    settings: {measurement: cf, freqs: $freqs_hz, ac: $ac_vrms, dc: $dc_v, mode: $sweep_mode, hold: $hold_s,
+               delay: $delay_s, model: cp_g}
+  bulk: {function: cmu_low, module_types: [MFCMU]}
+params:
+  freqs_hz:
+    type: float_list
+    unit: Hz
+    default: [1.0e+3, 1778.279, 3162.278, 5623.413, 1.0e+4, 17782.79, 31622.78, 56234.13, 1.0e+5, 177827.9,
+              316227.8, 562341.3, 1.0e+6]
+    range: [1.0e+3, 5.0e+6]
+    doc: The C-f sweep (2..64 frequencies, equally spaced in log or linear; every one in the correction list).
+  ac_vrms: {unit: V, default: 0.03, recommended: [0.01, 0.05], range: [0.01, 0.25], doc: Oscillator level (V rms).}
+  dc_v: {unit: V, default: -0.6, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: Gate DC bias (a depletion bias for traps).}
+  sweep_mode: {type: enum, choices: [single, double], default: single, doc: single first->last frequency; double and back.}
+  hold_s: {unit: s, default: 1.0, recommended: [0.5, 5.0], range: [0.0, 60.0], doc: Hold at the bias before the first frequency (WTFC hold).}
+  delay_s: {unit: s, default: 0.0, recommended: [0.0, 0.1], range: [0.0, 10.0], doc: Delay per frequency step (WTFC delay).}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: MFCMU averaging (short ACT 0,1; medium ACT 0,2 = initial; long ACT 2,2 = two power-line cycles).
+quality: {limited: [], untrusted: [U, D, V, X, C, T, F, G, S], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: cf_dispersion, options: {}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind cmu_measure MM 22), 2.10 (cf_dispersion), 3.2 (moscap.cf), 4.2 (moscap Dit -> dispersion)
+    - Programming Guide Ed. 15 C-f sweep (PDF 275-279), WFC (PDF 550-551), WTFC (PDF 567-568), WMFC (PDF 555-556)
+    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 5 (conductance method, continuum Gp/w)
+  validation_runs: []

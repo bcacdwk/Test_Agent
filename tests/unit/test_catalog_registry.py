@@ -86,6 +86,11 @@ def test_committed_statuses() -> None:
     for recipe_id in ("cmu.spot", "moscap.cv", "mosfet.cgc_cv", "mosfet.cgd_cv"):
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
         assert registry.get(recipe_id).kind == "cmu_measure" and registry.get(recipe_id).family == "cmu"
+    # WP8.4: the C-V variants of kind cmu_measure (tests/integration/test_recipes_cv_variants.py)
+    for recipe_id in ("moscap.cv_ac_level", "moscap.pulsed_cv", "moscap.cf", "moscap.ct", "fecap.cv_butterfly"):
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+        assert registry.get(recipe_id).kind == "cmu_measure"
+    assert registry.get("fecap.cv_butterfly").family == "nvm"
     # WP9.2: kind spgu_pulse, mode route_only (tests/integration/test_recipes_selector.py)
     assert status["system.selector_check"] == ("sim_validated", "sim_validated")
     assert registry.get("system.selector_check").kind == "spgu_pulse"
@@ -138,7 +143,9 @@ def test_committed_statuses() -> None:
          "cmu.spot": "cmu/cmu-spot", "moscap.cv": "cmu/moscap-cv", "mosfet.cgc_cv": "cmu/mosfet-split-cv",
          "mosfet.cgd_cv": "cmu/mosfet-split-cv",  # WP8.3
          "fefet.pulse_write_read": "nvm/fefet-pulse-write-read",
-         "spgu.program_smu_read": "nvm/fefet-pulse-write-read"}  # WP9.4
+         "spgu.program_smu_read": "nvm/fefet-pulse-write-read",  # WP9.4
+         "moscap.cv_ac_level": "cmu/moscap-cv", "moscap.pulsed_cv": "cmu/moscap-cv", "moscap.cf": "cmu/moscap-cf-ct",
+         "moscap.ct": "cmu/moscap-cf-ct", "fecap.cv_butterfly": "nvm/fecap-pund"}  # WP8.4
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):

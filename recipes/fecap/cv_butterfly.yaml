@@ -1,0 +1,56 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Ferroelectric capacitor C-V butterfly (kind cmu_measure, MM 18 double sweep; card fecap-pund; blueprint v2 3.2,
+# bring-up stage L6): the MFCMU DC bias on the top electrode (High) sweeps v_start -> v_stop -> v_start (double) at
+# every frequency of freqs_hz, Cp-G (IMP 100), bottom electrode on the Low side (pin map fecap-cmu). The small-signal
+# capacitance (dielectric plus the reversible polarization response) peaks near the coercive voltage of the branch
+# being travelled: +Vc on the rising branch, -Vc on the falling one (the "butterfly"); the sweep itself switches the
+# film (it ends in the state of the last branch). Sweep beyond about 2 x Vc to saturate the loop, within the DUT
+# envelope. WMDCV 2,1: automatic abort. Needs fresh phase/open/short corrections at every frequency (R-CORR-01).
+# Default analysis: cv_butterfly (peak voltages of both branches -> Vc, imprint, Ec with the film thickness).
+# Programming Guide Ed. 15: C-V sweep (PDF 256-260), WDCV (PDF 549-550), WTDCV (PDF 566-567), WMDCV (PDF 554-555).
+# status: sim_validated by tests/integration/test_recipes_cv_variants.py (fecap_basic: peaks at +-Vc within 5 % of
+# the model truth); the visa path by tests/visa_loop/test_cv_visa.py; hw_validated only through a reviewed
+# validation record (stage L6).
+id: fecap.cv_butterfly
+version: 1
+title: Ferroelectric capacitor C-V butterfly (Cp-G double DC bias sweep) for the coercive voltage and imprint
+family: nvm
+kind: cmu_measure
+status: sim_validated
+card: .agents/skills/b1500-test/cards/nvm/fecap-pund.md
+device_types: [fecap]
+roles:
+  top:
+    function: cmu_high
+    module_types: [MFCMU]
+    settings: {measurement: cv, freqs: $freqs_hz, ac: $ac_vrms, start: $v_start, stop: $v_stop, points: $points,
+               mode: $sweep_mode, hold: $hold_s, delay: $delay_s, model: cp_g}
+  bottom: {function: cmu_low, module_types: [MFCMU]}
+params:
+  freqs_hz:
+    type: float_list
+    unit: Hz
+    default: [1.0e+5]
+    range: [1.0e+3, 5.0e+6]
+    doc: Measurement frequencies, one double sweep each (every one in the correction list).
+  ac_vrms: {unit: V, default: 0.03, recommended: [0.01, 0.05], range: [0.01, 0.25], doc: Oscillator level (V rms; small against Vc).}
+  v_start: {unit: V, default: -3.0, recommended: [-4.0, 4.0], range: [-25.0, 25.0], doc: Sweep start (one saturated polarity).}
+  v_stop: {unit: V, default: 3.0, recommended: [-4.0, 4.0], range: [-25.0, 25.0], doc: Sweep turning point (the other polarity).}
+  points: {type: int, default: 121, recommended: [61, 241], range: [21, 1001], doc: Bias steps per branch.}
+  sweep_mode: {type: enum, choices: [single, double], default: double, doc: double start->stop->start (both branches); single one branch.}
+  hold_s: {unit: s, default: 1.0, recommended: [0.5, 5.0], range: [0.0, 60.0], doc: Hold at v_start (poles the film) before the first step.}
+  delay_s: {unit: s, default: 0.0, recommended: [0.0, 0.1], range: [0.0, 10.0], doc: Delay per step before the measurement.}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: MFCMU averaging (short ACT 0,1; medium ACT 0,2 = initial; long ACT 2,2 = two power-line cycles).
+quality: {limited: [], untrusted: [U, D, V, X, C, T, F, G, S], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: cv_butterfly, options: {}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind cmu_measure MM 18 double), 3.2 (fecap.cv_butterfly), 4.2 (ferro FeCap)
+    - Programming Guide Ed. 15 C-V sweep (PDF 256-260), WDCV (PDF 549-550), WMDCV (PDF 554-555)
+    - Miller et al., J. Appl. Phys. 68, 6463 (1990) (polarization branches; reversible C-V peaks at +-Ec)
+  validation_runs: []

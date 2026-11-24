@@ -50,11 +50,14 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "spgu/charge-pumping": ["mosfet.charge_pumping"],  # WP9.3
     "smu/smu-search": ["mosfet.vth_search"],  # WP7.5
     "nvm/fefet-pulse-write-read": ["fefet.pulse_write_read", "spgu.program_smu_read"],  # WP9.4
+    "cmu/moscap-cf-ct": ["moscap.cf", "moscap.ct"], "nvm/fecap-pund": ["fecap.cv_butterfly"],  # WP8.4
 }
+CARDS["cmu/moscap-cv"] = ["moscap.cv", "moscap.cv_ac_level", "moscap.pulsed_cv"]  # WP8.4 adds the AC-level/pulsed C-V
 ROUTES = {"spgu/selector-check": ["selector_16440a:smu", "selector_16440a:pgu", "selector_16440a:pgu_open"],
           "spgu/spgu-pulse-train": ["selector_16440a:pgu"], "spgu/charge-pumping": ["selector_16440a:pgu"],
           "cmu/cmu-correction": ["scuu:cmu"], "cmu/moscap-cv": ["scuu:cmu"], "cmu/mosfet-split-cv": ["scuu:cmu"],
-          "nvm/fefet-pulse-write-read": ["selector_16440a:pgu", "selector_16440a:smu"]}
+          "nvm/fefet-pulse-write-read": ["selector_16440a:pgu", "selector_16440a:smu"],
+          "cmu/moscap-cf-ct": ["scuu:cmu"]}  # WP8.4
 """Cards whose recipes set switch routes (WP9.2, WP9.3; WP8.3: the MFCMU recipes through an SCUU when the pin map says
 so; WP9.4: program/read through the selector); every other card's recipes route nothing ("Routes: none")."""
 STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfet-idvg": "L4", "smu/mosfet-idvd": "L4",
@@ -65,7 +68,8 @@ STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfe
             "smu/smu-pulsed-iv": "L5", "spgu/spgu-pulse-train": "L7", "spgu/charge-pumping": "L7",
             "smu/smu-search": "L5",  # WP7.5
             "cmu/cmu-spot": "L6", "cmu/moscap-cv": "L6", "cmu/mosfet-split-cv": "L6",  # WP8.3
-            "nvm/fefet-pulse-write-read": "L7"}  # WP9.4
+            "nvm/fefet-pulse-write-read": "L7",  # WP9.4
+            "cmu/moscap-cf-ct": "L6", "nvm/fecap-pund": "L6"}  # WP8.4
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault", "cmu-correction-stale",  # WP8.2: the first v2 runbook

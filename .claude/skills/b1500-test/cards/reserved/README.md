@@ -18,7 +18,7 @@ When a request needs one of them:
 |---|---|---|
 | `wgfmu.pulsed_iv` | WGFMU fast pulsed I-V (Id-Vg/Id-Vd with short pulses) | DC staircase: [mosfet-idvg](../smu/mosfet-idvg.md), [mosfet-idvd](../smu/mosfet-idvd.md) |
 | `wgfmu.fast_bti` | WGFMU fast BTI with on-the-fly Vth monitoring (destructive) | SMU stress-measure-stress (slower reads): [bti-stress-measure](../reliability/bti-stress-measure.md) |
-| `fecap.pund` | Ferroelectric capacitor PUND (Pr, Ec) | none (FeFET: [fefet-dual-sweep-mw](../nvm/fefet-dual-sweep-mw.md)) |
+| `fecap.pund` | Ferroelectric capacitor PUND (Pr, Ec) | coercive voltage only: C-V butterfly, [fecap-pund](../nvm/fecap-pund.md) (FeFET: [fefet-dual-sweep-mw](../nvm/fefet-dual-sweep-mw.md)) |
 | `moscap.qscv` | Quasi-static C-V with SMUs | high-frequency C-V: [moscap-cv](../cmu/moscap-cv.md) |
 | `hspice.compare` | Compare a measured run with an HSPICE simulation | ad-hoc analysis of archived runs (skill part 9) |
 

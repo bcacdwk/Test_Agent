@@ -10,7 +10,12 @@ change sign, capacitances do not):
   first bracket, the minority (inversion) charge is the difference;
 - gate equation ``Vg = Vfb0 + ψ - (Qs + Qit + Qbt)/Cox`` with ``Vfb0 = φms - Qf/Cox``; interface traps with a U-shaped
   ``Dit(E)`` around midgap (neutral level at midgap) give the DC stretch-out ``Qit`` and the small-signal continuum
-  admittance ``Gp/ω = qDit·ln(1 + ω²τ²)/(2ωτ)``, ``Cit = qDit·atan(ωτ)/(ωτ)`` with ``τ = 1/(σ·v_th·(ps + ns))``;
+  admittance ``Gp/ω = qDit·ln(1 + ω²τ²)/(2ωτ)``, ``Cit = qDit·atan(ωτ)/(ωτ)`` with ``τ = 1/(σ·v_th·(ps + w·ns))``;
+  the traps exist only inside the band gap (``|E - Ei| <= Eg/2``, silicon 1.12 eV: beyond a band edge, e.g. in deep
+  depletion, ``Qit`` saturates and ``Dit`` is 0), and their exchange with the minority band responds only as far as
+  the minority carriers follow the signal (``w``: the inversion-charge weight below; 0 while the minority charge is
+  below equilibrium), so fast near-edge traps add no capacitance to an HF curve in inversion (Nicollian & Brews
+  ch. 5: the minority-carrier capture path is in series with the inversion layer's generation response);
 - the inversion charge follows the AC signal with weight ``1/(1 + (f/f_inv)²)`` (LF ↔ HF C-V) and forms with time
   constant ``tau_inv_s`` (a stored minority charge below equilibrium = deep depletion; C-t recovery);
 - border traps (C-V hysteresis) are a play operator on the gate bias; series ``rs_ohm`` and oxide leakage
@@ -40,6 +45,14 @@ from b1500_test_agent.transport.sim.devices.kinetics import play, sigmoid
 
 _EXP_CAP = 600.0
 """Exponent above which ``_exp`` continues linearly (monotonic, finite; only deep-depletion brackets get there)."""
+
+GAP_HALF_EV = 0.56
+"""Half the silicon band gap (1.12 eV at 300 K, Sze & Ng table 1.1): interface traps lie within ``|E - Ei| <= 0.56``
+eV of midgap (the model's neutral level)."""
+
+CONTINUUM_PEAK_WT = 1.9803
+"""``ωτ`` at the maximum of the continuum ``Gp/ω = qDit·ln(1 + ω²τ²)/(2ωτ)`` (root of ``2x² = (1 + x²) ln(1 + x²)``;
+the peak value is ``0.4024·qDit``; Nicollian & Brews eq. 5.36)."""
 
 
 def _exp(x: float) -> float:
@@ -122,7 +135,10 @@ class MosElectrostatics:
     # -- interface traps -----------------------------------------------------------------------------------------------
 
     def dit(self, e: float) -> float:
-        """Interface-trap density (cm⁻²eV⁻¹) at energy ``e`` (eV) from midgap."""
+        """Interface-trap density (cm⁻²eV⁻¹) at energy ``e`` (eV) from midgap; 0 outside the band gap
+        (``GAP_HALF_EV``)."""
+        if abs(e) > GAP_HALF_EV:
+            return 0.0
         return self.dit_mid + self.dit_edge * (math.cosh(e / self.dit_width) - 1.0)
 
     def surface_energy(self, psi: float) -> float:
@@ -130,29 +146,32 @@ class MosElectrostatics:
         return psi - self.phi_b
 
     def q_it(self, psi: float) -> float:
-        """Interface-trap charge (C/cm²): ``-q·∫₀^e Dit``, ``e = ψ - φB`` (traps filled up to the Fermi level)."""
+        """Interface-trap charge (C/cm²): ``-q·∫₀^e Dit``, ``e = ψ - φB`` (traps filled up to the Fermi level),
+        constant beyond a band edge (no traps outside the gap)."""
         if self.dit_mid == 0.0 and self.dit_edge == 0.0:
             return 0.0
-        e, w = self.surface_energy(psi), self.dit_width
+        e, w = min(max(self.surface_energy(psi), -GAP_HALF_EV), GAP_HALF_EV), self.dit_width
         return -Q_E * (self.dit_mid * e + self.dit_edge * (w * math.sinh(e / w) - e))
 
     def c_it_lf(self, psi: float) -> float:
         """Low-frequency interface-trap capacitance ``q·Dit(e)`` (F/cm²)."""
         return Q_E * self.dit(self.surface_energy(psi))
 
-    def tau_it(self, psi: float) -> float:
-        """Interface-trap time constant ``1/(σ·v_th·(ps + ns))`` at the surface (s)."""
+    def tau_it(self, psi: float, minority: float = 1.0) -> float:
+        """Interface-trap time constant ``1/(σ·v_th·(ps + minority·ns))`` at the surface (s); ``minority`` (0..1) is
+        the share of the minority-band exchange that follows the signal (1: quasi-static, DC)."""
         x = psi / self.ut
         ps = self.na * _exp(-x)
         ns = self.ni * self.ni / self.na * _exp(x)
-        return 1.0 / (self.sigma * self.v_thermal * (ps + ns))
+        return 1.0 / (self.sigma * self.v_thermal * (ps + minority * ns))
 
-    def y_it(self, psi: float, omega: float) -> complex:
-        """Continuum interface-trap admittance ``Gp + jω·Cit`` (S/cm²; Nicollian & Brews eq. 5.36)."""
+    def y_it(self, psi: float, omega: float, minority: float = 1.0) -> complex:
+        """Continuum interface-trap admittance ``Gp + jω·Cit`` (S/cm²; Nicollian & Brews eq. 5.36) with the time
+        constant ``tau_it(psi, minority)``."""
         c_lf = self.c_it_lf(psi)
         if c_lf == 0.0:
             return 0j
-        tau = self.tau_it(psi)
+        tau = self.tau_it(psi, minority)
         wt = omega * tau
         return complex(c_lf * math.log1p(wt * wt) / (2.0 * tau), c_lf * math.atan(wt) / tau)
 
@@ -202,9 +221,11 @@ class MosElectrostatics:
 
     def semiconductor_admittance(self, psi: float, omega: float, *, minority_eq: bool, w_inv: float) -> complex:
         """Small-signal admittance (S/cm²) of the semiconductor at ``ψ``: majority response, the AC-following part
-        ``w_inv`` of the inversion response (only while the minority charge is at equilibrium) and interface traps."""
-        c_s = self.c_bulk(psi) + (w_inv * self.c_inv_eq(psi) if minority_eq else 0.0)
-        return complex(0.0, omega * c_s) + self.y_it(psi, omega)
+        ``w_inv`` of the inversion response (only while the minority charge is at equilibrium) and interface traps
+        (their minority-band exchange weighted the same way)."""
+        follow = w_inv if minority_eq else 0.0
+        c_s = self.c_bulk(psi) + follow * self.c_inv_eq(psi)
+        return complex(0.0, omega * c_s) + self.y_it(psi, omega, follow)
 
 
 class MoscapDevice:
@@ -302,6 +323,14 @@ class MoscapDevice:
         """Truth: parallel capacitance at ``v`` with no inversion charge formed (a step from accumulation, t = 0)."""
         return parallel_capacitance(self._admittance(v, f, 0.0, self.s_bt), f)
 
+    def transient_capacitance(self, v: float, f: float, t: float, q_start: float = 0.0) -> float:
+        """Truth: parallel capacitance ``t`` seconds after a step to ``v`` from a stored minority charge ``q_start``
+        (C/cm²; 0 after accumulation): the inversion charge relaxes to equilibrium with ``tau_inv_s`` (C-t recovery,
+        a pulsed C-V point; border traps as now)."""
+        q_eq = self.es.q_inv_eq(self.surface_potential(v))
+        q_inv = q_eq if q_start >= q_eq else q_eq - (q_eq - q_start) * math.exp(-t / self.params.tau_inv_s)
+        return parallel_capacitance(self._admittance(v, f, q_inv, self.s_bt), f)
+
     # -- device protocol -----------------------------------------------------------------------------------------------
 
     def terminal_currents(self, v: Voltages) -> dict[str, float]:
@@ -369,6 +398,18 @@ class MoscapDevice:
     def dit_at(self, v: float) -> float:
         """Interface-trap density (cm⁻²eV⁻¹) at the surface Fermi level for the equilibrium gate bias ``v``."""
         return self.es.dit(self.es.surface_energy(self.surface_potential(v)))
+
+    def interface_trap_truth(self, v: float, f: float | None = None) -> dict[str, float]:
+        """Truth of a conductance (C-f) measurement at the equilibrium gate bias ``v`` (current border-trap state):
+        surface potential ``psi_v`` and trap energy ``e_minus_ei_ev`` (``ψ - φB``; both in the p-substrate frame),
+        ``dit_cm2_ev`` there and the trap time constant ``tau_s`` (minority exchange weighted as at frequency ``f``;
+        quasi-static without ``f``), with the frequency of the continuum ``Gp/ω`` peak, ``f_peak_hz = 1.98/(2π τ)``."""
+        psi = self.surface_potential(v)
+        minority = 1.0 if f is None else 1.0 / (1.0 + (f / self.params.f_inv_hz) ** 2)
+        tau = self.es.tau_it(psi, minority)
+        return {"psi_v": psi, "e_minus_ei_ev": self.es.surface_energy(psi),
+                "dit_cm2_ev": self.es.dit(self.es.surface_energy(psi)), "tau_s": tau,
+                "f_peak_hz": CONTINUUM_PEAK_WT / (2.0 * math.pi * tau)}
 
     def hysteresis_truth(self, v_start: float, v_stop: float) -> dict[str, float]:
         """Flatband voltages of a quasi-static double sweep ``v_start → v_stop → v_start`` from the current state,

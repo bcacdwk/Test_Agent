@@ -31,7 +31,8 @@ M1 = {"quality_report", "vth_linear_extrapolation"}
 M2 = {"vth_constant_current", "vth_max_gm", "subthreshold_swing", "gm_max", "ion_ioff", "output_metrics",
       "resistance", "diode_fit", "leakage_at", "memory_window", "plot_iv"}
 M5 = {"plot_timeseries"}
-M8 = {"cv_cox", "cv_flatband", "cv_doping_profile", "cv_vth", "cv_hysteresis", "impedance_convert", "plot_cv"}  # WP8.3
+M8 = {"cv_cox", "cv_flatband", "cv_doping_profile", "cv_vth", "cv_hysteresis", "impedance_convert", "plot_cv",  # WP8.3
+      "cf_dispersion", "ct_recovery", "cv_ac_dependence", "cv_butterfly", "cv_pulsed_vs_dc"}  # WP8.4
 M7 = {"sampling_summary", "time_to_breakdown", "dibl", "body_effect", "forward_voltage",  # WP7.4, WP7.2
       "kelvin_resistance", "zero_floor",  # WP7.1
       "bti_power_law", "degradation_vs_time", "silc",  # WP7.6
@@ -205,7 +206,8 @@ def test_methods_for_a_family() -> None:
     assert {"quality_report", "vth_linear_extrapolation", "resistance", "plot_iv", "plot_timeseries"} <= smu
     assert {m.name for m in methods_for("nvm")} >= {"memory_window", "quality_report", "plot_timeseries"}
     assert "resistance" not in {m.name for m in methods_for("nvm")}
-    assert {m.name for m in methods_for("cmu")} == {"quality_report", "plot_timeseries", *M8}
+    assert {m.name for m in methods_for("cmu")} == {"quality_report", "plot_timeseries", *M8} - {"cv_butterfly"}
+    assert {"cv_butterfly", "plot_cv", "impedance_convert"} <= {m.name for m in methods_for("nvm")}  # WP8.4: FeCap C-V
     assert {m.name for m in methods_for("system")} == {"quality_report", "plot_iv", "plot_timeseries", "zero_floor"}
     assert {"kelvin_resistance", "zero_floor"} <= {m.name for m in methods_for("smu")}
     with pytest.raises(InvalidInputError, match="family"):

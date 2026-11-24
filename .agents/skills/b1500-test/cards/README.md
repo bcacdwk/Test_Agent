@@ -34,7 +34,8 @@ MFCMU (SCUU when declared): corrections, C-V, C-f, C-t, Dit, split C-V.
 |---|---|---|---|---|---|---|
 | cmu | phase compensation, open correction, short correction, load correction, CMU correction, R-CORR-01, ADJ, CORR? | [cmu-correction](cmu/cmu-correction.md) | `cmu.phase_compensation`, `cmu.correction_open`, `cmu.correction_short`, `cmu.correction_load` | sim_validated | MFCMU | L6 |
 | cmu | spot C, capacitance, known capacitor, 100 pF standard, Cp, Cs, impedance, Z-theta, D factor, correction check | [cmu-spot](cmu/cmu-spot.md) | `cmu.spot` | sim_validated | MFCMU | L6 |
-| cmu | C-V, MOS capacitor, MOS-C, Cox, EOT, flatband, Vfb, doping, Nsub, 1/C^2, hysteresis, SCUU same landing | [moscap-cv](cmu/moscap-cv.md) | `moscap.cv` | sim_validated | MFCMU | L6 |
+| cmu | C-f, frequency dispersion, conductance Gp/w, Dit, interface traps, trap time constant, C-t, transient, deep depletion, recovery, generation, inversion layer formation | [moscap-cf-ct](cmu/moscap-cf-ct.md) | `moscap.cf`, `moscap.ct` | sim_validated | MFCMU | L6 |
+| cmu | C-V, MOS capacitor, Cox, EOT, flatband Vfb, doping Nsub, hysteresis, SCUU same landing, AC level, small signal, pulsed C-V, deep depletion | [moscap-cv](cmu/moscap-cv.md) | `moscap.cv`, `moscap.cv_ac_level`, `moscap.pulsed_cv` | sim_validated | MFCMU | L6 |
 | cmu | split C-V, split CV, Cgc, Cgd, gate capacitance, gate-channel, gate-drain, Miller, Cox\*W\*L, EOT, inversion charge | [mosfet-split-cv](cmu/mosfet-split-cv.md) | `mosfet.cgc_cv`, `mosfet.cgd_cv` | sim_validated | MFCMU, MPSMU, HRSMU, GNDU | L6 |
 | cmu | reserved: Quasi-static C-V with SMUs | [reserved](reserved/README.md) | `moscap.qscv` | not_implemented | - | - |
 
@@ -62,6 +63,7 @@ Ferroelectric memory: FeFET memory window, program/read, switching kinetics, end
 
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
+| nvm | FeCap, ferroelectric capacitor, C-V butterfly, coercive voltage, coercive field, Ec, Vc, imprint, HZO, PUND, remanent polarization, Pr | [fecap-pund](nvm/fecap-pund.md) | `fecap.cv_butterfly` | sim_validated | MFCMU | L6 |
 | nvm | FeFET, memory window, hysteresis, dual sweep, Vth_fwd/Vth_rev | [fefet-dual-sweep-mw](nvm/fefet-dual-sweep-mw.md) | `fefet.dual_sweep_mw` | sim_validated | HRSMU, MPSMU, GNDU | L7 |
 | nvm | FeFET, memory window from pulses, program pulse, erase pulse, write read, program verify, pulse then read, SPGU program SMU read | [fefet-pulse-write-read](nvm/fefet-pulse-write-read.md) | `fefet.pulse_write_read`, `spgu.program_smu_read` | sim_validated | HVSPGU, HRSMU, MPSMU, GNDU | L7 |
 | nvm | reserved: Ferroelectric capacitor PUND (positive-up-negative-down) | [reserved](reserved/README.md) | `fecap.pund` | not_implemented | - | - |

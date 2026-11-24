@@ -101,7 +101,8 @@ slide 13 and the deck text.
 
 ## FeCap P-V and PUND
 
-Reserved (`fecap.pund`, `not_implemented`). Seeded from deck slide 13.
+Reserved (`fecap.pund`, `not_implemented`). Seeded from deck slide 13. The coercive voltage is measurable now by the
+MFCMU C-V butterfly (`fecap.cv_butterfly`, card `fecap-pund`; [08](08-capacitance-cv.md#fecap-c-v-butterfly)).
 
 - P-V loop: apply a triangular voltage across the capacitor and integrate the current: P = (1/A) integral of I dt.
   Leakage and linear (dielectric) displacement current distort the loop and fake extra polarization.

@@ -1,0 +1,53 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Junction breakdown voltage by linear search (blueprint v2 3.1, kind smu_search MM 14): the anode steps from v_start
+# towards v_stop (reverse bias: a negative v_stop) in v_step increments until its own current reaches the breakdown
+# criterion i_bd (magnitude; its polarity follows the ramp); the instrument returns the anode voltage of that step
+# (the breakdown voltage at i_bd, within one step) and the current it read. icomp limits the current after breakdown
+# (at least i_bd: PG error 275). DESTRUCTIVE (avalanche or hard breakdown can change the junction): every plan needs
+# confirmation (destructive); levels beyond the DUT profile also need dut_envelope. Automatic abort on any other
+# compliance or oscillation (LSM 2; the source returns to start).
+# status: sim_validated by tests/integration/test_recipes_search.py (diode_basic: breakdown at 1 uA within one step of
+# the model's soft breakdown).
+id: basic.breakdown_search
+version: 1
+title: Breakdown voltage at a current criterion by linear search (junction ramp; destructive)
+family: reliability
+kind: smu_search
+status: sim_validated
+card: .agents/skills/b1500-test/cards/reliability/tddb-bdv.md
+device_types: [diode]
+roles:
+  anode:
+    function: sweep_v
+    measure: [I]
+    module_types: [HRSMU, MPSMU, HPSMU]
+    settings: {search: linear, start: $v_start, stop: $v_stop, step: $v_step, icomp: $icomp, target: $i_bd,
+               hold: $hold_s, delay: $delay_s}
+  cathode: {function: ground, allow_gndu: true}
+params:
+  v_start: {unit: V, default: 0.0, recommended: [-1.0, 0.0], range: [-42.0, 42.0], doc: Ramp start.}
+  v_stop: {unit: V, range: [-42.0, 42.0],
+           doc: "Ramp end (required; reverse bias of the junction, beyond the expected breakdown)."}
+  v_step: {unit: V, default: 0.1, recommended: [0.02, 0.5], range: [0.005, 5.0],
+           doc: "Step magnitude = the resolution of the result (at most 1001 steps)."}
+  i_bd: {unit: A, default: 1.0e-6, recommended: [1.0e-7, 1.0e-4], range: [1.0e-10, 0.1],
+         doc: "Breakdown current criterion (magnitude)."}
+  icomp: {unit: A, default: 1.0e-3, recommended: [1.0e-5, 1.0e-2], range: [1.0e-9, 0.1],
+          doc: "Current compliance (post-breakdown current limit, at least i_bd)."}
+  hold_s: {unit: s, default: 0.0, range: [0.0, 30.0], doc: "Hold before the first step (LSTM hold, 10 ms steps)."}
+  delay_s: {unit: s, default: 0.0, recommended: [0.0, 0.05], range: [0.0, 1.0],
+            doc: "Delay per step before the measurement (LSTM delay)."}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: short
+    doc: ADC preset (short keeps the time near breakdown small).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: breakdown_voltage}
+always_confirm: [destructive]
+provenance:
+  sources:
+    - blueprint v2 3.1 row basic.breakdown_search, 2.7 kind smu_search
+    - Programming Guide Ed. 15 linear search PDF 110-111 (printed 2-22 to 2-23), example Table 3-11 PDF 219-221, LGI PDF 443, LSM PDF 454-455, LSTM/LSV PDF 459-460, LSVM PDF 460
+  validation_runs: []

@@ -1,0 +1,7 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 217-218 (printed 3-37 to 3-38): Table 3-10 quasi-pulsed spot measurement example (MM 9,collector; BDT 0,0; BDM 0,0; BDV collector,0,0,100,0.005), printed result "BVceo (V), Status: 7.759, CCV", read as Left(data1, 3) status and Mid(data1, 4, 12) value; data format PDF 47 (printed 1-27), status C Table 1-10 PDF 53
+# kind: fmt1
+# command: FMT 1; MM 9,3; BDT 0,0; BDM 0,0; BDV 3,0,0,100,0.005; XE
+# terminator: crlf
+# note: the manual prints the header CCV (status C: the source reached its compliance at the breakdown; channel C = slot 3; data type V) and the value 7.759; the 12-digit field is written in the formatter's engineering form
+# point: C C V +7.75900E+00
+CCV+7.75900E+00

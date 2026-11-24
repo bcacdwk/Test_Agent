@@ -1,0 +1,66 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Dielectric breakdown voltage (blueprint v2 3.1, kind smu_search): method quasi_pulsed (MM 9, BDV) ramps the gate
+# electrode from v_start towards v_stop as a quasi-pulse; when the film breaks down the source reaches its compliance
+# icomp, the settling detection stops and the gate voltage there is measured (status C): the breakdown voltage. The
+# quasi-pulse needs |v_stop - v_start| >= 10 V and a 10 V change from v_start before the compliance (else status S,
+# PG p53 (1-33)): films that break below v_start + 10 V use method linear, a voltage ramp (MM 14) in v_step increments
+# until the gate current reaches i_bd (JEDEC JESD35 V-ramp style; the result within one step). The other electrode(s)
+# on ground. DESTRUCTIVE: every plan needs confirmation (destructive). A sacrificial site sets the TDDB stress level
+# (80-95 % of BDV; reliability.tddb_cvs).
+# status: sim_validated by tests/integration/test_recipes_search.py (dielectric_tddb: linear ramp, BDV 6.0 V within 2 %;
+# dielectric_thick: quasi-pulsed, BDV 24 V within 2 %; quasi-pulsed on the 6 V film reads status S).
+id: dielectric.bdv
+version: 1
+title: Dielectric breakdown voltage - quasi-pulsed ramp (MM 9) or linear voltage ramp (MM 14); destructive
+family: reliability
+kind: smu_search
+status: sim_validated
+card: .agents/skills/b1500-test/cards/reliability/tddb-bdv.md
+device_types: [dielectric, moscap, nmos, pmos]
+roles:
+  gate:
+    function: sweep_v
+    measure: [V, I]
+    module_types: [HRSMU, MPSMU, HPSMU]
+    settings: {search: $method, start: $v_start, stop: $v_stop, step: $v_step, icomp: $icomp, target: $i_bd,
+               interval: $interval, hold: $hold_s, delay: $delay_s}
+  bulk: {function: ground, allow_gndu: true}
+  source: {function: ground, allow_gndu: true, optional: true}
+  drain: {function: ground, allow_gndu: true, optional: true}
+params:
+  method:
+    type: enum
+    choices: [quasi_pulsed, linear]
+    default: quasi_pulsed
+    doc: "quasi_pulsed (MM 9, needs a breakdown 10 V or more from v_start) or linear (MM 14 voltage ramp)."
+  v_start: {unit: V, default: 0.0, range: [-42.0, 42.0], doc: Ramp start.}
+  v_stop: {unit: V, range: [-42.0, 42.0],
+           doc: "Ramp end (required; beyond the expected breakdown; quasi_pulsed: |v_stop - v_start| >= 10 V)."}
+  v_step: {unit: V, default: 0.05, recommended: [0.01, 0.2], range: [0.005, 2.0],
+           doc: "linear: step magnitude = the resolution of the result (at most 1001 steps)."}
+  icomp: {unit: A, default: 1.0e-3, recommended: [1.0e-5, 1.0e-2], range: [1.0e-9, 0.1],
+          doc: "Breakdown current limit (quasi_pulsed: the detection criterion; linear: at least i_bd)."}
+  i_bd: {unit: A, default: 1.0e-4, recommended: [1.0e-6, 1.0e-3], range: [1.0e-10, 0.1],
+         doc: "linear: breakdown current criterion (magnitude)."}
+  interval:
+    type: enum
+    choices: [short, long]
+    default: short
+    doc: "quasi_pulsed: settling detection interval (long for stray capacitance or icomp below 1 uA)."
+  hold_s: {unit: s, default: 0.0, range: [0.0, 30.0], doc: "Hold at v_start before the ramp (10 ms steps)."}
+  delay_s: {unit: s, default: 0.0, range: [0.0, 1.0], doc: "Delay before the measurement (quasi_pulsed) or per step."}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: short
+    doc: ADC preset.
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: breakdown_voltage}
+always_confirm: [destructive]
+provenance:
+  sources:
+    - blueprint v2 3.1 row dielectric.bdv, 4.2 dielectric (BDV +/-2 %), 2.7 kind smu_search
+    - Programming Guide Ed. 15 quasi-pulsed spot PDF 106-107 (printed 2-18 to 2-19), example Table 3-10 PDF 216-218, BDM PDF 364, BDT/BDV PDF 365-366; linear search PDF 110-111, LSV PDF 459-460
+    - JEDEC JESD35-A (procedure for the wafer-level testing of thin dielectrics, voltage ramp)
+  validation_runs: []

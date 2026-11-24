@@ -119,6 +119,19 @@ Implemented (`reliability.tddb_cvs`, kind `smu_sampling`, card `tddb-bdv`; WP7.4
 - Destructive by definition: one site per stress, explicit human confirmation (`destructive`), never re-stress a
   broken site.
 
+## Breakdown voltage ramps
+
+Implemented (`dielectric.bdv`, `basic.breakdown_search`, kind `smu_search`, card `tddb-bdv`; WP7.5).
+
+- Dielectric BDV (breakdown field E_bd = BDV / t_ox, about 10-14 MV/cm for SiO2): a voltage ramp until the current
+  jumps (JEDEC JESD35 V-ramp; linear search MM 14 within one step) or a quasi-pulse (MM 9) that stops where the source
+  hits its compliance; MM 9 needs the breakdown 10 V or more above the start, so thin films (BDV < 10 V) use the ramp.
+  Ramp rate and criterion set the value (faster ramps give higher BDV): report both. Choose the TDDB stress at
+  80-95 % of BDV from sacrificial sites.
+- Junction breakdown (avalanche or Zener): BV is quoted at a current criterion (e.g. 1 uA); a linear search
+  (`basic.breakdown_search`) returns the first step reaching it; the compliance limits the post-breakdown current.
+- Destructive: one site per ramp, explicit confirmation (`destructive`).
+
 ## Interface traps Dit
 
 Seeded from deck slide 14 (high Dit stretches C-V curves and increases SS).

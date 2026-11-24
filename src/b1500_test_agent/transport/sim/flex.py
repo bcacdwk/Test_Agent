@@ -126,6 +126,15 @@ ERROR_MESSAGES: dict[int, str] = {
     238: "Too large pulse width (max. 2 s).",
     239: "Pulse width must be 0.01 ms or more.",
     227: "Sweep measurement was aborted.",
+    270: "Search source channel must be set.",
+    271: "Search monitor channel must be set.",
+    273: "Search and sync output modes must be the same.",
+    275: "Search target must be compliance value or less.",
+    276: "Start and stop must be different.",
+    277: "Step must be output resolution or more.",
+    278: "Search and sync channels must be different.",
+    279: "Search monitor mode must be compliance side.",
+    610: "Quasi-pulse source channel must be set.",
     280: "Send WDCV to set CV sweep source.",
     281: "Send PDCV to set CV pulse source.",
     282: "Send PWDCV to set CV pulse sweep source.",
@@ -177,7 +186,7 @@ ERROR_MESSAGES: dict[int, str] = {
 }
 """``ERRX?`` messages for the codes the simulator raises (PG PDF 575-587; 305 from the ``ERRX?`` example, PDF 432;
 the MFCMU and SCUU codes 280-290, 320-323 and 671-685 from PDF 582-583 and 586-587; the SPGU operation errors
-2000-2204 from PDF 590-593)."""
+2000-2204 from PDF 590-593; the search codes 270-279 and 610 from PDF 581-582 and 584, WP7.5)."""
 
 
 def error_message(code: int) -> str:
@@ -205,6 +214,12 @@ SAMPLING_COMMANDS = frozenset({"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"})
 PULSED_COMMANDS = frozenset({"PT", "PV", "PI", "PWV", "PWI", "MCPT", "MCPNT", "MCPNX", "MCPWS", "MCPWNX"})
 """The SMU pulsed setup (``MM 3/4/5/27/28``, ``units/pulsed.py``, v2 kind ``smu_pulsed``, WP7.3)."""
 
+SEARCH_COMMANDS = frozenset({
+    "LSV", "LSI", "LGV", "LGI", "LSM", "LSTM", "LSSV", "LSSI", "LSVM",
+    "BSV", "BSI", "BGV", "BGI", "BSM", "BST", "BSSV", "BSSI", "BSVM", "BDV", "BDT", "BDM",
+})  # fmt: skip
+"""The SMU search and quasi-pulsed setup (``MM 14/15/9``, ``units/search.py``, v2 kind ``smu_search``, WP7.5)."""
+
 CMU_COMMANDS = frozenset({
     "IMP", "FC", "ACV", "DCV", "RC", "ACT", "LMN", "WDCV", "WTDCV", "WMDCV", "WFC", "WTFC", "WMFC", "WACV", "WTACV",
     "WMACV", "PDCV", "PTDCV", "PWDCV", "MDCV", "MTDCV", "ADJ", "CORRL", "CLCORR", "DCORR", "CORRDT", "CORRST",
@@ -212,7 +227,7 @@ CMU_COMMANDS = frozenset({
 """MFCMU setting commands (WP8.1, blueprint v2 4.1; their queries ``ADJ?``, ``CORR?``, ``CORRST?`` and, WP8.2,
 ``CORRL?``, ``DCORR?`` are in ``QUERIES``)."""
 
-SUPPORTED = QUERIES | SAMPLING_COMMANDS | PULSED_COMMANDS | CMU_COMMANDS | frozenset({
+SUPPORTED = QUERIES | SAMPLING_COMMANDS | PULSED_COMMANDS | SEARCH_COMMANDS | CMU_COMMANDS | frozenset({
     "*RST", "FMT", "BC", "TSC", "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "RI", "RV",
     "MM", "CMM", "DV", "WV", "WT", "WM", "XE", "CM",
     "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
@@ -226,8 +241,9 @@ state queries of the bring-up probe, v2 7.1: ``ERMOD?``, ``ERSSP?``, ``SPST?``, 
 sampling commands of WP7.4 and the v2 sweep sources of WP7.2: ``DI``, ``WI``, ``WSV``/``WSI``, ``WNX``/``WNCC`` with
 ``MM 16``), the ASU commands of WP7.1 (``SAP``, ``SAR``, ``SAL`` with ``*LRN?`` types 62 and 63), the MFCMU and
 SCUU commands of WP8.1 with ``MM`` 17-26 and ``*LRN?`` types 70-73, 80, 81, 90, the HV-SPGU commands of WP9.1,
-the 16440A selector settings ``ERMOD``/``ERSSP`` of WP9.2 and the SMU pulsed commands of WP7.3 with ``MM`` 3, 4, 5,
-27, 28; anything else is error 100 and logged ``unsupported``."""
+the 16440A selector settings ``ERMOD``/``ERSSP`` of WP9.2, the SMU pulsed commands of WP7.3 with ``MM`` 3, 4, 5,
+27, 28 and the SMU search commands of WP7.5 with ``MM`` 9, 14, 15; anything else is error 100 and logged
+``unsupported``."""
 
 ALONE_ONLY = frozenset({"AB", "*RST", "FMT", "BC"})
 """Mnemonics that must be sent alone: the simulator rejects the whole line (error 103) otherwise (PDF 44, 364,
@@ -236,6 +252,7 @@ driver bug is loud."""
 
 SOURCE_COMMANDS = frozenset({
     "DV", "DI", "WV", "WI", "WSV", "WSI", "WNX", "MV", "MI", "PV", "PI", "PWV", "PWI", "MCPNX", "MCPWNX",
+    "LSV", "LSI", "LSSV", "LSSI", "BSV", "BSI", "BSSV", "BSSI", "BDV",
     "ACV", "DCV", "WDCV", "WACV", "PDCV", "PWDCV", "MDCV", "SSP",
 })  # fmt: skip
 """Commands that set an output level or connect an output (the safety spy watches these): the SMU sources, the MFCMU

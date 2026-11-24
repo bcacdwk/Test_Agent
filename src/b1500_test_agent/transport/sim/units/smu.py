@@ -14,7 +14,8 @@ dispatched by measurement mode in ``units/cmu.py`` (WP8.1): the MFCMU modes ther
 limits Tables 4-6/4-7 (PDF 341-342); interlock in the high-voltage state 577; multi-channel sweep 102-103; errors
 220, 223, 224 (PDF 578-579).
 ``MM 10`` (sampling) triggers are handed to ``SamplingUnit._start_sampling`` (``units/sampling.py``, WP7.4), the pulsed
-modes ``MM 3/4/5/27/28`` to ``PulsedUnit._start_pulsed`` (``units/pulsed.py``, WP7.3); ``WSV``/``WSI`` may follow a
+modes ``MM 3/4/5/27/28`` to ``PulsedUnit._start_pulsed`` (``units/pulsed.py``, WP7.3), the search modes ``MM 9/14/15``
+to ``SearchUnit._start_search`` (``units/search.py``, WP7.5); ``WSV``/``WSI`` may follow a
 ``PWV``/``PWI`` pulsed sweep and ``WNX`` (N = 1-10) the ``MCPWS`` steps of MM 28 when no ``WV``/``WI`` primary is set.
 While an HV-SPGU output runs, a spot or sweep step reads the time average over the train
 (``SpguUnit._spgu_pulse_currents``, WP9.3: charge pumping).
@@ -46,6 +47,10 @@ PULSED_MODES = frozenset({3, 4, 5, 27, 28})
 
 PULSED_SINGLE_CHANNEL_MODES = frozenset({3, 4, 5})
 """Pulsed modes whose ``MM`` takes exactly one measurement channel (PDF 470)."""
+
+SEARCH_MODES = frozenset({9, 14, 15})
+"""``MM 9[,ch]`` quasi-pulsed spot, ``MM 14``/``MM 15`` linear/binary search (no channel), evaluated by
+``SearchUnit`` (``units/search.py``, WP7.5; PDF 470-471)."""
 
 OVERRANGE = 1.15
 """Fixed current range overflow threshold, as a fraction of full scale (simulator convention)."""
@@ -190,18 +195,20 @@ class SmuUnit:
 
     def _cmd_mm(self, cmd: flex.Command) -> None:
         """``MM 1|2|10|16,ch...``: spot, staircase sweep, sampling (``units/sampling.py``) or multi-channel sweep;
-        ``MM 3|4|5,ch`` (one channel) and ``MM 27|28,ch...``: the pulsed modes (``units/pulsed.py``, WP7.3); other
-        modes are unsupported (PDF 470-471)."""
+        ``MM 3|4|5,ch`` (one channel) and ``MM 27|28,ch...``: the pulsed modes (``units/pulsed.py``, WP7.3); ``MM
+        9[,ch]``, ``MM 14``, ``MM 15``: the search modes (``units/search.py``, WP7.5); other modes are unsupported
+        (PDF 470-471)."""
         if not cmd.args:
             raise flex.FlexError(flex.ERR_TERMINATOR)
         mode = flex.integer(cmd.args[0])
         if not 1 <= mode <= 28:
             raise flex.FlexError(flex.ERR_PARAMETER)
-        if mode not in (1, 2, 10, MULTI_CHANNEL_SWEEP, *PULSED_MODES):
+        if mode not in (1, 2, 10, MULTI_CHANNEL_SWEEP, *PULSED_MODES, *SEARCH_MODES):
             raise Unsupported(f"MM {mode}")
         channels = [self._smu(a) for a in cmd.args[1:]]
-        limit = 1 if mode in PULSED_SINGLE_CHANNEL_MODES else 10
-        if not 1 <= len(channels) <= limit or len(set(channels)) != len(channels):
+        low, limit = (0, 1) if mode == 9 else (0, 0) if mode in SEARCH_MODES else (
+            1, 1 if mode in PULSED_SINGLE_CHANNEL_MODES else 10)
+        if not low <= len(channels) <= limit or len(set(channels)) != len(channels):
             raise flex.FlexError(flex.ERR_CHANNEL_COUNT)
         self._mm = (mode, channels)
 
@@ -544,6 +551,9 @@ class SmuUnit:
             return
         if mode in PULSED_MODES:
             self._start_pulsed(mode, channels)
+            return
+        if mode in SEARCH_MODES:
+            self._start_search(mode, channels)
             return
         sweep = self._staircase(mode)
         for channel in [*channels, *(src.channel for src in sweep.sources)] if sweep else channels:

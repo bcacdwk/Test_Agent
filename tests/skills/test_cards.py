@@ -33,7 +33,7 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "nvm/fefet-dual-sweep-mw": ["fefet.dual_sweep_mw"],
     "system/self-test-cal": ["system.self_test", "system.self_cal"],
     "smu/smu-sampling": ["mosfet.id_t_sampling", "generic.smu_sampling"],  # WP7.4
-    "reliability/tddb-bdv": ["reliability.tddb_cvs"],  # WP7.4 (CVS part; WP7.5 adds the BDV recipes)
+    "reliability/tddb-bdv": ["reliability.tddb_cvs", "dielectric.bdv", "basic.breakdown_search"],  # WP7.4, WP7.5
     "smu/smu-spot-kelvin": ["generic.smu_spot", "resistor.kelvin_4w", "generic.smu_multi_sweep"],  # WP7.1, WP7.2
     "system/zero-check": ["system.zero_check"],  # WP7.1
     "reliability/bti-stress-measure": ["reliability.bti_sms"],  # WP7.6 (WP10.7 adds wgfmu.fast_bti)
@@ -46,6 +46,7 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
                           "generic.smu_multi_pulsed"],  # WP7.3
     "spgu/spgu-pulse-train": ["spgu.pulse_train", "spgu.alwg_sequence"],  # WP9.3
     "spgu/charge-pumping": ["mosfet.charge_pumping"],  # WP9.3
+    "smu/smu-search": ["mosfet.vth_search"],  # WP7.5
 }
 ROUTES = {"spgu/selector-check": ["selector_16440a:smu", "selector_16440a:pgu", "selector_16440a:pgu_open"],
           "spgu/spgu-pulse-train": ["selector_16440a:pgu"], "spgu/charge-pumping": ["selector_16440a:pgu"]}
@@ -55,7 +56,8 @@ STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfe
             "smu/smu-sampling": "L5", "reliability/tddb-bdv": "L9", "smu/smu-spot-kelvin": "L2",
             "system/zero-check": "L1", "reliability/bti-stress-measure": "L9", "reliability/igzo-bias-stress": "L9",
             "reliability/hci-silc": "L9", "cmu/cmu-correction": "L6", "spgu/selector-check": "L7",
-            "smu/smu-pulsed-iv": "L5", "spgu/spgu-pulse-train": "L7", "spgu/charge-pumping": "L7"}
+            "smu/smu-pulsed-iv": "L5", "spgu/spgu-pulse-train": "L7", "spgu/charge-pumping": "L7",
+            "smu/smu-search": "L5"}  # WP7.5
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault", "cmu-correction-stale",  # WP8.2: the first v2 runbook

@@ -52,7 +52,8 @@ PRIORITY_SCALE = {
     "WSV, WSI, WNX and MM 16 by WP7.2, MM 1 spot and the ASU commands SAP, SAR, SAL by WP7.1, the MFCMU commands, "
     "MM 17-26 and the SCUU's SSP/SSL by WP8.1, the correction set-up queries CORRL?/DCORR? by WP8.2, the HV-SPGU "
     "PG/ALWG commands by WP9.1, the 16440A selector settings ERMOD/ERSSP by WP9.2, the SMU pulsed modes MM 3, 4, 5, "
-    "27, 28 with PT, PV, PI, PWV, PWI, MCPT, MCPNT, MCPNX, MCPWS, MCPWNX by WP7.3)",
+    "27, 28 with PT, PV, PI, PWV, PWI, MCPT, MCPNT, MCPNX, MCPWS, MCPWNX by WP7.3, the SMU search modes MM 14, 15 "
+    "and the quasi-pulsed spot MM 9 with LS*, LG*, BS*, BG*, BDV, BDT, BDM by WP7.5)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
     "simulator's FLEX subset v1 (AV, BC, NUB?, TSC)",
     "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
@@ -76,6 +77,7 @@ DRIVER_METHODS = (
     "configure_spgu", "apply_pulse_setup", "start_pulses", "stop_pulses", "measure_pulse_load",
     "set_selector_control", "route_selector",
     "pulsed_setup", "pulsed_update",
+    "search_setup", "quasi_pulse_setup",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
@@ -89,6 +91,8 @@ COMMAND_BUILDERS = (
     "XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q", "ERMOD_Q", "SPST_Q",
     "SRP", "SPP",
     "pt", "pv", "pi", "pwv", "pwi", "mcpt", "mcpnt", "mcpnx", "mcpws", "mcpwnx",
+    "lsv", "lsi", "lgv", "lgi", "lsm", "lstm", "lssv", "lssi", "lsvm", "bsv", "bsi", "bgv", "bgi", "bsm", "bst",
+    "bssv", "bssi", "bsvm", "bdv", "bdt", "bdm",
 )  # fmt: skip
 DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
 
@@ -137,7 +141,8 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
                         "step_i roles (WP7.2), kind smu_spot bias_i roles (WP7.1)"),
     "MM": CommandTarget("staircase", "mm", "staircase sends MM 2 (staircase) and MM 16 (multi-channel sweep, "
                         "WP7.2), sampling_setup MM 10, spot_setup MM 1 (WP7.1), the MFCMU setups MM 17-26 (WP8.1), "
-                        "pulsed_setup MM 3/4/5/27/28 (WP7.3) (MM_MODE_TARGETS); every other mode is unmapped"),
+                        "pulsed_setup MM 3/4/5/27/28 (WP7.3), search_setup MM 14/15 and quasi_pulse_setup MM 9 "
+                        "(WP7.5) (MM_MODE_TARGETS); every other mode is unmapped"),
     "CMM": CommandTarget("staircase", "cmm", "sent inside the staircase, sampling and spot setups"),
     "WV": CommandTarget("staircase", "wv", "OutputGuard-checked voltage primary sweep"),
     "WI": CommandTarget("staircase", "wi", "OutputGuard-checked current primary sweep, lin/log single/double "
@@ -248,6 +253,29 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "MCPNX": CommandTarget("pulsed_setup", "mcpnx", "MM 27/28 pulsed bias source N; also pulsed_update"),
     "MCPWS": CommandTarget("pulsed_setup", "mcpws", "MM 28 sweep mode and steps"),
     "MCPWNX": CommandTarget("pulsed_setup", "mcpwnx", "MM 28 pulsed sweep source N"),
+    # SMU search and quasi-pulsed spot (WP7.5, kind smu_search)
+    "LSV": CommandTarget("search_setup", "lsv", "MM 14 voltage search source; OutputGuard.check at start and stop"),
+    "LSI": CommandTarget("search_setup", "lsi", "MM 14 current search source; check at start and stop"),
+    "LGV": CommandTarget("search_setup", "lgv", "MM 14 voltage monitor (on a current-forcing role, error 279)"),
+    "LGI": CommandTarget("search_setup", "lgi", "MM 14 current monitor; target polarity follows the drive"),
+    "LSM": CommandTarget("search_setup", "lsm", "automatic abort and post value, always both sent"),
+    "LSTM": CommandTarget("search_setup", "lstm"),
+    "LSSV": CommandTarget("search_setup", "lssv", "synchronous source, checked at polarity x start/stop + offset"),
+    "LSSI": CommandTarget("search_setup", "lssi", "synchronous current source (sync_i role)"),
+    "LSVM": CommandTarget("search_setup", "lsvm", "always 1: Data_search and Data_sense"),
+    "BSV": CommandTarget("search_setup", "bsv", "MM 15 voltage search source; OutputGuard.check at start and stop"),
+    "BSI": CommandTarget("search_setup", "bsi", "MM 15 current search source; check at start and stop"),
+    "BGV": CommandTarget("search_setup", "bgv", "MM 15 voltage monitor, limit or repeat mode"),
+    "BGI": CommandTarget("search_setup", "bgi", "MM 15 current monitor, limit (limit_rel) or repeat mode"),
+    "BSM": CommandTarget("search_setup", "bsm", "normal/cautious control, abort and post value, always all sent"),
+    "BST": CommandTarget("search_setup", "bst"),
+    "BSSV": CommandTarget("search_setup", "bssv", "synchronous source, checked at polarity x start/stop + offset"),
+    "BSSI": CommandTarget("search_setup", "bssi", "synchronous current source (sync_i role)"),
+    "BSVM": CommandTarget("search_setup", "bsvm", "always 1: Data_search and Data_sense"),
+    "BDV": CommandTarget("quasi_pulse_setup", "bdv", "MM 9 quasi-pulse source, |stop - start| >= 10 V; check at start "
+                         "and stop"),
+    "BDT": CommandTarget("quasi_pulse_setup", "bdt"),
+    "BDM": CommandTarget("quasi_pulse_setup", "bdm", "detection interval and V/I measurement, both always sent"),
 }
 MM_MODE_TARGETS: dict[int, str] = {1: "B1500Driver.spot_setup", 2: "B1500Driver.staircase",
                                    10: "B1500Driver.sampling_setup", 16: "B1500Driver.staircase",
@@ -256,7 +284,9 @@ MM_MODE_TARGETS: dict[int, str] = {1: "B1500Driver.spot_setup", 2: "B1500Driver.
                                    22: "B1500Driver.cf_sweep", 23: "B1500Driver.ac_level_sweep",
                                    26: "B1500Driver.ct_sampling", 3: "B1500Driver.pulsed_setup",
                                    4: "B1500Driver.pulsed_setup", 5: "B1500Driver.pulsed_setup",
-                                   27: "B1500Driver.pulsed_setup", 28: "B1500Driver.pulsed_setup"}
+                                   27: "B1500Driver.pulsed_setup", 28: "B1500Driver.pulsed_setup",
+                                   9: "B1500Driver.quasi_pulse_setup", 14: "B1500Driver.search_setup",
+                                   15: "B1500Driver.search_setup"}
 """``MM <mode>`` entries of the legacy atoms: the driver method that sends each mapped mode (others unmapped)."""
 # Mapped commands are all m1; these unmapped ones are m2; everything else is `later`.
 M2_COMMANDS = frozenset({"AV", "BC", "NUB?", "TSC"})
@@ -355,6 +385,28 @@ GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "MCPNX": ([462, 463], ["4-144 to 4-145"]),
     "MCPWS": ([465], ["4-147"]),
     "MCPWNX": ([465, 466, 467], ["4-147 to 4-149"]),
+    # SMU search and quasi-pulsed spot (WP7.5)
+    "LSV": ([459, 460], ["4-141 to 4-142"]),
+    "LSI": ([453, 454], ["4-135 to 4-136"]),
+    "LGV": ([444], ["4-126"]),
+    "LGI": ([443], ["4-125"]),
+    "LSM": ([454, 455], ["4-136 to 4-137"]),
+    "LSTM": ([459], ["4-141"]),
+    "LSSV": ([456, 457], ["4-138 to 4-139"]),
+    "LSSI": ([455, 456], ["4-137 to 4-138"]),
+    "LSVM": ([460], ["4-142"]),
+    "BSV": ([374, 375], ["4-56 to 4-57"]),
+    "BSI": ([369], ["4-51"]),
+    "BGV": ([367, 368, 369], ["4-49 to 4-51"]),
+    "BGI": ([366, 367], ["4-48 to 4-49"]),
+    "BSM": ([370, 371, 372], ["4-52 to 4-54"]),
+    "BST": ([374], ["4-56"]),
+    "BSSV": ([373, 374], ["4-55 to 4-56"]),
+    "BSSI": ([372, 373], ["4-54 to 4-55"]),
+    "BSVM": ([375], ["4-57"]),
+    "BDV": ([365, 366], ["4-47 to 4-48"]),
+    "BDT": ([365], ["4-47"]),
+    "BDM": ([364], ["4-46"]),
 }
 CHAPTER_4_PDF_OFFSET = 318
 
@@ -429,8 +481,8 @@ ATOM_OVERRIDES: dict[str, dict[str, str]] = {
         "note": "successor: Transaction cleanup AB -> DZ -> CL -> verify and the safe_shutdown tool"
     },
     "C_atom_smu_set_measurement_mode": {"note": "staircase sends MM 2 and MM 16 (WP7.2), sampling_setup MM 10 "
-                                        "(WP7.4), spot_setup MM 1 (WP7.1), pulsed_setup MM 3/4/5/27/28 (WP7.3); "
-                                        "other modes later"},
+                                        "(WP7.4), spot_setup MM 1 (WP7.1), pulsed_setup MM 3/4/5/27/28 (WP7.3), "
+                                        "search_setup MM 14/15, quasi_pulse_setup MM 9 (WP7.5); other modes later"},
     "C_atom_smu_configure_integration": {"priority": "m1", "note": "AV (averaging) is m2"},
     "C_atom_smu_set_measurement_ranging": {"priority": "m1", "note": "RM (auto-ranging limit) is later"},
     "C_atom_smu_configure_staircase_sweep": {
@@ -473,7 +525,7 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
     "D_atom_extract_transfer_on_off": ("analysis.ion_ioff", "m2"),
     "D_atom_extract_transfer_voltage_shift": ("analysis.memory_window", "m2"),
     "D_atom_extract_output_ron": ("analysis.output_metrics", "m2"),
-    "D_atom_extract_leakage_breakdown_voltage": (None, "later"),
+    "D_atom_extract_leakage_breakdown_voltage": ("analysis.breakdown_voltage (WP7.5)", "m1"),
     "D_atom_extract_cv_cox": (None, "later"),
     "D_atom_extract_cv_vfb": (None, "later"),
     "D_atom_assess_value_check_limits": (None, "later"),

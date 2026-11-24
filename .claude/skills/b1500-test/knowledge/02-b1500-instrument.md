@@ -67,8 +67,8 @@ Deck slide 11, corrected against the User's Guide. DC values; v1 sources DC only
 ## Measurement modes
 
 Folded from the former mode-map stub and checked against PG Chapter 2 (PDF 91-132) and the `XE` required-command
-table (PDF 571-572). Implemented: modes 1, 2, 3, 4, 5, 10, 16, 27 and 28 (WP7.2 added the current, synchronous and
-multi-channel sweeps; WP7.1 the spot, mode 1; WP7.3 the pulsed modes).
+table (PDF 571-572). Implemented: modes 1-5, 9, 10, 14-16, 27 and 28 (WP7.2 added the current, synchronous and
+multi-channel sweeps; WP7.1 the spot, mode 1; WP7.3 the pulsed modes; WP7.5 the search modes).
 
 | MM | Mode | Modules | v1 |
 |---|---|---|---|
@@ -76,10 +76,10 @@ multi-channel sweeps; WP7.1 the spot, mode 1; WP7.3 the pulsed modes).
 | 1 | spot | SMU | `smu_spot` (all measured roles at once; host list of levels, range survey) |
 | 2 | staircase sweep (`WV`/`WI` lin/log, single/double; one synchronous `WSV`/`WSI` source) | SMU | `smu_staircase`, `smu_stepped` (host loop over a stepped V or I bias) |
 | 3, 4, 5 | pulsed spot, pulsed sweep, staircase with pulsed bias | SMU | `smu_pulsed` (section below) |
-| 9 | quasi-pulsed spot | SMU | reserved |
+| 9 | quasi-pulsed spot (`BDV` ramp to the compliance, then one reading) | SMU | `smu_search` (`dielectric.bdv`) |
 | 10 | sampling | SMU | `smu_sampling` (I(t) transients, TDDB; section below) |
 | 13 | quasi-static C-V | SMU | reserved |
-| 14, 15 | linear / binary search | SMU | reserved |
+| 14, 15 | linear / binary search (`LS*`/`LG*`, `BS*`/`BG*`) | SMU | `smu_search` (section below) |
 | 16 | multi-channel sweep (`WV`/`WI` primary + `WNX` sources, either mode; PDF 102) | SMU | `smu_staircase` with two or more sweep roles |
 | 17-20, 22, 23, 26 | spot C, C-V, pulsed C, C-f, C-V(AC level), C-t | MFCMU | driver + simulator (WP8.1); recipes M8 |
 | 27, 28 | multi-channel pulsed spot / sweep | SMU | `smu_pulsed` with two pulse or measuring roles |
@@ -114,6 +114,14 @@ Kind `smu_pulsed` (card `smu-pulsed-iv`); PG p93-105 (2-5), `PT` PG p486-487 (4-
   no delay, one common width (R-PULSE-01, PG p462 (4-144)); MM 4/5 sweep linearly only (error 226).
 - Auto ranging in a pulsed measurement means the compliance range (PG p337 (4-19)): set a tight compliance or
   `irange` for small pulsed currents. A pulse far shorter than the thermal time constant reads the device cold.
+
+## Search measurements MM 9 14 15
+
+Kind `smu_search` (cards `smu-search`, `tddb-bdv`); PG p108-111 (2-20), p106-107 (2-18). One `XE`, one result.
+- Linear (`LSV`) steps, binary (`BSV`) halves its change until the monitor (`LGI`/`BGI`) meets the target: result
+  `Data_search` (value forced there), `Data_sense`; `G` not in range, `S` aborted; binary cautious never forces stop.
+- Quasi-pulsed (`BDV`): ramps until the source hits its compliance (breakdown, `C`) and reads the voltage there; it
+  needs a 10 V change from start before the compliance (else `S`, PG p53 (1-33)): thin films use a linear ramp.
 
 ## Measurement sequence and cleanup
 
@@ -196,7 +204,7 @@ Measurement status letter `A` of each data element (PG Table 1-10, PDF 53):
 | `V` | over the measurement range, or sweep aborted (automatic abort or power compliance); value 199.999E+99 | untrusted |
 | `X` | a channel oscillating, or the output did not settle before the measurement | untrusted |
 | `F` | SMU force saturation | untrusted |
-| `G`, `S` | search target not found / search stopped (quasi-pulsed spot: timing problems) | untrusted |
+| `G`, `S` | search: target not found / stopped (quasi-pulsed: timing, early compliance); the search analyses read them | untrusted |
 | `U`, `D` | CMU null-loop unbalance / CMU IV amplifier saturation | untrusted |
 
 - Deck slide 9 glosses `V` as "output overvoltage or unstable" and `D` as "data invalid"; the manual definitions

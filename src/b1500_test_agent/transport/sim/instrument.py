@@ -7,7 +7,8 @@ keeps the clock, the persistent state, the error queue, the command log, the mea
 the FLEX handlers live in units registered by mnemonic (``units/core.py``: identity, status, buffer, format,
 output switches, A/D converters; ``units/smu.py``: ranging, SMU modes, sources and the measurement engine;
 ``units/sampling.py``: the SMU sampling setup (``MM 10``), timer reset and sampling engine; ``units/pulsed.py``:
-the SMU pulsed setups (``MM 3/4/5/27/28``) and their engine (WP7.3);
+the SMU pulsed setups (``MM 3/4/5/27/28``) and their engine (WP7.3); ``units/search.py``: the SMU search and
+quasi-pulsed setups (``MM 14/15/9``) and their engine (WP7.5);
 ``units/cmu.py`` + ``units/cmu_engine.py``: the MFCMU (signal, MM 17-26, phase compensation, data correction, the
 fixture parasitics; ``MM``/``XE`` dispatch by measurement mode; WP8.1); ``units/spgu.py`` + ``units/spgu_output.py``:
 the HV-SPGU (WP9.1); ``units/switch.py``: selector queries, the ASU paths and the SCUU paths). Each supported mnemonic
@@ -98,6 +99,7 @@ from b1500_test_agent.transport.sim.units.cmu import CmuUnit
 from b1500_test_agent.transport.sim.units.core import CoreUnit
 from b1500_test_agent.transport.sim.units.pulsed import PulsedUnit
 from b1500_test_agent.transport.sim.units.sampling import SamplingUnit
+from b1500_test_agent.transport.sim.units.search import SearchUnit
 from b1500_test_agent.transport.sim.units.smu import SmuUnit, force_source
 from b1500_test_agent.transport.sim.units.spgu import SpguUnit
 from b1500_test_agent.transport.sim.units.switch import SwitchUnit
@@ -153,7 +155,7 @@ def _parsed(part: str) -> flex.Command | flex.FlexError:
         return exc
 
 
-class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, CmuUnit, SpguUnit, SwitchUnit):
+class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, SearchUnit, CmuUnit, SpguUnit, SwitchUnit):
     """In-process B1500A: ``handle(line)`` executes one command line and returns the query response, if any.
 
     Query responses and measurement data are buffered as on the instrument and read with ``read_message``.
@@ -201,6 +203,7 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, CmuUnit, SpguUn
         self._reset_smu_settings()
         self._reset_sampling_settings()
         self._reset_pulsed_settings()
+        self._reset_search_settings()
         self._reset_cmu_settings()
         self._reset_spgu_settings()
 

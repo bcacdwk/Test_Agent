@@ -1,5 +1,6 @@
-"""Pulsed I-V analyses (blueprint v2 2.10 ``pulse.py``; card ``smu-pulsed-iv``): ``pulsed_vs_dc`` (a two-run method:
-``analyze_run`` ``options.reference_run``) and ``pulse_plateau``.
+"""Pulsed I-V and search analyses (blueprint v2 2.10 ``pulse.py``; cards ``smu-pulsed-iv``, ``smu-search``,
+``tddb-bdv``): ``pulsed_vs_dc`` (a two-run method: ``analyze_run`` ``options.reference_run``), ``pulse_plateau``,
+``vth_search_value`` and ``breakdown_voltage`` (WP7.5).
 
 Definitions (the source of knowledge file ``06b-analysis-pulse-stress.md``; change both together):
 
@@ -31,8 +32,34 @@ Definitions (the source of knowledge file ``06b-analysis-pulse-stress.md``; chan
   largest |level|; ``fit``: ``level_v``, ``samples``, ``std``, ``pulses``, ``plateau_s`` (time-resolved only);
   ``window``: the plateau's ``t_s`` span.
 
+- **vth_search_value** reads the result of a threshold-voltage search (kind ``smu_search``, e.g. ``mosfet.vth_search``):
+  the one-row table's search column ``x`` (``kind_result.result_column``, default ``gate_V``: ``Data_search``, the gate
+  voltage the instrument forced at the point closest to the target) and the monitor's reading ``y``
+  (``kind_result.monitor_column``, default ``drain_I``). Status ``N`` of ``x``: Vth = ``x`` (``quantity="vth"``, V;
+  ``fit``: ``i_measured_a``, ``i_target_a`` = ``kind_result.target``, ``rel_error`` of the reading against it). It is
+  the constant-current Vth at I_crit x W/L (``vth_constant_current``) within the search tolerance (``limit_rel`` of the
+  target, i.e. ``limit_rel`` / ln 10 decades: 1 % ~ 0.4 mV at 80 mV/dec), without its interpolation between sweep
+  points. ``G`` (target not reached between start and stop) -> ``failed`` (widen the search range); ``S`` (stopped
+  by the automatic abort) and an untrusted reading refuse the call unless ``force``.
+- **breakdown_voltage** reads a breakdown search (kind ``smu_search``: ``basic.breakdown_search``,
+  ``dielectric.bdv``) by ``kind_result.search`` (``quantity="bdv"``, V, signed as forced: a reverse junction
+  breakdown is negative; ``fit.magnitude_v`` = its absolute value):
+  - ``linear`` (MM 14 ramp): ``x`` = ``Data_search`` (the source voltage of the first step whose current reached the
+    criterion ``kind_result.target``), ``y`` = ``Data_sense``. ``N``: BDV = ``x`` within one step (``fit.step_v``,
+    ``window`` = previous step .. ``x``); ``S`` with the monitor in compliance (``C``) is the breakdown step stopped
+    by the compliance (same value, warning); ``G``: no breakdown up to stop -> ``x`` (the stop value) as a ``lower``
+    bound, ``classification="no_breakdown"``.
+  - ``quasi_pulsed`` (MM 9): ``x`` = the measured voltage of the source. ``C`` (the source reached its compliance:
+    the breakdown): BDV = ``x``; ``N`` (it reached stop): ``lower`` bound, ``no_breakdown``; ``S`` (compliance before
+    a 10 V change from start, or too slow a slew) and ``G`` (detection timeout) refuse: use ``method: linear`` or a
+    lower start (``S``), the long detection interval (``G``). A quasi-pulsed run that measured current (``BDM`` mode
+    1) has no BDV (``failed``).
+  ``classification``: ``breakdown`` or ``no_breakdown``. Other untrusted statuses (``V``, ``X`` ...) refuse unless
+  ``force``.
+
 Trust as every method (``mosfet.py`` docstring): untrusted rows refuse the call unless ``force`` (flagged); limited
-rows (``C``/``T``) are excluded.
+rows (``C``/``T``) are excluded. The search methods read their status letters explicitly (above): a search's ``G``,
+``S`` and its expected compliance ``C`` carry its result.
 """
 
 from __future__ import annotations
@@ -55,7 +82,7 @@ from b1500_test_agent.analysis.common import (
     varying_sources,
     window_of,
 )
-from b1500_test_agent.analysis.dataset import EVENT, T_S, RunData, Segment, parse_value_column
+from b1500_test_agent.analysis.dataset import EVENT, T_S, RunData, Segment, parse_value_column, status_column
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QuantityRange, TrustPolicy, Unit
 
@@ -346,4 +373,132 @@ def pulse_plateau(
     return out.ok(quantity, mean, unit, excluded=r.excluded(), points_used=samples, window=window, fit=fit)
 
 
-__all__ = ["pulse_plateau", "pulsed_vs_dc"]
+SEARCH_DEFAULT_X = "gate_V"
+SEARCH_DEFAULT_Y = "drain_I"
+"""``vth_search_value`` columns when the run has no ``kind_result`` naming them."""
+
+
+def _search_row(d: RunData, method: str, x: str | None, y: str | None, *, need_y: bool) -> tuple[str, str | None,
+                                                                                               pd.Series]:
+    """``(x, y, row)`` of a one-row search table: columns from the options, else ``kind_result``."""
+    result = d.manifest.kind_result
+    x = x if x is not None else str(result.get("result_column", SEARCH_DEFAULT_X if need_y else ""))
+    if y is None and result.get("search") != "quasi_pulsed":
+        y = str(result.get("monitor_column", SEARCH_DEFAULT_Y)) if need_y or "monitor_column" in result else None
+    for column in (x, y):
+        if column is not None and (column not in d.table.columns or not column.endswith(("_V", "_I"))):
+            raise InvalidInputError(f"{method}: run {d.run_id} has no search column {column!r}; pass x=/y= (columns: "
+                                    f"{[c for c in d.table.columns if parse_value_column(c)]}).")
+    if len(d.table) != 1:
+        raise InvalidInputError(f"{method}: run {d.run_id} has {len(d.table)} rows; a search run has one result row.")
+    return x, y, d.table.iloc[0]
+
+
+def _status(row: pd.Series, column: str | None) -> str:
+    if column is None:
+        return ""
+    value = row.get(status_column(column))
+    return str(value) if isinstance(value, str) else ""
+
+
+@validate_call(config=_CALL_CONFIG)
+def vth_search_value(
+    d: RunData,
+    *,
+    x: str | None = None,
+    y: str | None = None,
+    force: bool = False,
+    criteria: TrustPolicy | None = None,
+) -> ExtractionResult:
+    """Threshold voltage of a binary or linear search run (module docstring): ``vth`` (V)."""
+    policy = trust_policy(criteria)
+    x, y, row = _search_row(d, "vth_search_value", x, y, need_y=True)
+    assert y is not None
+    out = Results("vth_search_value", {"x": x, "y": y, "force": force, "trust_policy": policy_params(policy)})
+    search, sense = _status(row, x), _status(row, y)
+    target = d.manifest.kind_result.get("target")
+    reading = float(row[y])
+    fit: dict[str, float] = {"i_measured_a": reading} if y.endswith("_I") else {"v_measured_v": reading}
+    if isinstance(target, int | float) and not isinstance(target, bool):
+        fit["target"] = float(target)
+        if target != 0:
+            fit["rel_error"] = (reading - float(target)) / abs(float(target))
+    excluded = {search: 1} if search not in ("", "N") else {}
+    if search == "G":
+        return out.failed("vth", "V", f"the search target was not reached between the search start and stop "
+                          f"(status G; last {x} = {float(row[x]):g} V, {y} = {reading:g}): widen the search range",
+                          excluded=excluded, fit=fit)
+    problems = []
+    if search != "N":
+        problems.append(f"{x} has status {search or 'none'} (the search did not end at its target"
+                        + (": stopped by the automatic abort" if search == "S" else "") + ")")
+    if policy.classify(sense) == "untrusted":
+        problems.append(f"{y} has status {sense or 'none'} ({'untrusted'})")
+    if problems and not force:
+        return out.refused("vth", "V", problems, excluded=excluded)
+    out.flag(problems)
+    warnings = [f"{y} has status {sense} (limited: compliance)"] if policy.classify(sense) == "limited" else []
+    return out.ok("vth", float(row[x]), "V", excluded=excluded, points_used=1, fit=fit, warnings=warnings)
+
+
+@validate_call(config=_CALL_CONFIG)
+def breakdown_voltage(
+    d: RunData,
+    *,
+    x: str | None = None,
+    y: str | None = None,
+    force: bool = False,
+    criteria: TrustPolicy | None = None,
+) -> ExtractionResult:
+    """Breakdown voltage of a linear search or quasi-pulsed run (module docstring): ``bdv`` (V)."""
+    policy = trust_policy(criteria)
+    result = d.manifest.kind_result
+    search_kind = str(result.get("search", "linear"))
+    x, y, row = _search_row(d, "breakdown_voltage", x, y, need_y=False)
+    out = Results("breakdown_voltage", {"x": x, "y": y, "force": force, "trust_policy": policy_params(policy)})
+    if not x.endswith("_V"):
+        return out.failed("bdv", "V", f"{x} is not a voltage: a quasi-pulsed run must measure the source voltage "
+                          "(BDM mode 0) to give its breakdown voltage", excluded={})
+    status, sense = _status(row, x), _status(row, y)
+    value = float(row[x])
+    fit: dict[str, float] = {"magnitude_v": abs(value)}
+    for key in ("start", "stop", "target", "icomp"):
+        item = result.get(key)
+        if isinstance(item, int | float) and not isinstance(item, bool):
+            fit[key] = float(item)
+    if y is not None:
+        fit["sense"] = float(row[y])
+    excluded = {status: 1} if status not in ("", "N") else {}
+    window = None
+    step = result.get("step")
+    if search_kind == "linear" and isinstance(step, int | float) and not isinstance(step, bool):
+        fit["step_v"] = abs(float(step))
+        low, high = sorted((value - float(step), value))
+        window = QuantityRange(low=sig(low), high=sig(high), unit="V")
+    if search_kind == "quasi_pulsed":
+        found, censored = status == "C", status == "N"
+        hints = {"S": ("the source reached its compliance before a 10 V change from start (or the slew was too "
+                       "slow; PG p53 (1-33)): use method linear or a lower start"),
+                 "G": "the settling detection took too long: use the long detection interval"}
+    else:
+        found = status == "N" or (status == "S" and sense == "C")
+        censored = status == "G"
+        hints = {"S": "the search was stopped by the automatic abort before the criterion"}
+    if censored:
+        return out.ok("bdv", value, "V", excluded=excluded, points_used=1, window=window, fit=fit, bound="lower",
+                      classification="no_breakdown",
+                      warnings=[(f"no breakdown up to {value:g} V (status {status}): the breakdown voltage is "
+                                 "larger in magnitude")])
+    problems = [] if found else [f"{x} has status {status or 'none'}: " + hints.get(status, "untrusted")]
+    if y is not None and policy.classify(sense) == "untrusted" and not (search_kind == "linear" and sense == "C"):
+        problems.append(f"{y} has status {sense or 'none'} (untrusted)")
+    if problems and not force:
+        return out.refused("bdv", "V", problems, excluded=excluded, fit=fit)
+    out.flag(problems)
+    warnings = ["the search stopped at the compliance of the breakdown step (status S, sense C)"] \
+        if search_kind == "linear" and status == "S" else []
+    return out.ok("bdv", value, "V", excluded=excluded, points_used=1, window=window, fit=fit, warnings=warnings,
+                  classification="breakdown")
+
+
+__all__ = ["breakdown_voltage", "pulse_plateau", "pulsed_vs_dc", "vth_search_value"]

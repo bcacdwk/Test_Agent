@@ -20,7 +20,7 @@ Seeded from deck slide 15. Definitions here are identical to the docstrings of t
 `src/b1500_test_agent/analysis/` (`quality.py`, `dataset.py`, `mosfet.py`, `mosfet_family.py`, `resistor.py`,
 `diode.py`, `leakage.py`, `fefet.py`, `plots.py`, `reliability.py`); the code wins on any difference and a change to
 either must change both (synced in WP2.5, WP5.7). `list_recipes` and `analyze_run` say which methods apply to a run.
-Time series (sampling, breakdown) and pulsed runs (pulsed vs DC, pulse plateau): [06b](06b-analysis-time-pulse.md).
+Time series (sampling, breakdown), pulsed and search runs (pulsed vs DC, plateau, Vth/BDV by search): [06b](06b-analysis-time-pulse.md).
 
 ## Run table and trust classes
 

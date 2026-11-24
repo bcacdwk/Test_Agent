@@ -1,0 +1,8 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 52-53 (printed 1-32 to 1-33): status G of Table 1-10 (linear or binary search: the target value was not found within the search range, the source output value is returned) and EEE 16 of Table 1-8; binary search data Data_search,Data_sense PDF 47 (BSVM 1, PDF 375)
+# kind: fmt1
+# command: synthetic
+# terminator: crlf
+# note: a binary search whose target (100 nA) lies above the drain current at the stop value: the gate value returned is the stop value 0.2 V (status G); the drain reading 3.2 nA carries its own status N; values chosen for the fixture
+# point: G D V +200.000E-03
+# point: N C I +3.20000E-09
+GDV+200.000E-03,NCI+3.20000E-09

@@ -129,7 +129,8 @@ def test_tables_follow_the_manual() -> None:
     assert (flex.LRN_ADJ_MODE, flex.LRN_SCUU_PATH, flex.LRN_ADJ_ITEM, flex.LRN_SCUU_ITEM) == (90, 81, "ADJ", "SSP")
     assert flex.ADJ_MODES == {0: "auto", 1: "manual", 2: "load_adaptive"}
     assert sorted(flex.CORR_RESULTS) == [0, 1, 2]
-    assert flex.MEASUREMENT_MODES == {1, 2, 3, 4, 5, 10, 16, 17, 18, 19, 20, 22, 23, 26, 27, 28}  # SMU: WP7.2-7.4
+    assert flex.MEASUREMENT_MODES == {1, 2, 3, 4, 5, 9, 10, 14, 15, 16, 17, 18, 19, 20, 22, 23, 26, 27,
+                                      28}  # SMU: WP7.2-7.5
 
 
 def test_mm18_takes_the_mfcmu_and_up_to_nine_smus() -> None:

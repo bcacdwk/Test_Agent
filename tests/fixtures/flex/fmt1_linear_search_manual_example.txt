@@ -1,0 +1,8 @@
+# source: Keysight B1500 Series Programming Guide, Edition 15, PDF 220-221 (printed 3-40 to 3-41): Table 3-11 linear search measurement example (MM 14; LSM 2,3; LSVM 1; LGI drain,1,13,0.001; LSV gate,12,0,3,0.01,0.01; LSSV drain,1,0,0.01), printed result "Vth (V), Id (mA), Status: 1.4, 1.03545, NEI" read as Mid(mret, 4, 12) Data_search, Mid(mret, 17, 3) the Data_sense header and Mid(mret, 20, 12) Data_sense; data format PDF 47 (printed 1-27)
+# kind: fmt1
+# command: FMT 1; MM 14; LSM 2,3; LSVM 1; LSTM 0,0; LGI 5,1,13,0.001; LSV 4,12,0,3,0.01,0.01; LSSV 5,1,0,0.01; XE
+# terminator: crlf
+# note: the Data_sense header NEI (status N, channel E = slot 5, the drain; data type I) and both values are printed; the Data_search header is not printed: N, the gate channel D (slot 4) and data type V are assumed (TODO(verify) at bring-up stage L5)
+# point: N D V +1.40000E+00
+# point: N E I +1.03545E-03
+NDV+1.40000E+00,NEI+1.03545E-03

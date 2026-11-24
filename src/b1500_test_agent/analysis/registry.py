@@ -50,7 +50,7 @@ from b1500_test_agent.analysis.mosfet import (
 )
 from b1500_test_agent.analysis.mosfet_family import body_effect, dibl
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv_method
-from b1500_test_agent.analysis.pulse import pulse_plateau, pulsed_vs_dc
+from b1500_test_agent.analysis.pulse import breakdown_voltage, pulse_plateau, pulsed_vs_dc, vth_search_value
 from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.reliability import plot_timeseries_method, sampling_summary, time_to_breakdown
 from b1500_test_agent.analysis.resistor import kelvin_resistance, resistance
@@ -290,6 +290,15 @@ _METHODS += [
             "Plateau current (or voltage) of a pulse: per-pulse mean with edge trimming (time-resolved data) or the "
             "pulse-end reading, at level v, pulse number or the strongest pulse.", (*_PULSED_RECIPES, "wgfmu.*"),
             (*_PULSED, "wgfmu_waveform"), families=("smu", "wgfmu"), milestone="M7"),
+    _method("vth_search_value", "extraction", vth_search_value,
+            "Threshold voltage of a search run: the gate voltage the instrument found at the critical drain current "
+            "(status N), with the reading vs the target.", ("mosfet.vth_search", "generic.*"), ("smu_search",),
+            families=_SMU, milestone="M7"),
+    _method("breakdown_voltage", "extraction", breakdown_voltage,
+            "Breakdown voltage of a linear search (step reaching the current criterion) or quasi-pulsed run "
+            "(compliance at the detection); no breakdown: a lower bound.",
+            ("basic.breakdown_search", "dielectric.bdv", "generic.*"), ("smu_search",), families=_RELIABILITY,
+            milestone="M7"),
 ]
 
 ANALYSIS_METHODS: Mapping[str, AnalysisMethod] = MappingProxyType({m.name: m for m in _METHODS})

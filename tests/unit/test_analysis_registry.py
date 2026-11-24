@@ -34,7 +34,8 @@ M5 = {"plot_timeseries"}
 M7 = {"sampling_summary", "time_to_breakdown", "dibl", "body_effect", "forward_voltage",  # WP7.4, WP7.2
       "kelvin_resistance", "zero_floor",  # WP7.1
       "bti_power_law", "degradation_vs_time", "silc",  # WP7.6
-      "pulsed_vs_dc", "pulse_plateau"}  # WP7.3
+      "pulsed_vs_dc", "pulse_plateau",  # WP7.3
+      "vth_search_value", "breakdown_voltage"}  # WP7.5
 M9 = {"charge_pumping"}  # WP9.3
 
 

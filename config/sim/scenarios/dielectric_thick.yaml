@@ -1,0 +1,52 @@
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario. Name = file name.
+# A thick dielectric for the quasi-pulsed breakdown voltage measurement (blueprint v2 4.2 `dielectric`, 3.1 row
+# dielectric.bdv, WP7.5): 20 nm SiO2-like film, 100 um x 100 um, top electrode on SMU4 (HRSMU), bottom on the GNDU, wired
+# as the gate and bulk of pin map mosfet-4t like dielectric_tddb. The quasi-pulse (MM 9, BDV) needs a 10 V change from
+# its start before the source reaches its compliance (PG p107 (2-19), status S otherwise): the 5 nm film of
+# dielectric_tddb breaks at 6 V, this one at 24 V, so dielectric.bdv's method quasi_pulsed is validated here and its
+# method linear (the voltage ramp) on dielectric_tddb.
+#
+# Truth (tests/integration/test_recipes_search.py): Fowler-Nordheim leakage (sub-uA below 20 V), instantaneous breakdown
+# at 12 MV/cm (BDV 24.0 V), then a 1 kOhm path (24 mA at 24 V, so a 1 mA compliance limits it). TDDB parameters as
+# dielectric_tddb scaled to the thicker film (eta at 20 V); they do not act within a millisecond ramp. Example values,
+# not a measured film.
+
+description: >-
+  20 nm dielectric (BDV 24 V) between SMU4 and the GNDU, wired as the gate and bulk of pin map mosfet-4t; quasi-pulsed
+  breakdown voltage; instant timing.
+idn: Agilent Technologies,B1500A,0,A.06.02.2023.0401
+slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
+  - {slot: 7, model: B1520A}
+interlock_closed: false
+wiring:
+  dut:
+    top: 4                      # gate electrode
+    bottom: GNDU                # substrate
+models:
+  dut:
+    model: dielectric
+    params:
+      area_um2: 1.0e4
+      tox_nm: 20.0
+      eps_r: 3.9
+      ebd_mv_cm: 12.0           # BDV = 24.0 V
+      tbd_eta_s: 1.0e4          # characteristic life at tbd_v_ref
+      tbd_v_ref: 20.0
+      tbd_gamma_per_v: 2.0      # E-model acceleration per volt of the thicker film
+      weibull_beta: 1.5
+      seed: 3
+      site: 0
+      silc_s: 1.0e-7
+      r_bd_ohm: 1000.0
+noise:
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  rel: 1.0e-3
+  seed: 23
+faults: null
+timing: instant

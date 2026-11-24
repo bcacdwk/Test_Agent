@@ -1,0 +1,66 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOSFET threshold voltage by binary search (blueprint v2 3.1, kind smu_search MM 15): the gate bisects between
+# vg_start and vg_stop until the drain current at the constant drain bias vd is within limit_rel of the critical
+# current I_crit = i_crit_a x w_over_l (the constant-current criterion of vth_constant_current); the instrument returns
+# the gate voltage there and the drain current it read. The target's polarity follows vd (an n-type device at vd > 0;
+# a p-type one with negative vg_start/vg_stop/vd). Cautious control (start, then start + D/2, never the stop value
+# first); automatic abort on compliance (BSM). One XE: fast, no curve; vth_search_value reports Vth.
+# status: sim_validated by tests/integration/test_recipes_search.py (nmos_basic: within 5 mV of the constant-current Vth
+# of an Id-Vg run at the same criterion and drain bias).
+id: mosfet.vth_search
+version: 1
+title: MOSFET threshold voltage by binary search at Id = I_crit x W/L (constant-current criterion)
+family: smu
+kind: smu_search
+status: sim_validated
+card: .agents/skills/b1500-test/cards/smu/smu-search.md
+device_types: [nmos, pmos, igzo_tft]
+roles:
+  gate:
+    function: sweep_v
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {search: binary, start: $vg_start, stop: $vg_stop, icomp: $icomp_gate, control: $control,
+               hold: $hold_s, delay: $delay_s}
+  drain:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {v: $vd, icomp: $icomp_drain, target: $i_crit_a, target_scale: $w_over_l, limit_rel: $limit_rel}
+  source: {function: ground, allow_gndu: true}
+params:
+  vg_start: {unit: V, default: 0.0, recommended: [-1.0, 0.0], range: [-10.0, 10.0],
+             doc: "Gate search start (below Vth for n-type)."}
+  vg_stop: {unit: V, default: 2.0, recommended: [1.0, 3.0], range: [-10.0, 10.0],
+            doc: "Gate search stop (above Vth for n-type; the cautious control reaches it only if Vth lies there)."}
+  vd: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [-5.0, 5.0], doc: Drain bias (linear region).}
+  i_crit_a: {unit: A, default: 1.0e-7, recommended: [1.0e-8, 1.0e-6], range: [1.0e-12, 1.0e-3],
+             doc: "Critical current per square (the constant-current criterion); the target is i_crit_a x w_over_l."}
+  w_over_l: {default: 1.0, recommended: [0.1, 100.0], range: [1.0e-3, 1.0e4],
+             doc: "Channel W/L of the device (scales the critical current)."}
+  limit_rel: {default: 0.01, recommended: [0.001, 0.02], range: [1.0e-4, 0.1],
+              doc: "Search stops within target x (1 +/- limit_rel); 1 % is about 0.4 mV at 80 mV/dec."}
+  control:
+    type: enum
+    choices: [cautious, normal]
+    default: cautious
+    doc: "BSM control: cautious (start, then start + D/2) or normal (start, then stop)."
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance.}
+  icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-9, 1.0e-2],
+                doc: "Drain current compliance (at least the target: PG error 275)."}
+  hold_s: {unit: s, default: 0.0, range: [0.0, 30.0], doc: "Hold before the first point (BST hold, 10 ms steps)."}
+  delay_s: {unit: s, default: 0.0, recommended: [0.0, 0.05], range: [0.0, 10.0],
+            doc: "Delay per point before the measurement (BST delay; longer for slow devices)."}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset of the drain measurement (short = fastest/noisiest, long = 16 power-line cycles).
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: vth_search_value}
+provenance:
+  sources:
+    - blueprint v2 3.1 row mosfet.vth_search, 2.7 kind smu_search
+    - Programming Guide Ed. 15 binary search PDF 108-109 (printed 2-20 to 2-21), example Table 3-12 PDF 222-223, BGI PDF 366-367, BSM PDF 370-372, BSV PDF 374-375, BSVM PDF 375
+  validation_runs: []

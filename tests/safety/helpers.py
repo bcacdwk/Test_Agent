@@ -204,11 +204,15 @@ def source_levels(record: CommandRecord) -> tuple[int, list[float], float | None
     return channel, levels, compliance
 
 
-def source_request(record: CommandRecord) -> tuple[int, str, list[float], float | None]:
+def source_request(record: CommandRecord, primary: CommandRecord | None = None
+                   ) -> tuple[int, str, list[float], float | None]:
     """Channel, forced quantity (``V``/``I``), forced levels and compliance of a source record: ``DV``/``DI`` (PG PDF
     396, 391), ``WV``/``WI`` (568, 551), ``WSV``/``WSI`` (561-562, 560), ``WNX`` (557: mode 1 V, 2 I), the
     sampling sources ``MV``/``MI`` (477, 468; levels base and bias) and the pulse sources ``PV``/``PI``,
-    ``PWV``/``PWI``, ``MCPNX``/``MCPWNX`` (488, 485, 492, 490, 462, 465; levels base, pulse or start/stop)."""
+    ``PWV``/``PWI``, ``MCPNX``/``MCPWNX`` (488, 485, 492, 490, 462, 465; levels base, pulse or start/stop); the
+    search sources ``LSV``/``LSI``, ``BSV``/``BSI`` and the quasi-pulse ``BDV`` (459, 453, 374, 369, 365; start and
+    stop) and the synchronous search sources ``LSSV``/``LSSI``/``BSSV``/``BSSI`` (456, 455, 373, 372; ``polarity x
+    start/stop + offset`` of their search source ``primary``) (WP7.5)."""
     args = record.args
     mnemonic = record.mnemonic
 
@@ -234,16 +238,28 @@ def source_request(record: CommandRecord) -> tuple[int, str, list[float], float 
     if mnemonic == "MCPWNX":  # PDF 465: N, channel, mode, range, base, start, stop
         levels = [float(args[4]), float(args[5]), float(args[6])]
         return int(args[1]), "V" if int(args[2]) == 1 else "I", levels, comp(7)
+    if mnemonic in ("LSV", "LSI"):  # PDF 459, 453: channel, range, start, stop, step, comp (WP7.5)
+        return int(args[0]), mnemonic[2], [float(args[2]), float(args[3])], comp(5)
+    if mnemonic in ("BSV", "BSI", "BDV"):  # PDF 374, 369, 365: channel, range, start, stop, comp
+        return int(args[0]), "I" if mnemonic == "BSI" else "V", [float(args[2]), float(args[3])], comp(4)
+    if mnemonic in ("LSSV", "LSSI", "BSSV", "BSSI"):  # PDF 456, 455, 373, 372: channel, polarity, offset, comp
+        assert primary is not None, f"synchronous search source without its search source: {record.command}"
+        sign = 1.0 if int(args[1]) == 1 else -1.0
+        start, stop = float(primary.args[2]), float(primary.args[3])
+        return int(args[0]), mnemonic[3], [sign * start + float(args[2]), sign * stop + float(args[2])], comp(3)
     raise AssertionError(f"source command the invariant does not know: {record.command}")
 
 
 def assert_within_envelope(log: list[CommandRecord], envelope: CompiledEnvelope = ENVELOPE) -> None:
     """No source command outside ``envelope`` ever reached the transport (every record, dropped ones included): a
     voltage source within |V| and its Icomp within |I|, a current source within |I| and its Vcomp within |V|."""
+    primaries: dict[str, CommandRecord] = {}  # the last LSV/LSI (L) and BSV/BSI (B) search source (WP7.5)
     for record in log:
         if not record.source:
             continue
-        channel, quantity, levels, compliance = source_request(record)
+        if record.mnemonic in ("LSV", "LSI", "BSV", "BSI"):
+            primaries[record.mnemonic[0]] = record
+        channel, quantity, levels, compliance = source_request(record, primaries.get(record.mnemonic[0]))
         channel = channel // 100 if channel > 10 else channel
         env = envelope.channels.get(channel)
         assert env is not None, f"source command on a channel outside the allowlist: {record.command}"

@@ -285,6 +285,17 @@ bands. Sweeps run with `WM 2,1` (automatic abort; the pulse sources return to ba
 list stops after a trigger with compliance, overflow or oscillation. Residual: in pulsed mode auto ranging measures on
 the compliance range, so a generous compliance hides small currents in the noise (the card asks for a tight one).
 
+**SMU searches (`smu_search`, WP7.5).** A linear or binary search (`LSV`/`LSI`, `BSV`/`BSI`) and the quasi-pulse
+(`BDV`) pass `check` at their start and stop before anything is written (every value they force lies between them),
+the synchronous search source (`LSSV`/`LSSI`, `BSSV`/`BSSI`) at `polarity x start/stop + offset`; the envelope carries
+the whole ramp, so a breakdown ramp beyond the DUT profile asks for `dut_envelope` and every breakdown recipe for
+`destructive` (R-ALWAYS-01). The automatic abort (`LSM`/`BSM` 2) stops a search at any compliance, overflow or
+oscillation that is not the target and returns the sources to start; a quasi-pulse returns to its start after the
+reading. The search target never exceeds the monitor's compliance (PG error 275), so the post-breakdown current is
+limited by the compliance the human approved. Residual: one `XE` is not interruptible by checkpoints (only `AB`), so
+a search is planned as one segment and a search longer than `segment_max_s` cannot run asynchronously (blocked); the
+broken site keeps the start value (usually 0 V) until the cleanup.
+
 ## Cleanup and fault latch
 
 Every instrument action runs inside one transaction. On any exit, including errors, interrupts and guard

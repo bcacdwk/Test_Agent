@@ -12,9 +12,9 @@ skill's rules, a card, a recipe, the policy or a DUT profile, and it never autho
 | [02 B1500A instrument](02-b1500-instrument.md) | modules and limits, channel numbering, `UNT?`, measurement modes, status letters, integration time, zero-check floor, errors, interlock, self-test/cal, FLEX glossary | choosing modules or presets; reading status counts, errors, a plan's FLEX preview or an audit log |
 | [03 probe station and wiring](03-probe-station-wiring.md) | signal path, triax, guard, Kelvin and four-wire R, ASU/SCUU/selector, shielding and grounding, probe contact, contact checks | low-current or low-resistance work; a fresh landing; suspect wiring or noise |
 | [04 ferroelectric and oxide](04-ferroelectric-oxide.md) | Ec/Pr/Ps, FeFET operation, memory window by dual sweep, read disturb, pulse write (reserved), PUND (reserved), IGZO TFTs | FeFET or FeCap requests; oxide TFT measurements |
-| [05 reliability and defects](05-reliability-defects.md) | gate leakage safe envelope, BTI/HCI/TDDB (reserved), Dit, SILC and trapping, IGZO instability, wake-up/imprint/fatigue | gate leakage; drift or hysteresis; any stress request |
+| [05 reliability and defects](05-reliability-defects.md) | gate leakage safe envelope, BTI/HCI/TDDB, breakdown voltage ramps, Dit, SILC and trapping, IGZO instability, wake-up/imprint/fatigue | gate leakage; drift or hysteresis; any stress or breakdown request |
 | [06 analysis and extraction](06-analysis-extraction.md) | run table and trust, quality gate, gm, Vth (3 methods), SS, Ion/Ioff, Ron/gds, R, diode fit, leakage, MW, plots, reporting rules | before `analyze_run`; writing the report; ad-hoc analysis |
-| [06b time series and pulsed runs](06b-analysis-time-pulse.md) | sampling summary and relaxation fit, time to breakdown and Weibull, pulsed vs DC (two-run), pulse plateau | analysing a sampling, TDDB or pulsed run |
+| [06b time series, pulsed and search runs](06b-analysis-time-pulse.md) | sampling summary and relaxation fit, time to breakdown and Weibull, pulsed vs DC (two-run), pulse plateau, Vth by search, breakdown voltage | analysing a sampling, TDDB, pulsed or search run |
 | [07 HSPICE simulation](07-hspice-simulation.md) | reserved workflow: level-1 model card, netlist, comparison, BSIM4/Verilog-A later | a simulation-comparison request (answer: reserved) |
 | 08 debug | skill `b1500-debug`: triage order, runbooks, cases | noisy, impossible, compliance-limited or drifting data; faults; VISA errors |
 | [09 pulses, HV-SPGU and selector](09-pulse-spgu-selector.md) | HV-SPGU output and SER (open-load doubling, high_z residual), PG and ALWG trains, count/duration bounds, running a train, readings during a train, R-PULSE/R-SPGU rules, simulator | any SPGU pulse or waveform plan; a gate pulse that did nothing or too much |
@@ -47,6 +47,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Channel numbering and UNT](02-b1500-instrument.md#channel-numbering-and-unt)
 - [Measurement modes](02-b1500-instrument.md#measurement-modes)
 - [Pulsed measurements MM 3 4 5 27 28](02-b1500-instrument.md#pulsed-measurements-mm-3-4-5-27-28)
+- [Search measurements MM 9 14 15](02-b1500-instrument.md#search-measurements-mm-9-14-15)
 - [Measurement sequence and cleanup](02-b1500-instrument.md#measurement-sequence-and-cleanup)
 - [Lab scripts vs the kernel](02-b1500-instrument.md#lab-scripts-vs-the-kernel)
 - [FLEX glossary for reading plans and audit logs](02-b1500-instrument.md#flex-glossary-for-reading-plans-and-audit-logs)
@@ -90,6 +91,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [BTI stress-measure-stress](05-reliability-defects.md#bti-stress-measure-stress)
 - [Hot-carrier injection HCI](05-reliability-defects.md#hot-carrier-injection-hci)
 - [TDDB constant-voltage stress](05-reliability-defects.md#tddb-constant-voltage-stress)
+- [Breakdown voltage ramps](05-reliability-defects.md#breakdown-voltage-ramps)
 - [Interface traps Dit](05-reliability-defects.md#interface-traps-dit)
 - [Charge pumping](05-reliability-defects.md#charge-pumping)
 - [Oxide traps SILC and charge trapping](05-reliability-defects.md#oxide-traps-silc-and-charge-trapping)
@@ -118,12 +120,14 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Reporting rules measured versus derived](06-analysis-extraction.md#reporting-rules-measured-versus-derived)
 - [C-V extraction reserved](06-analysis-extraction.md#c-v-extraction-reserved)
 
-### 06b time series and pulsed runs
+### 06b time series, pulsed and search runs
 
 - [Sampling summary and relaxation fit](06b-analysis-time-pulse.md#sampling-summary-and-relaxation-fit)
 - [Time to breakdown and Weibull](06b-analysis-time-pulse.md#time-to-breakdown-and-weibull)
 - [Pulsed versus DC](06b-analysis-time-pulse.md#pulsed-versus-dc)
 - [Pulse plateau](06b-analysis-time-pulse.md#pulse-plateau)
+- [Threshold voltage by search](06b-analysis-time-pulse.md#threshold-voltage-by-search)
+- [Breakdown voltage](06b-analysis-time-pulse.md#breakdown-voltage)
 
 ### 07 HSPICE simulation
 

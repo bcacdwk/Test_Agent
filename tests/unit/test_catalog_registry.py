@@ -98,6 +98,12 @@ def test_committed_statuses() -> None:
     for recipe_id in ("mosfet.idvg_pulsed", "mosfet.idvd_pulsed", "basic.pulsed_spot", "generic.smu_multi_pulsed"):
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
         assert registry.get(recipe_id).kind == "smu_pulsed"
+    # WP7.5: kind smu_search (tests/integration/test_recipes_search.py); the breakdown recipes are destructive
+    for recipe_id in ("mosfet.vth_search", "basic.breakdown_search", "dielectric.bdv"):
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+        assert registry.get(recipe_id).kind == "smu_search"
+    assert registry.get("basic.breakdown_search").always_confirm == registry.get("dielectric.bdv").always_confirm \
+        == ["destructive"]
     cards = {"mosfet.idvg": "smu/mosfet-idvg", "mosfet.idvd": "smu/mosfet-idvd",
              "mosfet.gate_leakage": "smu/gate-leakage", "basic.contact_resistor": "smu/contact-resistor-check",
              "basic.diode_iv": "smu/diode-iv", "fefet.dual_sweep_mw": "nvm/fefet-dual-sweep-mw",
@@ -117,7 +123,9 @@ def test_committed_statuses() -> None:
          "mosfet.idvg_pulsed": "smu/smu-pulsed-iv", "mosfet.idvd_pulsed": "smu/smu-pulsed-iv",
          "basic.pulsed_spot": "smu/smu-pulsed-iv", "generic.smu_multi_pulsed": "smu/smu-pulsed-iv",  # WP7.3
          "spgu.pulse_train": "spgu/spgu-pulse-train", "spgu.alwg_sequence": "spgu/spgu-pulse-train",
-         "mosfet.charge_pumping": "spgu/charge-pumping"}  # WP9.3
+         "mosfet.charge_pumping": "spgu/charge-pumping",  # WP9.3
+         "mosfet.vth_search": "smu/smu-search", "basic.breakdown_search": "reliability/tddb-bdv",
+         "dielectric.bdv": "reliability/tddb-bdv"}  # WP7.5
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):

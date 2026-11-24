@@ -77,7 +77,8 @@ def test_sampling_builder_output(built: str, expected: str) -> None:
         lambda: flex.mi(1, 7, 0, 1e-6, 5),
         lambda: flex.tsr(11),
         lambda: flex.tsr(0),
-        lambda: flex.mm(9, [1]),
+        lambda: flex.mm(9, [1, 2]),  # MM 9 takes at most one channel (WP7.5)
+        lambda: flex.mm(14, [1]),  # MM 14/15 take none
     ],
 )
 def test_sampling_builders_reject_values_outside_the_manual_domain(call) -> None:

@@ -3,14 +3,14 @@ domain: 06b-analysis-time-pulse
 maturity: seed
 sources:
   - src/b1500_test_agent/analysis/reliability.py (sampling_summary, time_to_breakdown, weibull_fit; WP7.4)
-  - src/b1500_test_agent/analysis/pulse.py (pulsed_vs_dc, pulse_plateau; WP7.3)
+  - src/b1500_test_agent/analysis/pulse.py (pulsed_vs_dc, pulse_plateau; WP7.3; vth_search_value, breakdown_voltage; WP7.5)
   - src/b1500_test_agent/analysis/registry.py (two-run methods, options.reference_run)
   - docs/design/blueprint.md sections 2.9 (analyze_run reference_run) and 2.10 (pulse.py)
 last_reviewed: null
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
-# Analysis of time series and pulsed runs (knowledge domain 6b)
+# Analysis of time series, pulsed and search runs (knowledge domain 6b)
 
 Split from [06](06-analysis-extraction.md) when it reached 300 lines (WP7.3); trust classes, the quality gate and the
 reporting rules there apply here too. Definitions here are identical to the docstrings of
@@ -66,3 +66,28 @@ Implemented (`pulse_plateau`, WP7.3; SMU pulsed runs, WGFMU waveforms later).
 - One row per pulse (SMU pulsed spot/sweep): each row already is the pulse-end reading over the ADC time.
 - Result `plateau_current` (or `plateau_voltage`) at level `v` (interpolated), pulse number `pulse`, or by default
   the pulse with the largest |level|.
+
+## Threshold voltage by search
+
+Implemented (`vth_search_value`, WP7.5; recipe `mosfet.vth_search`, kind `smu_search`, MM 15 binary search).
+
+- The instrument bisects the gate until the drain current is within `limit_rel` (1 %) of I_crit x W/L and returns the
+  gate voltage there (`gate_V`, status `N`) and the drain current it read: Vth = that voltage (`fit`:
+  `i_measured_a`, `target`, `rel_error`). It is the constant-current Vth ([06](06-analysis-extraction.md#vth-constant-current))
+  at the same criterion and drain bias, without interpolation; 1 % of the current is ~0.4 mV at 80 mV/dec.
+- Status `G` (target not between start and stop): `failed`, widen the range; `S` (automatic abort: gate or drain
+  compliance) or an untrusted drain reading: refused unless `force`.
+
+## Breakdown voltage
+
+Implemented (`breakdown_voltage`, WP7.5; recipes `basic.breakdown_search`, `dielectric.bdv`), read by the search kind:
+
+- Linear search (MM 14 ramp): BDV = the source voltage of the first step whose current reached the criterion
+  (status `N`), within one step (`window` previous step .. BDV, `fit.step_v`); `S` with the monitor in compliance is
+  the breakdown step stopped by the compliance (same value, warning).
+- Quasi-pulsed (MM 9): BDV = the measured voltage where the source hit its compliance (status `C`). `S` (compliance
+  before a 10 V change from start) or `G` (detection timeout) refuse: use the linear ramp, the long interval.
+- No breakdown up to stop (linear `G`, quasi-pulsed `N`): the stop value as a `lower` bound, `classification:
+  no_breakdown` (censored). The value is signed as forced (a reverse junction breakdown is negative;
+  `fit.magnitude_v`). Report the criterion (`target`, `icomp`), the step, the status counts and that the site is
+  destroyed.

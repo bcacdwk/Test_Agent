@@ -654,8 +654,9 @@ class Executor(RunningRuns):
             outcome = "completed"
             try:
                 table = kind.to_table(state.raw, plan)
-                if table is not None:
-                    quality, analyses, flags = self._analyse(folder, table, manifest, recipe, artifacts)
+                if table is not None:  # the default analyses see the kind_result the archived manifest gets
+                    analysed = manifest.model_copy(update={"kind_result": dict(state.raw.kind_result)})
+                    quality, analyses, flags = self._analyse(folder, table, analysed, recipe, artifacts)
             except Exception as exc:  # noqa: BLE001 - the raw data stay archived; the run is failed
                 outcome, error_code = "failed", _error_code(exc)
                 message = f"processing the acquired data failed: {type(exc).__name__}: {exc}"
@@ -786,6 +787,10 @@ class Executor(RunningRuns):
             out.append("pulsed measurement (MM 3/4/5/27/28): each value is measured at the end of a pulse with the "
                        "pulsed ADC's time (AIT 2); sweeps abort on compliance/overflow/oscillation (WM 2,1); a host "
                        "list of pulse levels stops after a trigger that reported one (see kind_result)")
+        if plan.kind == "smu_search":
+            out.append("search measurement (linear or binary search, quasi-pulsed spot): one result found by the "
+                       "instrument (the source value at the target, or the voltage at the breakdown detection), not a "
+                       "curve; status G = target not found in the range, S = stopped early (see kind_result)")
         if plan.kind == "stress_measure":
             out.append("stress-measure: the stress and recovery holds are timed by the instrument (sampling blocks of "
                        "at most 25 s, one monitor sample each); t_s is the cumulative hold time (the reads interrupt "

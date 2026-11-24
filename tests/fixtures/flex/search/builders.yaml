@@ -1,0 +1,50 @@
+# Golden FLEX strings of the SMU search and quasi-pulsed builders (src/b1500_test_agent/driver/flex/search.py), WP7.5.
+# Each case: the builder, its arguments, the exact string the builder writes (`expect`) and, where the Programming
+# Guide prints an example with the same parameters, that example (`manual`) with its PDF page; the builder writes
+# numbers in its own canonical form (shortest round-trip decimal, upper-case exponent), which must be numerically
+# equal to the manual's. The builders always send the compliance and every optional mode value (LSM post, BSM post,
+# BDM mode), so manual examples that omit them are cited without `manual`; the LGI/LGV examples (channel 0, mode 2) lie
+# outside the documented domain and are not reproduced.
+source: >-
+  Keysight B1500 Series Programming Guide, Edition 15: BDM PDF 364, BDT/BDV PDF 365-366, BGI PDF 366-367, BGV PDF
+  367-369, BSI PDF 369, BSM PDF 370-372, BSSI PDF 372-373, BSSV PDF 373-374, BST/BSV PDF 374-375, BSVM PDF 375, LGI PDF
+  443, LGV PDF 444, LSI PDF 453-454, LSM PDF 454-455, LSSI PDF 455-456, LSSV PDF 456-457, LSTM/LSV PDF 459-460, LSVM
+  PDF 460, and the programming examples Tables 3-10, 3-11, 3-12 (PDF 216-223).
+kind: builders
+cases:
+  - {builder: bdm, args: [short, I], expect: "BDM 0,1", manual: "BDM 0,1", pdf: 364}
+  - {builder: bdt, args: [0.1, 1.0e-3], expect: "BDT 0.1,0.001", manual: "BDT 0.1,1E-3", pdf: 365}
+  - {builder: bdt, args: [0, 0], expect: "BDT 0,0", pdf: 217}
+  - {builder: bdv, args: [1, 0, 0, 100, 0.01], expect: "BDV 1,0,0,100,0.01", manual: "BDV 1,0,0,100,0.01", pdf: 366}
+  - {builder: bdv, args: [3, 0, 0, 100, 0.005], expect: "BDV 3,0,0,100,0.005", pdf: 217}
+  - {builder: bgi, args: [1, 0, 1.0e-8, 14, 1.0e-6], expect: "BGI 1,0,1E-08,14,1E-06", manual: "BGI 1,0,1E-8,14,1E-6",
+     pdf: 367}
+  - {builder: bgi, args: [5, 0, 1.0e-6, 13, 1.0e-3], expect: "BGI 5,0,1E-06,13,0.001", pdf: 223}
+  - {builder: bgi, args: [5, 1, 16, 0, 1.0e-7], expect: "BGI 5,1,16,0,1E-07", pdf: 366}
+  - {builder: bgv, args: [1, 0, 0.1, 12, 5], expect: "BGV 1,0,0.1,12,5", manual: "BGV 1,0,0.1,12,5", pdf: 369}
+  - {builder: bsi, args: [1, 0, 1.0e-12, 1.0e-6, 10], expect: "BSI 1,0,1E-12,1E-06,10", manual: "BSI 1,0,1E-12,1E-6,10",
+     pdf: 369}
+  - {builder: bsm, args: [cautious, true, last], expect: "BSM 1,2,3", manual: "BSM 1,2,3", pdf: 372}
+  - {builder: bsm, args: [cautious, false, start], expect: "BSM 1,1,1", pdf: 223}
+  - {builder: bssi, args: [1, -1, 1.0e-6, 10], expect: "BSSI 1,0,1E-06,10", manual: "BSSI 1,0,1E-6,10", pdf: 373}
+  - {builder: bssv, args: [1, -1, 5, 1.0e-6], expect: "BSSV 1,0,5,1E-06", manual: "BSSV 1,0,5,1E-6", pdf: 374}
+  - {builder: bssv, args: [5, 1, 0, 0.01], expect: "BSSV 5,1,0,0.01", pdf: 223}
+  - {builder: bst, args: [5, 0.1], expect: "BST 5,0.1", manual: "BST 5,0.1", pdf: 374}
+  - {builder: bsv, args: [1, 0, 0, 20, 1.0e-6], expect: "BSV 1,0,0,20,1E-06", manual: "BSV 1,0,0,20,1E-6", pdf: 375}
+  - {builder: bsv, args: [4, 12, 0, 3, 0.01], expect: "BSV 4,12,0,3,0.01", pdf: 223}
+  - {builder: bsvm, args: [true], expect: "BSVM 1", manual: "BSVM 1", pdf: 375}
+  - {builder: lgi, args: [1, above, 14, 1.0e-6], expect: "LGI 1,1,14,1E-06", pdf: 443}
+  - {builder: lgi, args: [5, above, 13, 1.0e-3], expect: "LGI 5,1,13,0.001", pdf: 220}
+  - {builder: lgv, args: [1, below, 12, 3], expect: "LGV 1,0,12,3", pdf: 444}
+  - {builder: lsi, args: [1, 0, 0, 1.0e-6, 1.0e-8, 10], expect: "LSI 1,0,0,1E-06,1E-08,10",
+     manual: "LSI 1,0,0,1E-6,1E-8,10", pdf: 454}
+  - {builder: lsm, args: [true, last], expect: "LSM 2,3", manual: "LSM 2,3", pdf: 455}
+  - {builder: lsm, args: [true, start], expect: "LSM 2,1", pdf: 455}
+  - {builder: lssi, args: [1, 1, 1.0e-6, 5], expect: "LSSI 1,1,1E-06,5", manual: "LSSI 1,1,1E-6,5", pdf: 456}
+  - {builder: lssv, args: [1, -1, 5, 1.0e-6], expect: "LSSV 1,0,5,1E-06", manual: "LSSV 1,0,5,1E-6", pdf: 457}
+  - {builder: lssv, args: [5, 1, 0, 0.01], expect: "LSSV 5,1,0,0.01", pdf: 220}
+  - {builder: lstm, args: [5, 0.1], expect: "LSTM 5,0.1", manual: "LSTM 5,0.1", pdf: 459}
+  - {builder: lsv, args: [1, 0, 0, 20, 0.5, 1.0e-6], expect: "LSV 1,0,0,20,0.5,1E-06", manual: "LSV 1,0,0,20,.5,1E-6",
+     pdf: 460}
+  - {builder: lsv, args: [4, 12, 0, 3, 0.01, 0.01], expect: "LSV 4,12,0,3,0.01,0.01", pdf: 220}
+  - {builder: lsvm, args: [true], expect: "LSVM 1", manual: "LSVM 1", pdf: 460}

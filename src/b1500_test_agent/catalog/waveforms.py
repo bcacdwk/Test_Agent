@@ -11,7 +11,7 @@ channel gets the smallest force range that holds every level it outputs (3 V, 5 
 (4-53)), a voltage-measuring channel the 5 V or 10 V measurement range, a current-measuring channel the recipe's
 range (Table 4-9, WG p142 (4-72)).
 
-Builders (``BUILDERS``; the other names of blueprint 2.7.1 arrive with WP10.5-10.7):
+Builders (``BUILDERS``; ``pund``, ``program_read`` and ``fast_bti`` of blueprint 2.7.1 arrive with WP10.6-10.7):
 
 - ``pulsed_iv``: one pulse per level on the pulsed channel (base -> level in ``edge``, ``width`` flat top, back to
   base in ``edge``, rest of the ``period`` at base), the other channels hold their bias; every measuring channel takes
@@ -22,6 +22,13 @@ Builders (``BUILDERS``; the other names of blueprint 2.7.1 arrive with WP10.5-10
   the measuring channels sample every ``interval`` with averaging over the whole interval (events ``up``/``down``).
 - ``dc_spot``: DC mode (no sequencer): every channel forces its level(s) with ``WGFMU_dcforceVoltage`` step by step
   (``WaveformProgram.dc``; WG p89 (4-19)).
+- ``dc_sample`` (WP10.5; RTN and low-frequency noise): constant bias, long sampling. Every channel ramps from 0 V to
+  its level in ``edge``, holds it for ``settle`` and then for one measurement event of ``points`` points every
+  ``interval`` (each averaged over ``average``; 0 = a single sample per point) on every measuring channel, then
+  returns to 0 V in ``edge``. All channels share the timing, so their values line up row by row (the lab's LFN
+  layout, lwp ``LFN_noise_meas.cpp``: channel 1 measures its voltage, channel 2 the current, both on one event); a
+  hold longer than ``HOLD_VECTOR_MAX_S`` is split into equal vectors (the library's longest vector is about
+  10995 s, WG p82 (4-12)).
 - ``table``: the lab's CSV layout (lwp ``LFN_noise_meas.cpp``): per channel a waveform file of absolute-time rows
   ``t,level`` (first time 0, strictly increasing; ``#`` comments, blank lines and one header row skipped) giving the
   initial level and one vector per further row; one events file of rows ``t,points,interval,average,range1,range2,..``
@@ -30,6 +37,9 @@ Builders (``BUILDERS``; the other names of blueprint 2.7.1 arrive with WP10.5-10
   ``average`` > 0, else raw. A range code applies from the row's time: at time 0 it is the channel's initial
   current range (a range event there would fall inside the first averaging window, which the library forbids, WG
   p128 (4-58)); later it is a range event ``E<row>r`` (rule R-WG-02 checks it lies outside every averaging window).
+
+Force range: each channel gets the finest range that holds its levels unless its role names one
+(``WgRole.force_range``, e.g. the lab's 5 V range of ``wgfmu.lfn``); a named range that cannot hold a level is refused.
 
 Data layout (``point_layout``): the values a channel stores, in the library's order (every repeat of every sequence
 entry; inside one repeat the events by start time, each event's points in turn; a RAW point gives ``1 + average / 5
@@ -70,9 +80,9 @@ from b1500_test_agent.models.sources import (
     WgfmuVoltageRange,
 )
 
-BUILDERS: Final = ("pulse_train", "pulsed_iv", "fast_iv_ramp", "dc_spot", "table")
-"""The builders this module implements (blueprint v2 2.7.1 lists ``dc_sample``, ``pund``, ``program_read`` and
-``fast_bti`` too: WP10.5-10.7)."""
+BUILDERS: Final = ("pulse_train", "pulsed_iv", "fast_iv_ramp", "dc_spot", "dc_sample", "table")
+"""The builders this module implements (blueprint v2 2.7.1 lists ``pund``, ``program_read`` and ``fast_bti`` too:
+WP10.6-10.7)."""
 
 TICK_S: Final = WGFMU_GRID_S
 GAP_HOLD_TICKS: Final = 1
@@ -88,6 +98,10 @@ the lab's code writes them."""
 
 FORCE_RANGES: Final[tuple[WgfmuForceRange, ...]] = ("3v", "5v", "-10v", "10v")
 """Force ranges from the finest; a channel takes the first that holds all its levels."""
+
+HOLD_VECTOR_MAX_S: Final = 10_000.0
+"""Longest single hold vector ``dc_sample`` writes (below the library's 10995.11627775 s per vector, WG p82 (4-12));
+longer holds become several equal vectors."""
 
 TABLE_MAX_ROWS: Final = 4096
 """Most rows of one waveform or events file (a pattern holds at most 2,048 vectors; R-WG-02 blocks longer ones)."""
@@ -146,6 +160,8 @@ class WgRole(StrictModel):
     channel: Channel
     measure: Quantity | None = None
     current_range: WgfmuCurrentRange = "1ma"
+    force_range: WgfmuForceRange | None = None
+    """Force range the role asks for (``None``: the finest range that holds its levels)."""
 
 
 class BuiltWaveform(StrictModel):
@@ -159,11 +175,22 @@ class BuiltWaveform(StrictModel):
     cycle_by: CycleBy = "none"
 
 
+def _force_range(role: WgRole, levels: Sequence[float]) -> WgfmuForceRange:
+    """The role's own force range when it names one (it must hold every level), else the finest that does."""
+    if role.force_range is None:
+        return force_range_for(levels)
+    low, high = WGFMU_SPEC.force_ranges[role.force_range]
+    if not all(low <= v <= high for v in levels):
+        raise CompileError(f"role {role.role}: levels {min(levels):g}..{max(levels):g} V do not fit its force range "
+                           f"{role.force_range} ({low:g}..{high:g} V)")
+    return role.force_range
+
+
 def _setup(role: WgRole, levels: Sequence[float], mode: WgfmuMode = "fastiv",
            current_range: WgfmuCurrentRange | None = None) -> ChannelSetup:
     measure = "current" if role.measure == "I" else "voltage"
     return ChannelSetup(
-        mode=mode, force_range=force_range_for(levels), measure=measure,
+        mode=mode, force_range=_force_range(role, levels), measure=measure,
         current_range=(current_range or role.current_range) if measure == "current" else None,
         voltage_range=voltage_range_for(levels) if measure == "voltage" else None,
         measure_enabled=role.measure is not None)
@@ -402,6 +429,55 @@ def dc_spot(channels: Sequence[tuple[WgRole, Sequence[float]]]) -> BuiltWaveform
     if not any(role.measure is not None for role, _ in channels):
         raise CompileError("dc_spot: no role measures (give a role measure: [I] or [V])")
     return BuiltWaveform(program=_program("dc_spot", channels=setups, dc=dc))
+
+
+# -- dc_sample -------------------------------------------------------------------------------------------------------
+
+
+def _hold(level: float, ticks_total: int) -> list[tuple[float, float]]:
+    """A hold of ``ticks_total`` ticks at ``level`` as equal vectors of at most ``HOLD_VECTOR_MAX_S`` each (the last
+    one takes the remainder ticks)."""
+    limit = ticks(HOLD_VECTOR_MAX_S)
+    pieces = max(1, math.ceil(ticks_total / limit))
+    size, rest = divmod(ticks_total, pieces)
+    return [(_s(size + (1 if k < rest else 0)), level) for k in range(pieces)]
+
+
+def dc_sample(channels: Sequence[tuple[WgRole, float]], *, points: int, interval: float, average: float,
+              edge: float, settle: float) -> BuiltWaveform:
+    """Constant bias, long sampling (module docstring): every channel of ``channels`` (role, level) ramps 0 V ->
+    level in ``edge``, holds it ``settle`` and through one measurement event ``sample`` (``points`` points every
+    ``interval``, averaged over ``average``; 0 = one sample per point) on every measuring channel, then returns to
+    0 V in ``edge``. The event's limits (interval, average <= interval, stored values) are rule R-WG-02's.
+
+    Raises:
+        CompileError: Without channels or a measuring channel, for a non-positive ``points`` or unusable times.
+    """
+    if not channels:
+        raise CompileError("dc_sample needs at least one WGFMU channel")
+    if isinstance(points, bool) or not isinstance(points, int) or points < 1:
+        raise CompileError(f"points must be a positive integer, got {points!r}")
+    step = ticks(on_grid_s(interval, "interval"))
+    avg = ticks(on_grid_s(average, "average", minimum=0))
+    edge_t = ticks(on_grid_s(edge, "edge"))
+    settle_t = ticks(on_grid_s(settle, "settle", minimum=0))
+    span = step * (points - 1) + max(avg, 1)  # event end - event start (+10 ns without averaging, WG p125 (4-55))
+    patterns: dict[str, Pattern] = {}
+    setups: dict[int, ChannelSetup] = {}
+    sequences: dict[int, list[tuple[str, float]]] = {}
+    events: list[WaveformEvent] = []
+    for role, level in channels:
+        vectors = [(_s(edge_t), level), *_hold(level, settle_t + span), (_s(edge_t), 0.0)]
+        patterns[role.role] = Pattern(v0=0.0, vectors=vectors)
+        setups[role.channel] = _setup(role, [0.0, level])
+        sequences[role.channel] = [(role.role, 1.0)]
+        if role.measure is not None:
+            events.append(MeasureEvent(pattern=role.role, event="sample", t=_s(edge_t + settle_t), points=points,
+                                       interval=_s(step), average=_s(avg)))
+    if not events:
+        raise CompileError("dc_sample: no role measures (give the drain role measure: [I])")
+    program = _program("dc_sample", channels=setups, patterns=patterns, events=events, sequences=sequences)
+    return BuiltWaveform(program=program)
 
 
 # -- table (lab CSV layout) ------------------------------------------------------------------------------------------

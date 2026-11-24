@@ -420,7 +420,7 @@ the simulator and is `TODO(verify)` at L8.
 
 **WGFMU waveform kind (blueprint v2 2.7, 2.7.1, decision 21, WP10.4).** Kind `wgfmu_waveform` compiles one
 `WaveformProgram` from the recipe's builder (`catalog/waveforms.py`: `pulsed_iv`, `pulse_train`, `fast_iv_ramp`,
-`dc_spot`, `table`); the program, its nominal pulse trains and every WGFMU channel's `WaveformLimits` (most vectors per
+`dc_spot`, `dc_sample` (WP10.5: a constant bias, no pulse envelope), `table`); the program, its nominal pulse trains and every WGFMU channel's `WaveformLimits` (most vectors per
 pattern, stored values, output time: exactly the program's) are part of the hashed plan, so R-WG-02, R-PULSE-01..03,
 the summary and the guard judge exactly what runs. A WGFMU channel's envelope is its largest |level| (no current
 limit); a pulse builder's gate also gets a pulse envelope (open-load level = set level, width, duty, pulses per start),

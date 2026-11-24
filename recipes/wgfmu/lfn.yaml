@@ -1,0 +1,52 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# WGFMU low-frequency noise (blueprint v2 3.4, kind wgfmu_waveform, builder dc_sample) in the lab's layout
+# (lwp/1530 LFN_noise_meas.cpp): channel 1 = the gate (WGFMU 201, Fast IV, 5 V range) measures its voltage, channel 2
+# = the drain (WGFMU 202, Fast IV, 5 V range) measures its current on `irange` (lab: 100 uA), both on one measurement
+# event of `points` points every `interval` averaged over `average` (lab: 504,000 points at 100 ns, 100 ns), here at a
+# constant gate and drain bias (ramped in `edge`, held `settle` before the record). psd_welch gives the drain-current
+# PSD S_I(f) and S_I/I^2 (Welch, Hann, 50 % overlap) and fits A/f^gamma + white (+ one Lorentzian when an RTN corner
+# is in the band, model auto): gamma, the normalized 1/f level at 1 Hz and at f_ref; plot_psd draws it. The lowest
+# frequency is about 3 / (record length / segments x 2), the highest fitted 1 / (10 interval). Records above 200,000
+# rows are archived as data.npz + preview.csv; the raw readback as raw/wgfmu-<ch>-000.npz per channel.
+# status: sim_validated by tests/integration/test_recipes_noise.py (nmos_rtn: gamma +-0.1, lab channel layout).
+id: wgfmu.lfn
+version: 1
+title: WGFMU low-frequency noise (lab layout ch1 V, ch2 I; constant bias, drain-current PSD, 1/f^gamma)
+family: wgfmu
+kind: wgfmu_waveform
+status: sim_validated
+card: .agents/skills/b1500-test/cards/wgfmu/wgfmu-rtn-noise.md
+device_types: [nmos, pmos, igzo_tft]
+roles:
+  gate:
+    function: wgfmu
+    measure: [V]
+    module_types: [WGFMU]
+    settings: {v: $vg, force_range: $vrange}
+  drain:
+    function: wgfmu
+    measure: [I]
+    module_types: [WGFMU]
+    settings: {v: $vd, range: $irange, force_range: $vrange}
+  source: {function: ground, allow_gndu: true}
+params:
+  builder: {type: enum, choices: [dc_sample], default: dc_sample, doc: Fixed waveform builder.}
+  vg: {unit: V, default: 1.0, recommended: [0.3, 2.0], range: [-5.0, 5.0], doc: Gate bias held during the record (channel 1).}
+  vd: {unit: V, default: 0.1, recommended: [0.05, 0.5], range: [-5.0, 5.0], doc: "Drain bias (channel 2; linear region)."}
+  irange: {type: enum, choices: [1ua, 10ua, 100ua, 1ma, 10ma], default: 100ua, doc: "Drain current range (the lab's 100 uA; full scale above Id; over-range reads saturate, status V)."}
+  vrange: {type: enum, choices: [3v, 5v, -10v, 10v], default: 5v, doc: "Force range of both channels (the lab's 5 V; it must hold vg and vd)."}
+  points: {type: int, default: 504000, recommended: [100000, 4000000], range: [1000, 4000000], doc: "Samples of the record (the lab's 504,000; at most about 4,000,000 per channel)."}
+  interval: {unit: s, default: 1.0e-7, recommended: [1.0e-7, 1.0e-4], range: [1.0e-8, 1.0], doc: "Sampling interval (the lab's 100 ns); the fit reaches 1 / (10 interval)."}
+  average: {unit: s, default: 1.0e-7, recommended: [1.0e-7, 1.0e-4], range: [0.0, 0.02], doc: "Averaging time of each point (<= interval; = interval is the anti-alias filter; the lab's 100 ns)."}
+  edge: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-5], range: [1.0e-8, 1.0e-3], doc: Ramp from 0 V to the bias and back.}
+  settle: {unit: s, default: 1.0e-3, recommended: [1.0e-3, 1.0], range: [0.0, 10.0], doc: Hold at the bias before the record starts.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: psd_welch}
+  - {method: it_statistics}
+provenance:
+  sources:
+    - blueprint v2 2.7.1 (builder dc_sample), 2.10 (noise.py psd_welch, plot_psd), 3.4 (wgfmu.lfn), 4.2 (noise gamma target)
+    - lwp/1530 LFN_noise_meas.cpp and meas_pt.csv (Fast IV, 5 V range, ch1 voltage / ch2 current, 504,000 points at 100 ns, 100 uA range, 100,000-value readback)
+    - WGFMU guide Ed. 8 setMeasureEvent (PDF 125-126), current ranges Table 4-9 (PDF 142); application note 5990-3705 (AN-RTN p6-p7 noise floor, bandwidth)
+  validation_runs: []

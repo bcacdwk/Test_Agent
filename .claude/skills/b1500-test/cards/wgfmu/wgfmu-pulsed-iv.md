@@ -10,7 +10,7 @@ routes: [rsu:wgfmu]
 bringup_stage: L8
 status: sim_validated
 confirmation: always
-knowledge: [knowledge/11-switching-routing.md#rsu-of-the-wgfmu, knowledge/06b-analysis-time-pulse.md#pulse-plateau, knowledge/06b-analysis-time-pulse.md#pulsed-versus-dc, knowledge/06-analysis-extraction.md#maximum-transconductance]
+knowledge: [knowledge/10-wgfmu-fast-iv-noise.md#fast-i-v-pulses-ramps-and-timing, knowledge/11-switching-routing.md#rsu-of-the-wgfmu, knowledge/06b-analysis-time-pulse.md#pulse-plateau, knowledge/06b-analysis-time-pulse.md#pulsed-versus-dc, knowledge/06-analysis-extraction.md#maximum-transconductance]
 manual: [WG p63 (3-23) "Id-Vg", WG p125 (4-55) "setMeasureEvent", WG p126 (4-56) "average", WG p80 (4-10) "addSequence", WG p142 (4-72) "6003", WG p16 (1-4) "full scale"]
 debug: [wgfmu-range-overflow, wgfmu-library-error, wgfmu-memory-budget, cleanup-failed-fault]
 sources: [blueprint v2 2.7 wgfmu_waveform, blueprint v2 2.7.1 builders pulsed_iv fast_iv_ramp pulse_train, blueprint v2 3.4, WG Ex. 1-3 and 9, 1 us flash I-V application note]

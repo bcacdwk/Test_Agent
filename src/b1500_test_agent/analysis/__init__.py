@@ -11,6 +11,9 @@ Ad-hoc use from agent scripts in ``work/``::
     lives = weibull_fit([load_run(r) for r in tddb_run_ids])   # Weibull beta/eta over TDDB runs (library only)
     bti = bti_power_law(load_run(bti_run_id))  # stress-measure runs: dVth = A t^n (+ recovery)
     mw = memory_window_pulse(load_run(pr_run_id))  # program/read runs: Vth(erase) - Vth(program)
+    rtn = rtn_levels(load_run(rtn_run_id))     # RTN record: tau_c, tau_e, dI/I (noise.py)
+    lfn = psd_welch(load_run(lfn_run_id))      # PSD fit: gamma, S/I^2 (+ plot_psd(d) -> work/<run_id>/plots/)
+    f, s, nper = welch_psd(d.table["drain_I"], dt=1e-7)   # raw Welch PSD for own plots (spectrum.py)
     ekv = compact_model_fit(d)                 # EKV vth, n, beta, theta (+ lambda, rs); level 1 with model="level1"
     files = write_spice_files(export_spice_netlist(d), run_id=d.run_id)   # .lib + .sp under work/<run_id>/spice/
     mw_n = endurance_curve(load_run(endurance_run_id))  # endurance checkpoints: MW per cumulative cycle count
@@ -18,17 +21,18 @@ Ad-hoc use from agent scripts in ``work/``::
 
 Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_for(family)``; definitions in the
 ``mosfet.py``, ``mosfet_family.py``, ``resistor.py``, ``diode.py``, ``leakage.py``, ``fefet.py``, ``plots.py``,
-``reliability.py``, ``stress.py`` and ``nvm.py`` docstrings): ``quality_report``, ``vth_linear_extrapolation``,
-``vth_constant_current``, ``vth_max_gm``, ``subthreshold_swing``, ``gm_max``, ``ion_ioff``, ``output_metrics``,
-``dibl``, ``body_effect``, ``resistance``, ``diode_fit``, ``forward_voltage``, ``leakage_at``, ``memory_window``,
-``plot_iv``, ``plot_timeseries``, ``sampling_summary``, ``time_to_breakdown``, ``bti_power_law``,
-``degradation_vs_time``, ``silc``, the C-V methods of ``cv.py`` (``cv_cox``, ``cv_flatband``, ``cv_doping_profile``,
-``cv_vth``, ``cv_hysteresis``, ``impedance_convert``, ``plot_cv``; ``convert_table`` converts a whole run), the C-V
-variants of ``cv_variants.py`` (``cf_dispersion``, ``ct_recovery``, ``cv_ac_dependence``, ``cv_butterfly``, the
-two-run ``cv_pulsed_vs_dc``), ``memory_window_pulse``, ``switching_kinetics_fit``, ``endurance_summary``,
-``retention_fit`` (``nvm.py``, the NLS core in ``nls.py``), the compact models ``compact_model_fit``,
-``model_compare`` and ``export_spice_netlist`` (``model.py``, ``spice.py``); library helpers: ``weibull_fit`` (over a
-run list), ``endurance_curve`` (MW per endurance checkpoint).
+``reliability.py``, ``stress.py``, ``nvm.py`` and ``noise.py`` docstrings): ``quality_report``,
+``vth_linear_extrapolation``, ``vth_constant_current``, ``vth_max_gm``, ``subthreshold_swing``, ``gm_max``,
+``ion_ioff``, ``output_metrics``, ``dibl``, ``body_effect``, ``resistance``, ``diode_fit``, ``forward_voltage``,
+``leakage_at``, ``memory_window``, ``plot_iv``, ``plot_timeseries``, ``sampling_summary``, ``time_to_breakdown``,
+``bti_power_law``, ``degradation_vs_time``, ``silc``, the C-V methods of ``cv.py`` (``cv_cox``, ``cv_flatband``,
+``cv_doping_profile``, ``cv_vth``, ``cv_hysteresis``, ``impedance_convert``, ``plot_cv``; ``convert_table`` converts a
+whole run), the C-V variants of ``cv_variants.py`` (``cf_dispersion``, ``ct_recovery``, ``cv_ac_dependence``,
+``cv_butterfly``, the two-run ``cv_pulsed_vs_dc``), ``memory_window_pulse``, ``switching_kinetics_fit``,
+``endurance_summary``, ``retention_fit`` (``nvm.py``, the NLS core in ``nls.py``), the compact models
+``compact_model_fit``, ``model_compare`` and ``export_spice_netlist`` (``model.py``, ``spice.py``), the noise methods
+``it_statistics``, ``psd_welch``, ``rtn_levels`` and ``plot_psd`` (``noise.py``; Welch PSD and fit in ``spectrum.py``);
+library helpers: ``weibull_fit`` (over a run list), ``endurance_curve`` (MW per endurance checkpoint).
 The run-table contract (``data.csv`` or ``data.npz`` +
 ``preview.csv``, columns) is defined in ``dataset.py``.
 
@@ -105,6 +109,7 @@ from b1500_test_agent.analysis.mosfet import (
     vth_max_gm,
 )
 from b1500_test_agent.analysis.mosfet_family import body_effect, dibl
+from b1500_test_agent.analysis.noise import it_statistics, plot_psd, psd_welch, rtn_levels, two_level
 from b1500_test_agent.analysis.nvm import (
     endurance_curve,
     endurance_summary,
@@ -126,6 +131,7 @@ from b1500_test_agent.analysis.reliability import (
     weibull_fit,
 )
 from b1500_test_agent.analysis.resistor import resistance
+from b1500_test_agent.analysis.spectrum import fit_psd, log_bins, welch_psd
 from b1500_test_agent.analysis.spice import SpiceExport, write_spice_files
 from b1500_test_agent.analysis.stress import bti_power_law, degradation_vs_time, silc, stress_reads
 
@@ -177,6 +183,7 @@ __all__ = [
     "endurance_summary",
     "export_spice_netlist",
     "find_run",
+    "fit_psd",
     "fit_stretched_exponential",
     "forward_voltage",
     "gm",
@@ -184,10 +191,12 @@ __all__ = [
     "high_low_profile",
     "impedance_convert",
     "ion_ioff",
+    "it_statistics",
     "leakage_at",
     "load_manifest",
     "load_run",
     "local_derivative",
+    "log_bins",
     "measured_columns",
     "memory_window",
     "memory_window_pulse",
@@ -197,7 +206,9 @@ __all__ = [
     "output_metrics",
     "plot_cv",
     "plot_iv",
+    "plot_psd",
     "plot_timeseries",
+    "psd_welch",
     "pulse_reads",
     "quasi_static_role",
     "read_table",
@@ -207,6 +218,7 @@ __all__ = [
     "render_timeseries",
     "resistance",
     "retention_fit",
+    "rtn_levels",
     "run_method",
     "run_relpath",
     "run_table_path",
@@ -220,12 +232,14 @@ __all__ = [
     "switching_kinetics_fit",
     "time_to_breakdown",
     "trust_levels",
+    "two_level",
     "validate_table",
     "value_column",
     "vth_constant_current",
     "vth_linear_extrapolation",
     "vth_max_gm",
     "weibull_fit",
+    "welch_psd",
     "with_trust",
     "work_dir_for",
     "write_run_table",

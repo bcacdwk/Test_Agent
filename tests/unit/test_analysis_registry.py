@@ -42,6 +42,7 @@ M7 = {"sampling_summary", "time_to_breakdown", "dibl", "body_effect", "forward_v
       "compact_model_fit", "model_compare", "export_spice_netlist"}  # WP7.7
 M9 = {"charge_pumping", "memory_window_pulse", "switching_kinetics_fit", "endurance_summary",
       "retention_fit"}  # WP9.3, WP9.4, WP9.5
+M10 = {"it_statistics", "psd_welch", "rtn_levels", "plot_psd"}  # WP10.5
 
 
 def idvg_run(recipe_id: str = "mosfet.idvg", drain_status: list[str] | None = None) -> RunData:
@@ -50,12 +51,13 @@ def idvg_run(recipe_id: str = "mosfet.idvg", drain_status: list[str] | None = No
 
 
 def test_registry_lists_every_method_as_implemented() -> None:
-    assert set(ANALYSIS_METHODS) == M1 | M2 | M5 | M7 | M8 | M9
+    assert set(ANALYSIS_METHODS) == M1 | M2 | M5 | M7 | M8 | M9 | M10
     for name, method in ANALYSIS_METHODS.items():
         assert method.name == name and callable(method.fn) and method.summary
         assert method.status == "implemented"
         assert method.milestone == ("M1" if name in M1 else "M2" if name in M2 else "M5" if name in M5 else
-                                    "M8" if name in M8 else "M9" if name in M9 else "M7")
+                                    "M8" if name in M8 else "M9" if name in M9 else "M10" if name in M10 else
+                                    "M7")
         assert "criteria" not in method.options and "d" not in method.options and "out_dir" not in method.options
         assert (name == "quality_report") == (not method.options)
     assert ANALYSIS_METHODS["vth_linear_extrapolation"].options == (

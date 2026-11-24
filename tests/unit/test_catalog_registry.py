@@ -23,8 +23,10 @@ implemented fefet.pulse_write_read and spgu.program_smu_read with kind pulse_rea
 compact models are the analysis methods compact_model_fit, model_compare and export_spice_netlist, card
 smu/compact-model-spice; WP10.4 implemented wgfmu.pulsed_iv; WP8.5 implemented moscap.qscv with kind
 smu_qscv)."""
-WGFMU_RECIPES = ("wgfmu.pulsed_iv", "wgfmu.fast_iv", "wgfmu.pulse_train", "wgfmu.custom_waveform", "wgfmu.dc_spot")
-"""Kind wgfmu_waveform (WP10.4; tests/integration/test_recipes_wgfmu.py)."""
+WGFMU_RECIPES = ("wgfmu.pulsed_iv", "wgfmu.fast_iv", "wgfmu.pulse_train", "wgfmu.custom_waveform", "wgfmu.dc_spot",
+                 "wgfmu.rtn", "wgfmu.lfn")
+"""Kind wgfmu_waveform (WP10.4; tests/integration/test_recipes_wgfmu.py; WP10.5 rtn, lfn:
+tests/integration/test_recipes_noise.py)."""
 
 
 def minimal(recipe_id: str = "basic.thing", **changes: Any) -> dict[str, Any]:
@@ -169,7 +171,8 @@ def test_committed_statuses() -> None:
          "fefet.switching_kinetics": "nvm/fefet-switching-kinetics",
          "fefet.endurance": "nvm/fefet-endurance-retention",
          "fefet.retention": "nvm/fefet-endurance-retention",  # WP9.5
-         "moscap.qscv": "cmu/moscap-dit", "moscap.cv_multi_freq": "cmu/moscap-dit"}  # WP8.5
+         "moscap.qscv": "cmu/moscap-dit", "moscap.cv_multi_freq": "cmu/moscap-dit",  # WP8.5
+         "wgfmu.rtn": "wgfmu/wgfmu-rtn-noise", "wgfmu.lfn": "wgfmu/wgfmu-rtn-noise"}  # WP10.5
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):

@@ -1,6 +1,6 @@
 """``wgfmu_waveform``: one WGFMU ``WaveformProgram`` per run, optionally with FLEX SMU bias around it (blueprint v2
 2.7, 2.7.1; WP10.4). Recipes ``wgfmu.pulsed_iv``, ``wgfmu.fast_iv``, ``wgfmu.pulse_train``, ``wgfmu.custom_waveform``
-and ``wgfmu.dc_spot``.
+and ``wgfmu.dc_spot``; ``wgfmu.rtn`` and ``wgfmu.lfn`` (builder ``dc_sample``, WP10.5).
 
 **Builder.** The recipe names its builder with the single-choice enum parameter ``builder`` (``WAVEFORM_BUILDERS``,
 ``catalog/waveforms.py``); the builder's inputs come from role settings (``$param`` references) and recipe
@@ -14,16 +14,19 @@ parameters read by name, never from a step language:
   ``edge``, ``settle``, ``double`` (bool), ``cycles``;
 - ``dc_spot``: each WGFMU role forces setting ``values`` (a list, at most one role) or ``v`` in DC mode; parameters
   ``samples`` (readings per step) and ``settle`` (s after each step);
+- ``dc_sample``: each WGFMU role holds setting ``v``; parameters ``points``, ``interval``, ``average`` (default: the
+  interval), ``edge`` and ``settle`` (s at the bias before the sampling starts; WP10.5);
 - ``table``: each WGFMU role's setting ``wave`` references a ``file`` parameter (its waveform CSV); the ``file``
   parameter ``events`` holds the measurement rows (lab layout, ``catalog/waveforms.py``). The kind reads the bytes
   through the planner's ``ParamFiles`` (``read_param_file``: sha256 re-verified; ``reads_files``).
 
 Every other WGFMU role of a pulse/ramp builder holds setting ``v`` (default 0 V). A WGFMU role measures what its
 ``measure`` lists (``[I]`` or ``[V]``, one quantity per channel; ``[]`` = measurement off); a current-measuring role
-sets its range with setting ``range`` (``1ua`` .. ``10ma``, default ``1ma``). SMU roles: ``bias_v`` (``DV`` at
-setting ``v`` with compliance ``icomp``) and ``ground`` (the GNDU, or an SMU at 0 V with setting ``icomp``); they
-are switched on and set before the WGFMU phase and held through it (WG Ex. 10); the transaction's cleanup turns them
-off.
+sets its range with setting ``range`` (``1ua`` .. ``10ma``, default ``1ma``); setting ``force_range`` (``3v``, ``5v``,
+``-10v``, ``10v``, ``auto``) fixes a role's force range (default: the finest that holds its levels). SMU roles:
+``bias_v`` (``DV`` at setting ``v`` with compliance ``icomp``) and ``ground`` (the GNDU, or an SMU at 0 V with setting
+``icomp``); they are switched on and set before the WGFMU phase and held through it (WG Ex. 10); the transaction's
+cleanup turns them off.
 
 **Compile** (pure; the file bytes come from the planner): the program and, for pulse builders, the nominal pulse
 trains (``SourcePlan``: ``waveform`` + ``pulses``, R-WG-02, R-PULSE-01..03); per WGFMU channel the envelope (the
@@ -116,6 +119,7 @@ SMU_ROLE_FUNCTIONS: Final = frozenset({"bias_v", "ground"})
 
 RANGE_SETTING: Final = "range"
 DEFAULT_RANGE: Final[WgfmuCurrentRange] = "1ma"
+FORCE_RANGE_SETTING: Final = "force_range"
 
 CHECKPOINT_S: Final = 10.0
 """Sequencer time between two ``waveform`` checkpoints (cancel latency is the 1 s poll; R-RUN-02 segment)."""
@@ -238,7 +242,11 @@ def _wg_role(name: str, spec: RoleSpec, params: Mapping[str, Quantity], channel:
     rng = _setting(name, spec, params, RANGE_SETTING, DEFAULT_RANGE)
     if rng not in CURRENT_RANGE_A:
         raise CompileError(f"role {name}: {RANGE_SETTING} must be one of {sorted(CURRENT_RANGE_A)}, got {rng!r}")
-    return wf.WgRole(role=name, channel=channel, measure=measure, current_range=rng)
+    force = _setting(name, spec, params, FORCE_RANGE_SETTING)
+    if force is not None and force not in WGFMU_SPEC.force_ranges:
+        raise CompileError(f"role {name}: {FORCE_RANGE_SETTING} must be one of {sorted(WGFMU_SPEC.force_ranges)}, "
+                           f"got {force!r}")
+    return wf.WgRole(role=name, channel=channel, measure=measure, current_range=rng, force_range=force)
 
 
 def _one(roles: Mapping[str, tuple[wf.WgRole, RoleSpec]], key: str, builder: str) -> str:
@@ -319,6 +327,13 @@ def _build(builder: str, recipe: Recipe, params: Mapping[str, Quantity],
         if sum(len(levels) > 1 for _, levels in listed) > 1:
             raise CompileError("dc_spot: at most one role steps through a list of levels")
         return wf.dc_spot(listed)
+    if builder == "dc_sample":
+        interval = _param(params, "interval")
+        return wf.dc_sample([(role, _real(_setting(name, spec, params, "v", 0.0), f"{name}.v"))
+                             for name, (role, spec) in roles.items()],
+                            points=_int(_value(params, "points"), "points"), interval=interval,
+                            average=_param(params, "average", interval), edge=_param(params, "edge"),
+                            settle=_param(params, "settle", 0.0))
     if builder == "table":
         if files is None:
             raise CompileError("table: the waveform files are read through the planner (file parameters)")

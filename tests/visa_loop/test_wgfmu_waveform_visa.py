@@ -37,8 +37,13 @@ WAVEFORM_CASES: list[dict[str, Any]] = [
      "rows": 55200},
     {"recipe_id": "wgfmu.dc_spot", "scenario": "resistor_100k",
      "request": {"params": {}, "pin_map": "resistor-wgfmu", "dut_profile": "resistor-generic"}, "rows": 5},
+    {"recipe_id": "wgfmu.rtn", "scenario": "nmos_rtn", "request": {"params": {"points": 20000}, **MOSFET},
+     "rows": 20000},
+    {"recipe_id": "wgfmu.lfn", "scenario": "nmos_rtn", "request": {"params": {"points": 150000}, **MOSFET},
+     "rows": 150000},
 ]
-"""The card example requests on their scenarios (the pulse train shortened)."""
+"""The card example requests on their scenarios (the pulse train and the noise records shortened; the LFN record
+still reads back in two 100,000-value chunks per channel through the real ``WgfmuDll``; WP10.5)."""
 BODY_CASE: dict[str, Any] = {"recipe_id": "wgfmu.pulsed_iv", "scenario": "nmos_wgfmu", "rows": 5,
                              "request": {"params": {"vg_points": 5, "vb": -0.5}, "pin_map": "mosfet-wgfmu-body",
                                          "dut_profile": "nmos-wgfmu"}}
@@ -111,6 +116,8 @@ def test_waveform_recipe_runs_on_backend_visa_with_cleanup_verified(case: dict[s
         assert "WGFMU_dcforceVoltage" in names and "WGFMU_execute" not in names
     else:
         assert "WGFMU_execute" in names and names.count("WGFMU_getMeasureValues") >= 1
+    if case["recipe_id"] == "wgfmu.lfn":  # the lab's layout: both channels measure, each read back in two chunks
+        assert names.count("WGFMU_getMeasureValues") == 4
     visa = load_run(result.run_id or "", data_root=world.data).table
     assert len(visa) == case["rows"]
     assert visa.equals(sim_table(case, tmp_path / "sim"))  # same values as the simulator backend

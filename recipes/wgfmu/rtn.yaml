@@ -1,0 +1,54 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# WGFMU random telegraph noise (blueprint v2 3.4, kind wgfmu_waveform, builder dc_sample; Keysight RTN application
+# note 5990-3705): the gate (WGFMU 201, Fast IV) and the drain (WGFMU 202, Fast IV, current on `irange`) ramp to vg and
+# vd in `edge`, hold them `settle` so the traps reach their bias equilibrium, then the drain current is sampled
+# `points` times every `interval`, each point averaged over `average` (one constant-bias record; the gate is not
+# measured). rtn_levels finds the two current levels (trap empty / occupied) with hysteresis, the dwell times in each
+# and their means tau_c (time to capture: dwell at the higher |I|), tau_e (time to emission: dwell at the lower |I|)
+# and dI/I; it_statistics gives mean, noise and drift of the record. Resolve a trap with interval <= tau/10 and a
+# record >= 100 x (tau_c + tau_e) (>= 200 transitions for +-20 % on tau); the range must cover Id with its floor
+# below dI (lower ranges have less bandwidth: 1 uA ~80 kHz .. 10 mA ~16 MHz, AN-RTN p7 (7)). Both channels reach the
+# DUT through their RSUs (pin map mosfet-wgfmu); the 5 V force range is the lab's (lwp/1530 LFN_noise_meas.cpp).
+# Records above 200,000 rows are archived as data.npz + preview.csv; the raw readback as raw/wgfmu-202-000.npz.
+# status: sim_validated by tests/integration/test_recipes_noise.py (nmos_rtn: tau_c, tau_e +-20 % with >= 200
+# transitions, dI/I +-10 %).
+id: wgfmu.rtn
+version: 1
+title: WGFMU random telegraph noise (constant gate and drain bias, long drain-current sampling; tau_c, tau_e, dI/I)
+family: wgfmu
+kind: wgfmu_waveform
+status: sim_validated
+card: .agents/skills/b1500-test/cards/wgfmu/wgfmu-rtn-noise.md
+device_types: [nmos, pmos, igzo_tft]
+roles:
+  gate:
+    function: wgfmu
+    module_types: [WGFMU]
+    settings: {v: $vg, force_range: $vrange}
+  drain:
+    function: wgfmu
+    measure: [I]
+    module_types: [WGFMU]
+    settings: {v: $vd, range: $irange, force_range: $vrange}
+  source: {function: ground, allow_gndu: true}
+params:
+  builder: {type: enum, choices: [dc_sample], default: dc_sample, doc: Fixed waveform builder.}
+  vg: {unit: V, default: 1.0, recommended: [0.3, 2.0], range: [-5.0, 5.0], doc: "Gate bias held during the record (RTN depends strongly on it: sweep vg in separate runs)."}
+  vd: {unit: V, default: 0.1, recommended: [0.05, 0.5], range: [-5.0, 5.0], doc: "Drain bias (small: linear region, little hot-carrier stress)."}
+  irange: {type: enum, choices: [1ua, 10ua, 100ua, 1ma, 10ma], default: 100ua, doc: "Drain current range (full scale above Id; no compliance: over-range reads saturate, status V)."}
+  vrange: {type: enum, choices: [3v, 5v, -10v, 10v], default: 5v, doc: "Force range of both channels (the lab's 5 V; it must hold vg and vd)."}
+  points: {type: int, default: 400000, recommended: [100000, 4000000], range: [1000, 4000000], doc: "Samples of the record (at most about 4,000,000 per channel)."}
+  interval: {unit: s, default: 1.0e-5, recommended: [1.0e-7, 1.0e-3], range: [1.0e-8, 1.0], doc: "Sampling interval (10 ns grid); <= a tenth of the shortest dwell to be resolved."}
+  average: {unit: s, default: 1.0e-5, recommended: [1.0e-7, 1.0e-3], range: [0.0, 0.02], doc: "Averaging time of each point (<= interval; = interval filters noise above the sampling rate; 0 = single samples)."}
+  edge: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-5], range: [1.0e-8, 1.0e-3], doc: Ramp from 0 V to the bias and back.}
+  settle: {unit: s, default: 1.0e-2, recommended: [1.0e-3, 1.0], range: [0.0, 10.0], doc: "Hold at the bias before the record starts (traps reach their bias equilibrium)."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: rtn_levels}
+  - {method: it_statistics}
+provenance:
+  sources:
+    - blueprint v2 2.7.1 (builder dc_sample), 2.10 (noise.py rtn_levels, it_statistics), 3.4 (wgfmu.rtn), 4.2 (noise targets)
+    - Keysight application note 5990-3705 (RTN with the B1500A WGFMU; AN-RTN p5-p8)
+    - WGFMU guide Ed. 8 setMeasureEvent (PDF 125-126), current ranges Table 4-9 (PDF 142)
+  validation_runs: []

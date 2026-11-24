@@ -5,10 +5,15 @@
 # LFN_noise_meas.cpp drives channel 201 and measures the current of channel 202).
 #
 # Truth: model `mosfet` (no self-heating) plus attached noise `rtn` on the drain current: white noise, 1/f noise
-# (Hooge form, gamma 1) and one random-telegraph trap (mean capture time 1 ms, emission time 0.5 ms, current step
-# 5 % of Id while occupied). WP10.4 runs lab-shaped custom waveforms on it (event timing, 504,000-point runs, npz
-# archive); WP10.5 (wgfmu.rtn, wgfmu.lfn) extracts gamma, tau_c, tau_e and dI/I against these values and may retune
-# them. Example values, not a measured device.
+# (Hooge form, gamma 1, S_I/I^2 = 1e-5 / f) and one random-telegraph trap (mean capture time 1 ms, emission time
+# 0.5 ms, current step 5 % of Id while occupied: a Lorentzian with corner (1/tau_c + 1/tau_e) / 2 pi = 477 Hz and
+# plateau 7.4e-7 I^2/Hz). WP10.4 runs lab-shaped custom waveforms on it (event timing, 504,000-point runs, npz
+# archive); WP10.5 extracts tau_c, tau_e and dI/I (wgfmu.rtn: 400,000 points at 10 us, about 5,300 transitions) and
+# gamma (wgfmu.lfn, the lab's 504,000 points at 100 ns: the 1/f part dominates from about 17 kHz up, the fit adds the
+# Lorentzian) against these values. WP10.5 raised flicker_k from 1e-6 to 1e-5: with 1e-6 the 1/f part rose above the
+# telegraph Lorentzian only above about 170 kHz (less than a decade inside the lab record's fitted band), while 1e-5
+# still leaves the 5 % steps more than 5 sigma above the 1/f noise of a 10 us record. Example values, not a
+# measured device.
 
 description: >-
   n-channel MOSFET on WGFMU 201 (gate) and 202 (drain) through their RSUs, source and bulk GNDU, with 1/f and
@@ -49,7 +54,7 @@ models:
       attach: dut
       terminal: drain
       white_frac: 1.0e-4        # of the measurement range, per sample
-      flicker_k: 1.0e-6         # one-sided PSD flicker_k x I^2 / f^gamma
+      flicker_k: 1.0e-5         # one-sided PSD flicker_k x I^2 / f^gamma (WP10.5: was 1e-6)
       flicker_gamma: 1.0
       rtn_tau_c_s: 1.0e-3       # mean time to capture (trap empty -> occupied)
       rtn_tau_e_s: 5.0e-4       # mean time to emission (occupied -> empty)

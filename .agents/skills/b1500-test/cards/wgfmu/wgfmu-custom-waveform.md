@@ -10,7 +10,7 @@ routes: [rsu:wgfmu]
 bringup_stage: L8
 status: sim_validated
 confirmation: always
-knowledge: [knowledge/11-switching-routing.md#rsu-of-the-wgfmu, knowledge/06-analysis-extraction.md#resistance-fit, knowledge/06b-analysis-time-pulse.md#pulse-plateau]
+knowledge: [knowledge/10-wgfmu-fast-iv-noise.md#wgfmu-and-rsu-in-one-page, knowledge/11-switching-routing.md#rsu-of-the-wgfmu, knowledge/06-analysis-extraction.md#resistance-fit, knowledge/06b-analysis-time-pulse.md#pulse-plateau]
 manual: [WG p125 (4-55) "setMeasureEvent", WG p128 (4-58) "setRangeEvent", WG p142 (4-72) "6001", WG p89 (4-19) "dcforceVoltage", WG p90 (4-20) "dcmeasureValue", WG p70 (3-30) "DC"]
 debug: [wgfmu-memory-budget, wgfmu-range-overflow, wgfmu-library-error, cleanup-failed-fault]
 sources: [blueprint v2 decision 21, blueprint v2 2.7.1 builders table and dc_spot, blueprint v2 2.10 npz data contract, blueprint v2 3.4, blueprint v2 4.4 lab sample, lwp/1530 LFN_noise_meas.cpp]
@@ -28,7 +28,7 @@ version: 1
 - `wgfmu.dc_spot`: WGFMU DC mode (no sequencer): terminal `a` steps through levels and measures its current; the
   known-resistor check through the RSU at bring-up L8 (I(R) +-3 %).
 - Not for: pulsed Id-Vg or fast ramps (card `wgfmu-pulsed-iv`, no files needed); noise statistics of long constant
-  bias runs (card `wgfmu-rtn-noise`, WP10.5); SMU DC checks (card `smu-spot-kelvin`).
+  bias runs (card `wgfmu-rtn-noise`); SMU DC checks (card `smu-spot-kelvin`).
 
 ## 2. Wiring, pin map, modules
 

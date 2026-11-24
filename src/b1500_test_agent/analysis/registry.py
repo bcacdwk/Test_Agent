@@ -71,6 +71,7 @@ from b1500_test_agent.analysis.mosfet import (
     vth_max_gm,
 )
 from b1500_test_agent.analysis.mosfet_family import body_effect, dibl
+from b1500_test_agent.analysis.noise import it_statistics, plot_psd_method, psd_welch, rtn_levels
 from b1500_test_agent.analysis.nvm import endurance_summary, memory_window_pulse, retention_fit, switching_kinetics_fit
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv_method
 from b1500_test_agent.analysis.pulse import breakdown_voltage, pulse_plateau, pulsed_vs_dc, vth_search_value
@@ -130,6 +131,11 @@ _QSCV_KINDS = ("smu_qscv",)
 _NOT_CMU = ("[!cs]*", "s[!m]*", "smu_[!q]*")
 """Every kind but the MFCMU kinds ``cmu_*`` and the QSCV kind ``smu_qscv`` (``fnmatch``): capacitance runs plot with
 ``plot_cv``, not ``plot_iv``."""
+_NOISE = ("wgfmu.rtn", "wgfmu.lfn", "wgfmu.custom_waveform", "generic.smu_sampling", "mosfet.id_t_sampling",
+          "generic.*")
+"""Sampled current/voltage records the noise methods read (WP10.5): the WGFMU noise and custom-waveform recipes and
+the SMU sampling recipes."""
+_NOISE_KINDS = ("wgfmu_waveform", "smu_sampling")
 _SYSTEM: tuple[RecipeFamily, ...] = ("system",)
 _TABLES: tuple[RecipeFamily, ...] = ("smu", "cmu", "spgu", "wgfmu", "nvm", "reliability", "system")
 """Families whose runs archive a measurement table (``system`` since ``system.zero_check``; self-test and
@@ -420,6 +426,24 @@ _METHODS += [
             "Write the compact model as a SPICE .model card (level 1) or EKV subcircuit (.lib) and a netlist that "
             "reproduces the run's sweep (.sp) under analysis/; ngspice or HSPICE dialect.", _MODEL_RECIPES,
             _MODEL_KINDS, families=_SMU, milestone="M7"),
+]
+
+_METHODS += [
+    _method("it_statistics", "extraction", it_statistics,
+            "Sampled record statistics: mean, std, std/|mean|, relative linear drift, sampling interval; skewness, "
+            "kurtosis and a bimodality flag (two-level RTN).", _NOISE, _NOISE_KINDS, families=("smu", "wgfmu"),
+            milestone="M10"),
+    _method("psd_welch", "extraction", psd_welch,
+            "Welch PSD S(f) and S/mean^2 of a sampled record; fit A/f^gamma + white (+ one Lorentzian, model auto): "
+            "gamma, normalized 1/f level at 1 Hz and at f_ref, RTN corner; input-referred noise with gm_s.", _NOISE,
+            _NOISE_KINDS, families=("smu", "wgfmu"), milestone="M10"),
+    _method("rtn_levels", "extraction", rtn_levels,
+            "Two-level random telegraph noise: levels by mixture, hysteresis detection with level tracking, dwell "
+            "times -> tau_c (capture), tau_e (emission), dI and dI/I; dwell survival fit and checks.", _NOISE,
+            _NOISE_KINDS, families=("smu", "wgfmu"), milestone="M10"),
+    _method("plot_psd", "plots", plot_psd_method,
+            "PSD plot (S and S/mean^2 vs f, log-log): Welch estimate, fitted log bins, model and its parts; PNG "
+            "under plots/.", _NOISE, _NOISE_KINDS, families=("smu", "wgfmu"), milestone="M10"),
 ]
 
 ANALYSIS_METHODS: Mapping[str, AnalysisMethod] = MappingProxyType({m.name: m for m in _METHODS})

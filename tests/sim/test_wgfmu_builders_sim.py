@@ -42,6 +42,7 @@ CASES = {
     "wgfmu.pulsed_iv": {"vg_points": 5},
     "wgfmu.fast_iv": {"ramp": 2e-6, "interval": 1e-7, "cycles": 2},
     "wgfmu.pulse_train": {"count": 4, "samples": 3},
+    "wgfmu.rtn": {"points": 500, "interval": 1e-6, "average": 1e-6, "settle": 1e-5},  # dc_sample (WP10.5)
 }
 
 
@@ -100,6 +101,25 @@ def test_layout_levels_and_currents_match_the_simulated_library(recipe_id: str) 
         assert np.all(measured >= low * (1 - 1e-6) - 1e-15) and np.all(measured <= high * (1 + 1e-6) + 1e-15)
     else:  # flat tops: the reading is the quasi-static current at the programmed levels
         np.testing.assert_allclose(measured, model_drain(table["gate_V"].to_numpy(), vd), rtol=1e-6, atol=1e-12)
+
+
+def test_dc_sample_in_the_lab_layout_measures_both_channels_at_the_same_times() -> None:
+    """``wgfmu.lfn`` (builder ``dc_sample``, WP10.5): channel 201 reads back its own 1 V (voltage measurement),
+    channel 202 the drain current, both at the same window centres on the 10 ns grid."""
+    out, plan = compiled("wgfmu.lfn", points=300, interval=1e-7, average=1e-7, settle=1e-6)
+    _, waveform, block = run_on_sim(out)
+    assert block.status == "completed" and set(block.traces) == {201, 202}
+    gate, drain = block.traces[201], block.traces[202]
+    assert (gate.quantity, drain.quantity) == ("V", "I") and len(gate) == len(drain) == 300
+    np.testing.assert_array_equal(gate.time_s, drain.time_s)
+    layout = wf.point_layout(waveform, 201)
+    np.testing.assert_allclose(gate.time_s, layout.start_s + layout.average_s / 2, rtol=0, atol=1e-15)
+    np.testing.assert_allclose(gate.value, 1.0, rtol=0, atol=1e-12)
+    np.testing.assert_allclose(drain.value, model_drain(np.full(300, 1.0), np.full(300, 0.1)), rtol=1e-6, atol=1e-12)
+    program, _, _ = stored(plan)
+    table = waveform_table(program, waveform, block.traces)
+    assert list(table.columns) == ["step", "t_s", "event", "drain_range", "gate_V", "gate_V_status", "drain_V",
+                                   "drain_I", "drain_I_status"]
 
 
 def test_the_rsu_routes_go_through_the_guard() -> None:

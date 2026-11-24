@@ -4,7 +4,8 @@
 The body is the real kind (``WgfmuWaveformKind.acquire``) running plans the real planner compiled from the committed
 recipes, inside ONE transaction on the noiseless ``nmos_wgfmu`` scenario with both links spied
 (``wgfmu_helpers``): ``wgfmu.pulsed_iv`` with an SMU body bias on SMU5 (FLEX ``CN``/``DV`` before the WGFMU phase, held
-through it: WG Ex. 10) and ``wgfmu.dc_spot`` (DC mode: RSU connect, DC levels, DC readings; no sequencer).
+through it: WG Ex. 10), ``wgfmu.dc_spot`` (DC mode: RSU connect, DC levels, DC readings; no sequencer) and
+``wgfmu.lfn`` (builder ``dc_sample``, WP10.5: constant bias on both channels, one long event, both channels read back).
 
 Faults {``wgfmu_error``, ``wgfmu_hang``, ``wgfmu_disconnect_fails``, ``wgfmu_dll_missing``, Ctrl-C, a buggy WGFMU level
 outside the envelope, FLEX ``errx`` and ``timeout`` on the SMU bias} x positions {bias (the SMU level write), open
@@ -86,13 +87,16 @@ def make_plan(recipe_id: str, pin_map: str, dut: str, **params: Any) -> PlanReco
 
 PULSED = make_plan("wgfmu.pulsed_iv", "body", "body", vg_points=4, vb=-0.5)
 DC = make_plan("wgfmu.dc_spot", "r-wg", "r-wg", a_levels=[-0.1, 0.0, 0.1], samples=2)
-PLANS = {"pulsed": PULSED, "dc": DC}
+SAMPLE = make_plan("wgfmu.lfn", "body", "body", points=2000, interval=1e-6, average=1e-6, settle=1e-5)
+PLANS = {"pulsed": PULSED, "dc": DC, "sample": SAMPLE}
 
 MOMENTS = {
     "pulsed": {"open": "before:open_session", "load": "before:create_pattern", "run": "after:execute",
                "readback": "before:measure_value_size", "cleanup": "before:abort"},
     "dc": {"open": "before:open_session", "load": "before:set_operation_mode", "run": "after:dc_force_voltage",
            "readback": "before:dc_measure_value", "cleanup": "before:abort"},
+    "sample": {"open": "before:open_session", "load": "before:create_pattern", "run": "after:execute",
+               "readback": "before:measure_value_size", "cleanup": "before:abort"},
 }
 """Position -> spy moment on the library (``bias`` is a FLEX moment: the SMU level write)."""
 POSITIONS = ("bias", "open", "load", "run", "readback", "cleanup")
@@ -212,7 +216,7 @@ def run_body(h: WgHarness, plan: PlanRecord) -> tuple[Transaction | None, BaseEx
 
 
 def test_matrix_is_complete() -> None:
-    assert len(CASES) == 2 * 6 * 5 + 2  # both plans x six library faults x five positions + two FLEX bias faults
+    assert len(CASES) == 3 * 6 * 5 + 2  # three plans x six library faults x five positions + two FLEX bias faults
     assert {"wgfmu_error", "wgfmu_hang", "wgfmu_disconnect_fails", "wgfmu_dll_missing"} <= set(LIBRARY)
 
 
@@ -258,8 +262,11 @@ def test_a_clean_run_leaves_both_buses_safe(plan: str, tmp_path: Path) -> None:
     if plan == "pulsed":
         assert log.index("CN 5") < log.index("DV 5,0,-0.5,0.0001")
         assert len(raw.traces[202]) == 4
-    else:
+    elif plan == "dc":
         assert "CN" not in {c.split(" ")[0] for c in log} and len(raw.dc_rows) == 6
+    else:  # dc_sample: both channels measured (lab LFN layout), WGFMU only
+        assert "CN" not in {c.split(" ")[0] for c in log}
+        assert sorted(raw.traces) == [201, 202] and len(raw.traces[201]) == len(raw.traces[202]) == 2000
 
 
 @pytest.mark.parametrize(("path", "value"), [

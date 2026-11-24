@@ -247,7 +247,7 @@ def bind_roles(recipe: Recipe, pin_map: PinMap | None, station: StationProfile, 
     port (``None`` when the switch, the output or the wiring is unknown: R-PIN-01 blocks it)."""
     roles: dict[str, BoundChannel] = {}
     for name, role in recipe.roles.items():
-        terminal = role.pin_terminal(name, pin_map.terminals) if pin_map is not None else None
+        terminal = role.pin_terminal(name, pin_map.terminals, station) if pin_map is not None else None
         target = pin_map.terminals.get(terminal) if pin_map is not None and terminal is not None else None
         if target is None:
             continue

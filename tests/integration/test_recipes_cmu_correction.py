@@ -5,29 +5,28 @@
 0.3 pF || 1 GOhm, short 0.5 Ohm + 50 nH, 1 deg/MHz phase error until phase compensation; blueprint v2 4.2): every one
 is ``needs_confirmation (physical_setup)`` with the probe-state prompt, runs when confirmed with its summary, and
 writes its record to the correction store. Fidelity (4.2): uncorrected the 100 pF reads about +0.3 pF; after phase +
-open + short it reads 100 pF within 0.1 %. The correction gate R-CORR-01 is exercised end to end with the
-C-V-shaped stub ``test.cv_stub`` (``tests/integration/cmu_stub.py``; WP8.3 brings the real capacitance kinds):
-missing, stale, uncovered and other-pin-map corrections block at validation with the card as next step, and a
-``cmu_correction_lost`` fault blocks before execution with zero source commands. These tests set the recipes'
-``status: sim_validated``.
+open + short it reads 100 pF within 0.1 %. The correction gate R-CORR-01 is exercised end to end with the capacitance
+recipe ``cmu.spot`` (kind ``cmu_measure``, WP8.3; it replaced the WP8.2 test stub): missing, stale, uncovered and
+other-pin-map corrections block at validation with the card as next step, and a ``cmu_correction_lost`` fault blocks
+before execution with zero source commands. These tests set the recipes' ``status: sim_validated``.
 """
 
 from __future__ import annotations
 
 from datetime import timedelta
-from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
 
+from b1500_test_agent.analysis import load_run
 from b1500_test_agent.archive.corrections import CorrectionStore
+from b1500_test_agent.driver.b1500 import B1500Driver, CmuSignal
 from b1500_test_agent.models.plan import AcEnvelope, ChannelEnvelope, CompiledEnvelope
 from b1500_test_agent.models.results import PlanValidation
 from b1500_test_agent.models.run import RunSummary
 from b1500_test_agent.rules.builtin.cmu import CORRECTION_NEXT_STEP
 from b1500_test_agent.service import B1500Service
-from tests.integration.cmu_stub import STUB_REQUEST, cp_at, stub_recipes, stub_registry
 from tests.integration.helpers import REPO_ROOT, World
 
 CMU, ALIAS = 7, "CMU1"
@@ -38,6 +37,7 @@ PROMPTS = {
     "cmu.correction_short": "land the probes on a short", "cmu.correction_load": "connect the load standard",
 }
 LOAD = {"ls_h": 0.0, "rs_ohm": 100.0}
+SPOT_REQUEST = {"recipe_id": "cmu.spot", "pin_map": PINS, "dut_profile": "capacitor-100p"}
 
 
 def recipe(recipe_id: str) -> pytest.MarkDecorator:
@@ -46,9 +46,9 @@ def recipe(recipe_id: str) -> pytest.MarkDecorator:
 
 
 @pytest.fixture
-def svc(world: World, tmp_path: Path) -> B1500Service:
+def svc(world: World) -> B1500Service:
     world.use_scenario("capacitor_100p")
-    return world.service(registry=stub_registry(stub_recipes(tmp_path)))
+    return world.service()
 
 
 def with_load_standard(world: World) -> None:
@@ -77,8 +77,10 @@ def correct(svc: B1500Service, *recipes: str, **params: Any) -> list[RunSummary]
     return results
 
 
-def run_stub(svc: B1500Service, **params: Any) -> tuple[PlanValidation, RunSummary | None]:
-    plan = svc.validate_plan(**STUB_REQUEST, params=params or None)
+def run_spot(svc: B1500Service, **params: Any) -> tuple[PlanValidation, RunSummary | None]:
+    """Validate ``cmu.spot`` on the 100 pF standard and run it unless blocked (with the summary when confirmation
+    is needed: the test stands in for the human)."""
+    plan = svc.validate_plan(**SPOT_REQUEST, params=params or None)
     if plan.tier == "blocked":
         return plan, None
     run = svc.run_confirmed_plan(plan.plan_id, summary=plan.summary) if plan.tier == "needs_confirmation" \
@@ -89,6 +91,20 @@ def run_stub(svc: B1500Service, **params: Any) -> tuple[PlanValidation, RunSumma
 def kind_result(world: World, run_id: str) -> dict[str, Any]:
     folder = next(p for p in world.runs_dir.rglob(run_id) if p.is_dir())
     return yaml.safe_load((folder / "manifest.json").read_text(encoding="utf-8"))["kind_result"]
+
+
+def cp_by_frequency(world: World, run_id: str) -> dict[int, float]:
+    """Mean ``a_Cp`` per frequency (Hz, rounded) of a ``cmu.spot`` run."""
+    table = load_run(run_id, data_root=world.data).table
+    return {round(f): float(group["a_Cp"].mean()) for f, group in table.groupby("freq_hz")}
+
+
+def cp_at(driver: B1500Driver, ch: int, freq_hz: float, ac_vrms: float, dc_v: float = 0.0) -> float:
+    """One guarded spot ``Cp`` (F) of MFCMU ``ch`` (the channel must be on and the format set)."""
+    driver.apply_cmu_signal(ch, CmuSignal(freq_hz=freq_hz, ac_vrms=ac_vrms, dc_v=dc_v))
+    driver.spot_c(ch)
+    block = driver.measure_cmu(driver.cmu_layout(17), steps=1, timeout_s=10.0)
+    return block.readings[0].table_values()["Cp"][0]
 
 
 def spot_cp(svc: B1500Service, freq_hz: float, ac_vrms: float = 0.03) -> float:
@@ -168,18 +184,18 @@ def test_100pf_reads_within_0_1_percent_after_phase_open_and_short(recipe_id: st
     for freq in (1e5, 1e6):
         uncorrected = spot_cp(svc, freq)
         assert uncorrected - TRUTH_F == pytest.approx(0.3e-12, rel=0.05)  # the fixture's open capacitance
-    blocked, _ = run_stub(svc)
+    blocked, _ = run_spot(svc)
     assert blocked.tier == "blocked" and CORRECTION_NEXT_STEP in blocked.next_steps
 
     correct(svc, "cmu.phase_compensation", "cmu.correction_open", recipe_id)
-    plan, run = run_stub(svc)
+    plan, run = run_spot(svc)
     assert plan.tier == "needs_confirmation", plan.message  # unverified pin map only
     corr = next(f for f in plan.findings if f.rule_id == "R-CORR-01")
     assert corr.severity == "info" and plan.summary is not None and "corr <1h" in plan.summary
     assert run is not None and run.ok, run.message if run else None
-    facts = kind_result(world, run.run_id)  # type: ignore[arg-type]
+    measured = cp_by_frequency(world, run.run_id)  # type: ignore[arg-type]
     for freq in (100000, 1000000):
-        assert facts[f"cp_{freq}"] == pytest.approx(TRUTH_F, rel=1e-3)
+        assert measured[freq] == pytest.approx(TRUTH_F, rel=1e-3)
         assert spot_cp(svc, float(freq)) == pytest.approx(TRUTH_F, rel=1e-3)
     assert spot_cp(svc, 3e5) - TRUTH_F == pytest.approx(0.3e-12, rel=0.1)  # not a listed frequency: uncorrected
 
@@ -200,13 +216,13 @@ def test_load_correction_after_open_and_short_also_reads_within_0_1_percent(reci
 @recipe("cmu.phase_compensation")
 def test_missing_corrections_block_the_cv_plan_with_the_card_as_next_step(recipe_id: str,
                                                                           svc: B1500Service) -> None:
-    plan, _ = run_stub(svc)
+    plan, _ = run_spot(svc)
     blocks = [f for f in plan.findings if f.rule_id == "R-CORR-01" and f.severity == "block"]
     assert {f.subject for f in blocks} == {"CMU1.phase", "CMU1.open", "CMU1.short"}
     assert all("card cmu/cmu-correction" in f.message for f in blocks)
     assert "cmu.phase_compensation" in blocks[0].message and CORRECTION_NEXT_STEP in plan.next_steps
     correct(svc, recipe_id)
-    plan, _ = run_stub(svc)
+    plan, _ = run_spot(svc)
     assert {f.subject for f in plan.findings if f.rule_id == "R-CORR-01" and f.severity == "block"} == {
         "CMU1.open", "CMU1.short"}
 
@@ -214,10 +230,10 @@ def test_missing_corrections_block_the_cv_plan_with_the_card_as_next_step(recipe
 @recipe("cmu.correction_open")
 def test_stale_corrections_block_the_cv_plan(recipe_id: str, world: World, svc: B1500Service) -> None:
     correct(svc, "cmu.phase_compensation", recipe_id, "cmu.correction_short")
-    fresh, run = run_stub(svc)
+    fresh, run = run_spot(svc)
     assert fresh.tier == "needs_confirmation" and run is not None and run.ok
     world.clock.offset += timedelta(hours=8.5)  # policy corrections.max_age_h = 8
-    stale, _ = run_stub(svc)
+    stale, _ = run_spot(svc)
     assert stale.tier == "blocked" and CORRECTION_NEXT_STEP in stale.next_steps
     blocks = [f for f in stale.findings if f.rule_id == "R-CORR-01" and f.severity == "block"]
     assert {f.subject for f in blocks} == {"CMU1.phase", "CMU1.open", "CMU1.short"}
@@ -229,8 +245,8 @@ def test_stale_corrections_block_the_cv_plan(recipe_id: str, world: World, svc: 
 def test_a_plan_frequency_outside_the_correction_list_blocks(recipe_id: str, svc: B1500Service) -> None:
     correct(svc, "cmu.phase_compensation")
     correct(svc, recipe_id, "cmu.correction_short", freqs_hz=[1e5, 1e6])
-    assert run_stub(svc, freqs_hz=[1e5, 1e6])[0].tier == "needs_confirmation"
-    plan, _ = run_stub(svc, freqs_hz=[1e5, 3e5])
+    assert run_spot(svc, freqs_hz=[1e5, 1e6])[0].tier == "needs_confirmation"
+    plan, _ = run_spot(svc, freqs_hz=[1e5, 3e5])
     blocks = [f for f in plan.findings if f.rule_id == "R-CORR-01" and f.severity == "block"]
     assert {f.subject for f in blocks} == {"CMU1.open", "CMU1.short"}
     assert all(f.observed == 3e5 and "does not cover 300000 Hz" in f.message for f in blocks)
@@ -241,7 +257,7 @@ def test_corrections_of_another_pin_map_do_not_count(recipe_id: str, svc: B1500S
     for name in ("cmu.phase_compensation", "cmu.correction_open", recipe_id):
         result = confirm(svc, name, "moscap-cmu")
         assert result.ok, result.message
-    plan, _ = run_stub(svc)  # capacitor-cmu: same MFCMU, another landing
+    plan, _ = run_spot(svc)  # capacitor-cmu: same MFCMU, another landing
     blocks = [f for f in plan.findings if f.rule_id == "R-CORR-01" and f.severity == "block"]
     assert len(blocks) == 3 and all("another station profile or pin map" in f.message for f in blocks)
 
@@ -253,7 +269,7 @@ def test_correction_lost_before_the_run_blocks_before_execution(recipe_id: str, 
     ``CORRST?``/``ADJ?`` read refuses the C-V before any source command, discards the lost records and the next
     validation already blocks."""
     correct(svc, "cmu.phase_compensation", "cmu.correction_open", recipe_id)
-    plan = svc.validate_plan(**STUB_REQUEST)
+    plan = svc.validate_plan(**SPOT_REQUEST)
     assert plan.tier == "needs_confirmation", plan.message
     scenario = yaml.safe_load((REPO_ROOT / "config/sim/scenarios/capacitor_100p.yaml").read_text(encoding="utf-8"))
     scenario["faults"] = "lost"
@@ -268,7 +284,7 @@ def test_correction_lost_before_the_run_blocks_before_execution(recipe_id: str, 
     sent = [r.mnemonic for r in world.sim_log("capacitor_lost")[before:] if r.outcome == "ok"]
     assert "CORRST?" in sent and not {"FC", "ACV", "DCV", "XE", "CN"} & set(sent)  # zero source commands
     assert store(world).records(ALIAS) == []  # lost on the instrument -> discarded from the store
-    again = svc.validate_plan(**STUB_REQUEST)
+    again = svc.validate_plan(**SPOT_REQUEST)
     assert again.tier == "blocked" and any("no phase correction record" in f.message for f in again.findings)
 
 

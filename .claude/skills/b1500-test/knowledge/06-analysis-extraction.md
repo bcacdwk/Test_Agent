@@ -270,11 +270,9 @@ used; separate measured from derived).
 - Backend `sim`: every value is SIMULATED; say so in the first line of the report.
 - Ad-hoc analysis (skill part 9) is derived too: cite the script path in `work/<run_id>/` and the method.
 
-## C-V extraction reserved
+## C-V extraction
 
-Seeded from deck slide 15; no C-V kind or method exists in v1.
-
-- Cox: accumulation capacitance (maximum of the C-V curve, after correction). Vfb: flat-band capacitance method
-  or, as the deck lists, from a 1/C^2 versus V fit (Mott-Schottky; gives doping and built-in or flat-band voltage)
-  `TODO(verify)` which convention. Dit: multi-frequency (high-low) or Terman method.
-- Requires CMU open/short/load correction covering the frequency, SCUU paths and a leakage check first.
+C-V methods (`cv_cox`, `cv_flatband`, `cv_doping_profile`, `cv_vth`, `cv_hysteresis`, `impedance_convert`,
+`plot_cv`; WP8.3) are defined in [08](08-capacitance-cv.md#oxide-capacitance-and-eot) (06 is at its size limit).
+- Cox by accumulation extrapolation, Vfb by the flatband capacitance, doping from the 1/C^2 slope; split C-V plateau
+  Cox W L and onset Vth. Corrections covering every frequency first (R-CORR-01).

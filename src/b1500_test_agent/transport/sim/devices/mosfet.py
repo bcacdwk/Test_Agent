@@ -342,9 +342,13 @@ class Mosfet(MosfetEkv):
         return self.cv
 
     def gate_admittance(self, v: Voltages, f: float, low: Collection[str]) -> complex:
-        """Small-signal admittance (S) from the gate to the terminals ``low`` (subset of source, drain, bulk) with
-        every other terminal AC-grounded, at the DC biases ``v`` (gate-bulk sets the electrostatics, gate-source the
-        channel resistance) and frequency ``f``."""
+        """Small-signal admittance (S) from the gate to the terminals ``low`` (subset of source, drain, bulk) at the
+        DC biases ``v`` (gate-bulk sets the electrostatics, the source/drain potential the channel resistance) and
+        frequency ``f``. Every other connected terminal is AC-grounded; a source or drain whose voltage is ``None``
+        floats (an SMU with its output switch open, WP8.3): it carries no AC current, so the channel charge reaches
+        only the connected end(s) (a uniform RC line open at the far end, ``Y = jωC·tanh(u)/u`` with
+        ``u = sqrt(jωC/gds)``; both ends connected: each half of the line, ``u/2``), and its overlap capacitance
+        sees no AC path (its junction to the bulk is neglected). A floating bulk sits at the source potential."""
         es = self._require_cv()
         unknown = set(low) - {"source", "drain", "bulk"}
         if unknown:
@@ -353,8 +357,10 @@ class Mosfet(MosfetEkv):
         vg = v.get("gate")
         if vg is None:
             return 0j
+        connected = [t for t in ("source", "drain") if v.get(t) is not None]
         vs = v.get("source")
-        vs = 0.0 if vs is None else vs
+        vd = v.get("drain")
+        vs = (vd if vd is not None else 0.0) if vs is None else vs
         vb = v.get("bulk")
         vb = vs if vb is None else vb
         psi = es.solve(self.sign * (vg - vb) - self.vfb_p)
@@ -362,22 +368,22 @@ class Mosfet(MosfetEkv):
         denom = es.cox + c_b + c_i
         cgc = self.wl_cm2 * es.cox * c_i / denom
         cgb = self.wl_cm2 * es.cox * c_b / denom
-        y_channel = 1j * omega * cgc
         delta = 1e-4
         gds = (self.channel_current(vg, vs + delta, vs, vb, vth=self.vth, beta=self.beta_at(self.dt_k))
                - self.channel_current(vg, vs - delta, vs, vb, vth=self.vth, beta=self.beta_at(self.dt_k))) / (2 * delta)
-        if gds > 0.0 and cgc > 0.0:
-            x = cmath.sqrt(1j * omega * cgc / gds) / 2.0
+        y_end = 0j  # channel admittance reaching each connected end
+        if connected and gds > 0.0 and cgc > 0.0:
+            y_channel = 1j * omega * cgc
+            x = cmath.sqrt(1j * omega * cgc / gds) / (2.0 if len(connected) == 2 else 1.0)
             if abs(x) > 1e-6:
                 y_channel *= cmath.tanh(x) / x
-        else:
-            y_channel = 0j
+            y_end = y_channel / len(connected)
         y = 0j
         for terminal in low:
             if terminal == "bulk":
                 y += 1j * omega * cgb
-            else:
-                y += 0.5 * y_channel + 1j * omega * self.c_overlap
+            elif terminal in connected:
+                y += y_end + 1j * omega * self.c_overlap
         return y
 
     def gate_capacitance(self, v: Voltages, f: float, low: Collection[str]) -> float:

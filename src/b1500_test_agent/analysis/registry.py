@@ -33,6 +33,15 @@ from typing import Any, Literal, get_args
 from pydantic import ValidationError
 
 from b1500_test_agent.analysis.charge_pumping import charge_pumping
+from b1500_test_agent.analysis.cv import (
+    cv_cox,
+    cv_doping_profile,
+    cv_flatband,
+    cv_hysteresis,
+    cv_vth,
+    impedance_convert,
+    plot_cv_method,
+)
 from b1500_test_agent.analysis.dataset import RunData, load_run
 from b1500_test_agent.analysis.diode import diode_fit, forward_voltage
 from b1500_test_agent.analysis.errors import MethodNotImplementedError
@@ -85,6 +94,11 @@ _SAMPLING = ("generic.smu_sampling", "mosfet.id_t_sampling", "reliability.tddb_c
 _SAMPLING_KINDS = ("smu_sampling",)
 _STRESS_KINDS = ("stress_measure",)
 _RELIABILITY: tuple[RecipeFamily, ...] = ("reliability",)
+_CMU: tuple[RecipeFamily, ...] = ("cmu",)
+_CV_KINDS = ("cmu_measure",)
+_MOSCAP = ("moscap.*",)
+_NOT_CMU = ("[!c]*",)
+"""Every kind but the MFCMU kinds ``cmu_*`` (``fnmatch``): capacitance runs plot with ``plot_cv``, not ``plot_iv``."""
 _SYSTEM: tuple[RecipeFamily, ...] = ("system",)
 _TABLES: tuple[RecipeFamily, ...] = ("smu", "cmu", "spgu", "wgfmu", "nvm", "reliability", "system")
 """Families whose runs archive a measurement table (``system`` since ``system.zero_check``; self-test and
@@ -253,7 +267,7 @@ _METHODS = [
             ("fefet.dual_sweep_mw", "generic.*"), families=_SMU_NVM),
     _method("plot_iv", "plots", plot_iv_method,
             "I-V plots (linear and/or log scale) stored as PNG files under the run folder's plots/.", ("*",),
-            ("*",), families=("smu", "spgu", "wgfmu", "nvm", "reliability", "system")),
+            _NOT_CMU, families=("smu", "spgu", "wgfmu", "nvm", "reliability", "system")),
     _method("plot_timeseries", "plots", plot_timeseries_method,
             "Measured values against time t_s (else cycle or step), per phase, linear/log; PNGs under plots/.",
             ("*",), ("*",), families=_TABLES, milestone="M5"),
@@ -275,6 +289,27 @@ _METHODS = [
             "Charge pumping: Icp per pulse frequency (base-level plateau), charge per cycle Qcp = dIcp/df and its "
             "linearity; Nit, Dit with the gate area and energy window.",
             ("mosfet.charge_pumping", "generic.*"), ("spgu_pulse",), families=("spgu",), milestone="M9"),
+    _method("cv_cox", "extraction", cv_cox,
+            "Oxide capacitance: MOS-C accumulation extrapolation 1/C vs 1/Q, or the split C-V plateau Cox*W*L; EOT.",
+            (*_MOSCAP, "mosfet.cgc_cv"), _CV_KINDS, families=_CMU, milestone="M8"),
+    _method("cv_flatband", "extraction", cv_flatband,
+            "MOS-C flatband voltage at the flatband capacitance (Cox, doping, Debye length; needs the gate area).",
+            _MOSCAP, _CV_KINDS, families=_CMU, milestone="M8"),
+    _method("cv_doping_profile", "extraction", cv_doping_profile,
+            "MOS-C substrate doping from the depletion slope of 1/C^2 (needs the gate area); depth window.",
+            _MOSCAP, _CV_KINDS, families=_CMU, milestone="M8"),
+    _method("cv_vth", "extraction", cv_vth,
+            "Threshold voltage: MOS-C from Vfb, Nsub and Cox; split C-V at the onset of the inversion capacitance.",
+            (*_MOSCAP, "mosfet.cgc_cv", "mosfet.cgd_cv"), _CV_KINDS, families=_CMU, milestone="M8"),
+    _method("cv_hysteresis", "extraction", cv_hysteresis,
+            "C-V hysteresis of a double sweep: Vfb(rev) - Vfb(fwd) at the flatband capacitance.",
+            _MOSCAP, _CV_KINDS, families=_CMU, milestone="M8"),
+    _method("impedance_convert", "extraction", impedance_convert,
+            "MFCMU readings in another pair (Cp-G, Cp-D, Cs-Rs, Cs-D, Z-theta) per frequency; series-R removal.",
+            ("*",), _CV_KINDS, families=_CMU, milestone="M8"),
+    _method("plot_cv", "plots", plot_cv_method,
+            "C-V (or C-f) plots per frequency and segment, 1/C^2 for a MOS-C; PNGs under plots/.", ("*",),
+            _CV_KINDS, families=_CMU, milestone="M8"),
     _method("silc", "extraction", silc,
             "Stress-induced leakage: (Ig - Ig0)/Ig0 at v_sense, its power-law exponent, Ig0 and injected charge.",
             ("reliability.silc", "reliability.bti_sms", "reliability.hci", "generic.*"), _STRESS_KINDS,

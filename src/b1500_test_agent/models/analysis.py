@@ -17,11 +17,12 @@ from b1500_test_agent.models.common import StrictModel
 
 Unit = Literal[
     "V", "A", "s", "Hz", "F", "S", "Ohm", "H", "rad", "deg", "1", "C",
-    "A/m", "A/m^2", "F/m^2", "V/dec", "mV/dec", "mV/V", "cm^-2", "cm^-2 eV^-1",
+    "A/m", "A/m^2", "F/m^2", "V/dec", "mV/dec", "mV/V", "cm^-2", "cm^-2 eV^-1", "m", "cm^-3",
 ]  # fmt: skip
 """Closed unit vocabulary; ``"1"`` marks a dimensionless ratio, ``"C"`` a charge (WP7.6: charge injected by a stress),
-``cm^-2``/``cm^-2 eV^-1`` an areal trap density and its density per energy (WP9.3: charge pumping). Units are never
-inferred from magnitude."""
+``cm^-2``/``cm^-2 eV^-1`` an areal trap density and its density per energy (WP9.3: charge pumping), ``"m"`` a length
+(WP8.3: EOT, depletion depth) and ``"cm^-3"`` a doping concentration (the device-physics convention). Units are
+never inferred from magnitude."""
 
 Bound = Literal["exact", "upper", "lower"]
 """``upper``/``lower``: the true value is at most/at least ``value`` (e.g. a current at the measurement floor)."""

@@ -1,0 +1,63 @@
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario; device params are typed by
+# b1500_test_agent.models.sim (DEVICE_PARAMS); consumed by the simulator (transport/sim/). Name = file name. The
+# slots mirror config/station.example.yaml; `wiring` is the physical wiring of the simulated prober (independent of
+# the agent's pin map); `models` holds the truth parameters tests compare extractions against; noise, faults and
+# timing as documented in nmos_basic.yaml.
+#
+# The MOS capacitor of blueprint v2 4.2 (`moscap`; recipe moscap.cv, card moscap-cv, bring-up stage L6) on CMU1 (gate
+# on 7H, bulk on 7L, pin map moscap-cmu, DUT profile moscap-generic: 100 um x 100 um, 5 nm SiO2), seen through the
+# measurement path parasitics of the `fixture` device (as in capacitor_100p), so the phase/open/short corrections
+# are needed. Truth: Cox = 69.06 pF (eps_ox 3.9, 5 nm, 1e4 um^2), Nsub = 1e17 cm^-3 (p), Vfb = phi_ms - q Qf / Cox =
+# -0.85 V - 0.0116 V = -0.8616 V with the border traps empty; the border traps shift Vfb by +30 mV while charged
+# (gate beyond +1.5 V; emptied beyond -1.5 V), so a sweep from +2 V to -2.5 V crosses flatband at -0.8316 V and the
+# return branch at -0.8616 V (hysteresis -30 mV; MoscapDevice.hysteresis_truth). No interface traps (moscap_dit
+# carries those, WP8.5); minority carriers follow the AC only below 10 Hz (HF C-V at kHz-MHz) and form the inversion
+# layer with 50 ms (deep depletion when swept faster from accumulation into inversion).
+
+description: >-
+  MOS capacitor (p-Si, 1e17 cm^-3, 5 nm SiO2, 100 um x 100 um, Vfb -0.86 V, 30 mV border-trap hysteresis) on CMU1
+  (gate 7H, bulk 7L) behind the fixture parasitics; for moscap.cv; instant timing.
+idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101
+slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
+  - {slot: 7, model: B1520A}
+interlock_closed: false
+wiring:
+  dut:
+    gate: 7H
+    bulk: 7L
+  path:
+    high: 7H
+    low: 7L
+models:
+  dut:
+    model: moscap
+    params:
+      substrate: p
+      area_um2: 1.0e+4
+      tox_nm: 5.0
+      eps_ox: 3.9
+      nsub_cm3: 1.0e+17         # truth of cv_doping_profile (Nsub +-10 %)
+      phi_ms_v: -0.85
+      qf_cm2: 5.0e+10           # fixed oxide charge: Vfb = -0.8616 V (truth of cv_flatband, +-20 mV)
+      f_inv_hz: 10.0
+      tau_inv_s: 0.05
+      rs_ohm: 20.0              # series resistance (impedance_convert's accumulation estimate)
+      leak_s: 1.0e-12
+      hysteresis_v: 0.03        # border traps (cv_hysteresis truth -30 mV for a + -> - -> + double sweep)
+      hysteresis_vc_v: 1.5
+      hysteresis_width_v: 0.1
+  path:
+    model: fixture
+    params: {}                  # blueprint 4.2 defaults (models.sim_devices.FixtureParams); TODO(verify) at M12 L6
+noise:
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  rel: 2.0e-4
+  seed: 13
+faults: null
+timing: instant

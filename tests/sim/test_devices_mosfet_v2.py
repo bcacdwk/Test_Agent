@@ -264,3 +264,25 @@ def test_state_round_trip_and_validation() -> None:
         clone.import_state({"dt_k": 0.0})
     with pytest.raises(ValueError, match="bti_recovering"):
         clone.import_state({**state, "bti_recovering": 0.0})
+
+
+def test_a_floating_source_returns_the_whole_channel_through_the_drain() -> None:
+    """WP8.3: a source on an SMU with its output switch open floats (voltage ``None``): no AC current enters it, so
+    the channel charge (Cgc) reaches the drain alone, as a uniform RC line open at the far end; its overlap sees no AC
+    path. With both ends connected each end takes half (``mosfet.cgd_cv``)."""
+    device = mosfet(**GEOMETRY)
+    truth = device.cv_truth()
+    cov = truth["c_overlap_f"] / 2
+    floating = {"gate": 2.5, "drain": 0.0, "source": None, "bulk": 0.0}
+    tied = bias(2.5, 0.0)
+    drain_only = device.gate_capacitance(floating, 1e4, ("drain",))
+    assert drain_only == pytest.approx(device.gate_capacitance(tied, 1e4, ("source", "drain")) - cov, rel=1e-6)
+    assert device.gate_capacitance(tied, 1e4, ("drain",)) == pytest.approx(
+        0.5 * (drain_only - cov) + cov, rel=1e-6)
+    accumulation = {**floating, "gate": -2.0}
+    assert device.gate_capacitance(accumulation, 1e4, ("drain",)) == pytest.approx(cov, rel=1e-3)
+    assert device.gate_admittance({**floating, "drain": None}, 1e4, ("bulk",)).imag > 0  # only Cgb is left
+    long_channel = mosfet(**{**GEOMETRY, "l_um": 200.0, "w_um": 200.0}, beta=2e-5)
+    one_end = long_channel.gate_capacitance(floating, 1e5, ("drain",))
+    both_ends = long_channel.gate_capacitance(bias(2.5, 0.0), 1e5, ("source", "drain"))
+    assert one_end < both_ends  # one end: four times the RC of the line, it rolls off first

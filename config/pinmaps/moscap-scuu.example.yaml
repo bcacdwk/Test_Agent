@@ -1,0 +1,19 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# MOS capacitor through the SCUU of CMU1 (station switch SCUU1): gate on output 1 (CMUH / Force1 of SMU6), bulk on
+# output 2 (CMUL / Force2 of SMU5), so the same landing serves I-V through the SMUs and C-V through the MFCMU; the
+# C-V recipes route both outputs to the MFCMU (SSP 7,4) and back to the SCUU's rest state, and the correction recipes
+# measure through the same SCUU path (PG p520 (4-202) "SSP"). Needs SCUU1 recorded `present: true` in the station
+# profile (bring-up stage L6); with `present: null` every plan through it is blocked on hardware (R-ROUTE-01).
+#
+# certainty: unverified (every plan needs confirmation, unverified_pin_map). The visa backend never reads this file.
+
+description: MOS capacitor through SCUU1; gate on SCUU1.OUT1 (CMUH/SMU6), bulk on SCUU1.OUT2 (CMUL/SMU5).
+certainty: unverified
+terminals:
+  gate: SCUU1.OUT1
+  bulk: SCUU1.OUT2
+notes:
+  - Corrections (phase, open, short) are measured through the SCUU with this pin map; the direct map moscap-cmu needs
+    its own.
+  - The SCUU's SMUs (SMU5, SMU6) are switched by SSP only; I-V recipes on this landing use a map with the SCUU
+    outputs as SMU terminals.

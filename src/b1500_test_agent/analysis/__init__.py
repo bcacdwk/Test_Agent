@@ -18,7 +18,9 @@ Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_f
 ``vth_constant_current``, ``vth_max_gm``, ``subthreshold_swing``, ``gm_max``, ``ion_ioff``, ``output_metrics``,
 ``dibl``, ``body_effect``, ``resistance``, ``diode_fit``, ``forward_voltage``, ``leakage_at``, ``memory_window``,
 ``plot_iv``, ``plot_timeseries``, ``sampling_summary``, ``time_to_breakdown``, ``bti_power_law``,
-``degradation_vs_time``, ``silc``; library helper over a run list: ``weibull_fit``.
+``degradation_vs_time``, ``silc``, the C-V methods of ``cv.py`` (``cv_cox``, ``cv_flatband``, ``cv_doping_profile``,
+``cv_vth``, ``cv_hysteresis``, ``impedance_convert``, ``plot_cv``; ``convert_table`` converts a whole run);
+library helper over a run list: ``weibull_fit``.
 The run-table contract (``data.csv`` or ``data.npz`` +
 ``preview.csv``, columns) is defined in ``dataset.py``.
 
@@ -27,6 +29,16 @@ Errors: exceptions mean the call cannot be served (``RunNotFoundError``, ``RunFo
 ``outcome`` ``refused`` (untrusted data without ``force``) or ``failed``.
 """
 
+from b1500_test_agent.analysis.cv import (
+    convert_table,
+    cv_cox,
+    cv_doping_profile,
+    cv_flatband,
+    cv_hysteresis,
+    cv_vth,
+    impedance_convert,
+    plot_cv,
+)
 from b1500_test_agent.analysis.dataset import (
     CSV_MAX_ROWS,
     DATA_FILE,
@@ -115,6 +127,12 @@ __all__ = [
     "body_effect",
     "bti_power_law",
     "column_unit",
+    "convert_table",
+    "cv_cox",
+    "cv_doping_profile",
+    "cv_flatband",
+    "cv_hysteresis",
+    "cv_vth",
     "degradation_vs_time",
     "dibl",
     "diode_fit",
@@ -123,6 +141,7 @@ __all__ = [
     "forward_voltage",
     "gm",
     "gm_max",
+    "impedance_convert",
     "ion_ioff",
     "leakage_at",
     "load_manifest",
@@ -133,6 +152,7 @@ __all__ = [
     "methods_for",
     "noise_sigma",
     "output_metrics",
+    "plot_cv",
     "plot_iv",
     "plot_timeseries",
     "read_table",

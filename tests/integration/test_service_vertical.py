@@ -39,7 +39,8 @@ def test_vertical_path_status_validate_run_get_analyze(world: World, monkeypatch
     assert status.pin_maps == {"mosfet-4t": "verified", "diode-2t": "verified", "resistor-2t": "verified",
                                "mosfet-3t-lab": "unverified", "fefet-sel": "unverified", "fecap-wgfmu": "unverified",
                                "moscap-cmu": "unverified", "mosfet-4t-body": "verified", "resistor-4w": "verified",
-                               "open-smus": "verified", "capacitor-cmu": "unverified", "mosfet-cp": "unverified"}
+                               "open-smus": "verified", "capacitor-cmu": "unverified", "mosfet-cp": "unverified",
+                               "moscap-scuu": "unverified", "mosfet-split-cv": "unverified"}  # WP8.3
     assert "nmos-generic" in status.dut_profiles
     assert status.config is not None and status.config.ok and status.limits is not None
 

@@ -1,0 +1,21 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# MOSFET split C-V landing on the MFCMU in slot 7 (recipes mosfet.cgc_cv and mosfet.cgd_cv, card mosfet-split-cv):
+# gate on the High pair (7H: DC bias and AC drive), drain on the Low pair (7L: the measuring point), source on SMU6
+# (MPSMU), bulk (substrate) on SMU4 (HRSMU). mosfet.cgc_cv never switches SMU6 on, so the source floats and the whole
+# channel charge returns through the drain (Cgc); mosfet.cgd_cv holds SMU6 at 0 V, an AC ground, so only the drain
+# half is measured (Cgd); both hold the substrate at 0 V. The simulator scenario nmos_cv lands its transistor `cv` the
+# same way (sharing the source pad and the substrate with the charge-pumping transistor of pin map mosfet-cp).
+#
+# certainty: unverified (every plan needs confirmation, unverified_pin_map). The visa backend never reads this file.
+
+description: MOSFET split C-V; gate on CMU1 High (7H), drain on CMU1 Low (7L), source on SMU6, bulk on SMU4.
+certainty: unverified
+terminals:
+  gate: 7H
+  drain: 7L
+  source: 6
+  bulk: 4
+notes:
+  - Corrections (phase, open, short) are measured with this landing and pin map; a re-landing makes them stale.
+  - Tying the source to the drain at the Low cable (target 7L) also measures Cgc; then mosfet.cgd_cv needs a map with
+    the source on an SMU or the GNDU.

@@ -6,7 +6,7 @@ intent: [phase compensation, open correction, short correction, load correction,
 recipes: [cmu.phase_compensation, cmu.correction_open, cmu.correction_short, cmu.correction_load]
 device_types: [capacitor, moscap, fecap]
 modules: [MFCMU]
-routes: []
+routes: [scuu:cmu]
 bringup_stage: L6
 status: sim_validated
 confirmation: always
@@ -30,7 +30,7 @@ blocks it otherwise and points here. The recipes measure the cables and probes, 
 
 - Order matters: a new phase compensation switches the open/short/load corrections off (they were measured with the
   old phase data), so after it open and short are needed again.
-- Not for: measuring the DUT; a check of the result with a known capacitor (100 pF standard, recipe `cmu.spot`, WP8.3).
+- Not for: measuring the DUT; a check of the result with a known capacitor (100 pF standard: card `cmu-spot`).
 
 ## 2. Wiring, pin map, modules
 
@@ -41,7 +41,8 @@ blocks it otherwise and points here. The recipes measure the cables and probes, 
 
 - Use the **same pin map as the capacitance measurement** (`moscap-cmu`, `capacitor-cmu`): a record counts only for
   the pin map and station profile it was measured with. No DUT profile (the probes never touch the DUT).
-- Routes: none in every phase. With an SCUU the C-V route belongs to the measurement recipe.
+- Routes per phase: none with a direct pin map; through an SCUU (pin map `moscap-scuu`): measure `SCUU1.OUT1/OUT2
+  -> cmu`, then rest (the corrections then include the SCUU path; the C-V uses the same SCUU pin map).
 
 ## 3. Pre-run checklist
 
@@ -101,7 +102,7 @@ sim_scenario: capacitor_100p
 ## 7. Analysis method
 
 No `analyze_run` method. Report from `get_run` (summary, audit): result per correction, frequencies, AC level,
-`station_status.corrections` afterwards. Check the corrections with a known capacitor (recipe `cmu.spot`, WP8.3) at L6.
+`station_status.corrections` afterwards. Check the corrections with a known capacitor (card `cmu-spot`) at L6.
 
 ## 8. Expected result shape
 

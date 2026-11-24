@@ -17,7 +17,8 @@ skill's rules, a card, a recipe, the policy or a DUT profile, and it never autho
 | [06 analysis and extraction](06-analysis-extraction.md) | run table and trust, quality gate, gm, Vth (3 methods), SS, Ion/Ioff, Ron/gds, R, diode fit, leakage, MW, plots, reporting rules | before `analyze_run`; writing the report; ad-hoc analysis |
 | [06b time series, pulsed and search runs](06b-analysis-time-pulse.md) | sampling summary and relaxation fit, time to breakdown and Weibull, pulsed vs DC (two-run), pulse plateau, Vth by search, breakdown voltage | analysing a sampling, TDDB, pulsed or search run |
 | [07 HSPICE simulation](07-hspice-simulation.md) | reserved workflow: level-1 model card, netlist, comparison, BSIM4/Verilog-A later | a simulation-comparison request (answer: reserved) |
-| 08 debug | skill `b1500-debug`: triage order, runbooks, cases | noisy, impossible, compliance-limited or drifting data; faults; VISA errors |
+| [08 capacitance and C-V](08-capacitance-cv.md) | MFCMU pairs Cp-G/Cs-Rs/Z-theta, corrections, MOS-C HF C-V, Cox/EOT, 1/C^2 doping, flatband, Vth, hysteresis, split C-V, SCUU same landing | any capacitance or C-V request; before `analyze_run` on a C-V run |
+| debug | skill `b1500-debug`: triage order, runbooks, cases | noisy, impossible, compliance-limited or drifting data; faults; VISA errors |
 | [09 pulses, HV-SPGU and selector](09-pulse-spgu-selector.md) | HV-SPGU output and SER (open-load doubling, high_z residual), PG and ALWG trains, count/duration bounds, running a train, readings during a train, R-PULSE/R-SPGU rules, simulator | any SPGU pulse or waveform plan; a gate pulse that did nothing or too much |
 | [11 switching and routing](11-switching-routing.md) | switches in the station profile, routes per phase, 16440A selector (ERSSP, PGU open, Force only), SCUU/ASU paths, RSU, guard and R-ROUTE rules, cleanup to rest, selector check, simulator | any plan through a switch target; selector wiring (L7); a run blocked or failed on a route |
 
@@ -119,7 +120,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Memory window](06-analysis-extraction.md#memory-window)
 - [Plots](06-analysis-extraction.md#plots)
 - [Reporting rules measured versus derived](06-analysis-extraction.md#reporting-rules-measured-versus-derived)
-- [C-V extraction reserved](06-analysis-extraction.md#c-v-extraction-reserved)
+- [C-V extraction](06-analysis-extraction.md#c-v-extraction)
 
 ### 06b time series, pulsed and search runs
 
@@ -138,6 +139,21 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Example netlist](07-hspice-simulation.md#example-netlist)
 - [Comparing measured and simulated curves](07-hspice-simulation.md#comparing-measured-and-simulated-curves)
 - [BSIM4 and Verilog-A later](07-hspice-simulation.md#bsim4-and-verilog-a-later)
+
+### 08 capacitance and C-V
+
+- [Scope and status](08-capacitance-cv.md#scope-and-status)
+- [Impedance models Cp-G Cs-Rs Z-theta](08-capacitance-cv.md#impedance-models-cp-g-cs-rs-z-theta)
+- [Corrections and the measurement path](08-capacitance-cv.md#corrections-and-the-measurement-path)
+- [High-frequency C-V of a MOS capacitor](08-capacitance-cv.md#high-frequency-c-v-of-a-mos-capacitor)
+- [Oxide capacitance and EOT](08-capacitance-cv.md#oxide-capacitance-and-eot)
+- [Doping from 1/C^2](08-capacitance-cv.md#doping-from-1c2)
+- [Flatband voltage](08-capacitance-cv.md#flatband-voltage)
+- [Threshold voltage from C-V](08-capacitance-cv.md#threshold-voltage-from-c-v)
+- [Hysteresis](08-capacitance-cv.md#hysteresis)
+- [Split C-V Cgc and Cgd](08-capacitance-cv.md#split-c-v-cgc-and-cgd)
+- [SCUU same-landing I-V and C-V](08-capacitance-cv.md#scuu-same-landing-i-v-and-c-v)
+- [Reporting C-V results](08-capacitance-cv.md#reporting-c-v-results)
 
 ### 09 pulses, HV-SPGU and selector
 

@@ -17,9 +17,9 @@ from tests.unit.helpers import REPO_ROOT
 RECIPES = REPO_ROOT / "recipes"
 CORRECTION_RECIPES = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short", "cmu.correction_load")
 RESERVED_SLOTS = {"wgfmu.pulsed_iv", "wgfmu.fast_bti", "spgu.program_smu_read", "fefet.pulse_write_read",
-                  "fecap.pund", "moscap.cv", "moscap.qscv", "hspice.compare", "mosfet.cgd_cv"}
+                  "fecap.pund", "moscap.qscv", "hspice.compare"}
 """Reserved ids still waiting for their kinds (WP7.6 implemented reliability.bti_sms and reliability.hci; WP8.2 retired
-cmu.correction for the four cmu.* correction recipes)."""
+cmu.correction for the four cmu.* correction recipes; WP8.3 implemented moscap.cv and mosfet.cgd_cv)."""
 
 
 def minimal(recipe_id: str = "basic.thing", **changes: Any) -> dict[str, Any]:
@@ -82,6 +82,10 @@ def test_committed_statuses() -> None:
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
         assert registry.get(recipe_id).kind == "cmu_correction"
         assert registry.get(recipe_id).always_confirm == ["physical_setup"]
+    # WP8.3: kind cmu_measure (tests/integration/test_recipes_cv.py)
+    for recipe_id in ("cmu.spot", "moscap.cv", "mosfet.cgc_cv", "mosfet.cgd_cv"):
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+        assert registry.get(recipe_id).kind == "cmu_measure" and registry.get(recipe_id).family == "cmu"
     # WP9.2: kind spgu_pulse, mode route_only (tests/integration/test_recipes_selector.py)
     assert status["system.selector_check"] == ("sim_validated", "sim_validated")
     assert registry.get("system.selector_check").kind == "spgu_pulse"
@@ -125,7 +129,9 @@ def test_committed_statuses() -> None:
          "spgu.pulse_train": "spgu/spgu-pulse-train", "spgu.alwg_sequence": "spgu/spgu-pulse-train",
          "mosfet.charge_pumping": "spgu/charge-pumping",  # WP9.3
          "mosfet.vth_search": "smu/smu-search", "basic.breakdown_search": "reliability/tddb-bdv",
-         "dielectric.bdv": "reliability/tddb-bdv"}  # WP7.5
+         "dielectric.bdv": "reliability/tddb-bdv",  # WP7.5
+         "cmu.spot": "cmu/cmu-spot", "moscap.cv": "cmu/moscap-cv", "mosfet.cgc_cv": "cmu/mosfet-split-cv",
+         "mosfet.cgd_cv": "cmu/mosfet-split-cv"}  # WP8.3
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):
@@ -148,7 +154,8 @@ def test_kinds() -> None:
     assert kinds["stress_measure"].implemented_on == {"sim", "visa"}  # WP7.6
     assert "stress_measure" not in UNIMPLEMENTED_KINDS and "smu_stress_measure" not in kinds
     assert kinds["smu_pulsed"].implemented_on == {"sim", "visa"} and "smu_pulsed" not in UNIMPLEMENTED_KINDS  # WP7.3
-    for kind_id in ("wgfmu_pulsed_iv", "spgu_program_read", "cmu_cv"):
+    assert kinds["cmu_measure"].implemented_on == {"sim", "visa"} and "cmu_cv" not in kinds  # WP8.3 replaced cmu_cv
+    for kind_id in ("wgfmu_pulsed_iv", "spgu_program_read"):
         assert kind_id in UNIMPLEMENTED_KINDS and kinds[kind_id].implemented_on == frozenset()
 
 
@@ -167,11 +174,11 @@ def test_kinds() -> None:
     ({"basic/thing.yaml": minimal(params={})}, "reference undeclared parameters ['a']"),
     ({"basic/thing.yaml": minimal("basic.other")}, "does not match its file name (expected basic.thing)"),
     ({"basic/thing.yaml": minimal(), "basic/thing2.yaml": minimal()}, "duplicate recipe id basic.thing"),
-    ({"reserved/x.y.yaml": minimal("x.y", kind="cmu_cv")}, "must be not_implemented"),
-    ({"reserved/x.y.yaml": minimal("x.y", kind="cmu_cv", status="not_implemented")}, "preconditions"),
-    ({"reserved/x.z.yaml": minimal("x.y", kind="cmu_cv", status="not_implemented", preconditions=["a"])},
+    ({"reserved/x.y.yaml": minimal("x.y", kind="spgu_program_read")}, "must be not_implemented"),
+    ({"reserved/x.y.yaml": minimal("x.y", kind="spgu_program_read", status="not_implemented")}, "preconditions"),
+    ({"reserved/x.z.yaml": minimal("x.y", kind="spgu_program_read", status="not_implemented", preconditions=["a"])},
      "reserved/x.y.yaml"),
-    ({"basic/thing.yaml": minimal(kind="cmu_cv", status="sim_validated")}, "no simulator code path"),
+    ({"basic/thing.yaml": minimal(kind="spgu_program_read", status="sim_validated")}, "no simulator code path"),
 ])
 def test_problems_are_reported(tmp_path: Path, files: dict[str, Any], expected: str) -> None:
     problems = tree(tmp_path, files).problems()

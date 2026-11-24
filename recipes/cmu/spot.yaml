@@ -1,0 +1,53 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MFCMU spot capacitance (kind cmu_measure, MM 17; card cmu-spot; blueprint v2 3.2, bring-up stage L6): the
+# impedance between terminal a (MFCMU High: DC bias + AC) and b (MFCMU Low) at every frequency of freqs_hz (host
+# loop), `samples` readings each, DC bias dc_v, AC level ac_vrms, parameter pair `model` (Cp-G default). The
+# known-capacitance check of L6: after phase compensation and open/short correction at these frequencies (rule
+# R-CORR-01) the 100 pF standard (pin map capacitor-cmu, DUT capacitor-100p) reads its value within the standard's
+# tolerance. Programming Guide Ed. 15: MM 17 (PDF 470-471), FC (PDF 435), ACV (PDF 354), DCV (PDF 390), IMP (PDF 441),
+# ACT (PDF 354), spot C example (PDF 252-255).
+# status: sim_validated by tests/integration/test_recipes_cv.py (capacitor_100p: 100 pF within 0.1 % after the
+# corrections); the visa path by tests/visa_loop/test_cv_visa.py; hw_validated only through a reviewed validation
+# record (stage L6).
+id: cmu.spot
+version: 1
+title: MFCMU spot capacitance at a frequency list (known-capacitor check, any two-terminal capacitance)
+family: cmu
+kind: cmu_measure
+status: sim_validated
+card: .agents/skills/b1500-test/cards/cmu/cmu-spot.md
+device_types: [capacitor, moscap, fecap]
+roles:
+  a:
+    function: cmu_high
+    module_types: [MFCMU]
+    settings: {freqs: $freqs_hz, ac: $ac_vrms, dc: $dc_v, samples: $samples, model: $model}
+  b: {function: cmu_low, module_types: [MFCMU]}
+params:
+  freqs_hz:
+    type: float_list
+    unit: Hz
+    default: [1.0e+5, 1.0e+6]
+    range: [1.0e+3, 5.0e+6]
+    doc: Measurement frequencies, one spot measurement block each (every one must be in the correction list).
+  ac_vrms: {unit: V, default: 0.03, recommended: [0.01, 0.05], range: [0.01, 0.25], doc: Oscillator level (V rms).}
+  dc_v: {unit: V, default: 0.0, recommended: [-2.0, 2.0], range: [-25.0, 25.0], doc: DC bias of terminal a.}
+  samples: {type: int, default: 3, recommended: [1, 10], range: [1, 100], doc: Spot readings per frequency.}
+  model:
+    type: enum
+    choices: [cp_g, cp_d, cs_rs, cs_d, z_theta]
+    default: cp_g
+    doc: Parameter pair (IMP 100 Cp-G, 101 Cp-D, 200 Cs-Rs, 201 Cs-D, 10 Z-theta in rad).
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: MFCMU averaging (short ACT 0,1; medium ACT 0,2 = initial; long ACT 2,2 = two power-line cycles).
+quality: {limited: [], untrusted: [U, D, V, X, C, T, F, G, S], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: impedance_convert, options: {to: cp_g}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind cmu_measure), 3.2 (cmu.spot), 4.2 (fixture + capacitor)
+    - Programming Guide Ed. 15 spot C measurements (PDF 252-255), MM (PDF 470-471), IMP (PDF 441), ACT (PDF 354)
+  validation_runs: []

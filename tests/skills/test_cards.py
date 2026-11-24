@@ -41,6 +41,8 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "reliability/hci-silc": ["reliability.hci", "reliability.silc"],  # WP7.6
     "cmu/cmu-correction": ["cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short",
                            "cmu.correction_load"],  # WP8.2
+    "cmu/cmu-spot": ["cmu.spot"], "cmu/moscap-cv": ["moscap.cv"],  # WP8.3
+    "cmu/mosfet-split-cv": ["mosfet.cgc_cv", "mosfet.cgd_cv"],  # WP8.3
     "spgu/selector-check": ["system.selector_check"],  # WP9.2
     "smu/smu-pulsed-iv": ["mosfet.idvg_pulsed", "mosfet.idvd_pulsed", "basic.pulsed_spot",
                           "generic.smu_multi_pulsed"],  # WP7.3
@@ -49,15 +51,18 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "smu/smu-search": ["mosfet.vth_search"],  # WP7.5
 }
 ROUTES = {"spgu/selector-check": ["selector_16440a:smu", "selector_16440a:pgu", "selector_16440a:pgu_open"],
-          "spgu/spgu-pulse-train": ["selector_16440a:pgu"], "spgu/charge-pumping": ["selector_16440a:pgu"]}
-"""Cards whose recipes set switch routes (WP9.2, WP9.3); every other card's recipes route nothing ("Routes: none")."""
+          "spgu/spgu-pulse-train": ["selector_16440a:pgu"], "spgu/charge-pumping": ["selector_16440a:pgu"],
+          "cmu/cmu-correction": ["scuu:cmu"], "cmu/moscap-cv": ["scuu:cmu"], "cmu/mosfet-split-cv": ["scuu:cmu"]}
+"""Cards whose recipes set switch routes (WP9.2, WP9.3; WP8.3: the MFCMU recipes through an SCUU when the pin map says
+so); every other card's recipes route nothing ("Routes: none")."""
 STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfet-idvg": "L4", "smu/mosfet-idvd": "L4",
             "smu/gate-leakage": "L4", "nvm/fefet-dual-sweep-mw": "L7", "system/self-test-cal": "L1",
             "smu/smu-sampling": "L5", "reliability/tddb-bdv": "L9", "smu/smu-spot-kelvin": "L2",
             "system/zero-check": "L1", "reliability/bti-stress-measure": "L9", "reliability/igzo-bias-stress": "L9",
             "reliability/hci-silc": "L9", "cmu/cmu-correction": "L6", "spgu/selector-check": "L7",
             "smu/smu-pulsed-iv": "L5", "spgu/spgu-pulse-train": "L7", "spgu/charge-pumping": "L7",
-            "smu/smu-search": "L5"}  # WP7.5
+            "smu/smu-search": "L5",  # WP7.5
+            "cmu/cmu-spot": "L6", "cmu/moscap-cv": "L6", "cmu/mosfet-split-cv": "L6"}  # WP8.3
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault", "cmu-correction-stale",  # WP8.2: the first v2 runbook
@@ -109,7 +114,7 @@ def test_card_frontmatter_v2(card: str) -> None:
     front = _card(card).front
     assert front["bringup_stage"] == STAGE_OF[card] and front["bringup_stage"] in STAGES
     assert front["manual"] and all(CANONICAL.fullmatch(entry) for entry in front["manual"])
-    assert front["routes"] == ROUTES.get(card, [])  # only the SPGU cards route (WP9.2, WP9.3)
+    assert front["routes"] == ROUTES.get(card, [])  # the SPGU cards (WP9.2, WP9.3) and the SCUU path (WP8.3) route
     assert front["intent"]
 
 

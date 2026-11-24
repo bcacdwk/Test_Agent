@@ -23,7 +23,7 @@ from pydantic import Field, JsonValue, model_validator
 from b1500_test_agent.models.analysis import Identifier, Provenance, TrustPolicy, Unit
 from b1500_test_agent.models.common import ConfirmReason, Sha256Hex, StrictModel, ValidationStatus
 from b1500_test_agent.models.routing import SwitchInput
-from b1500_test_agent.models.station import SMU_TYPES, ModuleType, cmu_side
+from b1500_test_agent.models.station import SMU_TYPES, ModuleType, StationProfile, cmu_side, scuu_side, switch_target
 
 RecipeId = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$")]
 """Dotted recipe id, e.g. ``mosfet.idvg``, ``generic.smu_staircase``, ``system.self_test``."""
@@ -68,15 +68,30 @@ RoleBinding = Literal["terminal", "cmu_side"]
 describes, ``gate``/``bulk`` or ``a``/``b``, so they run with that same pin map, as rule R-CORR-01 requires)."""
 
 
-def side_terminals(function: str, terminals: Mapping[str, object]) -> list[str]:
+def target_cmu_side(target: object, station: StationProfile | None = None) -> Literal["H", "L"] | None:
+    """The MFCMU side a pin-map target reaches: ``H``/``L`` for ``"7H"``/``"7L"``, and, with the station profile, for
+    an output of a declared SCUU (``"SCUU1.OUT1"``: output 1 is CMUH, output 2 CMUL, PG p520 (4-202); WP8.3);
+    ``None`` for anything else."""
+    side = cmu_side(target)
+    if side is not None:
+        return side[1]
+    ref = switch_target(target)
+    switch = station.switch(ref[0]) if ref is not None and station is not None else None
+    port = switch.ports.get(ref[1]) if switch is not None and ref is not None and switch.kind == "scuu" else None
+    cmu = port.inputs.get("cmu") if port is not None else None
+    return scuu_side(cmu, port.index) if cmu is not None and port is not None else None
+
+
+def side_terminals(function: str, terminals: Mapping[str, object],
+                   station: StationProfile | None = None) -> list[str]:
     """The pin-map terminals wired to the MFCMU side of role ``function`` (``cmu_high`` -> ``H``, ``cmu_low`` ->
-    ``L``), sorted by name; ``[]`` for any other function. A role bound by ``cmu_side`` uses the first one (several
-    terminals on one side are tied to the same MFCMU terminal pair, so the measured path is the same)."""
+    ``L``), directly or, with the station profile, through an SCUU output (``target_cmu_side``), sorted by name;
+    ``[]`` for any other function. A role bound by ``cmu_side`` uses the first one (several terminals on one side are
+    tied to the same MFCMU terminal pair, so the measured path is the same)."""
     side = CMU_SIDES.get(function)
     if side is None:
         return []
-    return sorted(name for name, target in terminals.items() if (found := cmu_side(target)) is not None
-                  and found[1] == side)
+    return sorted(name for name, target in terminals.items() if target_cmu_side(target, station) == side)
 
 COMPLIANCE_FREE_FUNCTIONS: Final[frozenset[str]] = frozenset({"pgu", "wgfmu"})
 """Sources without a compliance (50 Ohm outputs): their envelope has no current limit; R-PULSE-*/R-SPGU-01/R-WG-*
@@ -215,11 +230,13 @@ class RoleSpec(StrictModel):
                 raise ValueError(f"settings.{key}: {value!r} is not a valid $parameter reference.")
         return self
 
-    def pin_terminal(self, name: str, terminals: Mapping[str, object]) -> str | None:
+    def pin_terminal(self, name: str, terminals: Mapping[str, object],
+                     station: StationProfile | None = None) -> str | None:
         """The pin-map terminal role ``name`` binds to (``None`` when the pin map has none): the terminal of the same
-        name, or the first terminal on the role's MFCMU side for ``bind: cmu_side``."""
+        name, or the first terminal on the role's MFCMU side for ``bind: cmu_side`` (an SCUU output counts with the
+        station profile)."""
         if self.bind == "cmu_side":
-            found = side_terminals(self.function, terminals)
+            found = side_terminals(self.function, terminals, station)
             return found[0] if found else None
         return name if name in terminals else None
 

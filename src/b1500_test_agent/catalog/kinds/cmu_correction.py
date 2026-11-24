@@ -29,6 +29,11 @@ Sequence (PG p251 (3-71) "Data Correction"; every command through the guarded dr
   checks the AC level at every listed frequency first), ``CORRST ch,corr,1`` and the read-back. A rewritten set-up
   cleared the other corrections, whose records the executor then discards (the run is flagged).
 
+Through an SCUU (WP8.3; pin map targets ``SCUU1.OUT1``/``OUT2``, ``kinds/cmu_routes.py``): the ``measure`` routes
+connect both SCUU outputs to the MFCMU first (``Transaction.apply_routes``: ``SSP chnum,4``, read back; the SSP
+switches the MFCMU on, so it takes no ``CN``), the corrections then include the SCUU's own path, and the ``rest``
+routes return the outputs to the switch's rest state at the end (the cleanup restores and verifies it on every exit).
+
 The FLEX preview lists the worst case (set-up rewritten); the run's audit has the exact commands. No measurement
 table (``to_table`` returns ``None``): ``kind_result`` holds the result code (``ADJ?``/``CORR?``), the set-up action
 and the read-back correction state (``after_phase``, ``after_open``, ``after_short``, ``after_load``).
@@ -47,6 +52,7 @@ from typing import TYPE_CHECKING, Final, Literal
 
 from pydantic import JsonValue
 
+from b1500_test_agent.catalog.kinds.cmu_routes import MEASURE_PHASE, REST_PHASE, mfcmu_path
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError, RawAcquisition
 from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.b1500 import PHASE_COMPENSATION_TIMEOUT_S, CmuSignal
@@ -63,6 +69,7 @@ from b1500_test_agent.models.plan import (
     PlanRecord,
 )
 from b1500_test_agent.models.recipe import Recipe
+from b1500_test_agent.models.routing import Route
 from b1500_test_agent.models.station import CmuCorrectionLive, CorrectionFunction, StationProfile
 
 if TYPE_CHECKING:
@@ -203,17 +210,22 @@ class CmuCorrectionKind:
         program: dict[str, JsonValue] = {"correction": correction, "setup": SETUP_PROMPTS[correction],
                                          "role": high[0], "channel": None, "alias": None}
         bound = binding.roles.get(high[0])
+        path = mfcmu_path(recipe, binding, station, kind_id=self.kind_id)
         if bound is None or bound.channel is None:  # R-PIN-01 blocks the plan
             return CompiledKindPlan(envelope=CompiledEnvelope(channels={}),
                                     estimate=Estimate(points=0, duration_s=0.0), program=program)
         ch = bound.channel
         alias = correction_alias(bound)
         program.update(channel=ch, alias=alias)
+        if path.via_scuu:  # only then: plans without an SCUU keep their program (and hash)
+            program.update(routes=[r.model_dump(mode="json") for r in path.routes],
+                           rest_routes=[r.model_dump(mode="json") for r in path.rest])
+        connect = path.preview(ch, MEASURE_PHASE) or [flex.cn([ch])]
         if correction == "phase":
             program["timeout_s"] = PHASE_COMPENSATION_TIMEOUT_S
             ac = AcEnvelope(max_vrms=0.0, max_dc_v=0.0, f_min_hz=CMU_SPEC.f_hz[0], f_max_hz=CMU_SPEC.f_hz[1])
             current = math.sqrt(2.0) * CMU_SPEC.ac_vrms[1] / MIN_RANGE_OHM  # the internal signal's level is unknown
-            preview = [flex.cn([ch]), *(flex.corrst(ch, k, False) for k in DATA_CORRECTIONS),
+            preview = [*connect, *(flex.corrst(ch, k, False) for k in DATA_CORRECTIONS),
                        flex.adj(ch, flex.ADJ_MANUAL), flex.adj_q(ch, flex.ADJ_MEASURE)]
             duration = PHASE_ESTIMATE_S
         else:
@@ -236,7 +248,7 @@ class CmuCorrectionKind:
             current = math.sqrt(2.0) * vrms / MIN_RANGE_OHM
             setup = [flex.clcorr(ch, 2)] if default else [flex.clcorr(ch, 1), *(flex.corrl(ch, f) for f in freqs)]
             setup += [flex.dcorr(ch, k, int(v[0]), v[1], v[2]) for k, v in standards.items()]
-            preview = [flex.cn([ch]), flex.corrl_q(ch), *(flex.corrl_q(ch, i + 1) for i in range(len(freqs))),
+            preview = [*connect, flex.corrl_q(ch), *(flex.corrl_q(ch, i + 1) for i in range(len(freqs))),
                        *(flex.dcorr_q(ch, k) for k in standards), *setup, flex.fc(ch, freqs[0]),
                        flex.acv(ch, vrms), flex.dcv(ch, 0.0), flex.corr_q(ch, correction),
                        flex.corrst(ch, correction, True)]
@@ -244,9 +256,14 @@ class CmuCorrectionKind:
         readback = [*(flex.corrst_q(ch, k) for k in DATA_CORRECTIONS), flex.adj_q(ch, flex.ADJ_READ_LAST),
                     flex.lrn_q(flex.LRN_ADJ_MODE)]
         envelope = CompiledEnvelope(channels={ch: ChannelEnvelope(
-            role=high[0], max_abs_v=0.0, max_abs_i=current, function="cmu_high", v_start=0.0, v_stop=0.0, ac=ac)})
+            role=high[0], max_abs_v=0.0, max_abs_i=current, function="cmu_high", v_start=0.0, v_stop=0.0, ac=ac)},
+            routes=frozenset(path.routes))
+        rest_lines = path.preview(ch, REST_PHASE)
+        if rest_lines and correction != "phase":
+            rest_lines = [flex.acv(ch, 0.0), *rest_lines]
         return CompiledKindPlan(envelope=envelope, estimate=Estimate(points=0, duration_s=duration),
-                                flex_preview=[*preview, *readback], program=program)
+                                flex_preview=[*preview, *readback, *rest_lines], program=program,
+                                routes_by_phase=path.routes_by_phase)
 
     def acquire(self, tx: Transaction, plan: PlanRecord) -> RawAcquisition:
         program = plan.program
@@ -256,7 +273,11 @@ class CmuCorrectionKind:
         if correction not in CORRECTIONS or not isinstance(ch, int) or not isinstance(timeout, int | float):
             raise CompileError(f"plan {plan.plan_id} has no {self.kind_id} program")
         driver = tx.driver
-        driver.enable([ch])
+        routes = [Route.model_validate(r) for r in program.get("routes") or []]  # type: ignore[union-attr]
+        if routes:
+            tx.apply_routes(routes, phase=MEASURE_PHASE)  # SSP: the SCUU switches the MFCMU on (no CN)
+        else:
+            driver.enable([ch])
         tx.lop_positive_control([ch])
         alias = program.get("alias")
         result: dict[str, JsonScalar] = {"correction": correction, "alias": alias if isinstance(alias, str) else None,
@@ -284,6 +305,11 @@ class CmuCorrectionKind:
         for corr in DATA_CORRECTIONS:
             result[f"after_{corr}"] = after.corr_state.get(corr)
         tx.mark(f"{correction}: result {code} ({text})")
+        rest = [Route.model_validate(r) for r in program.get("rest_routes") or []]  # type: ignore[union-attr]
+        if rest:
+            if correction != "phase":
+                driver.set_cmu_ac(ch, 0.0)  # no AC signal while the SCUU switches back
+            tx.apply_routes(rest, phase=REST_PHASE)
         in_effect = after.phase is True if correction == "phase" else after.corr_state.get(correction) is True
         if code != 0:
             what = "phase compensation (ADJ?)" if correction == "phase" else f"{correction} correction (CORR?)"

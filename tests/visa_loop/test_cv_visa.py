@@ -1,0 +1,97 @@
+"""The capacitance recipes of kind ``cmu_measure`` on backend visa through the real ``VisaTransport`` (blueprint v2
+7.1 visa-loop, 10 per-recipe AC; WP8.3).
+
+Each ``CV_CASES`` request (the card example) runs through ``B1500Service`` exactly as on the lab PC, after the
+phase/open/short corrections of its pin map (R-CORR-01; each confirmed with its summary). Every run is
+``needs_confirmation`` (``first_hw_run`` + ``unverified_pin_map``), completes with the ``LOP?`` positive control on
+the switched-on slots (the MFCMU, and the source SMU of ``mosfet.cgd_cv``), verifies its cleanup with ``LOP?``,
+lives in one bus session per transaction, reads its blocks through small VISA chunks, and writes the same
+``data.csv`` bytes as the same request on backend sim. Not in ``MEASUREMENT_CASES``/``DATA_CASES``: those run a
+request on a fresh instrument, which R-CORR-01 blocks for every capacitance plan.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from b1500_test_agent.analysis.dataset import DATA_FILE
+from b1500_test_agent.models.station import channel_slot
+from b1500_test_agent.service import B1500Service
+from tests.integration.helpers import make_world
+from tests.visa_loop.helpers import VisaWorld, bus_events, run_case, without_switch_traffic
+
+CHUNK = 64
+"""Small VISA chunks: an MFCMU block (about 35 bytes per element) needs several reads."""
+
+CV_CASES: list[dict[str, Any]] = [
+    {"recipe_id": "cmu.spot", "scenario": "capacitor_100p", "source": "card cmu-spot",
+     "request": {"params": {}, "pin_map": "capacitor-cmu", "dut_profile": "capacitor-100p"}},
+    {"recipe_id": "moscap.cv", "scenario": "moscap_basic", "source": "card moscap-cv",
+     "request": {"params": {}, "pin_map": "moscap-cmu", "dut_profile": "moscap-generic"}},
+    {"recipe_id": "mosfet.cgc_cv", "scenario": "nmos_cv", "source": "card mosfet-split-cv",
+     "request": {"params": {}, "pin_map": "mosfet-split-cv", "dut_profile": "nmos-cv"}},
+    {"recipe_id": "mosfet.cgd_cv", "scenario": "nmos_cv", "source": "card mosfet-split-cv",
+     "request": {"params": {}, "pin_map": "mosfet-split-cv", "dut_profile": "nmos-cv"}},
+]
+"""The four WP8.3 recipes with their card example requests and scenarios."""
+
+CORRECTIONS = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short")
+
+
+def correct(service: B1500Service, pin_map: str) -> None:
+    for recipe_id in CORRECTIONS:
+        result = run_case(service, {"recipe_id": recipe_id, "request": {"params": {}, "pin_map": pin_map}})
+        assert result.ok, result.message
+
+
+def sim_data(case: dict[str, Any], tmp_path: Path) -> bytes:
+    """``data.csv`` of the same request (after the same corrections) on backend sim."""
+    world = make_world(tmp_path)
+    world.use_scenario(case["scenario"])
+    service = world.service()
+    try:
+        correct(service, case["request"]["pin_map"])
+        result = run_case(service, case)
+    finally:
+        service.close()
+    assert result.ok and result.backend == "sim", result.message
+    folder = next(p for p in world.runs_dir.rglob(str(result.run_id)) if p.is_dir())
+    return (folder / DATA_FILE).read_bytes()
+
+
+@pytest.mark.parametrize("case", CV_CASES, ids=[c["recipe_id"] for c in CV_CASES])
+def test_cv_recipe_completes_on_backend_visa_with_cleanup_verified(case: dict[str, Any], world: VisaWorld,
+                                                                   tmp_path: Path) -> None:
+    bus = world.bus(case["scenario"], chunk_size=CHUNK)
+    service = world.service(bus)
+    correct(service, case["request"]["pin_map"])
+    validation = service.validate_plan(recipe_id=case["recipe_id"], **case["request"])
+    assert validation.backend == "visa" and not validation.simulated and validation.tier == "needs_confirmation"
+    assert {"first_hw_run", "unverified_pin_map"} <= set(validation.confirm_reasons)
+    result = run_case(service, case)
+    assert result.ok and result.outcome == "completed", result.message
+    assert (result.backend, result.simulated) == ("visa", False) and result.run_id.startswith("H")  # type: ignore[union-attr]
+    assert result.cleanup_verified == "lop"
+    assert bus_events(world.run_events(result.run_id)) == [  # type: ignore[arg-type]
+        "lock_acquired", "bus_open", "bus_lock", "bus_unlock", "bus_close", "lock_released"]
+    assert bus.stats.opens == bus.stats.closes and bus.lock_is_free() and bus.stats.max_chunks > 1
+    bus.instrument.assert_safe()
+
+    manifest = json.loads((world.run_dir(result.run_id) / "manifest.json").read_text(encoding="utf-8"))  # type: ignore[arg-type]
+    cleanup = manifest["cleanup"]
+    enabled = next(r.args for r in reversed(bus.instrument.command_log) if r.mnemonic == "CN" and r.outcome == "ok")
+    control = cleanup["positive_control"]
+    assert control["ok"] is True and sorted(control["channels"]) == sorted(int(ch) for ch in enabled)
+    assert all(control["codes"][str(channel_slot(int(ch)))] != "00" for ch in enabled)
+    assert set(cleanup["outputs_after"].values()) == {"00"} and cleanup["verified"] == "lop"
+    sent = without_switch_traffic(bus.instrument.command_log)
+    run_part = sent[len(sent) - sent[::-1].index("CN") - 1:]
+    assert "XE" in run_part and run_part[-5:] == ["DZ", "CL", "ERRX?", "LOP?", "SPST?"]
+    assert "CORRST?" in sent[:len(sent) - sent[::-1].index("CN") - 1]  # the live correction check before the run
+
+    # same physics, same bytes: the visa path reproduces the simulator path
+    assert (world.run_dir(result.run_id) / DATA_FILE).read_bytes() == sim_data(case, tmp_path / "sim")  # type: ignore[arg-type]

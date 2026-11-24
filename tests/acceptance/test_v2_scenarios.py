@@ -59,9 +59,9 @@ CASES: dict[str, tuple[str, str, Callable[[Path], None] | None]] = {
 """Case -> (scenario file, agent script stem, repository preparation)."""
 SAFETY = {"S3v2", "S11", "S12", "S15", "S18"}
 """Blueprint v2 8.2: the ★ scenarios among these (S17 is self-tested in ``test_s17_bringup.py``)."""
-PENDING = {"S3v2", "S11", "S12", "S13", "S14", "S15", "S18"}
-"""Scenarios whose recipes later work packages add (rewritten S3: 9.6; S11: 8.6; S12: 9.6; S13, S18: 10.8; S14, S15:
-7.7); they may miss only what their ``requires`` and simulator scenario name."""
+PENDING = {"S3v2", "S12", "S13", "S14", "S15", "S18"}
+"""Scenarios whose recipes later work packages add (rewritten S3: 9.6; S12: 9.6; S13, S18: 10.8; S14, S15: 7.7); they
+may miss only what their ``requires`` and simulator scenario name. S11 runs since WP8.3 (moscap.cv; graded at 8.6)."""
 TAG_VOCABULARY = set(RecipeFamily.__args__) | {"manual", "bringup"}  # type: ignore[attr-defined]
 
 

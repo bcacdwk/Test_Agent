@@ -34,9 +34,10 @@ MFCMU (SCUU when declared): corrections, C-V, C-f, C-t, Dit, split C-V.
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
 | cmu | phase compensation, open correction, short correction, load correction, CMU correction, R-CORR-01, ADJ, CORR? | [cmu-correction](cmu/cmu-correction.md) | `cmu.phase_compensation`, `cmu.correction_open`, `cmu.correction_short`, `cmu.correction_load` | sim_validated | MFCMU | L6 |
-| cmu | reserved: MOS capacitor C-V sweep with the MFCMU | [reserved](reserved/README.md) | `moscap.cv` | not_implemented | - | - |
+| cmu | spot C, capacitance, known capacitor, 100 pF standard, Cp, Cs, impedance, Z-theta, D factor, correction check | [cmu-spot](cmu/cmu-spot.md) | `cmu.spot` | sim_validated | MFCMU | L6 |
+| cmu | C-V, MOS capacitor, MOS-C, Cox, EOT, flatband, Vfb, doping, Nsub, 1/C^2, hysteresis, SCUU same landing | [moscap-cv](cmu/moscap-cv.md) | `moscap.cv` | sim_validated | MFCMU | L6 |
+| cmu | split C-V, split CV, Cgc, Cgd, gate capacitance, gate-channel, gate-drain, Miller, Cox\*W\*L, EOT, inversion charge | [mosfet-split-cv](cmu/mosfet-split-cv.md) | `mosfet.cgc_cv`, `mosfet.cgd_cv` | sim_validated | MFCMU, MPSMU, HRSMU, GNDU | L6 |
 | cmu | reserved: Quasi-static C-V with SMUs | [reserved](reserved/README.md) | `moscap.qscv` | not_implemented | - | - |
-| cmu | reserved: MOSFET gate-drain capacitance C-V (Cgd) with the MFCMU | [reserved](reserved/README.md) | `mosfet.cgd_cv` | not_implemented | - | - |
 
 ## spgu
 

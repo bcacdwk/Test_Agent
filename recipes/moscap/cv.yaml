@@ -1,0 +1,60 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOS capacitor high-frequency C-V (kind cmu_measure, MM 18; card moscap-cv; blueprint v2 3.2, implements the
+# reserved id moscap.cv; bring-up stage L6): the MFCMU DC bias on the gate (High) sweeps from v_start to v_stop
+# (and back with sweep_mode double) at every frequency of freqs_hz (host loop), Cp-G (IMP 100), bulk on the MFCMU
+# Low side (pin map moscap-cmu; with an SCUU the same pads through SCUU1.OUT1/OUT2, pin map moscap-scuu). Default
+# direction: from inversion to accumulation (p substrate: + to -), which keeps the HF curve in equilibrium (no deep
+# depletion); hold_s settles the start. WMDCV 2,1: automatic abort on an unbalanced or saturated reading. Needs
+# fresh phase/open/short corrections of this pin map at every frequency (R-CORR-01). Default analyses: Cox
+# (accumulation extrapolation), flatband voltage (flatband capacitance), doping (1/C^2), threshold voltage; the DUT
+# profile's geometry.area_um2 is needed for all but Cox. Programming Guide Ed. 15: C-V sweep (PDF 256-260), WDCV
+# (PDF 549-550), WTDCV (PDF 566-567), WMDCV (PDF 554-555), MM 18 (PDF 470-471).
+# status: sim_validated by tests/integration/test_recipes_cv.py (moscap_basic: Cox +-1 %, Vfb +-20 mV, Nsub +-10 % of
+# the model truth); the visa path by tests/visa_loop/test_cv_visa.py; hw_validated only through a reviewed
+# validation record (stage L6).
+id: moscap.cv
+version: 1
+title: MOS capacitor C-V (Cp-G DC bias sweep, single or double) for Cox, Vfb, Nsub, Vth and hysteresis
+family: cmu
+kind: cmu_measure
+status: sim_validated
+card: .agents/skills/b1500-test/cards/cmu/moscap-cv.md
+device_types: [moscap]
+roles:
+  gate:
+    function: cmu_high
+    module_types: [MFCMU]
+    settings: {freqs: $freqs_hz, ac: $ac_vrms, start: $v_start, stop: $v_stop, points: $points, mode: $sweep_mode,
+               hold: $hold_s, delay: $delay_s, model: cp_g}
+  bulk: {function: cmu_low, module_types: [MFCMU]}
+params:
+  freqs_hz:
+    type: float_list
+    unit: Hz
+    default: [1.0e+6]
+    range: [1.0e+3, 5.0e+6]
+    doc: Measurement frequencies, one sweep each (high frequency for Cox/Vfb/Nsub; every one in the correction list).
+  ac_vrms: {unit: V, default: 0.03, recommended: [0.01, 0.05], range: [0.01, 0.25], doc: Oscillator level (V rms).}
+  v_start: {unit: V, default: 2.0, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: Gate DC bias start (inversion side).}
+  v_stop: {unit: V, default: -2.5, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: Gate DC bias stop (accumulation side).}
+  points: {type: int, default: 91, recommended: [51, 201], range: [11, 1001], doc: Bias steps per sweep direction.}
+  sweep_mode: {type: enum, choices: [single, double], default: single, doc: single start->stop; double start->stop->start (hysteresis).}
+  hold_s: {unit: s, default: 1.0, recommended: [0.5, 5.0], range: [0.0, 60.0], doc: Hold at v_start before the first step (WTDCV hold).}
+  delay_s: {unit: s, default: 0.0, recommended: [0.0, 0.1], range: [0.0, 10.0], doc: Delay per step before the measurement (WTDCV delay).}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: MFCMU averaging (short ACT 0,1; medium ACT 0,2 = initial; long ACT 2,2 = two power-line cycles).
+quality: {limited: [], untrusted: [U, D, V, X, C, T, F, G, S], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: cv_cox, options: {}}
+  - {method: cv_flatband, options: {}}
+  - {method: cv_doping_profile, options: {}}
+  - {method: cv_vth, options: {}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind cmu_measure), 2.10 (cv.py), 3.2 (moscap.cv), 4.2 (moscap fidelity targets)
+    - Programming Guide Ed. 15 C-V sweep (PDF 256-260), WDCV (PDF 549-550), WTDCV (PDF 566-567), WMDCV (PDF 554-555)
+    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 2, 9 (flatband capacitance, doping profile)
+  validation_runs: []

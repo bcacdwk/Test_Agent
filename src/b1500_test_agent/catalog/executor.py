@@ -86,6 +86,7 @@ from b1500_test_agent.models.analysis import ExtractionResult, QualityReport
 from b1500_test_agent.models.audit import AuditEvent, AuditEventName
 from b1500_test_agent.models.common import Backend, ErrorCode, ResultStatus
 from b1500_test_agent.models.plan import PlanRecord, PlanRequest, RuleFinding, RulesReport
+from b1500_test_agent.models.policy import DutGeometry
 from b1500_test_agent.models.recipe import Recipe
 from b1500_test_agent.models.run import (
     AbortRequest,
@@ -618,7 +619,8 @@ class Executor(RunningRuns):
             confirmed_summary=confirmed_summary.strip() if confirmed_summary is not None else None,
             confirmed_via=None if confirmed_summary is None else (
                 "run_confirmed_plan" if client.adapter == "mcp" else "cli --confirm"),
-            client=client, software_version=process_software_version(), dut_instance=dut_instance, started_at=started,
+            client=client, software_version=process_software_version(), dut_instance=dut_instance,
+            dut_geometry=self._dut_geometry(bundle, plan), started_at=started,
             outcome="completed", cleanup=cleanup, assumptions=self._assumptions(bundle, plan) + [
                 f"WGFMU phase {i}: GPIB link {how} while the WGFMU library had its own session (ATV-14)"
                 for i, how in enumerate(state.wgfmu_phases, 1)],
@@ -766,6 +768,13 @@ class Executor(RunningRuns):
                 results.extend(out)
                 flags.extend(f"{r.method}: {r.outcome} ({r.error})" for r in out if r.outcome != "ok")
         return quality, results, flags
+
+    @staticmethod
+    def _dut_geometry(bundle: ConfigBundle, plan: PlanRecord) -> DutGeometry | None:
+        """The geometry of the plan's DUT profile (``RunManifest.dut_geometry``), ``None`` without one."""
+        name = plan.request.dut_profile
+        profile = bundle.dut_profiles.get(name) if name is not None else None
+        return profile.geometry if profile is not None else None
 
     @staticmethod
     def _assumptions(bundle: ConfigBundle, plan: PlanRecord) -> list[str]:

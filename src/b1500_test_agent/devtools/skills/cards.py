@@ -1,7 +1,12 @@
 """Test cards: family folders, the ten sections, the frontmatter link graph (recipes, family, modules, routes,
 bring-up stage, knowledge, manual, runbooks, status), the section-4 parameter table and example plan (validated on
 the simulator with ``B1500Service.validate_plan``), and the recipe side of the card graph (every runnable recipe has
-a card)."""
+a card).
+
+A capacitance example plan (``cmu_measure``) validated in a fresh data folder is blocked by R-CORR-01 alone (no
+correction records yet): the lint then runs the policy-required correction recipes with the plan's pin map on the
+simulator (phase, open, short, confirmed with their own summaries, as the card prescribes) and validates the example
+again (WP8.3)."""
 
 
 from __future__ import annotations
@@ -49,6 +54,7 @@ from b1500_test_agent.models.recipe import FUNCTION_MODULE_TYPES, Recipe
 from b1500_test_agent.models.results import PlanValidation
 from b1500_test_agent.models.routing import STATE_INPUT, SWITCH_STATES
 from b1500_test_agent.paths import ENV_CONFIG_DIR, ENV_DATA_DIR, Paths
+from b1500_test_agent.rules.builtin.cmu import CORRECTION_RECIPES
 from b1500_test_agent.service import B1500Service
 
 EXAMPLE_PLAN_INFO = frozenset({"yaml", "yml"})
@@ -359,6 +365,10 @@ def validate_examples(lint: Lint, cards: list[Card], registry: RecipeRegistry) -
                     result = service.validate_plan(recipe_id=plan.recipe_id, params=dict(plan.params),
                                                    pin_map=plan.pin_map, dut_profile=plan.dut_profile,
                                                    label=plan.label)
+                    if blocked_by_corrections_only(result) and run_corrections(service, plan.pin_map):
+                        result = service.validate_plan(recipe_id=plan.recipe_id, params=dict(plan.params),
+                                                       pin_map=plan.pin_map, dut_profile=plan.dut_profile,
+                                                       label=plan.label)
                     checks.append(ExamplePlanCheck(card=card.front.id, recipe_id=plan.recipe_id,
                                                    sim_scenario=scenario, status=result.status, tier=result.tier,
                                                    plan_id=result.plan_id))
@@ -366,6 +376,25 @@ def validate_examples(lint: Lint, cards: list[Card], registry: RecipeRegistry) -
             finally:
                 service.close()
     return checks
+
+
+def blocked_by_corrections_only(result: PlanValidation) -> bool:
+    """True when every block finding of ``result`` is R-CORR-01 (missing MFCMU correction records)."""
+    blocks = [f for f in result.findings if f.severity == "block"]
+    return result.tier == "blocked" and bool(blocks) and all(f.rule_id == "R-CORR-01" for f in blocks)
+
+
+def run_corrections(service: B1500Service, pin_map: str) -> bool:
+    """Run the policy-required correction recipes (``policy.corrections.require`` order) with ``pin_map`` on the
+    simulator, each confirmed with its own summary; True when all completed."""
+    required = service.config.get().policy.corrections.require
+    for kind in required:
+        plan = service.validate_plan(recipe_id=CORRECTION_RECIPES[kind], pin_map=pin_map)
+        if plan.tier != "needs_confirmation" or plan.plan_id is None or plan.summary is None:
+            return False
+        if not service.run_confirmed_plan(plan.plan_id, summary=plan.summary).ok:
+            return False
+    return True
 
 
 def judge_example(lint: Lint, card: Card, result: PlanValidation) -> None:

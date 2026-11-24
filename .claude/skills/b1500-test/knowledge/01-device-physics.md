@@ -169,7 +169,7 @@ Seeded from deck slide 10 (Id-Vd linear and saturation regions).
 
 ## MOS capacitor C-V regions
 
-Seeded from deck slide 10. Reserved in v1 (C-V kinds `not_implemented`).
+Seeded from deck slide 10. Measured by `moscap.cv`; extraction: [08](08-capacitance-cv.md#high-frequency-c-v-of-a-mos-capacitor).
 
 - Regions (p-substrate): accumulation (Vg < Vfb, C about Cox), depletion (Cox in series with a growing depletion
   capacitance), inversion (low frequency or quasi-static: C returns to Cox; high frequency: C stays at Cmin).

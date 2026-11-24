@@ -163,7 +163,7 @@ def git_repo(tmp_path: Path) -> Path:
     repo = make_repo(tmp_path)
     _scenario_file(repo, "S01-a", tags=["smu"], touches=[".agents/skills/b1500-test/cards/smu/**"])
     _scenario_file(repo, "S02-b", tags=["cmu", "nvm"], touches=["recipes/basic/*.yaml"], safety=True)
-    _scenario_file(repo, "S03-c", tags=["cmu"], requires={"recipes": ["moscap.cv"]})
+    _scenario_file(repo, "S03-c", tags=["cmu"], requires={"recipes": ["demo.never_built"]})  # stays pending
     _git(repo, "init", "-q")
     _git(repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "add", "-A")
     _git(repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", "base")
@@ -174,7 +174,7 @@ def test_tags_pending_and_budget_planning(git_repo: Path) -> None:
     chosen = selection.select(git_repo, harness="codex", tags=["cmu"])
     assert [s.scenario.id for s in chosen.selected] == ["S2"] and chosen.sessions() == 3 and chosen.sessions(1) == 1
     assert chosen.skipped["S1"] == "no tag of ['cmu']"
-    assert chosen.skipped["S3 (S03-c.yaml)"].startswith("pending: missing recipe moscap.cv")
+    assert chosen.skipped["S3 (S03-c.yaml)"].startswith("pending: missing recipe demo.never_built")
     assert any(n.startswith("not run (pending") for n in chosen.notes())
     with pytest.raises(selection.SelectionError, match="S3 is pending"):
         selection.select(git_repo, harness="codex", scenarios=["S3"])
@@ -284,9 +284,9 @@ def test_cli_dry_run_tag_and_list(tmp_path: Path) -> None:
     tagged = cli.invoke(app, ["dev", "acceptance", "run", "--harness", "claude", "--tag", "bringup", "--dry-run",
                               "--max-sessions", "5", "--repo", str(REPO_ROOT)])
     assert tagged.exit_code == 0 and "S17" in tagged.stdout and "(--max-sessions 5)" in tagged.stdout
-    pending = cli.invoke(app, ["dev", "acceptance", "run", "--harness", "codex", "--scenario", "S11", "--repo",
-                               str(REPO_ROOT)])
-    assert pending.exit_code == 2 and "S11 is pending" in pending.output
+    pending = cli.invoke(app, ["dev", "acceptance", "run", "--harness", "codex", "--scenario", "S13", "--repo",
+                               str(REPO_ROOT)])  # fecap.pund still reserved (S11 runs since WP8.3: moscap.cv)
+    assert pending.exit_code == 2 and "S13 is pending" in pending.output
     listed = cli.invoke(app, ["dev", "acceptance", "list", "--repo", str(REPO_ROOT)])
     assert "PENDING: missing" in listed.stdout and "[manual, spgu]" in listed.stdout
 

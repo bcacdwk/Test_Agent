@@ -7,7 +7,7 @@ from collections.abc import Iterator
 
 from b1500_test_agent.config import CORE_ITEMS
 from b1500_test_agent.models.plan import BoundChannel
-from b1500_test_agent.models.recipe import CMU_SIDES, FUNCTION_INPUT, FUNCTION_MODULE_TYPES, RoleSpec
+from b1500_test_agent.models.recipe import CMU_SIDES, FUNCTION_INPUT, FUNCTION_MODULE_TYPES, RoleSpec, target_cmu_side
 from b1500_test_agent.models.routing import Route
 from b1500_test_agent.models.station import cmu_side, switch_target
 from b1500_test_agent.rules.builtin.common import (
@@ -238,7 +238,7 @@ def _check_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, 
     terminal = role_name
     if spec.bind == "cmu_side":  # the terminal on the role's MFCMU side, whatever its name (WP8.2)
         side = CMU_SIDES[spec.function]
-        terminal = spec.pin_terminal(role_name, pin_map.terminals) or ""
+        terminal = spec.pin_terminal(role_name, pin_map.terminals, station) or ""
         if not terminal:
             if not spec.optional:
                 yield block(f"role {role_name} ({spec.function}) binds to the pin map's MFCMU {side} side, but pin "
@@ -294,6 +294,13 @@ def _check_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, 
         if resolved is None:
             return
         channel = resolved
+        expected = CMU_SIDES.get(spec.function)
+        if expected is not None:  # an MFCMU role through an SCUU output (WP8.3): CMUH = output 1, CMUL = output 2
+            side = target_cmu_side(target, station) or ""
+            if side != expected:
+                yield block(f"role {role_name} ({spec.function}) needs the MFCMU {expected} side, but {target} is "
+                            f"{'the ' + side + ' side' if side else 'no MFCMU side'}", subject=role_name,
+                            source=terminal_src, observed=str(target), limit=f"an SCUU output on the {expected} side")
     elif (cmu := cmu_side(target)) is not None:
         channel, side = cmu
         expected = CMU_SIDES.get(spec.function)

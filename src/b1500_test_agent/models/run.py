@@ -26,6 +26,7 @@ from b1500_test_agent.models.common import (
     ValidationStatus,
 )
 from b1500_test_agent.models.plan import ParamFile, PlanId, PlanRecord, RuleFinding, RulesReport
+from b1500_test_agent.models.policy import DutGeometry
 from b1500_test_agent.models.recipe import RecipeId
 from b1500_test_agent.models.station import Identity, InstrumentError, ModuleInventory
 
@@ -191,6 +192,9 @@ class RunManifest(StrictModel):
     client: ClientInfo
     software_version: str
     dut_instance: str | None = None
+    dut_geometry: DutGeometry | None = None
+    """The ``geometry`` of the plan's DUT profile at run time (WP8.3): analyses that need an area, a width or a length
+    read it here (C-V: Cox per area, doping, flatband) and refuse without it, naming the field."""
     started_at: AwareDatetime
     finished_at: AwareDatetime | None = None
     outcome: RunOutcome

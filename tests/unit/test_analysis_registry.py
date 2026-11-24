@@ -39,7 +39,8 @@ M7 = {"sampling_summary", "time_to_breakdown", "dibl", "body_effect", "forward_v
       "pulsed_vs_dc", "pulse_plateau",  # WP7.3
       "vth_search_value", "breakdown_voltage",  # WP7.5
       "compact_model_fit", "model_compare", "export_spice_netlist"}  # WP7.7
-M9 = {"charge_pumping", "memory_window_pulse"}  # WP9.3, WP9.4
+M9 = {"charge_pumping", "memory_window_pulse", "switching_kinetics_fit", "endurance_summary",
+      "retention_fit"}  # WP9.3, WP9.4, WP9.5
 
 
 def idvg_run(recipe_id: str = "mosfet.idvg", drain_status: list[str] | None = None) -> RunData:

@@ -22,15 +22,15 @@ version: 1
 
 ## 1. Purpose and applicable devices
 
-The memory window of a FeFET from program/erase pulses: the HV-SPGU erases and programs the gate through the 16440A
-selector, after every operation the selector hands the gate back to an SMU for a read (Id-Vg sweep at a small drain
-bias, or spot Id), MW = Vth(after erase) - Vth(after program). This is the card for "memory window from pulses".
+The memory window of a FeFET from program/erase pulses (HV-SPGU through the 16440A selector), each operation followed
+by an SMU read (Id-Vg at a small drain bias, or spot Id): MW = Vth(after erase) - Vth(after program).
 
 - `fefet.pulse_write_read`: erase, read, program, read per cycle (or program first), Id-Vg reads, MW.
 - `spgu.program_smu_read`: the same flow for any device with a gate pulse envelope (spot read currents; `v_base`,
   `erase_width`, drain level while pulsing `vd_pulse`); ad hoc by design: always confirmed (`adhoc_recipe`).
 - Not for: the DC loop ([fefet-dual-sweep-mw](fefet-dual-sweep-mw.md)), pulses without reads
-  ([spgu-pulse-train](../spgu/spgu-pulse-train.md)); kinetics, endurance, retention (WP9.5); WGFMU (WP10.6).
+  ([spgu-pulse-train](../spgu/spgu-pulse-train.md)); kinetics ([fefet-switching-kinetics](fefet-switching-kinetics.md)),
+  endurance and retention ([fefet-endurance-retention](fefet-endurance-retention.md)); WGFMU (WP10.6).
 
 ## 2. Wiring, pin map, modules
 

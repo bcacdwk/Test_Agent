@@ -217,7 +217,7 @@ def test_role_structures_the_kind_refuses(change: dict[str, Any], message: str, 
 
 
 @pytest.mark.parametrize(("params", "message"), [
-    ({"schedule": "grid"}, "schedule must be one of"),
+    ({"schedule": "sweep"}, "schedule must be one of"),
     ({"cycles": MAX_CYCLES + 1}, "cycles must be an integer"),
     ({"settle": -1.0}, "settle must not be negative"),
 ])
@@ -227,7 +227,7 @@ def test_parameters_the_kind_refuses(params: dict[str, Any], message: str, tmp_p
     text = recipe.read_text(encoding="utf-8").replace(
         "  cycles: {type: int, default: 1, range: [1, 200], doc: Cycles.}",
         "  cycles: {type: int, default: 1, range: [1, 1000], doc: Cycles.}\n"
-        "  schedule: {type: enum, choices: [cycles, grid], default: cycles, doc: Schedule.}")
+        "  schedule: {type: enum, choices: [cycles, sweep], default: cycles, doc: Schedule.}")
     text = text.replace("range: [0.0, 600.0], doc: Wait", "range: [-5.0, 600.0], doc: Wait")
     recipe.write_text(text, encoding="utf-8")
     with pytest.raises(InvalidInputError, match=message):

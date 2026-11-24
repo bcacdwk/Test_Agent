@@ -107,6 +107,11 @@ def test_committed_statuses() -> None:
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
         assert registry.get(recipe_id).kind == "pulse_read" and registry.get(recipe_id).family == "nvm"
     assert registry.get("spgu.program_smu_read").always_confirm == ["adhoc_recipe"]
+    # WP9.5: the pulse_read schedules grid, cycles with checkpoints, retention (tests/integration/
+    # test_recipes_nvm_schedules.py)
+    for recipe_id in ("fefet.switching_kinetics", "fefet.endurance", "fefet.retention"):
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+        assert registry.get(recipe_id).kind == "pulse_read" and registry.get(recipe_id).family == "nvm"
     # WP7.6: kind stress_measure (tests/integration/test_recipes_stress.py); destructive, always confirmed
     for recipe_id in ("reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "reliability.silc"):
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
@@ -155,8 +160,11 @@ def test_committed_statuses() -> None:
          "moscap.cv_ac_level": "cmu/moscap-cv", "moscap.pulsed_cv": "cmu/moscap-cv", "moscap.cf": "cmu/moscap-cf-ct",
          "moscap.ct": "cmu/moscap-cf-ct", "fecap.cv_butterfly": "nvm/fecap-pund",  # WP8.4
          **{r: "wgfmu/wgfmu-pulsed-iv" for r in ("wgfmu.pulsed_iv", "wgfmu.fast_iv", "wgfmu.pulse_train")},
-         "wgfmu.custom_waveform": "wgfmu/wgfmu-custom-waveform", "wgfmu.dc_spot": "wgfmu/wgfmu-custom-waveform"}
-    # WP10.4
+         "wgfmu.custom_waveform": "wgfmu/wgfmu-custom-waveform",
+         "wgfmu.dc_spot": "wgfmu/wgfmu-custom-waveform",  # WP10.4
+         "fefet.switching_kinetics": "nvm/fefet-switching-kinetics",
+         "fefet.endurance": "nvm/fefet-endurance-retention", "fefet.retention": "nvm/fefet-endurance-retention"}
+    # WP9.5
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):

@@ -812,6 +812,16 @@ class Executor(RunningRuns):
                        "routes of its phases (selector PGU -> SMU, rest at the end; see kind_result.routes); phase of "
                        "a read row = the operation it follows; the run stops after a read or SMU pulse that reported "
                        "compliance/overflow/oscillation (see kind_result)")
+            schedule = plan.program.get("schedule", "cycles")
+            if schedule == "grid":
+                out.append("switching kinetics: cycle of a read row = the grid point (amplitude and width in the "
+                           "plan program's grid); the reads after the resets carry the reset operation as phase")
+            elif schedule == "retention":
+                out.append("retention: t_s = the time after the write (cumulative instrument-timed hold at the pulse "
+                           "levels; the reads interrupt it); cycle = the read's index after its write")
+            elif plan.program.get("cycle_reads", "every") != "every":
+                out.append("endurance: cycle of a read row = the cumulative program/erase cycle count of its "
+                           "checkpoint; the cycles between checkpoints ran as bipolar three-level SPGU bursts")
         if plan.kind == "wgfmu_waveform":
             out.append("WGFMU waveform (program.json): each value as the library returns it (averaged over its event's "
                        "window, t_s at the window centre); programmed levels (source columns) are computed from the "

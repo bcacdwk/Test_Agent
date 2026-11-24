@@ -308,6 +308,16 @@ so no SMU is switched onto the pad at a read level and no pulse meets a driven S
 pulse stops the run (the rest phase still runs). Long waits (`settle`, long SPGU outputs) are cut into checkpoint
 segments with abort checks every second, so a long plan runs asynchronously and cancels within one segment.
 
+**Program/read schedules (WP9.5).** Endurance cycles between checkpoints as bounded three-level HV-SPGU outputs
+(`SPRM 1`, at most 1,000,000 periods per output; each period the sequence's first pulse and the opposite one half a
+`cycle_period` later): every burst program is stored and checked like any other (`SPGU_SPEC.program_problems`, guard
+train = one guard pulse per cycle spanning both windows, open-load level of both levels), the plan totals count
+toward `soft_pulse` and the DUT's `max_count` (`dut_envelope`), and a cancel acts within 10 s of output (the burst's
+`SPST?` waits carry the checkpoints; the cleanup's step 2 stops a running burst). Retention holds keep the read SMUs at
+their pulse levels in instrument-timed `MM 10` blocks (≤ 25 s, automatic abort on compliance); the SPGU is idle and
+the gate on its SMU path during them. Grid and ISPP pulses are ordinary bounded operations. Residual: a plan that
+cycles 10^9 times holds the instrument for hours; R-RUN-02 blocks plans beyond `max_async_run_s`.
+
 ## Cleanup and fault latch
 
 Every instrument action runs inside one transaction. On any exit, including errors, interrupts and guard

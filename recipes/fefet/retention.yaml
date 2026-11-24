@@ -1,0 +1,92 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# FeFET retention (card nvm/fefet-endurance-retention, bring-up stage L9; blueprint v2 3.3): the HV-SPGU writes each
+# state of the sequence once through the 16440A selector (SEL1.OUT1 -> PGU; program_erase: the programmed state, then
+# the erased state), then the selector hands the gate to its SMU (-> SMU) and Id-Vg reads follow at log-spaced times
+# after the write (`first_read` x 10^(k/reads_per_decade) up to `retention_time`). Between the reads the SMUs hold the
+# gate and drain at 0 V in instrument-timed MM 10 blocks of at most 25 s (the device rests unbiased; one checkpoint per
+# block), so the run is long (async, cancel via safe_shutdown). `precycles` wake the film up first. Kind pulse_read,
+# schedule retention. Default analysis retention_fit: Vth of each state and MW versus log10(t), slopes (V/decade),
+# extrapolation to `target_time_s` (10 years by default) and the time at which the MW fit reaches half its first value.
+# status: sim_validated by tests/integration/test_recipes_nvm_schedules.py (fefet_lab: retention slope of each state
+# within 10 % of the model truth k_v P_w retention_rate; selector at rest verified); hw_validated only through a
+# validation record (stage L9).
+id: fefet.retention
+version: 1
+title: FeFET retention - write program/erase states, Id-Vg reads at log-spaced times, Vth and MW versus log t
+family: nvm
+kind: pulse_read
+status: sim_validated
+card: .agents/skills/b1500-test/cards/nvm/fefet-endurance-retention.md
+device_types: [fefet]
+roles:
+  gate:
+    function: pgu
+    module_types: [HVSPGU]
+    settings: {program: $v_program, erase: $v_erase, base: 0.0, width: $width, lead: $t_edge, trail: $t_edge,
+               load_ohm: $load_ohm}
+  gate_read:
+    function: sweep_v
+    terminal: gate
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, v: $vg_read, icomp: $icomp_gate}
+  drain:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {v: $vd, icomp: $icomp_drain}
+  source: {function: ground, allow_gndu: true}
+  bulk: {function: ground, allow_gndu: true, optional: true}
+params:
+  retention_time: {unit: s, default: 10000.0, recommended: [1000.0, 30000.0], range: [0.02, 43200.0],
+                   doc: "Last read after each write (the plan holds each state this long)."}
+  first_read: {unit: s, default: 1.0, recommended: [1.0, 10.0], range: [0.02, 3600.0],
+               doc: "First read after the write (short times: the read may disturb a saturated state)."}
+  reads_per_decade: {type: int, default: 3, recommended: [2, 5], range: [1, 20], doc: Reads per decade of time.}
+  sequence: {type: enum, choices: [program_erase, erase_program, program, erase], default: program_erase,
+             doc: "States written in turn, each followed by its reads (one operation: that state only, no MW)."}
+  v_program: {unit: V, default: 4.0, recommended: [3.0, 5.0], range: [-10.0, 10.0],
+              doc: "Program pulse amplitude (n-FeFET: positive, lowers Vth)."}
+  v_erase: {unit: V, default: -4.0, recommended: [-5.0, -3.0], range: [-10.0, 10.0],
+            doc: "Erase pulse amplitude (n-FeFET: negative, raises Vth)."}
+  width: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-4], range: [1.0e-8, 1.0e-3],
+          doc: "Pulse width of program and erase."}
+  period: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-3], range: [2.0e-8, 1.0],
+           doc: "Pulse period (matters only with count > 1)."}
+  count: {type: int, default: 1, recommended: [1, 10], range: [1, 1000], doc: Pulses per write.}
+  t_edge: {unit: s, default: 2.0e-8, recommended: [2.0e-8, 1.0e-6], range: [8.0e-9, 0.4],
+           doc: "Leading and trailing transition time (width >= t_edge / 0.8)."}
+  load_ohm: {unit: Ohm, default: 1.0e+6, recommended: [1.0e+3, 1.0e+6], range: [0.1, 1.0e+6],
+             doc: "Declared load SER (1 MOhm for the insulated gate; 50 Ohm doubles the level on an open gate)."}
+  precycles: {type: int, default: 0, recommended: [0, 10000], range: [0, 1000000],
+              doc: "Bipolar wake-up cycles (v_program / v_erase) before the reference read."}
+  cycle_period: {unit: s, default: 1.0e-5, recommended: [4.0e-6, 1.0e-3], range: [4.0e-8, 1.0],
+                 doc: "Period of one pre-cycle (first operation's pulse, the other half a period later)."}
+  initial_read: {type: bool, default: true, doc: A reference read before the first write.}
+  schedule: {type: enum, choices: [retention], default: retention, doc: "Schedule (reads at log times after each write)."}
+  read_kind: {type: enum, choices: [staircase, spot], default: staircase,
+              doc: "staircase: Id-Vg per read (Vth, MW); spot: Id at vg_read (read currents only)."}
+  vg_start: {unit: V, default: -0.5, recommended: [-1.0, 0.0], range: [-5.0, 5.0], doc: Read sweep start.}
+  vg_stop: {unit: V, default: 1.8, recommended: [1.5, 2.0], range: [-5.0, 5.0],
+            doc: "Read sweep stop (well below the coercive voltage)."}
+  vg_points: {type: int, default: 47, recommended: [31, 101], range: [11, 401], doc: Read sweep points.}
+  vg_read: {unit: V, default: 0.6, recommended: [0.0, 1.5], range: [-5.0, 5.0], doc: Gate level of a spot read.}
+  vd: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [-1.0, 1.0], doc: Drain read bias (linear region).}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance of reads and holds.}
+  icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-2], doc: Drain current compliance of reads and holds.}
+  samples: {type: int, default: 1, range: [1, 100], doc: Spot measurements per spot read.}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset of the reads.
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: retention_fit, options: {vth_method: constant_current, i_crit_a: 1.0e-7}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind pulse_read, schedule retention), 2.10 (nvm.py retention_fit), 3.3 (fefet.retention), 4.2 ferro FeFET target (retention slope +-10 %)
+    - Keysight Advanced NVM Application Tests User's Guide (AN-NVM; retention reads at log-spaced times; TODO(verify) page at L9)
+    - Programming Guide Ed. 15 MT (PDF 474-476), MM 10 sampling, ERSSP (PDF 433-434), SER (PDF 507)
+  validation_runs: []

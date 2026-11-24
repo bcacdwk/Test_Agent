@@ -1,7 +1,7 @@
 ---
 stage: L9
-title: Long runs (SMU part) - async BTI with cancel and kill-recovery drills, auto-calibration restored, destructive stress and breakdown recipes
-recipes: [reliability.bti_sms, igzo.bias_stress, reliability.hci, reliability.silc, reliability.tddb_cvs, dielectric.bdv, basic.breakdown_search]
+title: Long runs (SMU and HV-SPGU parts) - async BTI with cancel and kill-recovery drills, auto-calibration restored, destructive stress and breakdown recipes, FeFET endurance and retention
+recipes: [reliability.bti_sms, igzo.bias_stress, reliability.hci, reliability.silc, reliability.tddb_cvs, dielectric.bdv, basic.breakdown_search, fefet.endurance, fefet.retention]
 checks:
   - {id: async_progress, quantity: async_progress, reference: get_run progress of the 10 min BTI run, text: 'running, progress advancing per checkpoint, completed'}
   - {id: cancel_drill, quantity: cancel_drill, reference: human observation + manifest, text: 'safe_shutdown from the CLI: cancelled within one checkpoint, cleanup verified, partial rows kept'}
@@ -21,17 +21,23 @@ checks:
   - {id: bdv_cleanup, recipe: dielectric.bdv, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: breakdown_search, recipe: basic.breakdown_search, quantity: bdv, method: breakdown_voltage, unit: V, reference: 'diode datasheet or EasyEXPERT reverse sweep', tolerance: {rel: 0.05}, text: '+-5 % of the reference'}
   - {id: search_bd_cleanup, recipe: basic.breakdown_search, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
+  - {id: endurance_mw, recipe: fefet.endurance, quantity: memory_window_final, method: endurance_summary, unit: V, reference: 'lab FeFET endurance data (wake-up, fatigue)', text: 'recorded with the cycle count reached; MW of the first checkpoint consistent with L7'}
+  - {id: endurance_cleanup, recipe: fefet.endurance, quantity: cleanup, reference: run manifests, text: 'verified: lop, SPGU stopped, selector at rest, also after the cancel'}
+  - {id: retention_slope, recipe: fefet.retention, quantity: retention_slope_program, method: retention_fit, unit: V/dec, reference: 'lab FeFET retention data', text: recorded for both states}
+  - {id: retention_cleanup, recipe: fefet.retention, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run, selector at rest'}
 version: 1
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
-# L9 - Long runs (SMU part)
+# L9 - Long runs (SMU and HV-SPGU parts)
 
 Asynchronous runs on hardware: `reliability.bti_sms` held for 10 min (card `bti-stress-measure`) while the agent
 polls `get_run`, a cancel drill (`safe_shutdown` from the CLI) and a kill-and-recover drill; then the other SMU
 stress and breakdown recipes (cards `igzo-bias-stress`, `hci-silc`, `tddb-bdv`). Every one is destructive or long:
 `needs_confirmation` (`destructive`, `long_run` above 10 min, `first_hw_run`) with the human's own consent per run,
-always on a sacrificial device. The WGFMU part (`wgfmu.fast_bti`) joins with M10.
+always on a sacrificial device. HV-SPGU part (L7 signed off): `fefet.endurance` (10^6 bipolar cycles, about 18
+min, cancel within 10 s of output) and `fefet.retention` (hours; card `fefet-endurance-retention`) on a spare
+FeFET through `SEL1.OUT1`. The WGFMU part (`wgfmu.fast_bti`) joins with M10.
 
 ## 1. Preconditions
 
@@ -50,6 +56,8 @@ always on a sacrificial device. The WGFMU part (`wgfmu.fast_bti`) joins with M10
 3. Kill drill: start the second BTI run (agent step 5); 2 min in, end the harness's MCP server process (close the
    coding agent window, or Task Manager on `b1500-mcp`); wait 1 min; restart the agent in the clone.
 4. Re-land on the next sacrificial device for each recipe of agent step 7 and confirm.
+5. Land a spare FeFET (pin map `fefet-sel`, the L7 wiring; DUT profile with the gate's pulse `max_count` reviewed
+   for 2 x 10^6 pulses); confirm in chat.
 
 ## 3. Agent steps
 
@@ -69,6 +77,9 @@ always on a sacrificial device. The WGFMU part (`wgfmu.fast_bti`) joins with M10
 7. One run each, new consent per run: `igzo.bias_stress` (`degradation_vs_time` quantity vth), `reliability.hci`
    (`degradation_vs_time`), `reliability.silc` (`silc`), `reliability.tddb_cvs` (`time_to_breakdown`),
    `dielectric.bdv` (`breakdown_voltage`), `basic.breakdown_search` on the diode (`breakdown_voltage`).
+8. FeFET (physical step 5), new consent per run: `fefet.endurance` (`soft_pulse`, `dut_envelope`, `long_run`;
+   poll `get_run`; `endurance_summary`), then `fefet.retention` on a fresh FeFET (`retention_fit`); report MW(N),
+   wake-up, fatigue, the retention slopes and any extrapolation as derived.
 
 ## 4. Expected values
 
@@ -83,7 +94,8 @@ always on a sacrificial device. The WGFMU part (`wgfmu.fast_bti`) joins with M10
 | `tddb_tbd` | time to breakdown | one sample interval of the compliance row | the run |
 | `bdv` | breakdown voltage of the ramp | +-5 % of the reference | EasyEXPERT |
 | `breakdown_search` | diode breakdown voltage | +-5 % of the reference | datasheet / EasyEXPERT |
-| `bti_cleanup`, `igzo_cleanup`, `hci_cleanup`, `silc_cleanup`, `tddb_cleanup`, `bdv_cleanup`, `search_bd_cleanup` | every run `verified: lop` | pass/fail | manifests |
+| `endurance_mw`, `retention_slope` | MW versus cycles; Vth slope per decade | recorded | lab FeFET data |
+| `bti_cleanup`, `igzo_cleanup`, `hci_cleanup`, `silc_cleanup`, `tddb_cleanup`, `bdv_cleanup`, `search_bd_cleanup`, `endurance_cleanup`, `retention_cleanup` | every run `verified: lop` | pass/fail | manifests |
 
 - TODO(verify) at this stage: the timer runs on over hours without a reset (sampling `time_source` stays
   `timestamp`), host overhead per hold block, auto-calibration over hours with outputs off.
@@ -102,6 +114,6 @@ always on a sacrificial device. The WGFMU part (`wgfmu.fast_bti`) joins with M10
   `--reference` values where the lab has them). The human reviews them and moves them to `validation/hw/stage-l9.yaml`,
   `validation/hw/reliability.bti_sms.yaml`, `validation/hw/igzo.bias_stress.yaml`, `validation/hw/reliability.hci.yaml`,
   `validation/hw/reliability.silc.yaml`, `validation/hw/reliability.tddb_cvs.yaml`, `validation/hw/dielectric.bdv.yaml`,
-  `validation/hw/basic.breakdown_search.yaml`.
+  `validation/hw/basic.breakdown_search.yaml`, `validation/hw/fefet.endurance.yaml`, `validation/hw/fefet.retention.yaml`.
 - Simulator rehearsal (`timing: scaled` scenario `nmos_bti`): the drills run the same way on `S...` runs;
   no record from them; say which records hardware drafts.

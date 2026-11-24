@@ -4,7 +4,8 @@ maturity: seed
 sources:
   - src/b1500_test_agent/analysis/reliability.py (sampling_summary, time_to_breakdown, weibull_fit; WP7.4)
   - src/b1500_test_agent/analysis/pulse.py (pulsed_vs_dc, pulse_plateau; WP7.3; vth_search_value, breakdown_voltage; WP7.5)
-  - src/b1500_test_agent/analysis/nvm.py (memory_window_pulse; WP9.4)
+  - src/b1500_test_agent/analysis/nvm.py (memory_window_pulse; WP9.4; switching_kinetics_fit, endurance_summary, retention_fit; WP9.5)
+  - src/b1500_test_agent/analysis/nls.py (NLS fit core; WP9.5)
   - src/b1500_test_agent/analysis/registry.py (two-run methods, options.reference_run)
   - docs/design/blueprint.md sections 2.9 (analyze_run reference_run) and 2.10 (pulse.py)
 last_reviewed: null
@@ -111,6 +112,47 @@ Implemented (`memory_window_pulse`, WP9.4; kind `pulse_read`: `fefet.pulse_write
   `vth_program`, `vth_erase`, `vth_initial` (mean; `fit` `first`, `last`, `std`, `reads`). A program-only sequence
   has no window: its state's mean, first and last read show the cumulative shift.
 - Spot reads: `i_program`, `i_erase`, `i_initial` (A) and `current_ratio` = |I(program)| / |I(erase)| (1).
+
+## Switching kinetics
+
+Implemented (`switching_kinetics_fit`, WP9.5; `fefet.switching_kinetics`, kind `pulse_read` schedule `grid`).
+
+- Grid from the run's plan program (per point `cycle`, amplitude `level`, `width`, `row`; `grid_mode`); a point's
+  value is the Vth (as above) of the read after its grid pulse; the reads after the resets give `vth_reset` (mean,
+  spread: a large spread means incomplete resets).
+- `reset` grids: NLS least squares over every usable point, `Vth = V0 + A(V) (1 - exp(-(w / tau(V))^beta))`,
+  `tau(V) = tau0 exp((Va / |V|)^alpha)`; `V0` and one `A(V)` per amplitude are linear (projected out), `tau0`, `Va`,
+  `beta` (and `alpha` with option `alpha: null`, else fixed at 2) by Levenberg-Marquardt from a per-amplitude grid
+  start. Needs 2 amplitudes (3 with free `alpha`), 3 widths per amplitude and more points than parameters. Results
+  `tau0` (s; `fit`: `va`, `alpha`, `beta`, `v0`, `rms`, `r2`, `tau0_rel_se`, `tau@<V>V`, `window@<V>V`), `beta`
+  (`beta_se`), `va` (V, `va_se`), `alpha` (when fitted); window = the width span. An amplitude whose `tau(V)` lies
+  outside the widths constrains the fit weakly (warning).
+- `ispp` grids: per width row the cumulative dVth after each step from the row's start (its reset read, else the
+  reference read): `v50` (V, amplitude at half the row's final |dVth|, mean over rows; per row in `fit`) and
+  `ispp_slope` (V/V, the largest step); no NLS parameters.
+
+## Endurance
+
+Implemented (`endurance_summary`, WP9.5; `fefet.endurance`, schedule `cycles` with checkpoint reads; library helper
+`endurance_curve` returns MW per checkpoint).
+
+- Per checkpoint N (the `cycle` of its reads = cumulative program/erase cycles): MW(N) = Vth(erase read) -
+  Vth(program read). `memory_window_initial` (first checkpoint), `memory_window_max` (`fit` `cycles_at_max`),
+  `memory_window_final` (`fit` `vth_program`, `vth_erase`, `checkpoints`), `wake_up` = MW_max / MW_initial - 1,
+  `fatigue` = 1 - MW_final / MW_max, `cycles_to_failure`: the first crossing below `mw_fail` (V) or `fail_fraction`
+  x MW_max (default 0.5) after the maximum, log10 N interpolation; never reached: a lower bound at the last
+  checkpoint.
+
+## Retention
+
+Implemented (`retention_fit`, WP9.5; `fefet.retention`, schedule `retention`).
+
+- Per state the reads at `t_s` > 0 (time after the write; option `t_min`): Vth = a + b log10(t / 1 s) by least
+  squares: `retention_slope_program`, `retention_slope_erase` (V/dec; `fit`: `vth_1s`, `r2`, `vth_target`).
+- MW(t) of the read pairs with the same index (same `t_s`), fitted the same way: `memory_window_slope` (V/dec),
+  `memory_window_at_target` (V at `target_time_s`, default 10 years; warning when more than two decades beyond the
+  last read), `retention_time` (s: the fit reaches `mw_min` V or `fail_fraction` x the first MW, default 0.5; a
+  window that does not decay: lower bound at the target). Extrapolations are derived values: say so in the report.
 
 ## SMU method index
 

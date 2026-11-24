@@ -70,7 +70,7 @@ from b1500_test_agent.analysis.mosfet import (
     vth_max_gm,
 )
 from b1500_test_agent.analysis.mosfet_family import body_effect, dibl
-from b1500_test_agent.analysis.nvm import memory_window_pulse
+from b1500_test_agent.analysis.nvm import endurance_summary, memory_window_pulse, retention_fit, switching_kinetics_fit
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv_method
 from b1500_test_agent.analysis.pulse import breakdown_voltage, pulse_plateau, pulsed_vs_dc, vth_search_value
 from b1500_test_agent.analysis.quality import assess_quality
@@ -369,6 +369,18 @@ _METHODS += [
             "currents and their ratio for spot reads), per state mean and spread.",
             ("fefet.pulse_write_read", "spgu.program_smu_read", "generic.*"), ("pulse_read",), families=("nvm",),
             milestone="M9"),
+    _method("switching_kinetics_fit", "extraction", switching_kinetics_fit,
+            "Switching kinetics of an amplitude x width grid run: NLS fit tau0, Va, beta (alpha) of "
+            "1 - exp(-(w/tau(V))^beta); ISPP runs: v50 and the step slope; reset-read consistency.",
+            ("fefet.switching_kinetics", "generic.*"), ("pulse_read",), families=("nvm",), milestone="M9"),
+    _method("endurance_summary", "extraction", endurance_summary,
+            "Endurance run: memory window per checkpoint cycle count; initial, maximum and final window, wake-up, "
+            "fatigue and cycles to failure (window below a criterion).",
+            ("fefet.endurance", "generic.*"), ("pulse_read",), families=("nvm",), milestone="M9"),
+    _method("retention_fit", "extraction", retention_fit,
+            "Retention run: Vth of each written state and the memory window versus log10(t), slopes per decade, the "
+            "window extrapolated to a target time and the time it reaches a criterion.",
+            ("fefet.retention", "generic.*"), ("pulse_read",), families=("nvm",), milestone="M9"),
     _method("pulse_plateau", "extraction", pulse_plateau,
             "Plateau current (or voltage) of a pulse: per-pulse mean with edge trimming (time-resolved data) or the "
             "pulse-end reading, at level v, pulse number or the strongest pulse.", (*_PULSED_RECIPES, "wgfmu.*"),

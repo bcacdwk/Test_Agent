@@ -1,0 +1,100 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# FeFET switching kinetics (card nvm/fefet-switching-kinetics, bring-up stage L7; blueprint v2 3.3): the HV-SPGU
+# resets the gate through the 16440A selector (SEL1.OUT1 -> PGU: v_erase for `width`) and pulses it once per point of
+# the amplitude x width grid (`amplitudes` x `widths`, the program direction for sequence erase_program); after every
+# pulse the selector returns the gate to its SMU for an Id-Vg read at the small drain bias vd (SEL1.OUT1 -> SMU).
+# grid_mode reset (default): reset before every point (switched fraction from one state); ispp: one reset per width,
+# then the amplitudes in increasing order cumulatively (incremental step pulse programming). `precycles` bipolar
+# cycles (v_program / v_erase, `cycle_period`) wake the film up before the reference read. Kind pulse_read, schedule
+# grid (HV-SPGU source): routes per phase cycling/erase/program (SEL1.OUT1 -> pgu), read (-> smu), rest. Default
+# analysis switching_kinetics_fit: nucleation-limited switching Vth = V0 + A(V) (1 - exp(-(w/tau(V))^beta)),
+# tau(V) = tau0 exp((Va/|V|)^alpha) fitted over the grid (alpha fixed at 2 unless the option frees it).
+# status: sim_validated by tests/integration/test_recipes_nvm_schedules.py (fefet_lab: tau0 and beta within 20 % of
+# the model truth tau0_s, beta_sw; routes PGU -> SMU per pulse, rest verified); hw_validated only through a
+# validation record (stage L7).
+id: fefet.switching_kinetics
+version: 1
+title: FeFET switching kinetics - amplitude x width grid (or ISPP) of program pulses, SMU Id-Vg reads, NLS fit
+family: nvm
+kind: pulse_read
+status: sim_validated
+card: .agents/skills/b1500-test/cards/nvm/fefet-switching-kinetics.md
+device_types: [fefet]
+roles:
+  gate:
+    function: pgu
+    module_types: [HVSPGU]
+    settings: {program: $v_program, erase: $v_erase, base: 0.0, width: $width, lead: $t_edge, trail: $t_edge,
+               load_ohm: $load_ohm}
+  gate_read:
+    function: sweep_v
+    terminal: gate
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, v: $vg_read, icomp: $icomp_gate}
+  drain:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {v: $vd, icomp: $icomp_drain}
+  source: {function: ground, allow_gndu: true}
+  bulk: {function: ground, allow_gndu: true, optional: true}
+params:
+  amplitudes: {type: float_list, unit: V, default: [3.2, 3.6, 4.0, 4.4, 4.8], range: [-10.0, 10.0],
+               doc: "Grid pulse amplitudes (set level at the gate; program direction: positive for an n-FeFET)."}
+  widths: {type: float_list, unit: s, default: [1.0e-8, 2.0e-8, 5.0e-8, 1.0e-7, 2.0e-7, 5.0e-7, 1.0e-6, 2.0e-6, 5.0e-6,
+                                                1.0e-5, 1.0e-4],
+           range: [1.0e-8, 1.0e-3], doc: "Grid pulse widths (on the 2.5 ns SPGU resolution; at least t_edge / 0.8)."}
+  grid_mode: {type: enum, choices: [reset, ispp], default: reset,
+              doc: "reset: reset before every point; ispp: one reset per width, amplitudes cumulatively in order."}
+  reset_read: {type: bool, default: true, doc: A read after every reset (checks that the reset is complete).}
+  v_program: {unit: V, default: 4.0, recommended: [3.0, 5.0], range: [-10.0, 10.0],
+              doc: "Program level of the wake-up pre-cycles (n-FeFET: positive)."}
+  v_erase: {unit: V, default: -4.0, recommended: [-5.0, -3.0], range: [-10.0, 10.0],
+            doc: "Reset (erase) level before each point and of the pre-cycles (n-FeFET: negative, raises Vth)."}
+  width: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-4], range: [1.0e-8, 1.0e-3],
+          doc: "Width of the reset pulses and of the pre-cycle pulses (long enough to saturate)."}
+  period: {unit: s, default: 1.0e-3, recommended: [1.0e-4, 1.0e-2], range: [2.0e-8, 1.0],
+           doc: "Pulse period of the reset and grid pulses (> the longest width + t_edge / 0.8)."}
+  count: {type: int, default: 1, recommended: [1, 1], range: [1, 100], doc: Pulses per reset or grid operation.}
+  t_edge: {unit: s, default: 8.0e-9, recommended: [8.0e-9, 2.0e-8], range: [8.0e-9, 0.4],
+           doc: "Leading and trailing transition time (every width >= t_edge / 0.8)."}
+  load_ohm: {unit: Ohm, default: 1.0e+6, recommended: [1.0e+3, 1.0e+6], range: [0.1, 1.0e+6],
+             doc: "Declared load SER (1 MOhm for the insulated gate; 50 Ohm doubles the level on an open gate)."}
+  sequence: {type: enum, choices: [erase_program, program_erase], default: erase_program,
+             doc: "Reset operation, then the grid operation (erase_program: erase reset, program grid)."}
+  precycles: {type: int, default: 1000, recommended: [0, 10000], range: [0, 1000000],
+              doc: "Bipolar wake-up cycles (v_program / v_erase) before the reference read."}
+  cycle_period: {unit: s, default: 1.0e-5, recommended: [4.0e-6, 1.0e-3], range: [4.0e-8, 1.0],
+                 doc: "Period of one pre-cycle (program pulse, erase pulse half a period later)."}
+  initial_read: {type: bool, default: true, doc: A reference read before the first grid point.}
+  schedule: {type: enum, choices: [grid], default: grid, doc: "Schedule (the amplitude x width grid)."}
+  read_kind: {type: enum, choices: [staircase, spot], default: staircase,
+              doc: "staircase: Id-Vg per read (Vth: the fit); spot: Id at vg_read (no NLS fit)."}
+  vg_start: {unit: V, default: -0.5, recommended: [-1.0, 0.0], range: [-5.0, 5.0], doc: Read sweep start.}
+  vg_stop: {unit: V, default: 1.8, recommended: [1.5, 2.0], range: [-5.0, 5.0],
+            doc: "Read sweep stop (well below the coercive voltage)."}
+  vg_points: {type: int, default: 47, recommended: [31, 101], range: [11, 401], doc: Read sweep points.}
+  vg_read: {unit: V, default: 0.6, recommended: [0.0, 1.5], range: [-5.0, 5.0], doc: Gate level of a spot read.}
+  vd: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [-1.0, 1.0], doc: Drain read bias (linear region).}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance of the reads.}
+  icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-2], doc: Drain current compliance of the reads.}
+  settle: {unit: s, default: 0.0, recommended: [0.0, 1.0], range: [0.0, 60.0],
+           doc: "Wait between the route back to the SMU and each read."}
+  samples: {type: int, default: 1, range: [1, 100], doc: Spot measurements per spot read.}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset of the reads.
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: switching_kinetics_fit, options: {vth_method: constant_current, i_crit_a: 1.0e-7}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind pulse_read, schedule grid), 2.10 (nvm.py switching_kinetics_fit), 3.3 (fefet.switching_kinetics), 4.2 ferro FeFET target (tau0, beta +-20 %)
+    - A. K. Tagantsev et al., Phys. Rev. B 66, 214109 (2002) (nucleation-limited switching; not page-checked)
+    - H. Mulaosmanovic et al., ACS Appl. Mater. Interfaces 9, 3792 (2017) (FeFET switching kinetics by pulse amplitude x width maps; not page-checked)
+    - Programming Guide Ed. 15 ERSSP (PDF 433-434), SER (PDF 507), SPRM (PDF 512-513), SPT (PDF 514), WV (PDF 568-569)
+  validation_runs: []

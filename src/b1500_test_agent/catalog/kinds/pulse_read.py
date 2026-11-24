@@ -16,15 +16,25 @@ each role to its own resource (``SEL1.OUT1`` -> ``pgu`` for the pulses, -> ``smu
 also its pad's read source (an SMU can pulse and read): ``start``/``stop``/``points`` make it the read sweep, ``v``
 its spot read level, ``icomp`` holds for both. Every other function is refused.
 
-**Recipe parameters read by name:** ``schedule`` (``cycles``, the only schedule of this work package; the amplitude x
-width grid and the retention and endurance schedules arrive with their recipes in WP9.5), ``sequence``
-(``erase_program``, default: erase, read, program, read; ``program_erase``; ``program``; ``erase``), ``cycles``
-(repetitions of the sequence, 1 to ``MAX_CYCLES``), ``initial_read`` (bool, default true: a reference read before the
-first pulse), ``read_kind`` (``staircase``, the default with a sweep: one single sweep per read, compiled by
-``smu_staircase``; ``spot``: ``samples`` spot measurements per read, compiled by ``smu_spot``; ``wgfmu`` arrives in
-WP10.6), ``settle`` (s, default 0: the wait between the route back and the read, in segments of at most
-``WAIT_SEGMENT_S`` with a checkpoint after each and abort checks every second), ``integration``, ``samples``, and
-the sources' ``period`` and ``count``.
+**Recipe parameters read by name:** ``schedule`` (``cycles``, ``grid``, ``retention``) and the schedule's own
+parameters (``catalog/kinds/pulse_schedules.py``: ``sequence``, ``cycles``, ``cycle_reads``, ``reads_per_decade``,
+``read_cycles``, ``cycle_period``, ``precycles``, ``amplitudes``, ``widths``, ``grid_mode``, ``reset_read``,
+``retention_time``, ``first_read``, ``initial_read``: a reference read before the first pulse, default true),
+``read_kind`` (``staircase``, the default with a sweep: one single sweep per read, compiled by ``smu_staircase``;
+``spot``: ``samples`` spot measurements per read, compiled by ``smu_spot``; ``wgfmu`` arrives in WP10.6), ``settle``
+(s, default 0: the wait between the route back and the read, in segments of at most ``WAIT_SEGMENT_S`` with a
+checkpoint after each and abort checks every second; schedule ``retention`` times its reads by holds instead),
+``integration``, ``samples``, and the sources' ``period`` and ``count``.
+
+**Schedules** (WP9.5 adds ``grid`` and ``retention`` and the endurance checkpoints of ``cycles``): ``cycles`` repeats
+the sequence with a read after every operation, or (endurance, ``cycle_reads`` ``log``/``list``) reads at checkpoint
+cycle counts with the cycles in between run as bipolar cycling bursts of the HV-SPGU (three-level programs; ``bursts``
+of at most 1,000,000 periods, ``cycle`` of the checkpoint reads = the cumulative cycle count); ``grid`` resets with the
+sequence's first operation and pulses its second at each amplitude x width point (``reset`` or ``ispp``), the points
+stored as ``grid`` (``GridPoint``; ``cycle`` of a point's reads = its index); ``retention`` writes each state of the
+sequence once and reads it at log-spaced times after the write, holding the read SMUs at their pulse levels in ``MM 10``
+hold blocks between the reads (``blocks.hold_bias``, monitor = the read's measured channels; one checkpoint per block).
+``precycles`` runs cycling bursts before the first read.
 
 **Routes** (``routes_by_phase``, in this order): one phase per operation of the sequence (``erase``, ``program``: the
 pulse role's route, HV-SPGU source only), ``read`` (every read role's route, and an SMU pulse role's), ``rest`` (each
@@ -37,45 +47,65 @@ declared switch to rest and verifies it whatever happens.
 
 **Run** (one transaction, guarded driver only): with an HV-SPGU ``SPST?`` must read 0; phase ``read``; ``TSC 0``,
 ``AAD``/``AIT`` of the measured channels, ``CN`` of the SMUs and the pulse channel, ``ERRX?`` drain, on hardware the
-``LOP?`` positive control of the SMUs; the reference read (cycle 0); then per cycle and operation: every SMU output to
-its pulse level (falling first, ``blocks.ordered``: the read role on the pulsed pad to 0 V before its relay switches,
-an SMU pulse role to its base), phase ``pulse``, the source's operation (``SpguSourceKind``/``SmuPulseSourceKind``
-``run``), phase ``read``, ``settle``, the read (``blocks.read``: the read levels, the sweep or spot setup, ``XE``);
-finally phase ``rest``. Checkpoints: one per read and one per ``WAIT_SEGMENT_S`` of pulse output (at least one per
-operation); long plans run asynchronously (R-RUN-02) and ``safe_shutdown`` cancels at the next checkpoint. A read or
-an SMU pulse reading that reports compliance, overflow or oscillation (``STOP_STATUSES``) stops the run
-(``kind_result.stop_reason``; the rest phase still runs).
+``LOP?`` positive control of the SMUs; then the steps in order (``pulse_schedules.build_steps``). A pulse operation or
+cycling burst: every SMU output to its pulse level (falling first, ``blocks.ordered``: the read role on the pulsed pad
+to 0 V before its relay switches, an SMU pulse role to its base), its phase's routes (an operation's own phase, a burst
+``cycling``), the source's operation (``SpguSourceKind``/``SmuPulseSourceKind`` ``run``), phase ``read``, ``settle``
+(pulse operations only). A read: the read levels, the sweep or spot setup, ``XE`` (``blocks.read``). A retention hold:
+``blocks.hold_bias`` at the pulse levels. Finally phase ``rest``. Checkpoints: one per read, one per ``WAIT_SEGMENT_S``
+of pulse output (at least one per operation or burst) and one per hold block; long plans run asynchronously (R-RUN-02)
+and ``safe_shutdown`` cancels at the next checkpoint. A read, an SMU pulse reading or a hold block that reports
+compliance, overflow or oscillation (``STOP_STATUSES``) stops the run (``kind_result.stop_reason``; the rest phase
+still runs).
 
-**Table** (``data.csv`` contract): one row per read point: ``step`` (0-based over the run), ``cycle`` (0 = the
-reference read, then 1..``cycles``), ``phase`` (``read`` for the reference read, else the operation the read follows:
-``program`` or ``erase``), ``<role>_range`` labels of ranged spot reads, the read's source columns (the sweep value
-``<sweep role>_V``, constant bias levels) and every measured ``<role>_<I|V>`` + ``_status``. The SMU pulse readings
-(the pulsed channel's current at each pulse end) are summarised in ``kind_result`` (``pulse_i_max_a``,
-``pulse_statuses``), their raw blocks kept in the run folder.
+**Table** (``data.csv`` contract): one row per read point: ``step`` (0-based over the run), ``t_s`` (schedule
+``retention`` only: the time after the write in seconds, empty for the reference read), ``cycle`` (0 = the reference
+read; ``cycles``: 1..``cycles``, or the cumulative cycle count of an endurance checkpoint; ``grid``: the grid point;
+``retention``: the read's index after its write), ``phase`` (``read`` for the reference read, else the operation the
+read follows: ``program`` or ``erase``), ``<role>_range`` labels of ranged spot reads, the read's source columns (the
+sweep value ``<sweep role>_V``, constant bias levels) and every measured ``<role>_<I|V>`` + ``_status``. The SMU pulse
+readings (the pulsed channel's current at each pulse end) and the hold monitor samples are summarised in
+``kind_result`` (``pulse_i_max_a``, ``pulse_statuses``; ``hold_blocks``, ``hold_i_max_a``), their raw blocks kept in
+the audit log; the grid's amplitude and width per point are the stored program's ``grid`` (``analysis/nvm.py`` reads
+them from the run manifest).
 """
 
 from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Final, Literal
 
 import pandas as pd
 from pydantic import Field, ValidationError
 
 from b1500_test_agent.catalog.blocks import (
+    HOLD_OVERHEAD_S,
+    Monitor,
     ReadSpec,
     RouteStep,
     apply_routes,
     drain_or_raise,
     flagged_statuses,
+    hold_bias,
+    hold_chunks,
     ordered,
     read,
     read_blocks,
     route_lines,
     route_steps,
     set_levels,
+)
+from b1500_test_agent.catalog.kinds.pulse_schedules import (
+    CYCLING_PHASE,
+    MAX_CYCLES,
+    MAX_STRESS_CYCLES,
+    RETENTION_PHASE,
+    GridPoint,
+    ReadStep,
+    Schedule,
+    build_steps,
+    parse_schedule,
 )
 from b1500_test_agent.catalog.kinds.pulse_sources import (
     SOURCES,
@@ -116,7 +146,7 @@ from b1500_test_agent.models.station import StationProfile
 if TYPE_CHECKING:
     from b1500_test_agent.session.transaction import Transaction
 
-__all__ = ["MAX_CYCLES", "PulseReadKind", "PulseReadProgram", "ReadStep", "stored_program"]
+__all__ = ["MAX_CYCLES", "MAX_STRESS_CYCLES", "PulseReadKind", "PulseReadProgram", "ReadStep", "stored_program"]
 
 PULSE_FUNCTIONS: Final = frozenset({"pgu", "pulse_v", "wgfmu"})
 """Role functions of a pulse role (one per plan): HV-SPGU, SMU pulse, WGFMU (WP10.6)."""
@@ -124,24 +154,12 @@ PULSE_FUNCTIONS: Final = frozenset({"pgu", "pulse_v", "wgfmu"})
 READ_FUNCTIONS: Final = frozenset({"sweep_v", "bias_v", "ground", "measure_only"})
 """Role functions of the read roles."""
 
-SEQUENCES: Final[dict[str, tuple[OpName, ...]]] = {
-    "erase_program": ("erase", "program"), "program_erase": ("program", "erase"),
-    "program": ("program",), "erase": ("erase",),
-}  # fmt: skip
-"""The operations of one cycle, each followed by a read."""
-
-SCHEDULES: Final = ("cycles",)
 READ_KINDS: Final = ("staircase", "spot")
 PENDING_READ_KINDS: Final[dict[str, str]] = {"wgfmu": "WP10.6"}
 """Read kinds of the blueprint's row that arrive with a later work package (refused at plan time)."""
 
-SCHEDULE_PARAM, SEQUENCE_PARAM, CYCLES_PARAM = "schedule", "sequence", "cycles"
-INITIAL_READ_PARAM, READ_KIND_PARAM, SETTLE_PARAM = "initial_read", "read_kind", "settle"
+READ_KIND_PARAM, SETTLE_PARAM = "read_kind", "settle"
 PULSE_BIAS_SETTING, READ_LEVEL_SETTING = "pulse_bias", "v"
-
-MAX_CYCLES: Final = 200
-"""Most cycles of one plan (at most 401 reads); bipolar cycling with checkpoint reads (endurance) is WP9.5's
-schedule."""
 
 ROUTE_OVERHEAD_S: Final = 0.05
 """Estimated bus time of one route phase besides the relay settle time (``ERMOD``, ``ERSSP``, read-back)."""
@@ -155,50 +173,54 @@ LEVEL_OVERHEAD_S: Final = 0.05
 PHASE_READ, PHASE_PULSE, PHASE_REST = "read", "pulse", "rest"
 
 
-@dataclass(frozen=True)
-class ReadStep:
-    """One checkpoint step of the run: a read or a pulse operation, its cycle, its phase (``read`` for the reference
-    read, else the operation: a pulse step's operation, or the operation a read follows) and its checkpoint units."""
-
-    index: int
-    action: Literal["read", "pulse"]
-    cycle: int
-    phase: Literal["read", "program", "erase"]
-    chunks: int = 1
-
-
 class PulseReadProgram(StrictModel):
     """The compiled program stored in ``PlanRecord.program`` (hashed; the ``SourcePlan`` and the SPGU programs are
-    stored beside it under their own keys) and executed by ``acquire``."""
+    stored beside it under their own keys) and executed by ``acquire``. The schedule fields default to WP9.4's
+    every-cycle ``cycles`` schedule, so programs stored before WP9.5 still validate."""
 
     source: Literal["spgu", "smu"]
     pulse_role: str
     pulse_channel: Channel
-    ops: dict[OpName, PulseOp] = Field(min_length=1)
+    ops: dict[str, PulseOp] = Field(min_length=1)
+    """Compiled operations by key: ``program``/``erase`` (from the role's settings), ``g<n>`` (grid point n),
+    ``cycling_<count>`` (a bipolar cycling burst of ``count`` periods)."""
     sequence: list[OpName] = Field(min_length=1)
-    cycles: int = Field(ge=1, le=MAX_CYCLES)
+    cycles: int = Field(ge=1, le=MAX_STRESS_CYCLES)
     initial_read: bool = True
     read: ReadSpec
     integration: Integration
     smu: list[Channel] = Field(min_length=1)
     """SMU output switches (the read roles' and an SMU pulse role's channels)."""
     pulse_levels: list[BiasOutput] = Field(default_factory=list)
-    """Every SMU output while the pulses run (read roles at their pulse level, an SMU pulse role at its base)."""
+    """Every SMU output while the pulses run (read roles at their pulse level, an SMU pulse role at its base); the
+    retention holds keep these levels too."""
     routes: dict[str, list[RouteStep]] = Field(default_factory=dict)
-    """Route steps per kind of phase: ``read``, ``pulse`` (applied as the operation's phase), ``rest``."""
+    """Route steps per kind of phase: ``read``, ``pulse`` (applied as an operation's phase or as ``cycling``),
+    ``rest``."""
     settle_s: float = Field(default=0.0, ge=0)
     read_estimate_s: float = Field(ge=0)
+    schedule: Literal["cycles", "grid", "retention"] = "cycles"
+    cycle_reads: Literal["every", "log", "list"] = "every"
+    checkpoints: list[int] = Field(default_factory=list)
+    """Endurance: the cumulative cycle count of each checkpoint (``cycle_reads`` log or list)."""
+    cycle_period: float | None = Field(default=None, gt=0)
+    """Period of one bipolar cycle of the cycling bursts (s)."""
+    grid: list[GridPoint] = Field(default_factory=list)
+    grid_mode: Literal["reset", "ispp"] = "reset"
+    reset_read: bool = True
+    read_times: list[float] = Field(default_factory=list)
+    """Retention: the read times after each write (s, on the 10 ms grid)."""
+    monitor: Monitor | None = None
+    """Retention: the monitor sample of the hold blocks (the read's measured channels)."""
+    precycles: int = Field(default=0, ge=0)
 
     def steps(self) -> list[ReadStep]:
-        """Every checkpoint step in run order (module docstring)."""
-        out: list[ReadStep] = []
-        if self.initial_read:
-            out.append(ReadStep(0, "read", 0, "read"))
-        for cycle in range(1, self.cycles + 1):
-            for name in self.sequence:
-                out.append(ReadStep(len(out), "pulse", cycle, name, self.ops[name].chunks + self.settle_chunks))
-                out.append(ReadStep(len(out), "read", cycle, name))
-        return out
+        """Every checkpoint step in run order (``pulse_schedules.build_steps``)."""
+        return build_steps(self)
+
+    def op_chunks(self, key: str) -> int:
+        """Checkpoint units of operation ``key``."""
+        return self.ops[key].chunks
 
     @property
     def settle_chunks(self) -> int:
@@ -214,7 +236,7 @@ class PulseReadProgram(StrictModel):
 
     @property
     def reads(self) -> int:
-        return (1 if self.initial_read else 0) + self.cycles * len(self.sequence)
+        return sum(1 for s in self.steps() if s.action == "read")
 
     @property
     def pulse_source(self) -> PulseSourceKind:
@@ -288,8 +310,8 @@ def _route_text(steps: Sequence[RouteStep]) -> str:
 
 
 class _Rows:
-    """Turns read blocks into table rows (``read_blocks`` + ``cycle`` and ``phase``), step by step; shared by the
-    checkpoints (``partial.csv``) and ``to_table``."""
+    """Turns read blocks into table rows (``read_blocks`` + ``t_s`` for retention, ``cycle`` and ``phase``), step by
+    step; shared by the checkpoints (``partial.csv``) and ``to_table``."""
 
     def __init__(self, program: PulseReadProgram) -> None:
         self.program = program
@@ -297,10 +319,42 @@ class _Rows:
 
     def of(self, step: ReadStep, blocks: Sequence[RawBlock]) -> list[dict[str, object]]:
         rows = read_blocks(self.program.read, blocks, first_step=self.step)
-        out = [{"step": row["step"], "cycle": step.cycle, "phase": step.phase,
+        timed = {"t_s": step.t_s} if self.program.schedule == "retention" else {}
+        out = [{"step": row["step"], **timed, "cycle": step.cycle, "phase": step.phase,
                 **{k: v for k, v in row.items() if k != "step"}} for row in rows]
         self.step += len(out)
         return out
+
+
+def _hold_lines(program: PulseReadProgram, seconds: float) -> list[str]:
+    """The writes of one retention hold (the levels are set before): ``FMT 1,1``, the monitor's ``MM 10`` setup, an
+    ``MT`` when a block's length changes, ``XE`` per block (``blocks.hold_bias``)."""
+    monitor = program.monitor
+    assert monitor is not None
+    lines = [flex.fmt(1, 1)]
+    previous: float | None = None
+    for h_bias in hold_chunks(seconds, monitor.period):
+        setup = monitor.setup(h_bias)
+        if previous is None:
+            lines += [flex.mcc(), flex.ml(setup.mode), flex.mt(h_bias, setup.interval, 1, 0.0),
+                      flex.msc(setup.abort, setup.post), flex.mm(flex.SAMPLING_MODE, setup.measure),
+                      *(flex.cmm(ch, op) for ch, op in setup.operation.items())]
+        elif h_bias != previous:
+            lines.append(flex.mt(h_bias, setup.interval, 1, 0.0))
+        previous = h_bias
+        lines.append(flex.XE)
+    return lines
+
+
+def _schedule_fields(plan: Schedule, spec: ReadSpec, integration: Integration) -> dict[str, Any]:
+    """The schedule part of a ``PulseReadProgram`` (``pulse_schedules.Schedule``; retention: the hold monitor)."""
+    fields: dict[str, Any] = {"schedule": plan.kind, "cycle_reads": plan.cycle_reads, "checkpoints": plan.checkpoints,
+                              "cycle_period": plan.cycle_period, "grid": plan.grid, "grid_mode": plan.grid_mode,
+                              "reset_read": plan.reset_read, "read_times": plan.read_times,
+                              "precycles": plan.precycles}
+    if plan.kind == "retention":
+        fields["monitor"] = Monitor.of(spec.measure, integration)
+    return fields
 
 
 # -- the kind --------------------------------------------------------------------------------------------------------
@@ -321,20 +375,11 @@ class PulseReadKind:
         spec = recipe.roles[pulse_role]
         source = source_for(pulse_role, spec.function, self.kind_id)
         smu_source = source.family == "smu"
-        _choice(params, SCHEDULE_PARAM, SCHEDULES, "cycles")
+        plan = parse_schedule(params, source=source.family)
         sweeps = [n for n in reads if recipe.roles[n].function == "sweep_v"]
         sweeps += [pulse_role] if smu_source and "start" in spec.settings else []
         read_kind = _choice(params, READ_KIND_PARAM, READ_KINDS, "staircase" if sweeps else "spot",
                             PENDING_READ_KINDS)
-        sequence = list(SEQUENCES[_choice(params, SEQUENCE_PARAM, list(SEQUENCES), "erase_program")])
-        cycles = _param(params, CYCLES_PARAM, 1)
-        if isinstance(cycles, float) and cycles.is_integer():
-            cycles = int(cycles)
-        if isinstance(cycles, bool) or not isinstance(cycles, int) or not 1 <= cycles <= MAX_CYCLES:
-            raise CompileError(f"{CYCLES_PARAM} must be an integer 1 to {MAX_CYCLES}, got {cycles!r}")
-        initial = _param(params, INITIAL_READ_PARAM, True)
-        if not isinstance(initial, bool):
-            raise CompileError(f"{INITIAL_READ_PARAM} must be a bool, got {initial!r}")
         settle = _number(_param(params, SETTLE_PARAM, 0.0), SETTLE_PARAM)
         if settle < 0:
             raise CompileError(f"{SETTLE_PARAM} must not be negative, got {settle:g}")
@@ -350,9 +395,8 @@ class PulseReadKind:
             # A role is unbound or its wiring is unknown: the plan-phase rules block the plan (R-PIN-01).
             return CompiledKindPlan(envelope=CompiledEnvelope(channels=dict(base.envelope.channels), routes=allowed),
                                     estimate=Estimate(points=0, duration_s=0.0))
-        runs = {name: cycles for name in sequence}
         compiled = source.compile(SourceRequest(role=pulse_role, spec=spec, channel=bound.channel, params=params,
-                                                runs=runs))
+                                                ops=tuple(plan.op_requests(pulse_role, spec, params))))
         read_spec, integration, read_points, read_s = self._read_spec(read_kind, base)
         channels = self._channels(recipe, params, base.envelope.channels, pulse_role, bound.channel, compiled,
                                   smu_source)
@@ -360,22 +404,34 @@ class PulseReadKind:
                and b.channel is not None]
         program = PulseReadProgram(
             source=source.family, pulse_role=pulse_role, pulse_channel=bound.channel,  # type: ignore[arg-type]
-            ops=compiled.ops, sequence=sequence, cycles=cycles, initial_read=initial, read=read_spec,
-            integration=integration, smu=list(dict.fromkeys(smu)),
+            ops=compiled.ops, sequence=plan.sequence, cycles=plan.cycles, initial_read=plan.initial_read,
+            read=read_spec, integration=integration, smu=list(dict.fromkeys(smu)),
             pulse_levels=self._pulse_levels(recipe, params, read_spec, pulse_role, smu_source, compiled),
             routes={phase: steps for phase, steps in ((PHASE_READ, read_routes), (PHASE_PULSE, pulse_routes),
                                                       (PHASE_REST, _rest_steps(all_steps, station))) if steps},
-            settle_s=settle, read_estimate_s=round(read_s, 6))
+            settle_s=settle, read_estimate_s=round(read_s, 6), **_schedule_fields(plan, read_spec, integration))
         programs = spgu_programs(compiled.extra)
         stored: dict[str, Any] = program.model_dump(mode="json")
         stored.update(compiled.extra)
         stored[SOURCE_PLAN_KEY] = SourcePlan(pulses={bound.channel: compiled.trains}).model_dump(mode="json")
-        phases = {name: [s.route for s in pulse_routes] for name in dict.fromkeys(sequence) if pulse_routes}
-        phases.update({phase: [s.route for s in program.routes[phase]] for phase in (PHASE_READ, PHASE_REST)
-                       if program.routes.get(phase)})
         return CompiledKindPlan(envelope=CompiledEnvelope(channels=channels, routes=allowed),
                                 estimate=self._estimate(program, read_s, read_points),
-                                flex_preview=self.preview(program, programs), program=stored, routes_by_phase=phases)
+                                flex_preview=self.preview(program, programs), program=stored,
+                                routes_by_phase=self._phases(program, pulse_routes))
+
+    @staticmethod
+    def _phases(program: PulseReadProgram, pulse_routes: Sequence[RouteStep]) -> dict[str, list[Route]]:
+        """``routes_by_phase``: the pulse phases (``cycling`` first when the plan bursts, then the operations in
+        the sequence's order), ``read``, ``rest`` (the S12 contract order)."""
+        names: list[str] = []
+        if pulse_routes:
+            if any(s.action == "burst" for s in program.steps()):
+                names.append(CYCLING_PHASE)
+            names += list(dict.fromkeys(program.sequence))
+        phases: dict[str, list[Route]] = {name: [s.route for s in pulse_routes] for name in names}
+        phases.update({phase: [s.route for s in program.routes[phase]] for phase in (PHASE_READ, PHASE_REST)
+                       if program.routes.get(phase)})
+        return phases
 
     def _check_roles(self, recipe: Recipe) -> tuple[str, list[str]]:
         """``(pulse role, read roles)`` after the role-function checks (``CompileError``)."""
@@ -497,16 +553,26 @@ class PulseReadKind:
         pulse_routes = 2 * route_s if program.routes.get(PHASE_PULSE) else 0.0
         duration = SETUP_OVERHEAD_S + sum(route_s for phase in (PHASE_READ, PHASE_REST) if program.routes.get(phase))
         segment = read_s
+        reads = 0
         for step in program.steps():
             if step.action == "read":
                 duration += read_s
+                reads += 1
                 continue
-            op = program.ops[step.phase]  # type: ignore[index]
+            if step.action == "hold":
+                assert program.monitor is not None
+                spans = [h + program.monitor.period + HOLD_OVERHEAD_S
+                         for h in hold_chunks(step.seconds, program.monitor.period)]
+                duration += LEVEL_OVERHEAD_S + sum(spans)
+                segment = max(segment, *spans)
+                continue
+            op = program.ops[step.op]
             extra = LEVEL_OVERHEAD_S + pulse_routes
-            duration += extra + source.seconds(op) + program.settle_s
-            segment = max(segment, extra + source.segment_s(op), *program.settle_segments())
-        return Estimate(points=program.reads * read_points, duration_s=round(duration, 6),
-                        max_segment_s=round(segment, 6))
+            settle = program.settle_s if step.action == "pulse" else 0.0
+            duration += extra + source.seconds(op) + settle
+            segment = max(segment, extra + source.segment_s(op),
+                          *(program.settle_segments() if step.action == "pulse" else []))
+        return Estimate(points=reads * read_points, duration_s=round(duration, 6), max_segment_s=round(segment, 6))
 
     @staticmethod
     def preview(program: PulseReadProgram, programs: Sequence[SpguProgram]) -> list[str]:
@@ -520,16 +586,20 @@ class PulseReadKind:
         lines.append(flex.ait(adc, ADC_MODE_CODES[program.integration.mode], program.integration.n))
         lines.append(flex.cn(program.enable))
         previous: dict[int, float] | None = None
+        pulse_levels = {o.channel: o.level for o in program.pulse_levels}
         for step in program.steps():
             if step.action == "read":
                 lines += StressMeasureKind._read_lines(program.read, previous)
                 previous = program.read.levels_after()
                 continue
             lines += [bias_command(o) for o in ordered(program.pulse_levels, previous)]
-            previous = {o.channel: o.level for o in program.pulse_levels}
+            previous = pulse_levels
+            if step.action == "hold":
+                lines += _hold_lines(program, step.seconds)
+                continue
             if program.routes.get(PHASE_PULSE):
                 lines += route_lines(program.routes[PHASE_PULSE])
-            lines += source.preview(program.ops[step.phase], programs)  # type: ignore[index]
+            lines += source.preview(program.ops[step.op], programs)
             if program.routes.get(PHASE_PULSE):
                 lines += route_lines(program.routes.get(PHASE_READ, []))
         return lines + route_lines(program.routes.get(PHASE_REST, []))
@@ -546,13 +616,11 @@ class PulseReadKind:
         if not plan.program:
             raise CompileError(f"plan {plan.plan_id} has no compiled {self.kind_id} program")
         program, programs = stored_program(plan)
-        source = program.pulse_source
         driver = tx.driver
         if program.source == "spgu" and driver.pulse_output_active():
             raise DriverError("an SPGU output is already running (SPST? 1); run safe_shutdown first")
         steps = program.steps()
-        total = sum(s.chunks for s in steps)
-        run = _Run(tx, program)
+        run = _Run(tx, program, programs, total=sum(s.chunks for s in steps))
         run.route(PHASE_READ, "start")
         driver.set_time_stamp(False)
         driver.apply_integration(program.integration, [m.channel for m in program.read.measure])
@@ -561,47 +629,24 @@ class PulseReadKind:
         tx.mark("outputs enabled")
         tx.lop_positive_control(program.smu)
         rows = _Rows(program)
-        previous: dict[int, float] | None = None
-        done = 0
         for step in steps:
             if step.action == "read":
-                taken = read(tx, program.read, previous)
+                taken = read(tx, program.read, run.previous)
                 run.blocks.extend(taken)
                 run.reads_done += 1
-                done += 1
-                tx.checkpoint(done, total, step.phase, rows=lambda s=step, t=taken: rows.of(s, t))
-                previous = program.read.levels_after()
+                run.done += 1
+                tx.checkpoint(run.done, run.total, step.phase, rows=lambda s=step, t=taken: rows.of(s, t))
+                run.previous = program.read.levels_after()
                 flagged = flagged_statuses(taken)
                 if flagged:
                     run.stop_reason = (f"read {run.reads_done} (cycle {step.cycle}, {step.phase}) reported status "
                                        f"{','.join(flagged)}")
                     break
-                continue
-            op = program.ops[step.phase]  # type: ignore[index]
-            tx.mark(f"cycle {step.cycle}: {step.phase}, {op.count} pulse(s) at {op.level:g} V, {op.width:g} s")
-            set_levels(tx, program.pulse_levels, previous)
-            previous = {o.channel: o.level for o in program.pulse_levels}
-            run.route(PHASE_PULSE, f"c{step.cycle}", step.phase)
-            reported = 0
-
-            def on_chunk(phase: str = step.phase) -> None:
-                nonlocal done, reported
-                done += 1
-                reported += 1
-                tx.checkpoint(done, total, phase)
-
-            result = source.run(tx, op, programs, on_chunk=on_chunk, label=f"cycle {step.cycle} {step.phase}")
-            run.record(result)
-            if program.routes.get(PHASE_PULSE):
-                run.route(PHASE_READ, f"c{step.cycle}")
-            done += step.chunks - program.settle_chunks - reported
-            tx.checkpoint(done, total, step.phase)
-            for seconds in [] if result.stopped else program.settle_segments():
-                _wait(tx, seconds)
-                done += 1
-                tx.checkpoint(done, total, step.phase)
-            if result.stopped:
-                run.stop_reason = result.reason
+            elif step.action == "hold":
+                run.hold(step)
+            else:
+                run.operation(step)
+            if run.stop_reason:
                 break
         run.route(PHASE_REST, "end")
         if run.stop_reason:
@@ -643,34 +688,106 @@ def _wait(tx: Transaction, seconds: float) -> None:
 
 
 class _Run:
-    """What one ``acquire`` did: the read blocks, the routes it applied (``kind_result.routes``), the pulse
-    operations and their readings, and why it stopped early."""
+    """What one ``acquire`` does and did: the checkpoint count, the read blocks, the routes it applied
+    (``kind_result.routes``), the pulse operations, bursts and holds and their readings, and why it stopped early."""
 
-    def __init__(self, tx: Transaction, program: PulseReadProgram) -> None:
+    def __init__(self, tx: Transaction, program: PulseReadProgram, programs: Sequence[SpguProgram], *,
+                 total: int) -> None:
         self.tx = tx
         self.program = program
+        self.programs = programs
+        self.total = total
+        self.done = 0
+        self.previous: dict[int, float] | None = None
         self.blocks: list[RawBlock] = []
         self.log: list[str] = []
         self.reads_done = 0
         self.ops_done = 0
+        self.bursts_done = 0
+        self.burst_cycles = 0
+        self.precycles_done = 0
         self.pulses = 0
         self.waited_s = 0.0
         self.spp = 0
         self.readings: list[tuple[float, str]] = []
+        self.holds = 0
+        self.held_s = 0.0
+        self.monitor_max = 0.0
         self.stop_reason = ""
 
     def route(self, phase: str, when: str, label: str | None = None) -> None:
         """Apply the routes of ``phase`` (``read``, ``pulse``, ``rest``) as plan phase ``label`` (default ``phase``;
-        a pulse phase is named after its operation) and log it."""
+        a pulse phase is named after its operation, or ``cycling``) and log it."""
         steps = self.program.routes.get(phase, [])
         if steps:
             name = label or phase
             apply_routes(self.tx, steps, phase=name)
             self.log.append(f"{when} {name} {_route_text(steps)}")
 
-    def record(self, result: OpResult) -> None:
-        self.ops_done += 1
-        self.pulses += result.pulses
+    def operation(self, step: ReadStep) -> None:
+        """One pulse operation or cycling burst: pulse levels, its route phase, the source, back to ``read``, the
+        settle wait (operations only); one checkpoint per chunk."""
+        tx, program = self.tx, self.program
+        op = program.ops[step.op]
+        burst = step.action == "burst"
+        what = f"{op.count} cycle(s) at {op.level:g} V / opposite, {op.width:g} s" if burst else \
+            f"{op.count} pulse(s) at {op.level:g} V, {op.width:g} s"
+        tx.mark(f"cycle {step.cycle}: {step.phase}, {what}")
+        set_levels(tx, program.pulse_levels, self.previous)
+        self.previous = {o.channel: o.level for o in program.pulse_levels}
+        self.route(PHASE_PULSE, f"c{step.cycle}", step.phase)
+        reported = 0
+
+        def on_chunk() -> None:
+            nonlocal reported
+            self.done += 1
+            reported += 1
+            tx.checkpoint(self.done, self.total, step.phase)
+
+        result = program.pulse_source.run(tx, op, self.programs, on_chunk=on_chunk,
+                                          label=f"cycle {step.cycle} {step.phase}")
+        self.record(result, burst=burst, count=op.count, pre=burst and step.cycle == 0)
+        if program.routes.get(PHASE_PULSE):
+            self.route(PHASE_READ, f"c{step.cycle}")
+        settle = [] if burst or result.stopped else program.settle_segments()
+        self.done += step.chunks - (0 if burst else program.settle_chunks) - reported
+        tx.checkpoint(self.done, self.total, step.phase)
+        for seconds in settle:
+            _wait(tx, seconds)
+            self.done += 1
+            tx.checkpoint(self.done, self.total, step.phase)
+        if result.stopped:
+            self.stop_reason = result.reason
+
+    def hold(self, step: ReadStep) -> None:
+        """One retention hold: the read SMUs at their pulse levels for ``step.seconds`` in ``MM 10`` blocks, one
+        checkpoint per block; a flagged block stops the run."""
+        tx, program = self.tx, self.program
+        assert program.monitor is not None
+        monitor = program.monitor
+        tx.mark(f"retention: hold {step.seconds:g} s before read {step.cycle}")
+
+        def on_block(_index: int, h_bias: float, block: RawBlock) -> None:
+            self.holds += 1
+            self.held_s += h_bias + monitor.period
+            self.monitor_max = max([self.monitor_max, *(abs(v) for _, v, _ in monitor.values(block))])
+            self.done += 1
+            tx.checkpoint(self.done, self.total, RETENTION_PHASE)
+
+        held = hold_bias(tx, program.pulse_levels, step.seconds, monitor, on_block=on_block,
+                         label=f"retention hold {step.cycle}", previous=self.previous)
+        self.previous = {o.channel: o.level for o in program.pulse_levels}
+        if held.stopped:
+            self.stop_reason = held.reason
+
+    def record(self, result: OpResult, *, burst: bool, count: int, pre: bool) -> None:
+        if burst:
+            self.bursts_done += 1
+            self.burst_cycles += count
+            self.precycles_done += count if pre else 0
+        else:
+            self.ops_done += 1
+        self.pulses += result.pulses * (2 if burst else 1)
         self.waited_s += result.waited_s
         self.spp += int(result.stopped_by_spp)
         for block in result.blocks:
@@ -680,15 +797,28 @@ class _Run:
         program = self.program
         pulse_steps = [s for s in steps if s.action == "pulse"]
         read_steps = [s for s in steps if s.action == "read"][:self.reads_done]
-        per_cycle = [s.cycle for s in read_steps if s.cycle > 0]
-        cycles_done = sum(1 for c in set(per_cycle) if per_cycle.count(c) == len(program.sequence))
         facts: dict[str, Any] = {
-            "source": program.source, "sequence": ",".join(program.sequence), "cycles_planned": program.cycles,
-            "cycles_done": cycles_done, "reads_planned": program.reads, "reads_done": self.reads_done,
+            "source": program.source, "schedule": program.schedule, "sequence": ",".join(program.sequence),
+            "cycles_planned": self._cycles_planned(), "cycles_done": self._cycles_done(read_steps),
+            "reads_planned": len([s for s in steps if s.action == "read"]), "reads_done": self.reads_done,
             "pulse_ops_planned": len(pulse_steps), "pulse_ops_done": self.ops_done, "pulses_applied": self.pulses,
             "routes": "; ".join(self.log), "route_phases": len(self.log),
-            "stopped_early": self.reads_done < program.reads, "stop_reason": self.stop_reason,
+            "stopped_early": self.reads_done < len([s for s in steps if s.action == "read"]),
+            "stop_reason": self.stop_reason,
         }
+        bursts = [s for s in steps if s.action == "burst"]
+        if bursts:
+            facts.update(bursts_planned=len(bursts), bursts_done=self.bursts_done,
+                         burst_cycles_done=self.burst_cycles, precycles=program.precycles)
+        if program.schedule == "cycles" and program.cycle_reads != "every":
+            facts.update(cycle_reads=program.cycle_reads, checkpoints_planned=len(program.checkpoints))
+        if program.schedule == "grid":
+            facts.update(grid_mode=program.grid_mode, grid_points_planned=len(program.grid),
+                         grid_points_done=len({s.cycle for s in read_steps
+                                               if s.cycle > 0 and s.phase == program.sequence[1]}))
+        if program.schedule == "retention":
+            facts.update(hold_blocks=self.holds, held_s=round(self.held_s, 6), hold_i_max_a=self.monitor_max,
+                         retention_s_planned=program.read_times[-1])
         if program.source == "spgu":
             facts.update(waited_s=round(self.waited_s, 6), spp_fallbacks=self.spp)
         else:
@@ -697,10 +827,29 @@ class _Run:
                          pulse_statuses="".join(sorted({s for _, s in self.readings})))
         return facts
 
+    def _cycles_planned(self) -> int:
+        """Program/erase cycles the plan applies: the precycles plus, for schedule ``cycles``, its cycles."""
+        program = self.program
+        return program.precycles + (program.cycles if program.schedule == "cycles" else 0)
+
+    def _cycles_done(self, read_steps: list[ReadStep]) -> int:
+        """Cycles applied and accounted for: the precycles run, plus for schedule ``cycles`` the cycles whose reads all
+        ran (every cycle: their number, WP9.4; endurance: the cumulative count of the last such checkpoint)."""
+        program = self.program
+        if program.schedule != "cycles":
+            return self.precycles_done
+        per_cycle = [s.cycle for s in read_steps if s.cycle > 0]
+        complete = [c for c in set(per_cycle) if per_cycle.count(c) == len(program.sequence)]
+        reached = len(complete) if program.cycle_reads == "every" else max(complete, default=0)
+        return self.precycles_done + reached
+
     def message(self) -> str:
         text = (f"{self.ops_done} pulse operation(s) ({self.pulses} pulses, {self.program.source}) and "
                 f"{self.reads_done} read(s)")
+        if self.bursts_done:
+            text += f"; {self.bursts_done} cycling burst(s), {self.burst_cycles} bipolar cycle(s)"
+        if self.holds:
+            text += f"; {self.holds} retention hold block(s), {self.held_s:g} s"
         if self.spp:
             text += f"; {self.spp} output(s) stopped by SPP after SPST? stayed 1 (ATV-19)"
         return text + (f"; stopped: {self.stop_reason}" if self.stop_reason else "")
-

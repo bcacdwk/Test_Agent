@@ -8,6 +8,8 @@ sources:
   - "ferroelectric HfO2 literature, e.g. T. S. Boescke et al., Appl. Phys. Lett. 99, 102903 (2011) (not page-checked)"
   - "oxide TFT literature, e.g. K. Nomura et al., Nature 432, 488 (2004) (not page-checked)"
   - references/manuals/structured/README.md (the WGFMU manual has no FeFET, FeCap or PUND workflows)
+  - "NLS switching, e.g. A. K. Tagantsev et al., Phys. Rev. B 66, 214109 (2002); FeFET amplitude x width maps, e.g. H. Mulaosmanovic et al., ACS Appl. Mater. Interfaces 9, 3792 (2017) (not page-checked)"
+  - AN-NVM (Keysight Advanced NVM Application Tests User's Guide; endurance and retention test flows)
 last_reviewed: null
 ---
 
@@ -21,9 +23,10 @@ typical literature value marked `TODO(verify)`, never a limit. Limits come from 
 
 - v1 measures FeFETs only by an SMU double (dual) sweep: recipe `fefet.dual_sweep_mw`, card `fefet-dual-sweep-mw`.
 - Pulse programming with the HV-SPGU through the 16440A selector and SMU reads: `fefet.pulse_write_read` (memory
-  window from program/erase pulses) and `spgu.program_smu_read` (generic), card `fefet-pulse-write-read` (WP9.4).
-  Switching kinetics, endurance, retention (WP9.5), WGFMU fast program/read and FeCap PUND (`fecap.pund`, reserved,
-  `not_implemented`) follow. Never emulate them with sweep recipes.
+  window from program/erase pulses) and `spgu.program_smu_read` (generic), card `fefet-pulse-write-read` (WP9.4);
+  `fefet.switching_kinetics` (amplitude x width grid or ISPP, card `fefet-switching-kinetics`), `fefet.endurance`
+  and `fefet.retention` (card `fefet-endurance-retention`) (WP9.5). WGFMU fast program/read and FeCap PUND
+  (`fecap.pund`, reserved, `not_implemented`) follow. Never emulate them with sweep recipes.
 - Oxide TFTs use the MOSFET recipes (`mosfet.idvg` lists `igzo_tft`); their quirks are below.
 
 ## Ferroelectric basics Ec Pr Ps
@@ -87,16 +90,61 @@ bidirectional Id-Vg sweep") and the deck text reference parameters.
 
 ## Pulse write read endurance and retention
 
-Pulse write/read implemented (`fefet.pulse_write_read`, WP9.4, card `fefet-pulse-write-read`; the mechanics are in
-[09](09-pulse-spgu-selector.md#program-and-read)); endurance and retention recipes follow (WP9.5). Seeded from deck
-slide 13 and the deck text.
+Implemented: pulse write/read (`fefet.pulse_write_read`, WP9.4, card `fefet-pulse-write-read`), endurance and
+retention (`fefet.endurance`, `fefet.retention`, WP9.5, card `fefet-endurance-retention`); the mechanics are in
+[09](09-pulse-spgu-selector.md#program-and-read). Seeded from deck slide 13, the deck text and AN-NVM.
 
 - Program and erase with short gate pulses (HVSPGU through the 16440A selector; WGFMU later), read with an SMU Id-Vg
   sweep. Deck text: pulse amplitude 3-5 V, width 100 ns to 10 us `TODO(verify)` per stack.
-- Endurance: Vth (or MW) after N program/erase cycles; the window closes by fatigue or breakdown. Retention: Vth
-  of each state versus time after writing; imprint shows as an asymmetric drift.
+- **Endurance**: MW after N program/erase cycles. The film first opens (wake-up: pinned domains free up over 10^2 to
+  10^4 cycles), then closes (fatigue: domain pinning, defect generation, interfacial-layer degradation), and a FeFET
+  often fails earlier by charge trapping or breakdown of the interfacial layer; HZO FeFETs commonly reach 10^4 to
+  10^6 cycles, capacitors far more `TODO(verify)`. Cycle with the same pulses as the reads' program/erase (bipolar,
+  one cycle = one program + one erase), read at log-spaced cycle counts, and compare devices only at equal amplitude,
+  width and cycling frequency (higher frequency, less fatigue per cycle in some stacks).
 - The write-pulse envelope comes from the DUT profile's gate `pulse` block (amplitude, width, duty, count), reviewed
-  by a human against film thickness and coercive field; never widen it to reach a larger window.
+  by a human against film thickness and coercive field; never widen it to reach a larger window. 10^6 cycles are
+  2 x 10^6 pulses: such plans need confirmation (`soft_pulse`, `dut_envelope` when the profile's `max_count` is
+  smaller) and run asynchronously (`long_run`).
+
+## Pulse switching kinetics
+
+Recipe `fefet.switching_kinetics` (WP9.5, card `fefet-switching-kinetics`); fit definitions in
+[06b](06b-analysis-time-pulse.md#switching-kinetics).
+
+- Polycrystalline hafnia switches by nucleation-limited switching (NLS): independent regions nucleate reversed
+  domains with a broad distribution of waiting times, so the switched fraction after a pulse of width `w` grows
+  over decades of `w` rather than abruptly: `S(w) = 1 - exp(-(w / tau)^beta)`, `beta` about 0.5-1 for a broad
+  distribution (KAI: 1-2 for single crystals) `TODO(verify)`.
+- The switching time falls steeply with the field (Merz's law in field form): `tau(V) = tau0 exp((Va / |V|)^alpha)`,
+  `alpha` about 2 for hafnia in several reports (fixed at 2 by default; free with three or more amplitudes); `tau0`
+  is the high-field limit (sub-ns), `Va` the activation voltage. Report `tau(V)` at the measured amplitudes rather
+  than only `tau0`, which is an extrapolation.
+- Grid design: reset fully before every point (the opposite saturation, long enough), amplitudes spanning the
+  coercive region up to the profile's limit, widths log-spaced from the shortest the source can give (HV-SPGU 10 ns
+  with 8 ns edges) to beyond saturation (several `tau` at the lowest amplitude). ISPP (one reset, increasing
+  amplitudes cumulatively) gives the program characteristic and `v50`, not NLS parameters.
+- Below the coercive voltage a pulse only reaches a minor loop: the window an amplitude switches at saturation
+  (`A(V)`) grows with the amplitude; the fit keeps one per amplitude. Wake the film up first (`precycles`): a pristine
+  film switches less, and waking up during the grid would drift `A(V)`.
+- Short pulses through cables and the 16440A: the edges and overshoot at the pad differ from the set values
+  `TODO(verify)` at L7 with a scope; the shortest widths carry the largest relative error.
+
+## Retention
+
+Recipe `fefet.retention` (WP9.5, card `fefet-endurance-retention`); fit definitions in
+[06b](06b-analysis-time-pulse.md#retention).
+
+- After a write the polarization relaxes: depolarization field (the interfacial layer cannot fully compensate the
+  ferroelectric charge), charge trapping that screens it, and imprint (a built-in bias that favours one state). Vth
+  of each state drifts roughly linearly in `log t`; the window closes from both sides or, with imprint, mostly from
+  one.
+- Measure both states (write, then reads at log-spaced times, the gate unbiased between reads), first read at about
+  1 s: a read right after the write disturbs a saturated state (the read sweep's top end clips it). Report the slope
+  per decade of each state and of the window, and any extrapolation (to 10 years = 3.2 x 10^8 s) as a derived value
+  with the decades extrapolated; data beyond the last read are a model, not a measurement.
+- Temperature accelerates retention loss (bake tests at 85-125 C are the standard qualification `TODO(verify)`);
+  this station measures at room temperature only.
 
 ## FeCap P-V and PUND
 

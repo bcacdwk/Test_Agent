@@ -13,6 +13,7 @@ Ad-hoc use from agent scripts in ``work/``::
     mw = memory_window_pulse(load_run(pr_run_id))  # program/read runs: Vth(erase) - Vth(program)
     ekv = compact_model_fit(d)                 # EKV vth, n, beta, theta (+ lambda, rs); level 1 with model="level1"
     files = write_spice_files(export_spice_netlist(d), run_id=d.run_id)   # .lib + .sp under work/<run_id>/spice/
+    mw_n = endurance_curve(load_run(endurance_run_id))  # endurance checkpoints: MW per cumulative cycle count
     out_dir = work_dir_for(d.run_id)           # never write into the run folder
 
 Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_for(family)``; definitions in the
@@ -24,9 +25,10 @@ Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_f
 ``degradation_vs_time``, ``silc``, the C-V methods of ``cv.py`` (``cv_cox``, ``cv_flatband``, ``cv_doping_profile``,
 ``cv_vth``, ``cv_hysteresis``, ``impedance_convert``, ``plot_cv``; ``convert_table`` converts a whole run), the C-V
 variants of ``cv_variants.py`` (``cf_dispersion``, ``ct_recovery``, ``cv_ac_dependence``, ``cv_butterfly``, the
-two-run ``cv_pulsed_vs_dc``), ``memory_window_pulse`` (``nvm.py``), the compact models ``compact_model_fit``,
-``model_compare`` and ``export_spice_netlist`` (``model.py``, ``spice.py``); library helper over a run list:
-``weibull_fit``.
+two-run ``cv_pulsed_vs_dc``), ``memory_window_pulse``, ``switching_kinetics_fit``, ``endurance_summary``,
+``retention_fit`` (``nvm.py``, the NLS core in ``nls.py``), the compact models ``compact_model_fit``,
+``model_compare`` and ``export_spice_netlist`` (``model.py``, ``spice.py``); library helpers: ``weibull_fit`` (over a
+run list), ``endurance_curve`` (MW per endurance checkpoint).
 The run-table contract (``data.csv`` or ``data.npz`` +
 ``preview.csv``, columns) is defined in ``dataset.py``.
 
@@ -102,7 +104,14 @@ from b1500_test_agent.analysis.mosfet import (
     vth_max_gm,
 )
 from b1500_test_agent.analysis.mosfet_family import body_effect, dibl
-from b1500_test_agent.analysis.nvm import memory_window_pulse, pulse_reads
+from b1500_test_agent.analysis.nvm import (
+    endurance_curve,
+    endurance_summary,
+    memory_window_pulse,
+    pulse_reads,
+    retention_fit,
+    switching_kinetics_fit,
+)
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv, render_iv
 from b1500_test_agent.analysis.quality import MIN_SNR, assess_quality, noise_sigma, signal_to_noise
 from b1500_test_agent.analysis.registry import ANALYSIS_METHODS, AnalysisMethod, methods_for, run_method
@@ -160,6 +169,8 @@ __all__ = [
     "degradation_vs_time",
     "dibl",
     "diode_fit",
+    "endurance_curve",
+    "endurance_summary",
     "export_spice_netlist",
     "find_run",
     "fit_stretched_exponential",
@@ -188,6 +199,7 @@ __all__ = [
     "render_iv",
     "render_timeseries",
     "resistance",
+    "retention_fit",
     "run_method",
     "run_relpath",
     "run_table_path",
@@ -198,6 +210,7 @@ __all__ = [
     "status_column",
     "stress_reads",
     "subthreshold_swing",
+    "switching_kinetics_fit",
     "time_to_breakdown",
     "trust_levels",
     "validate_table",

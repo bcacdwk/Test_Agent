@@ -127,8 +127,14 @@ the recipe picks everything by parameters.
   reads -0.5 to 1.8 V on a 2.8 V film); single sweeps only. Table rows: `cycle` (0 = reference read) and `phase`
   (the operation the read follows: `program` or `erase`; `read` for the reference read).
 - **Long plans** (many cycles, long pulses) run asynchronously with a checkpoint per read and per 10 s of pulse
-  output; `safe_shutdown` cancels at the next checkpoint (selector back to rest, verified). Bipolar endurance
-  cycling, retention reads at log times and amplitude x width grids are their own recipes (WP9.5).
+  output; `safe_shutdown` cancels at the next checkpoint (selector back to rest, verified).
+- **Schedules** (WP9.5, parameter `schedule`): `cycles` (above; endurance reads only at log-spaced or listed
+  checkpoints, the cycles between run as three-level SPGU bursts, phase `cycling`: the first operation's pulse, the
+  other half a `cycle_period` later, at most 1,000,000 periods per burst), `grid` (reset, then one pulse per
+  amplitude x width point; ISPP: amplitudes cumulatively) and `retention` (each state written once, reads at log
+  times with the SMUs holding 0 V in MM 10 blocks between them); `precycles` wake the film up first. Recipes
+  `fefet.switching_kinetics`, `fefet.endurance`, `fefet.retention`
+  ([04](04-ferroelectric-oxide.md#pulse-switching-kinetics)).
 - **Analysis** `memory_window_pulse`: MW = mean Vth(after erase) - mean Vth(after program) of the Id-Vg reads
   ([06b](06b-analysis-time-pulse.md#program-read-memory-window)); spot reads give the read currents and their ratio.
 

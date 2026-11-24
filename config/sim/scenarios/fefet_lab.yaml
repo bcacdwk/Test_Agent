@@ -7,7 +7,10 @@
 # selector ports is the rehearsal assumption of lab_station.yaml (the real wiring is recorded at bring-up L7). A gate
 # route to the SMU reaches the pad after the relay settle time; with the selector open or on PGU open the gate floats,
 # so an SMU read through the wrong path shows the noise floor. The FeFET switches with NLS kinetics in microseconds
-# at 4-5 V (pulses from the SPGU through the PGU path), DC loop as fefet_basic. Noise and timing as nmos_basic.yaml.
+# at 4-5 V (pulses from the SPGU through the PGU path), DC loop as fefet_basic. WP9.5 adds retention loss (log decay
+# of the written polarization while the gate rests) and wake-up/fatigue over bipolar cycles, so kinetics, endurance
+# and retention runs have a truth (models/sim_devices.py FerroKineticsParams; values are examples, TODO(verify) at
+# L7/L9 against the lab's devices). Noise and timing as nmos_basic.yaml.
 
 description: >-
   Lab FeFET behind selector SEL1 (port 0: SMU 3 / SPGU 101), drain SMU4, source/bulk GNDU, on the lab mainframe;
@@ -54,6 +57,12 @@ models:
       va_v: 8.0
       alpha: 2.0
       beta_sw: 1.0
+      retention_rate: 0.03      # retention: P = P_w (1 - 0.03 log10(1 + t/t0)) after the write
+      retention_t0_s: 0.1
+      wake_frac: 0.08           # wake-up: a pristine film switches 92 % of the woken polarization ...
+      wake_cycles: 100.0        # ... recovered over ~100 bipolar cycles
+      fatigue_cycles: 1.0e+5    # fatigue: the switchable polarization halves at 1e5 cycles
+      fatigue_exp: 1.0
 noise:
   floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
   rel: 1.0e-3

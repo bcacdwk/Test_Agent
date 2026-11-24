@@ -22,8 +22,8 @@ from b1500_test_agent.models.validation import STAGE_FILES_DIR, STAGES, StageFro
 ROOT = Path(__file__).resolve().parents[2]
 STAGE_DIR = ROOT.joinpath(*STAGE_FILES_DIR)
 WRITTEN = ("S0", "L0", "L1", "L2", "L3", "L4", "L5", "L9", "L10")
-"""Stages of WP6.3 and the SMU closure (WP7.7: L5, the SMU part of L9); L6-L8 arrive with their module work
-packages (L9's WGFMU part with WP10.8)."""
+"""Stages of WP6.3 and the SMU closure (WP7.7: L5, the SMU part of L9; WP9.5 adds L9's FeFET endurance and retention);
+L6-L8 arrive with their module work packages (L9's WGFMU part with WP10.8)."""
 HUMAN_ONLY = ("con" + "fig init", "con" + "fig adopt", "run " + "--confirm", "fa" + "ult clear")
 """Human-only CLI verbs, assembled at run time (the harness guard blocks shell commands that spell them)."""
 RECIPES = {
@@ -36,7 +36,8 @@ RECIPES = {
     "L5": ["mosfet.idvg_pulsed", "mosfet.idvd_pulsed", "basic.pulsed_spot", "generic.smu_multi_pulsed",
            "mosfet.id_t_sampling", "generic.smu_sampling", "mosfet.vth_search"],  # WP7.7 (QSCV leakage: M8)
     "L9": ["reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "reliability.silc", "reliability.tddb_cvs",
-           "dielectric.bdv", "basic.breakdown_search"],  # WP7.7: the SMU part
+           "dielectric.bdv", "basic.breakdown_search",  # WP7.7: the SMU part
+           "fefet.endurance", "fefet.retention"],  # WP9.5: the HV-SPGU part
 }
 
 

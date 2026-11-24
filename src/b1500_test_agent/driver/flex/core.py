@@ -88,19 +88,20 @@ MAX_CHANNELS_MM = 10
 FORMATS = frozenset({1, 5})
 """``FMT`` formats this driver sends: ASCII with header, CR/LF (1) or comma (5) terminated (Table 4-24, PDF 437)."""
 
-MEASUREMENT_MODES = frozenset({1, 2, 3, 4, 5, 9, 10, 14, 15, 16, 17, 18, 19, 20, 22, 23, 26, 27, 28})
+MEASUREMENT_MODES = frozenset({1, 2, 3, 4, 5, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 26, 27, 28})
 """``MM`` modes this driver sends (Table 4-28, PDF 471-472): SMU 1 spot, 2 staircase sweep, 3 pulsed spot, 4 pulsed
-sweep, 5 staircase sweep with pulsed bias, 9 quasi-pulsed spot, 10 sampling, 14 linear search, 15 binary search, 16
-multi-channel sweep, 27 multi-channel pulsed spot, 28 multi-channel pulsed sweep; MFCMU 17 spot C, 18 C-V (DC bias)
-sweep, 19 pulsed spot C, 20 pulsed sweep C-V, 22 C-f sweep, 23 C-V (AC level) sweep, 26 C-t sampling."""
+sweep, 5 staircase sweep with pulsed bias, 9 quasi-pulsed spot, 10 sampling, 13 quasi-static C-V (WP8.5), 14 linear
+search, 15 binary search, 16 multi-channel sweep, 27 multi-channel pulsed spot, 28 multi-channel pulsed sweep; MFCMU
+17 spot C, 18 C-V (DC bias) sweep, 19 pulsed spot C, 20 pulsed sweep C-V, 22 C-f sweep, 23 C-V (AC level) sweep, 26
+C-t sampling."""
 
 ONE_CHANNEL_MODES = frozenset({3, 4, 5, 17, 19, 20, 22, 23, 26})
 """``MM`` modes whose syntax takes exactly one channel (PDF 470); mode 18 takes the MFCMU first, then up to nine SMU
 measurement channels."""
 
-OPTIONAL_CHANNEL_MODES = frozenset({9})
+OPTIONAL_CHANNEL_MODES = frozenset({9, 13})
 """``MM`` modes whose syntax takes at most one channel (``MM 9[,chnum]``, PDF 470; without it the ``BDV`` channel
-measures). WP7.5."""
+measures; WP7.5) and ``MM 13[,chnum]`` (without it the ``QSV`` channel measures; PG p497 (4-179); WP8.5)."""
 
 NO_CHANNEL_MODES = frozenset({14, 15})
 """``MM`` modes whose syntax takes no channel (``MM 14``, ``MM 15``: the search monitor is set by ``LGI``/``LGV``,
@@ -231,7 +232,8 @@ def mm(mode: int, chs: Sequence[int]) -> str:
     before it at each step; data in the given order, PDF 471). Other modes are refused until a measurement kind
     implements them; that the channels are the right module types is the caller's (and the instrument's) check.
     WP7.5: the quasi-pulsed spot mode 9 takes at most one channel (``MM 9[,chnum]``), the linear and binary search
-    modes 14 and 15 none (``MM 14``, ``MM 15``; PDF 470).
+    modes 14 and 15 none (``MM 14``, ``MM 15``; PDF 470). WP8.5: the quasi-static C-V mode 13 takes at most one channel
+    (``MM 13[,chnum]``, the measurement channel; without it the ``QSV`` channel measures).
     """
     _choice(mode, MEASUREMENT_MODES, "MM mode")
     if mode in NO_CHANNEL_MODES:

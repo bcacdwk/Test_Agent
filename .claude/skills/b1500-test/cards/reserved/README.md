@@ -18,11 +18,11 @@ When a request needs one of them:
 |---|---|---|
 | `wgfmu.fast_bti` | WGFMU fast BTI with on-the-fly Vth monitoring (destructive) | SMU stress-measure-stress (slower reads): [bti-stress-measure](../reliability/bti-stress-measure.md) |
 | `fecap.pund` | Ferroelectric capacitor PUND (Pr, Ec) | coercive voltage only: C-V butterfly, [fecap-pund](../nvm/fecap-pund.md) (FeFET: [fefet-dual-sweep-mw](../nvm/fefet-dual-sweep-mw.md)) |
-| `moscap.qscv` | Quasi-static C-V with SMUs | high-frequency C-V: [moscap-cv](../cmu/moscap-cv.md) |
 
 Retired slot: `hspice.compare` (WP7.7). A simulation comparison is analysis, not a measurement: fit and compare a
 compact model and export a SPICE netlist with the card [compact-model-spice](../smu/compact-model-spice.md); running
-a simulator stays with the human (OD-6).
+a simulator stays with the human (OD-6). Un-reserved: `moscap.qscv` (WP8.5, card
+[moscap-dit](../cmu/moscap-dit.md)).
 
 ## Preconditions to un-reserve
 
@@ -36,5 +36,3 @@ change, a card from [the template](../_TEMPLATE.md), a passing `b1500 dev lint-s
   05 reviewed by a human; sim and hardware validation.
 - `fecap.pund`: WGFMU pulse sequences with fast current sampling; PUND charge-integration analysis (Pr, Ec)
   documented in knowledge 04; capacitor DUT profiles with field limits; sim model; sim and hardware validation.
-- `moscap.qscv`: QSCV commands extracted from the manual and a leakage-compensation flow; low-current pin maps on
-  HRSMU (with ASU when available); sim and hardware validation.

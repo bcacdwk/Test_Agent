@@ -55,6 +55,7 @@ from b1500_test_agent.analysis.cv_variants import (
 )
 from b1500_test_agent.analysis.dataset import RunData, load_run
 from b1500_test_agent.analysis.diode import diode_fit, forward_voltage
+from b1500_test_agent.analysis.dit import dit_conductance, dit_high_low
 from b1500_test_agent.analysis.errors import MethodNotImplementedError
 from b1500_test_agent.analysis.fefet import memory_window
 from b1500_test_agent.analysis.floor import zero_floor
@@ -124,8 +125,11 @@ _CV_KINDS = ("cmu_measure",)
 _MOSCAP = ("moscap.cv", "moscap.cv_multi_freq", "moscap.pulsed_cv")
 """The MOS-C DC bias sweeps (C-V, multi-frequency C-V, pulsed C-V); the C-f, C-t and AC-level runs have their own
 methods (WP8.4)."""
-_NOT_CMU = ("[!c]*",)
-"""Every kind but the MFCMU kinds ``cmu_*`` (``fnmatch``): capacitance runs plot with ``plot_cv``, not ``plot_iv``."""
+_QSCV_KINDS = ("smu_qscv",)
+"""The SMU quasi-static C-V kind (WP8.5): a capacitance run, plotted with ``plot_cv``."""
+_NOT_CMU = ("[!cs]*", "s[!m]*", "smu_[!q]*")
+"""Every kind but the MFCMU kinds ``cmu_*`` and the QSCV kind ``smu_qscv`` (``fnmatch``): capacitance runs plot with
+``plot_cv``, not ``plot_iv``."""
 _SYSTEM: tuple[RecipeFamily, ...] = ("system",)
 _TABLES: tuple[RecipeFamily, ...] = ("smu", "cmu", "spgu", "wgfmu", "nvm", "reliability", "system")
 """Families whose runs archive a measurement table (``system`` since ``system.zero_check``; self-test and
@@ -317,8 +321,9 @@ _METHODS = [
             "linearity; Nit, Dit with the gate area and energy window.",
             ("mosfet.charge_pumping", "generic.*"), ("spgu_pulse",), families=("spgu",), milestone="M9"),
     _method("cv_cox", "extraction", cv_cox,
-            "Oxide capacitance: MOS-C accumulation extrapolation 1/C vs 1/Q, or the split C-V plateau Cox*W*L; EOT.",
-            (*_MOSCAP, "mosfet.cgc_cv"), _CV_KINDS, families=_CMU, milestone="M8"),
+            "Oxide capacitance: MOS-C accumulation extrapolation 1/C vs 1/Q (C-V or QSCV), or the split C-V plateau "
+            "Cox*W*L; EOT.", (*_MOSCAP, "moscap.qscv", "mosfet.cgc_cv"), (*_CV_KINDS, *_QSCV_KINDS), families=_CMU,
+            milestone="M8"),
     _method("cv_flatband", "extraction", cv_flatband,
             "MOS-C flatband voltage at the flatband capacitance (Cox, doping, Debye length; needs the gate area).",
             _MOSCAP, _CV_KINDS, families=_CMU, milestone="M8"),
@@ -335,8 +340,17 @@ _METHODS = [
             "MFCMU readings in another pair (Cp-G, Cp-D, Cs-Rs, Cs-D, Z-theta) per frequency; series-R removal.",
             ("*",), _CV_KINDS, families=_CMU_NVM, milestone="M8"),
     _method("plot_cv", "plots", plot_cv_method,
-            "C-V, C-f, C-t or C-ACV plots per frequency and segment, 1/C^2 for a MOS-C; PNGs under plots/.", ("*",),
-            _CV_KINDS, families=_CMU_NVM, milestone="M8"),
+            "C-V, C-f, C-t, C-ACV or QSCV plots per frequency and segment, 1/C^2 for a MOS-C; PNGs under plots/.",
+            ("*",), (*_CV_KINDS, *_QSCV_KINDS), families=_CMU_NVM, milestone="M8"),
+    _method("dit_high_low", "extraction", dit_high_low,
+            "Dit over the gap from a QSCV and an HF C-V of one device (options.reference_run, either order): "
+            "Dit = (C_LF Cox/(Cox-C_LF) - C_HF Cox/(Cox-C_HF))/(qA), energy by the Berglund integral; midgap, "
+            "mean, min, max.", ("moscap.qscv", "moscap.cv"), (*_QSCV_KINDS, *_CV_KINDS), families=_CMU,
+            milestone="M8"),
+    _method("dit_conductance", "extraction", dit_conductance,
+            "Dit(E) by the conductance method over the biases of a multi-frequency C-V: Gp/w continuum fit per bias "
+            "(peak inside the band), energy from the HF depletion width; mean, min, max, tau range.",
+            ("moscap.cv_multi_freq",), _CV_KINDS, families=_CMU, milestone="M8"),
     _method("cf_dispersion", "extraction", cf_dispersion,
             "C-f at a depletion bias: Gp/w (Nicollian-Goetzberger, Cox from options or geometry), continuum fit -> "
             "Dit, trap time constant, peak frequency; C dispersion.", ("moscap.cf",), _CV_KINDS, families=_CMU,

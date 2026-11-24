@@ -5,8 +5,9 @@ The body is the real ``cmu_measure`` kind (``CmuMeasureKind.acquire``) running c
 planner: ``cmu.spot`` (MM 17, two frequencies, three samples each; ``capacitor_100p``), ``moscap.cv`` (MM 18;
 ``moscap_basic``), ``mosfet.cgd_cv`` (MM 18 with the source SMU at 0 V; ``nmos_cv``), ``moscap.cv_ac_level`` (MM 23)
 and ``moscap.pulsed_cv`` (MM 20; ``moscap_basic``), ``moscap.cf`` (MM 22) and ``moscap.ct`` (MM 26 with time stamps;
-``moscap_dit``) and ``fecap.cv_butterfly`` (MM 18 double; ``fecap_basic``), each inside ONE transaction on the
-noiseless scenario. Positions: ``configure`` = right before the first measurement mode is set (``MM``),
+``moscap_dit``, through its SCUU since WP8.5: ``SSP 7,4``, the rest state restored by the cleanup) and
+``fecap.cv_butterfly`` (MM 18 double; ``fecap_basic``), each inside ONE transaction on the noiseless scenario.
+Positions: ``configure`` = right before the first measurement mode is set (``MM``),
 ``during_read`` = at the first data read, ``during_cleanup`` = after the body. Faults: ``cmu_overload`` (excess
 current: error 320, the MFCMU output switched off), a hang of ``XE``, ``disconnect``, an ``ERRX?`` entry, ``ignore_dz``
 on the MFCMU, ``cleanup_failure``, ``garbage_data``, KeyboardInterrupt and an ``EnvelopeViolation`` (a buggy kind
@@ -61,8 +62,10 @@ CASES: dict[str, tuple[str, str, str, str] | tuple[str, str, str, str, dict[str,
     "cgd": ("mosfet.cgd_cv", "nmos_cv", "mosfet-split-cv", "nmos-cv"),
     "acv": ("moscap.cv_ac_level", "moscap_basic", "moscap-cmu", "moscap-generic"),
     "pulsed": ("moscap.pulsed_cv", "moscap_basic", "moscap-cmu", "moscap-generic", {"points": 21}),
-    "cf": ("moscap.cf", "moscap_dit", "moscap-cmu", "moscap-generic"),
-    "ct": ("moscap.ct", "moscap_dit", "moscap-cmu", "moscap-generic", {"points": 51}),
+    "cf": ("moscap.cf", "moscap_dit", "moscap-scuu", "moscap-generic"),
+    "ct": ("moscap.ct", "moscap_dit", "moscap-scuu", "moscap-generic", {"points": 51}),
+    "multi": ("moscap.cv_multi_freq", "moscap_dit", "moscap-scuu", "moscap-generic",
+              {"points": 11, "freqs_hz": [1e5, 1e6]}),  # WP8.5: MM 18 per frequency through the SCUU
     "butterfly": ("fecap.cv_butterfly", "fecap_basic", "fecap-cmu", "fecap-generic", {"points": 41}),
 }
 """Case -> (recipe, scenario, pin map, DUT profile[, parameters]): fewer points where the default is long."""
@@ -95,11 +98,16 @@ class MeasureHook(HookTransport):
         super().write(cmd)
 
 
+SCUU = [s for s in load_config(Paths.from_env({}, repo_root=REPO_ROOT)).station.switches if s.id == "SCUU1"]
+"""The station example's SCUU1, declared to the session of the cases landed through it (guard, cleanup step 5)."""
+
+
 def harness(tmp_path: Path, name: str) -> Harness:
     def hook(sim: SimTransport) -> HookTransport:
         return MeasureHook(sim)
 
-    return make_harness(tmp_path, noiseless(load_scenario(CASES[name][1])), hook_type=hook)
+    switches = SCUU if CASES[name][2] == "moscap-scuu" else []
+    return make_harness(tmp_path, noiseless(load_scenario(CASES[name][1])), hook_type=hook, switches=switches)
 
 
 @dataclass(frozen=True)

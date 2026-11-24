@@ -10,6 +10,8 @@ sources:
   - src/b1500_test_agent/analysis/cv.py, catalog/kinds/cmu_measure.py (v2 WP8.3)
   - src/b1500_test_agent/analysis/cv_variants.py, catalog/kinds/cmu_variants.py (v2 WP8.4)
   - Zerbst, Z. Angew. Phys. 22, 30 (1966) (C-t recovery); Miller et al., J. Appl. Phys. 68, 6463 (1990) (FeCap C-V)
+  - src/b1500_test_agent/analysis/qscv.py, dit.py, catalog/kinds/smu_qscv.py (v2 WP8.5; QSCV, Dit over the gap)
+  - Castagne & Vapaille, Surf. Sci. 28, 157 (1971) (high-low); Nicollian & Goetzberger, BSTJ 46, 1055 (1967)
 last_reviewed: null
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
@@ -17,9 +19,9 @@ last_reviewed: null
 # Capacitance and C-V (knowledge domain 08)
 
 What the MFCMU measures, how a C-V curve becomes Cox, doping, flatband and threshold voltage, what the split C-V of
-a MOSFET adds, and the variants (AC level, pulsed, C-f, C-t, FeCap butterfly). The definitions are those of
-`analysis/cv.py` and `analysis/cv_variants.py` (their module docstrings are the source); every value they return is
-derived. Debugging (distortion, series resistance, stale corrections) is skill `b1500-debug`.
+a MOSFET adds, the variants (AC level, pulsed, C-f, C-t, FeCap butterfly), the SMU's quasi-static C-V and Dit over the
+band gap. The definitions are those of `analysis/cv.py`, `cv_variants.py`, `qscv.py` and `dit.py` (their module
+docstrings are the source); every value they return is derived. Debugging (distortion, series resistance, stale corrections) is skill `b1500-debug`.
 
 ## Contents
 
@@ -38,6 +40,8 @@ derived. Debugging (distortion, series resistance, stale corrections) is skill `
 - [Pulsed C-V](#pulsed-c-v)
 - [C-f and frequency dispersion](#c-f-and-frequency-dispersion)
 - [C-t and deep-depletion recovery](#c-t-and-deep-depletion-recovery)
+- [Quasi-static C-V](#quasi-static-c-v)
+- [Dit over the band gap](#dit-over-the-band-gap)
 - [FeCap C-V butterfly](#fecap-c-v-butterfly)
 - [Reporting C-V results](#reporting-c-v-results)
 
@@ -45,11 +49,11 @@ derived. Debugging (distortion, series resistance, stale corrections) is skill `
 
 - Recipes (kind `cmu_measure`): `cmu.spot` (MM 17 spot C), `moscap.cv` (MM 18 C-V, single or double),
   `mosfet.cgc_cv`, `mosfet.cgd_cv` (split C-V); `moscap.cv_ac_level` (MM 23), `moscap.pulsed_cv` (MM 20, MM 19 for
-  one point), `moscap.cf` (MM 22), `moscap.ct` (MM 26), `fecap.cv_butterfly` (MM 18 double). Methods: `cv_cox`,
-  `cv_flatband`, `cv_doping_profile`, `cv_vth`, `cv_hysteresis`, `impedance_convert`, `plot_cv`; `cv_ac_dependence`,
-  `cv_pulsed_vs_dc`, `cf_dispersion`, `ct_recovery`, `cv_butterfly`.
-- Not covered here: QSCV and Dit over the band gap (multi-bias conductance and high-low methods); they arrive with
-  the Dit work package and extend this file.
+  one point), `moscap.cf` (MM 22), `moscap.ct` (MM 26), `moscap.cv_multi_freq` (MM 18 per frequency),
+  `fecap.cv_butterfly` (MM 18 double); kind `smu_qscv`: `moscap.qscv` (MM 13, SMU quasi-static C-V). Methods:
+  `cv_cox`, `cv_flatband`, `cv_doping_profile`, `cv_vth`, `cv_hysteresis`, `impedance_convert`, `plot_cv`;
+  `cv_ac_dependence`, `cv_pulsed_vs_dc`, `cf_dispersion`, `ct_recovery`, `cv_butterfly`; `dit_high_low`,
+  `dit_conductance` (card `cmu/moscap-dit`).
 - Every C-V run needs fresh phase, open and short corrections of the same pin map (rule R-CORR-01; card
   `cmu/cmu-correction`).
 
@@ -164,6 +168,10 @@ derived. Debugging (distortion, series resistance, stale corrections) is skill `
   every exit. The SSP switches the units on: the SCUU's modules never take CN (error 323).
 - Corrections through the SCUU are their own records: run them with the SCUU pin map. Details on routes:
   [11](11-switching-routing.md#scuu-and-asu-paths).
+- SMU work on the same landing (`moscap.qscv`, kind `smu_qscv`): the SMU roles bind to the outputs' SMU inputs
+  (output 1 = SMU6, output 2 = SMU5 for CMU1 in slot 7); the run routes `SSP 7,3` (both SMUs; it switches them on) in
+  phase `measure`, and the cleanup restores the rest state. A QSCV and an HF C-V of one landing give the high-low Dit
+  without moving a probe (scenario `moscap_dit`).
 
 ## AC level dependence
 
@@ -196,7 +204,8 @@ derived. Debugging (distortion, series resistance, stale corrections) is skill `
   level: `q A Dit / 2` at `w tau = 1`), fitted over the list: `dit`, `tau_it`, `f_peak`, `gp_w_max`.
 - Cox: `options.cox_f` (the `cv_cox` result of a C-V) is better than the geometry estimate (`3.9 eps0 A / tox`,
   warned). Series resistance raises G at high frequency: `rs_ohm`. A peak outside the list fails: move the bias.
-- One bias = Dit at one energy. Dit(E) over the gap: many biases (conductance method) or QSCV + HF (high-low).
+- One bias = Dit at one energy. Dit(E) over the gap: many biases (`dit_conductance`) or QSCV + HF (`dit_high_low`):
+  [Dit over the band gap](#dit-over-the-band-gap).
 
 ## C-t and deep-depletion recovery
 
@@ -208,6 +217,39 @@ derived. Debugging (distortion, series resistance, stale corrections) is skill `
   A generation lifetime needs the doping and the Zerbst plot (ad-hoc, `work/`).
 - Records longer than 60 s run as chained 25 s blocks holding the bias (time stamps run on); over 300 s async.
   Light generates carriers too: keep the shield box closed (S0).
+
+## Quasi-static C-V
+
+- QSCV (`moscap.qscv`, MM 13; PG p115-117 (2-27)): an SMU (not the MFCMU) steps the gate and, at every step,
+  integrates the charge a small transition `cvoltage` moves over `cinteg`: `C = (I - Leak) cinteg / (V - V0)`. The
+  leakage is measured before and after the transition (`linteg`) and interpolated to it (`QSL 1,1`, normal mode;
+  `operation: compatible` = 4155C/4156C formula). Start and stop are not measured; the step must divide the span.
+- It is the low-frequency curve: interface traps and (with enough time) the inversion layer follow. The curve
+  dips near flatband/midgap by `q Dit A` in series with Cox and rises back to Cox in inversion; a sweep from
+  inversion to accumulation after `hold_s` stays in equilibrium (long generation times need a longer hold).
+- Range `irange_a` (QSR, fixed): the charge current `C cvoltage / cinteg` plus the leakage must fit (an MPSMU from
+  1 nA; a 1 GOhm path leak at 2 V is 2 nA: 10 nA range); compliance or overflow aborts the sweep (error 242).
+- Offset: `offset: measure` (probes lifted, `physical_setup`) stores the path's guard capacitance in the instrument
+  (`QSZ 2`, a fraction of a pF); later runs with `offset: cancel` subtract it (`QSZ 1`). Without it C reads high by
+  the offset: small for Cox, a bias of the high-low Dit (it lands on `C_LF`).
+- Methods: `cv_cox` (accumulation extrapolation, as for HF), `plot_cv` (C and leakage against `dc_v`),
+  `dit_high_low` with an HF C-V; flatband, doping and Vth refuse a QSCV run (they need the HF curve).
+
+## Dit over the band gap
+
+- High-low (`dit_high_low`, two-run, `options.reference_run`, either order): QSCV and HF C-V of the same device and
+  landing; Cox, Vfb, Nsub, phi_B from the HF fit; `Dit = [C_LF Cox/(Cox - C_LF) - C_HF Cox/(Cox - C_HF)] / (q A)`;
+  band bending from the LF curve (Berglund: `psi = int_Vfb^V (1 - C_LF/Cox) dV`), energy `e = psi - phi_B`. Window
+  `6 kT/q <= psi <= 2 phi_B - 4 kT/q` (depletion: closer to flatband fast traps already follow the HF signal, deeper
+  the minority carriers add to C_LF). Results: `dit_mid` (midgap), `dit_mean`, `dit_min`, `dit_max`; `fit` holds the
+  profile every 0.05 eV (`e<k>`, `dit<k>`). Needs `geometry.area_um2`.
+- Conductance (`dit_conductance`, `moscap.cv_multi_freq`): at each bias `Gp/w` over the frequencies, continuum fit
+  -> Dit and tau; a bias counts when its peak lies inside the band. Energy from the HF depletion width (`psi = q N
+  W^2 / (2 eps_s) + kT/q`). At room temperature 1 kHz..1 MHz reaches only the traps about 0.15-0.35 eV from midgap
+  towards the majority band (tau grows e-fold per kT/q towards midgap); midgap needs high-low (or a cold chuck).
+- The two methods should agree where they overlap; a C_LF above C_HF in accumulation, negative Dit or a step in the
+  profile mean the curves are not of one state (hysteresis, a re-landing, stale corrections, an uncancelled offset).
+- Charge pumping (`mosfet.charge_pumping`, card `spgu/charge-pumping`) gives a mean Dit of a MOSFET's channel.
 
 ## FeCap C-V butterfly
 
@@ -223,7 +265,8 @@ derived. Debugging (distortion, series resistance, stale corrections) is skill `
 
 - Measured: the C-V table (pair, frequency, AC level, DC bias), status counts, correction ages (summary `corr`).
 - Derived (method, window, options): Cox (and EOT), Nsub (depth window), Vfb (C_FB), Vth (method), hysteresis,
-  plateau Cox W L and floor; Dit, tau and the Cox used (C-f); tau_recovery (C-t); C0 and ac_limit; Vc, Ec, imprint.
+  plateau Cox W L and floor; Dit, tau and the Cox used (C-f); tau_recovery (C-t); C0 and ac_limit; Vc, Ec, imprint;
+  QSCV Cox and the offset mode; Dit(E) (method, energy window, both run ids of high-low).
   Say SIMULATED for simulator runs and name the geometry used.
 - Red flags: Cmax rising with falling frequency (series R or leakage), G/w peaks in depletion (traps), C below Cmin
   in inversion (deep depletion), a stretched transition (interface traps), status `U`/`D` (unbalance, saturation).

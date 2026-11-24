@@ -6,6 +6,7 @@ sources:
   - src/b1500_test_agent/catalog/kinds (smu_sampling, smu_pulsed, smu_search, stress_measure; WP7.3-WP7.6)
   - src/b1500_test_agent/analysis/floor.py (zero_floor; v2 WP7.1)
   - src/b1500_test_agent/driver/flex/smu.py (FL, SSR, AZ, AV, RM, WNCC; WP7.7)
+  - src/b1500_test_agent/driver/flex/qscv.py, catalog/kinds/smu_qscv.py (QSCV MM 13; WP8.5)
   - docs/design/blueprint.md sections 1.2 (SMU scope), 2.6 (async runs, R-CAL-02) and 7.4 (L5, L9)
 last_reviewed: null
 ---
@@ -17,7 +18,8 @@ zero-check floor, the conditioning settings and long SMU runs. Module table, cha
 integration and ranging, cleanup and errors stay in 02. PDF page numbers are physical PDF pages.
 
 Contents: [Sampling MM 10](#sampling-measurement-mm-10) · [Pulsed](#pulsed-measurements-mm-3-4-5-27-28) ·
-[Search](#search-measurements-mm-9-14-15) · [Zero check floor](#zero-check-floor) ·
+[Search](#search-measurements-mm-9-14-15) · [QSCV MM 13](#quasi-static-c-v-mm-13) ·
+[Zero check floor](#zero-check-floor) ·
 [Conditioning](#smu-output-conditioning) · [Long runs](#long-smu-runs)
 
 ## Sampling measurement MM 10
@@ -55,6 +57,17 @@ Kind `smu_search` (cards `smu-search`, `tddb-bdv`); PG p108-111 (2-20), p106-107
   `Data_search` (value forced there), `Data_sense`; `G` not in range, `S` aborted; binary cautious never forces stop.
 - Quasi-pulsed (`BDV`): ramps until the source hits its compliance (breakdown, `C`) and reads the voltage there; it
   needs a 10 V change from start before the compliance (else `S`, PG p53 (1-33)): thin films use a linear ramp.
+
+## Quasi-static C-V MM 13
+
+Kind `smu_qscv` (recipe `moscap.qscv`, card `moscap-dit`); PG p115-117 (2-27), example PG p241-245 (3-61).
+- The `QSV` SMU sweeps start -> stop (start and stop not measured); per step it moves `cvoltage` around the step
+  voltage over `cinteg` and integrates the charge, with the leakage measured before and after (`linteg`): `C = (I -
+  Leak) cinteg / (V - V0)` (`QSL 1,1`). A step equal to cvoltage joins the transitions (PG p116 (2-28)).
+- `QSR` is a fixed range (10 pA..1 uA; an MPSMU from 1 nA) for the charge current `C cvoltage / cinteg` plus the
+  leakage; `QSM 2` stops at compliance, overflow or oscillation (error 242, dummy data). `QSZ 2` measures the path
+  offset with the probes lifted (`physical_setup`), `QSZ 1` subtracts it; `QSO` (smart operation) stays off.
+- Through an SCUU (`SSP 7,3`) the same landing then gives the MFCMU C-V: [08](08-capacitance-cv.md#quasi-static-c-v).
 
 ## Zero check floor
 

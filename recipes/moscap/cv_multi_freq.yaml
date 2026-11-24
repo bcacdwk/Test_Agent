@@ -1,0 +1,54 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOS capacitor C-V at many frequencies (kind cmu_measure, MM 18 per frequency, host frequency loop; card moscap-dit;
+# blueprint v2 3.2, bring-up stage L6): Cp-G (IMP 100) over the gate DC bias from v_start to v_stop at every frequency
+# of freqs_hz, the gate on the MFCMU High side, the bulk on Low (pin map moscap-cmu, or moscap-scuu through the SCUU).
+# Default sweep: the depletion range of moscap-generic (Vfb about -0.9 V, Vth about 0.2 V) from inversion to
+# accumulation; the frequencies are the correction defaults between 1 kHz and 1 MHz (R-CORR-01 needs phase, open and
+# short there). Default analyses: Cox and dit_conductance (Gp/w continuum fit per bias: Dit(E) where the trap peak lies
+# in the band). Programming Guide Ed. 15: C-V sweep (PDF 256-260), WDCV (PDF 549-550), MM 18 (PDF 470-471).
+# status: sim_validated by tests/integration/test_recipes_qscv.py (moscap_dit: Dit at every counted bias within 30 %
+# of the model truth); the visa path by tests/visa_loop/test_qscv_visa.py; hw_validated only through a reviewed
+# validation record (stage L6).
+id: moscap.cv_multi_freq
+version: 1
+title: MOS capacitor C-V at many frequencies (Cp-G per frequency) for Dit(E) by the conductance method
+family: cmu
+kind: cmu_measure
+status: sim_validated
+card: .agents/skills/b1500-test/cards/cmu/moscap-dit.md
+device_types: [moscap]
+roles:
+  gate:
+    function: cmu_high
+    module_types: [MFCMU]
+    settings: {freqs: $freqs_hz, ac: $ac_vrms, start: $v_start, stop: $v_stop, points: $points, mode: single,
+               hold: $hold_s, delay: $delay_s, model: cp_g}
+  bulk: {function: cmu_low, module_types: [MFCMU]}
+params:
+  freqs_hz:
+    type: float_list
+    unit: Hz
+    default: [1.0e+3, 2.0e+3, 5.0e+3, 1.0e+4, 2.0e+4, 5.0e+4, 1.0e+5, 2.0e+5, 5.0e+5, 1.0e+6]
+    range: [1.0e+3, 5.0e+6]
+    doc: Measurement frequencies, one C-V each (at least 4; every one in the correction list).
+  ac_vrms: {unit: V, default: 0.03, recommended: [0.01, 0.05], range: [0.01, 0.25], doc: Oscillator level (V rms).}
+  v_start: {unit: V, default: 0.5, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: Gate DC bias start (inversion side of depletion).}
+  v_stop: {unit: V, default: -1.5, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: Gate DC bias stop (accumulation side).}
+  points: {type: int, default: 81, recommended: [41, 201], range: [11, 1001], doc: Bias steps per frequency.}
+  hold_s: {unit: s, default: 1.0, recommended: [0.5, 5.0], range: [0.0, 60.0], doc: Hold at v_start before each sweep (WTDCV hold).}
+  delay_s: {unit: s, default: 0.0, recommended: [0.0, 0.1], range: [0.0, 10.0], doc: Delay per step before the measurement (WTDCV delay).}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: MFCMU averaging (short ACT 0,1; medium ACT 0,2 = initial; long ACT 2,2 = two power-line cycles).
+quality: {limited: [], untrusted: [U, D, V, X, C, T, F, G, S], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: cv_cox, options: {freq_hz: 1.0e+6}}
+  - {method: dit_conductance, options: {}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind cmu_measure), 2.10 (dit_conductance), 3.2 (moscap.cv_multi_freq), 4.2 (moscap Dit)
+    - Programming Guide Ed. 15 C-V sweep (PDF 256-260), WDCV (PDF 549-550), WTDCV (PDF 566-567), MM 18 (PDF 470-471)
+    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 5 (conductance method, continuum Gp/w)
+  validation_runs: []

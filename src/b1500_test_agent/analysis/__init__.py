@@ -88,6 +88,7 @@ from b1500_test_agent.analysis.dataset import (
     write_table,
 )
 from b1500_test_agent.analysis.diode import diode_fit, forward_voltage
+from b1500_test_agent.analysis.dit import dit_conductance, dit_high_low, high_low_profile
 from b1500_test_agent.analysis.errors import MethodNotImplementedError, RunFormatError, RunNotFoundError
 from b1500_test_agent.analysis.fefet import memory_window
 from b1500_test_agent.analysis.leakage import leakage_at
@@ -113,6 +114,7 @@ from b1500_test_agent.analysis.nvm import (
     switching_kinetics_fit,
 )
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv, render_iv
+from b1500_test_agent.analysis.qscv import quasi_static_role, render_qscv
 from b1500_test_agent.analysis.quality import MIN_SNR, assess_quality, noise_sigma, signal_to_noise
 from b1500_test_agent.analysis.registry import ANALYSIS_METHODS, AnalysisMethod, methods_for, run_method
 from b1500_test_agent.analysis.reliability import (
@@ -169,6 +171,8 @@ __all__ = [
     "degradation_vs_time",
     "dibl",
     "diode_fit",
+    "dit_conductance",
+    "dit_high_low",
     "endurance_curve",
     "endurance_summary",
     "export_spice_netlist",
@@ -177,6 +181,7 @@ __all__ = [
     "forward_voltage",
     "gm",
     "gm_max",
+    "high_low_profile",
     "impedance_convert",
     "ion_ioff",
     "leakage_at",
@@ -194,9 +199,11 @@ __all__ = [
     "plot_iv",
     "plot_timeseries",
     "pulse_reads",
+    "quasi_static_role",
     "read_table",
     "read_table_excerpt",
     "render_iv",
+    "render_qscv",
     "render_timeseries",
     "resistance",
     "retention_fit",

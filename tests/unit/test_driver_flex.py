@@ -17,6 +17,7 @@ from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.flex import cmu as flex_cmu
 from b1500_test_agent.driver.flex import core as flex_core
 from b1500_test_agent.driver.flex import pulsed as flex_pulsed
+from b1500_test_agent.driver.flex import qscv as flex_qscv
 from b1500_test_agent.driver.flex import sampling as flex_sampling
 from b1500_test_agent.driver.flex import search as flex_search
 from b1500_test_agent.driver.flex import smu as flex_smu
@@ -25,7 +26,8 @@ from b1500_test_agent.driver.flex import switch as flex_switch
 
 ROOT = Path(__file__).resolve().parents[2]
 MAP = ROOT / "references" / "driver-map" / "flex-driver-map.yaml"
-FAMILY_MODULES: tuple[ModuleType, ...] = (flex_core, flex_smu, flex_sampling, flex_pulsed, flex_search, flex_cmu,
+FAMILY_MODULES: tuple[ModuleType, ...] = (flex_core, flex_smu, flex_sampling, flex_pulsed, flex_search, flex_qscv,
+                                          flex_cmu,
                                           flex_spgu, flex_switch)
 COMMAND_CONSTANTS = ("XE", "AB", "IDN_Q", "UNT_Q", "ERRX_Q", "STB_Q", "OPC_Q", "LOP_Q", "RST", "TST_Q", "CAL_Q",
                      "ERMOD_Q", "SPST_Q", "SRP", "SPP")
@@ -410,6 +412,7 @@ def test_family_modules_hold_disjoint_builders() -> None:
         _own_functions(flex_pulsed))  # WP7.3
     assert {"lsv", "lsi", "lgv", "lgi", "lsm", "lstm", "lssv", "lssi", "lsvm", "bsv", "bsi", "bgv", "bgi", "bsm",
             "bst", "bssv", "bssi", "bsvm", "bdv", "bdt", "bdm"} == set(_own_functions(flex_search))  # WP7.5
+    assert {"qsv", "qst", "qsm", "qsl", "qso", "qsc", "qsr", "qsz"} == set(_own_functions(flex_qscv))  # WP8.5
     assert {"cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "di", "wi", "wsv", "wsi", "wnx",
             "fl", "ssr", "az", "av", "rm", "wncc"} == set(_own_functions(flex_smu))  # conditioning: WP7.7
     assert {"corrst_q", "adj_q", "imp", "fc", "acv", "dcv", "rc", "act", "lmn", "wdcv", "wtdcv", "wmdcv", "wfc",

@@ -8,7 +8,8 @@ the FLEX handlers live in units registered by mnemonic (``units/core.py``: ident
 output switches, A/D converters; ``units/smu.py``: ranging, SMU modes, sources and the measurement engine;
 ``units/sampling.py``: the SMU sampling setup (``MM 10``), timer reset and sampling engine; ``units/pulsed.py``:
 the SMU pulsed setups (``MM 3/4/5/27/28``) and their engine (WP7.3); ``units/search.py``: the SMU search and
-quasi-pulsed setups (``MM 14/15/9``) and their engine (WP7.5);
+quasi-pulsed setups (``MM 14/15/9``) and their engine (WP7.5); ``units/qscv.py``: the SMU quasi-static C-V setup
+(``MM 13``, ``QS*``), the ``QSZ 2`` offset measurement and their engine (WP8.5);
 ``units/cmu.py`` + ``units/cmu_engine.py``: the MFCMU (signal, MM 17-26, phase compensation, data correction, the
 fixture parasitics; ``MM``/``XE`` dispatch by measurement mode; WP8.1); ``units/spgu.py`` + ``units/spgu_output.py``:
 the HV-SPGU (WP9.1); ``units/switch.py``: selector queries, the ASU paths and the SCUU paths). Each supported mnemonic
@@ -37,6 +38,11 @@ MFCMU sides (WP8.1): a terminal wired to ``"7H"``/``"7L"`` sees the MFCMU's DC b
 virtual ground) while its output switch is on; with an SCUU on that MFCMU the SCUU path decides whether the side is
 the MFCMU, the SMU in slot 6 / slot 5 (its level and current count as that SMU's) or open (``_route_sides``). SMU
 currents are always evaluated with these side levels, so a DC bias from the MFCMU shows in an SMU reading.
+
+GNDU accounting (WP8.5): the circuit sums the current returning through the GNDU-wired terminals at every evaluation
+and keeps the largest of the applied states (the final solve of a level set, every ``advance``); ``gndu_peak_a``
+reports it and ``state.gndu_peak_a`` persists it. The manual gives the GNDU's 4.2 A but no behaviour beyond it, so the
+simulator only accounts (tests check it against rule R-GNDU-01's bound).
 
 HV-SPGU (WP9.1): an output-on SPGU channel joins every circuit evaluation at its static level (no compliance); a
 running SPGU output drives the devices in virtual time whenever the clock advances (``units/spgu.py``).
@@ -98,6 +104,7 @@ from b1500_test_agent.transport.sim.units.base import (
 from b1500_test_agent.transport.sim.units.cmu import CmuUnit
 from b1500_test_agent.transport.sim.units.core import CoreUnit
 from b1500_test_agent.transport.sim.units.pulsed import PulsedUnit
+from b1500_test_agent.transport.sim.units.qscv import QscvUnit
 from b1500_test_agent.transport.sim.units.sampling import SamplingUnit
 from b1500_test_agent.transport.sim.units.search import SearchUnit
 from b1500_test_agent.transport.sim.units.smu import SmuUnit, force_source
@@ -155,7 +162,8 @@ def _parsed(part: str) -> flex.Command | flex.FlexError:
         return exc
 
 
-class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, SearchUnit, CmuUnit, SpguUnit, SwitchUnit):
+class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, SearchUnit, QscvUnit, CmuUnit, SpguUnit,
+                    SwitchUnit):
     """In-process B1500A: ``handle(line)`` executes one command line and returns the query response, if any.
 
     Query responses and measurement data are buffered as on the instrument and read with ``read_message``.
@@ -204,6 +212,7 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, SearchUnit, Cmu
         self._reset_sampling_settings()
         self._reset_pulsed_settings()
         self._reset_search_settings()
+        self._reset_qscv_settings()
         self._reset_cmu_settings()
         self._reset_spgu_settings()
 
@@ -532,6 +541,7 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, SearchUnit, Cmu
         self._reset_switch_state()
         self._reset_spgu_state()
         self._reset_cmu_state()
+        self._reset_qscv_state()
         self.interrupt_pending = False
         for channel in list(self.state.channels):
             if not self.faults.stuck(channel):
@@ -627,18 +637,33 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, SearchUnit, Cmu
     # -- stateful devices ----------------------------------------------------------------------------------------------
 
     def _sync_devices(self) -> None:
-        """Mirror the circuit's device state into the persistent state."""
+        """Mirror the circuit's device state and GNDU peak current into the persistent state."""
         if self.circuit.has_state:
             self.state.devices = self.circuit.export_state()
+        self.sync_gndu()
+
+    def sync_gndu(self) -> None:
+        """Copy the circuit's GNDU peak into ``state.gndu_peak_a`` (sim GNDU accounting, WP8.5)."""
+        self.state.gndu_peak_a = max(self.state.gndu_peak_a, self.circuit.ground_peak_a)
+
+    @property
+    def gndu_peak_a(self) -> float:
+        """The largest current (A) that returned through the GNDU in an applied state since the state was created
+        (``Circuit`` accounting; the GNDU sinks up to ``GNDU_MAX_A``)."""
+        return max(self.state.gndu_peak_a, self.circuit.ground_peak_a)
 
     def _commit_dc(self) -> None:
-        """Commit the DC output levels (compliance-limited, as ``solve`` applies them) to stateful devices."""
-        if not self.circuit.has_state:
+        """Commit the DC output levels (compliance-limited, as ``solve`` applies them) to stateful devices; with a
+        terminal on the GNDU the solve also accounts the GNDU current of the new DC state (WP8.5)."""
+        if not (self.circuit.has_state or self.circuit.grounded):
             return
         applied: dict[int, float] = {}
         levels, currents = self._on_levels(), self._on_currents()
         if levels or currents:
             applied, _, _ = self.dc_solution(levels, currents)
+        if not self.circuit.has_state:
+            self.sync_gndu()
+            return
         sides, _ = self._route_sides(applied)
         if applied or sides:
             self.circuit.commit({**applied, **sides})
@@ -724,6 +749,7 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, SearchUnit, Cmu
             raise ValueError(f"State belongs to scenario {state.scenario!r}, not {self.scenario.name!r}.")
         state = state.model_copy(deep=True)
         self.circuit.import_state(state.devices)
+        self.circuit.ground_peak_a = state.gndu_peak_a
         self.state = state
         self._selector_settle().clear()  # relays switched by another process have long settled
         self._sync_devices()
@@ -874,6 +900,7 @@ class SimTransport:
         """Atomically write the persistent state to ``state_file`` (no-op without a file)."""
         if self.state_file is not None:
             self.instrument.sync_wgfmu()
+            self.instrument.sync_gndu()
             save_state_file(self.state_file, self.instrument.state)  # read only: no copy needed
 
     def inject(self, fault: SimFault) -> None:

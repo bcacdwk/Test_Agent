@@ -49,8 +49,8 @@ Example pin map `moscap-cmu`, DUT `moscap-generic` (its `geometry.area_um2` is n
 
 With an SCUU the pads reach the MFCMU and two SMUs without re-landing (pin map `moscap-scuu`: gate `SCUU1.OUT1`,
 bulk `SCUU1.OUT2`); the human records `present: true` for SCUU1. Corrections run with the same SCUU pin map; the run
-switches `SSP 7,4` for the measurement and back to rest after it (verified by the cleanup); the SCUU's SMUs never
-take `CN`. I-V (leakage) on the same landing uses a map with the outputs as SMU terminals.
+switches `SSP 7,4` for the measurement and back to rest after it (verified); the SCUU's SMUs never take `CN`. SMU
+recipes use the same map (`SSP 7,3`; QSCV and Dit on this landing: card `moscap-dit`).
 
 ## 3. Pre-run checklist
 

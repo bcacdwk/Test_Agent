@@ -1,6 +1,6 @@
 ---
 stage: L5
-title: SMU advanced - pulsed I-V against DC, sampling time grid, Vth by search (MFCMU QSCV leakage arrives with M8)
+title: SMU advanced - pulsed I-V against DC, sampling time grid, Vth by search (QSCV leakage in stage L6)
 recipes: [mosfet.idvg_pulsed, mosfet.idvd_pulsed, basic.pulsed_spot, generic.smu_multi_pulsed, mosfet.id_t_sampling, generic.smu_sampling, mosfet.vth_search]
 checks:
   - {id: pulsed_vs_dc, recipe: mosfet.idvg_pulsed, quantity: pulsed_over_dc, method: pulsed_vs_dc, unit: '1', reference: 'DC mosfet.idvg on the same die at the same Vd (options.reference_run), low duty', tolerance: {absolute: 0.02}, text: '1 +-0.02 (pulsed = DC within 2 %)'}
@@ -27,7 +27,8 @@ version: 1
 The SMU modes beyond the DC staircase on the L4 reference MOSFET and the 100 kOhm standard: pulsed I-V (MM 3/4/5/27/28,
 card `smu-pulsed-iv`), sampling I(t) (MM 10, card `smu-sampling`) and the binary Vth search (MM 15, card
 `smu-search`). Each is compared with the DC result of L2/L4 on the same device. QSCV leakage compensation (§7.4)
-joins this stage when its recipe exists (M8, `moscap.qscv`). Every hardware plan needs consent (`first_hw_run`).
+needs a MOS capacitor and its MFCMU landing: it runs in stage L6 with `moscap.qscv` (card `moscap-dit`). Every
+hardware plan needs consent (`first_hw_run`).
 
 ## 1. Preconditions
 

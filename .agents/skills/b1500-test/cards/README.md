@@ -36,8 +36,8 @@ MFCMU (SCUU when declared): corrections, C-V, C-f, C-t, Dit, split C-V.
 | cmu | spot C, capacitance, known capacitor, 100 pF standard, Cp, Cs, impedance, Z-theta, D factor, correction check | [cmu-spot](cmu/cmu-spot.md) | `cmu.spot` | sim_validated | MFCMU | L6 |
 | cmu | C-f, frequency dispersion, conductance Gp/w, Dit, interface traps, trap time constant, C-t, transient, deep depletion, recovery, generation, inversion layer formation | [moscap-cf-ct](cmu/moscap-cf-ct.md) | `moscap.cf`, `moscap.ct` | sim_validated | MFCMU | L6 |
 | cmu | C-V, MOS capacitor, Cox, EOT, flatband Vfb, doping Nsub, hysteresis, SCUU same landing, AC level, small signal, pulsed C-V, deep depletion | [moscap-cv](cmu/moscap-cv.md) | `moscap.cv`, `moscap.cv_ac_level`, `moscap.pulsed_cv` | sim_validated | MFCMU | L6 |
+| cmu | QSCV, quasi-static C-V, low-frequency C-V, leakage compensation, Dit, interface traps, high-low, conductance method, Dit profile, multi-frequency C-V, Gp/w, SCUU same landing | [moscap-dit](cmu/moscap-dit.md) | `moscap.qscv`, `moscap.cv_multi_freq` | sim_validated | MPSMU, HRSMU, MFCMU, GNDU | L6 |
 | cmu | split C-V, split CV, Cgc, Cgd, gate capacitance, gate-channel, gate-drain, Miller, Cox\*W\*L, EOT, inversion charge | [mosfet-split-cv](cmu/mosfet-split-cv.md) | `mosfet.cgc_cv`, `mosfet.cgd_cv` | sim_validated | MFCMU, MPSMU, HRSMU, GNDU | L6 |
-| cmu | reserved: Quasi-static C-V with SMUs | [reserved](reserved/README.md) | `moscap.qscv` | not_implemented | - | - |
 
 ## spgu
 

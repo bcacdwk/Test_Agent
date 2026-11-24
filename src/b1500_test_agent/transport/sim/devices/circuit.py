@@ -5,7 +5,12 @@ GNDU (``Circuit``), blueprint 4.2.
 Selector outputs are routed nodes: ``Circuit.router`` (set by the instrument) returns, for every cabled selector
 output, the node its present ``ERSSP`` state connects (the SMU or SPGU channel on that input) or ``None`` (open,
 PGU open, an uncabled input, a relay still settling). Every evaluation resolves a terminal wired to a selector output
-through it, so the terminal sees that channel's level and its current counts as that channel's, or it floats."""
+through it, so the terminal sees that channel's level and its current counts as that channel's, or it floats.
+
+GNDU accounting (WP8.5): every evaluation sums the currents of the terminals that reach the GNDU into
+``last_ground_a`` (signed, into the terminals); ``advance`` (always an applied state) and ``note_ground`` (called by the
+instrument after the final solve of an applied state) keep the largest magnitude in ``ground_peak_a``. The GNDU sinks
+up to ``GNDU_MAX_A`` (UG p58 (2-18)); rule R-GNDU-01 bounds the plan before a run."""
 
 from __future__ import annotations
 
@@ -52,6 +57,9 @@ Node = int | str
 """A circuit node with a forced level: a canonical channel number or an MFCMU side target (``"7H"``, ``"7L"``)."""
 
 Router = Callable[[], Mapping[str, "Node | None"]]
+
+GNDU_MAX_A = 4.2
+"""The GNDU sinks up to 4.2 A (UG p58 (2-18) "4.2 A"; ``driver/modules.py`` GNDU row)."""
 """Selector output (``"SELPORT0"``) -> the node it connects now, ``None`` = open (``Circuit.router``)."""
 
 
@@ -123,6 +131,12 @@ class Circuit:
         """Where the selector outputs connect now (set by the instrument; ``None`` = every selector output open)."""
         self._routed = frozenset(target for terminals in self.wiring.values() for target in terminals.values()
                                  if selector_port(target) is not None)
+        self.grounded = any(target == "GNDU" for terminals in self.wiring.values() for target in terminals.values())
+        """True when some device terminal is wired to the GNDU."""
+        self.last_ground_a = 0.0
+        """Current (A) into the GNDU-wired terminals at the last evaluation (module docstring)."""
+        self.ground_peak_a = 0.0
+        """Largest ``|last_ground_a|`` of an applied state (``advance``, ``note_ground``)."""
         for name, source in self.noise.items():
             target = self.devices.get(source.params.attach)
             if target is None or isinstance(target, NoiseSource):
@@ -176,13 +190,21 @@ class Circuit:
                                                                         dict[str, float]]) -> dict[Node, float]:
         currents: dict[Node, float] = {node: 0.0 for node in levels}
         routes = self.routes()
+        ground = 0.0
         for name, device in self.devices.items():
             wiring = self.wiring.get(name, {})
             for terminal, current in evaluate(name, device, self.terminal_voltages(name, levels, routes)).items():
                 target = self._resolve(wiring.get(terminal), routes)
-                if target is not None and target in currents:
+                if target == "GNDU":
+                    ground += current
+                elif target is not None and target in currents:
                     currents[target] += current
+        self.last_ground_a = ground
         return currents
+
+    def note_ground(self) -> None:
+        """The last evaluation was an applied state: keep its GNDU current in ``ground_peak_a``."""
+        self.ground_peak_a = max(self.ground_peak_a, abs(self.last_ground_a))
 
     def channel_currents(self, levels: Mapping[Node, float]) -> dict[Node, float]:
         """Current (A) delivered by each node in ``levels`` (canonical channel or MFCMU side ``"7H"``/``"7L"`` →
@@ -206,7 +228,9 @@ class Circuit:
             dynamic = self.dynamic.get(name)
             return dynamic.advance(dt, v) if dynamic is not None else device.terminal_currents(v)
 
-        return self._collect(levels, evaluate)
+        currents = self._collect(levels, evaluate)
+        self.note_ground()
+        return currents
 
     def pumped_currents(self, levels: Mapping[Node, float], drives: Mapping[Node, PeriodicDrive]) -> dict[Node, float]:
         """Time-averaged extra current (A) of each node in ``levels`` while the nodes in ``drives`` (an SPGU channel's

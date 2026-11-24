@@ -10,7 +10,8 @@ Every method first converts the pair to the admittance ``Y = G + jwCp`` at ``w =
 removes a series resistance ``rs_ohm`` (``remove_series_r``: ``Y_c = 1/(1/Y - Rs)``), and analyses one frequency
 (``freq_hz``; default the first in the table) and one segment (``fwd``/``rev`` of a double sweep). Trust follows the
 shared rules (``common.py``): untrusted points (MFCMU status ``U D V X``) refuse the extraction unless ``force``
-(flagged).
+(flagged). A QSCV run (``smu_qscv``; ``qscv.py``, WP8.5) is one quasi-static curve: ``cv_cox`` and ``plot_cv`` take
+it; the other methods refuse it (they need a high-frequency curve).
 
 **Structure.** ``moscap`` (MOS capacitor, the default) or ``split`` (split C-V of a MOSFET, recipes ``mosfet.cgc_cv``
 and ``mosfet.cgd_cv``); ``structure: auto`` decides by the recipe.
@@ -97,6 +98,13 @@ from b1500_test_agent.analysis.dataset import (
     work_dir_for,
 )
 from b1500_test_agent.analysis.plots import INVALID_ABOVE, PlotSet, RenderedPlot, figure_png, new_figure
+from b1500_test_agent.analysis.qscv import (
+    QUASI_STATIC_HINT,
+    qscv_curve,
+    qscv_offset_run,
+    quasi_static_role,
+    render_qscv,
+)
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, TrustPolicy, Unit
 
@@ -240,9 +248,19 @@ def _select(d: RunData, freq_hz: float | None, segment: Segment | None) -> tuple
 
 
 def load_curve(d: RunData, policy: TrustPolicy, *, freq_hz: float | None, segment: Segment | None,
-               rs_ohm: float) -> Curve:
+               rs_ohm: float, quasi_static: bool = False) -> Curve:
     """The trusted points of one frequency and segment as parallel ``C``/``G`` (series ``rs_ohm`` removed), sorted
-    by bias; ``problems`` lists why an extraction must be refused (untrusted points)."""
+    by bias; ``problems`` lists why an extraction must be refused (untrusted points). ``quasi_static``: a QSCV run
+    (``analysis/qscv.py``; WP8.5) is accepted as one curve at 0 Hz (``g`` 0); otherwise it is refused (an
+    ``InvalidInputError`` naming the methods that apply)."""
+    if qscv_offset_run(d):
+        raise InvalidInputError(f"run {d.run_id} is a QSCV offset measurement (one offset value, no curve): nothing "
+                                "to extract; a later moscap.qscv with offset: cancel subtracts it")
+    if quasi_static_role(d) is not None:
+        if not quasi_static:
+            raise InvalidInputError(f"run {d.run_id} is {QUASI_STATIC_HINT}")
+        rows, v, c, problems = qscv_curve(d, policy, segment=segment)
+        return Curve(rows=rows, v=v, c=c, g=np.zeros(v.size), freq_hz=0.0, omega=0.0, problems=problems)
     role, primary, secondary = pair_of(d)
     rows, freq = _select(d, freq_hz, segment)
     analysed = analysed_rows(d, DC_V, f"{role}_{primary}", policy, rows=rows)
@@ -546,10 +564,12 @@ def _params(curve_args: dict[str, object], policy: TrustPolicy, **extra: object)
 
 
 def _start(method: str, d: RunData, criteria: TrustPolicy | None, *, freq_hz: float | None, segment: Segment,
-           rs_ohm: float, force: bool, **extra: object) -> tuple[Results, Curve | None, list[str]]:
+           rs_ohm: float, force: bool, quasi_static: bool = False, **extra: object
+           ) -> tuple[Results, Curve | None, list[str]]:
     """Results builder, the curve and the refusal problems (empty when forced, then flagged)."""
     policy = trust_policy(criteria)
-    curve = load_curve(d, policy, freq_hz=freq_hz, segment=segment if d.has_segments else None, rs_ohm=rs_ohm)
+    curve = load_curve(d, policy, freq_hz=freq_hz, segment=segment if d.has_segments else None, rs_ohm=rs_ohm,
+                       quasi_static=quasi_static)
     out = Results(method, _params({"freq_hz": curve.freq_hz, "segment": segment, "rs_ohm": rs_ohm, "force": force},
                                   policy, **extra))
     if curve.problems and force:
@@ -584,10 +604,13 @@ def cv_cox(d: RunData, *, freq_hz: float | None = None, segment: Segment = "fwd"
            force: bool = False, criteria: TrustPolicy | None = None) -> list[ExtractionResult]:
     """Oxide capacitance (module docstring): ``cox`` (F; MOS-C accumulation extrapolation, or the split C-V plateau
     ``Cox W L`` with ``c_floor`` the removed overlap), plus ``cox_per_area`` (F/m^2) and ``eot`` (m) with the DUT
-    geometry."""
+    geometry. A QSCV run (WP8.5) is extrapolated the same way (its accumulation is quasi-static too); a QSCV offset
+    measurement holds no curve and gives no result (``[]``: the default analysis of ``moscap.qscv`` stays quiet)."""
+    if qscv_offset_run(d):
+        return []
     kind = structure_of(d, structure)
     out, curve, problems = _start("cv_cox", d, criteria, freq_hz=freq_hz, segment=segment, rs_ohm=rs_ohm,
-                                  force=force, structure=kind, acc_frac=acc_frac)
+                                  force=force, quasi_static=True, structure=kind, acc_frac=acc_frac)
     assert curve is not None
     names: list[tuple[str, Unit]] = [("cox", "F")] + ([("c_floor", "F")] if kind == "split" else [])
     if problems:
@@ -814,7 +837,10 @@ def impedance_convert(d: RunData, *, to: Model = "cs_rs", series_r: SeriesR = "n
 
 
 def render_cv(d: RunData, *, model: Model | None = None, criteria: TrustPolicy | None = None) -> PlotSet:
-    """Render the C-V plots of ``d`` (module docstring) as a ``PlotSet``; nothing is written."""
+    """Render the C-V plots of ``d`` (module docstring) as a ``PlotSet``; nothing is written. A QSCV run: the plot of
+    ``qscv.render_qscv``."""
+    if quasi_static_role(d) is not None:
+        return render_qscv(d, criteria=criteria)
     policy = trust_policy(criteria)
     role, primary, secondary = pair_of(d)
     table = d.table

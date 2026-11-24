@@ -18,7 +18,8 @@ the series resistor's 1 MOhm divider is not modelled (no v2 kind connects it; an
 error 151, as the manual's execution conditions say).
 ``MM 10`` (sampling) triggers are handed to ``SamplingUnit._start_sampling`` (``units/sampling.py``, WP7.4), the pulsed
 modes ``MM 3/4/5/27/28`` to ``PulsedUnit._start_pulsed`` (``units/pulsed.py``, WP7.3), the search modes ``MM 9/14/15``
-to ``SearchUnit._start_search`` (``units/search.py``, WP7.5); ``WSV``/``WSI`` may follow a
+to ``SearchUnit._start_search`` (``units/search.py``, WP7.5), ``MM 13`` to ``QscvUnit._start_qscv`` (``units/qscv.py``,
+WP8.5); ``WSV``/``WSI`` may follow a
 ``PWV``/``PWI`` pulsed sweep and ``WNX`` (N = 1-10) the ``MCPWS`` steps of MM 28 when no ``WV``/``WI`` primary is set.
 While an HV-SPGU output runs, a spot or sweep step reads the time average over the train
 (``SpguUnit._spgu_pulse_currents``, WP9.3: charge pumping).
@@ -54,6 +55,13 @@ PULSED_SINGLE_CHANNEL_MODES = frozenset({3, 4, 5})
 SEARCH_MODES = frozenset({9, 14, 15})
 """``MM 9[,ch]`` quasi-pulsed spot, ``MM 14``/``MM 15`` linear/binary search (no channel), evaluated by
 ``SearchUnit`` (``units/search.py``, WP7.5; PDF 470-471)."""
+
+QSCV_MODE = 13
+"""``MM 13[,ch]`` quasi-static C-V (at most one channel: the measurement channel, default the ``QSV`` channel),
+evaluated by ``QscvUnit`` (``units/qscv.py``, WP8.5; PDF 470-471)."""
+
+OPTIONAL_CHANNEL_MODES = frozenset({9, QSCV_MODE})
+"""Modes whose ``MM`` takes zero or one channel (PDF 470)."""
 
 OVERRANGE = 1.15
 """Fixed current range overflow threshold, as a fraction of full scale (simulator convention)."""
@@ -239,17 +247,17 @@ class SmuUnit:
     def _cmd_mm(self, cmd: flex.Command) -> None:
         """``MM 1|2|10|16,ch...``: spot, staircase sweep, sampling (``units/sampling.py``) or multi-channel sweep;
         ``MM 3|4|5,ch`` (one channel) and ``MM 27|28,ch...``: the pulsed modes (``units/pulsed.py``, WP7.3); ``MM
-        9[,ch]``, ``MM 14``, ``MM 15``: the search modes (``units/search.py``, WP7.5); other modes are unsupported
-        (PDF 470-471)."""
+        9[,ch]``, ``MM 14``, ``MM 15``: the search modes (``units/search.py``, WP7.5); ``MM 13[,ch]``: quasi-static
+        C-V (``units/qscv.py``, WP8.5); other modes are unsupported (PDF 470-471)."""
         if not cmd.args:
             raise flex.FlexError(flex.ERR_TERMINATOR)
         mode = flex.integer(cmd.args[0])
         if not 1 <= mode <= 28:
             raise flex.FlexError(flex.ERR_PARAMETER)
-        if mode not in (1, 2, 10, MULTI_CHANNEL_SWEEP, *PULSED_MODES, *SEARCH_MODES):
+        if mode not in (1, 2, 10, MULTI_CHANNEL_SWEEP, QSCV_MODE, *PULSED_MODES, *SEARCH_MODES):
             raise Unsupported(f"MM {mode}")
         channels = [self._smu(a) for a in cmd.args[1:]]
-        low, limit = (0, 1) if mode == 9 else (0, 0) if mode in SEARCH_MODES else (
+        low, limit = (0, 1) if mode in OPTIONAL_CHANNEL_MODES else (0, 0) if mode in SEARCH_MODES else (
             1, 1 if mode in PULSED_SINGLE_CHANNEL_MODES else 10)
         if not low <= len(channels) <= limit or len(set(channels)) != len(channels):
             raise flex.FlexError(flex.ERR_CHANNEL_COUNT)
@@ -496,7 +504,9 @@ class SmuUnit:
         current rises monotonically with its own voltage. The returned voltages cover both kinds of channel.
         """
         if not forced:
-            return self._solve_voltages(levels, icomps, {})
+            solution = self._solve_voltages(levels, icomps, {})
+            self.circuit.note_ground()  # the last evaluation was this applied state (GNDU accounting, WP8.5)
+            return solution
         fixed = {ch: 0.0 for ch in forced}
         limited: set[int] = set()
         for _ in range(SOLVE_ROUNDS):
@@ -512,6 +522,7 @@ class SmuUnit:
             if moved <= SOLVE_TOLERANCE_V:
                 break
         applied, currents, clamped = self._solve_voltages(levels, icomps, fixed)
+        self.circuit.note_ground()
         return applied, currents, clamped | limited
 
     def _solve_voltages(self, levels: dict[int, float], icomps: dict[int, float],
@@ -597,6 +608,9 @@ class SmuUnit:
             return
         if mode in SEARCH_MODES:
             self._start_search(mode, channels)
+            return
+        if mode == QSCV_MODE:
+            self._start_qscv(channels)
             return
         sweep = self._staircase(mode)
         for channel in [*channels, *(src.channel for src in sweep.sources)] if sweep else channels:

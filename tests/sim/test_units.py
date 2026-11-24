@@ -16,6 +16,7 @@ from b1500_test_agent.transport.sim.units.base import HANDLES_ATTR, handler_tabl
 from b1500_test_agent.transport.sim.units.cmu import CmuUnit
 from b1500_test_agent.transport.sim.units.core import CoreUnit
 from b1500_test_agent.transport.sim.units.pulsed import PulsedUnit
+from b1500_test_agent.transport.sim.units.qscv import QscvUnit
 from b1500_test_agent.transport.sim.units.sampling import SamplingUnit
 from b1500_test_agent.transport.sim.units.search import SearchUnit
 from b1500_test_agent.transport.sim.units.smu import SmuUnit
@@ -29,6 +30,7 @@ SMU = {"RI", "RV", "CMM", "DV", "WV", "WT", "WM", "DI", "WI", "WSV", "WSI", "WNX
 SAMPLING = {"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"}
 PULSED = {"PT", "PV", "PI", "PWV", "PWI", "MCPT", "MCPNT", "MCPNX", "MCPWS", "MCPWNX"}  # WP7.3
 SEARCH = set(flex.SEARCH_COMMANDS)  # WP7.5
+QSCV = set(flex.QSCV_COMMANDS)  # WP8.5
 CMU = {"CORRST?", "ADJ?", "CORR?", "CORRL?", "DCORR?", "MM", "XE"} | set(flex.CMU_COMMANDS)  # MM/XE by mode (WP8.1)
 SPGU = {"SPST?", "SIM", "SPM", "SPT", "SPV", "SPPER", "SPRM", "SER", "SPUPD", "SRP", "SPP", "ODSW", "STGP",
         "CORRSER?", "ALW", "ALS"}  # WP9.1
@@ -43,6 +45,7 @@ def test_every_supported_mnemonic_has_exactly_one_handler() -> None:
 
 def test_units_split_the_supported_subset_by_family() -> None:
     families = {CoreUnit: CORE, SmuUnit: SMU, SamplingUnit: SAMPLING, PulsedUnit: PULSED, SearchUnit: SEARCH,
+                QscvUnit: QSCV,
                 CmuUnit: CMU, SpguUnit: SPGU, SwitchUnit: SWITCH}
     for unit, mnemonics in families.items():
         assert set(handler_table(unit)) == mnemonics, unit.__name__

@@ -16,12 +16,13 @@ from tests.unit.helpers import REPO_ROOT
 
 RECIPES = REPO_ROOT / "recipes"
 CORRECTION_RECIPES = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short", "cmu.correction_load")
-RESERVED_SLOTS = {"wgfmu.fast_bti", "fecap.pund", "moscap.qscv"}
+RESERVED_SLOTS = {"wgfmu.fast_bti", "fecap.pund"}  # WP8.5: moscap.qscv implemented
 """Reserved ids still waiting for their kinds (WP7.6 implemented reliability.bti_sms and reliability.hci; WP8.2 retired
 cmu.correction for the four cmu.* correction recipes; WP8.3 implemented moscap.cv and mosfet.cgd_cv; WP9.4
 implemented fefet.pulse_write_read and spgu.program_smu_read with kind pulse_read; WP7.7 retired hspice.compare:
 compact models are the analysis methods compact_model_fit, model_compare and export_spice_netlist, card
-smu/compact-model-spice; WP10.4 implemented wgfmu.pulsed_iv)."""
+smu/compact-model-spice; WP10.4 implemented wgfmu.pulsed_iv; WP8.5 implemented moscap.qscv with kind
+smu_qscv)."""
 WGFMU_RECIPES = ("wgfmu.pulsed_iv", "wgfmu.fast_iv", "wgfmu.pulse_train", "wgfmu.custom_waveform", "wgfmu.dc_spot")
 """Kind wgfmu_waveform (WP10.4; tests/integration/test_recipes_wgfmu.py)."""
 
@@ -95,6 +96,9 @@ def test_committed_statuses() -> None:
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
         assert registry.get(recipe_id).kind == "cmu_measure"
     assert registry.get("fecap.cv_butterfly").family == "nvm"
+    # WP8.5: QSCV (kind smu_qscv) and the multi-frequency C-V (tests/integration/test_recipes_qscv.py)
+    assert status["moscap.qscv"] == status["moscap.cv_multi_freq"] == ("sim_validated", "sim_validated")
+    assert (registry.get("moscap.qscv").kind, registry.get("moscap.cv_multi_freq").kind) == ("smu_qscv", "cmu_measure")
     # WP9.2: kind spgu_pulse, mode route_only (tests/integration/test_recipes_selector.py)
     assert status["system.selector_check"] == ("sim_validated", "sim_validated")
     assert registry.get("system.selector_check").kind == "spgu_pulse"
@@ -163,8 +167,9 @@ def test_committed_statuses() -> None:
          "wgfmu.custom_waveform": "wgfmu/wgfmu-custom-waveform",
          "wgfmu.dc_spot": "wgfmu/wgfmu-custom-waveform",  # WP10.4
          "fefet.switching_kinetics": "nvm/fefet-switching-kinetics",
-         "fefet.endurance": "nvm/fefet-endurance-retention", "fefet.retention": "nvm/fefet-endurance-retention"}
-    # WP9.5
+         "fefet.endurance": "nvm/fefet-endurance-retention",
+         "fefet.retention": "nvm/fefet-endurance-retention",  # WP9.5
+         "moscap.qscv": "cmu/moscap-dit", "moscap.cv_multi_freq": "cmu/moscap-dit"}  # WP8.5
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):
@@ -190,6 +195,7 @@ def test_kinds() -> None:
     assert kinds["cmu_measure"].implemented_on == {"sim", "visa"} and "cmu_cv" not in kinds  # WP8.3 replaced cmu_cv
     assert kinds["pulse_read"].implemented_on == {"sim", "visa"}  # WP9.4
     assert "pulse_read" not in UNIMPLEMENTED_KINDS and "spgu_program_read" not in kinds
+    assert kinds["smu_qscv"].implemented_on == {"sim", "visa"} and "smu_qscv" not in UNIMPLEMENTED_KINDS  # WP8.5
     assert kinds["wgfmu_waveform"].implemented_on == {"sim", "visa"}  # WP10.4
     assert "wgfmu_waveform" not in UNIMPLEMENTED_KINDS and "wgfmu_pulsed_iv" not in kinds
     for kind_id in ("wgfmu_fast_bti", "wgfmu_pulse_sequence"):

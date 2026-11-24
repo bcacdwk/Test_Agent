@@ -32,7 +32,8 @@ M2 = {"vth_constant_current", "vth_max_gm", "subthreshold_swing", "gm_max", "ion
       "resistance", "diode_fit", "leakage_at", "memory_window", "plot_iv"}
 M5 = {"plot_timeseries"}
 M8 = {"cv_cox", "cv_flatband", "cv_doping_profile", "cv_vth", "cv_hysteresis", "impedance_convert", "plot_cv",  # WP8.3
-      "cf_dispersion", "ct_recovery", "cv_ac_dependence", "cv_butterfly", "cv_pulsed_vs_dc"}  # WP8.4
+      "cf_dispersion", "ct_recovery", "cv_ac_dependence", "cv_butterfly", "cv_pulsed_vs_dc",  # WP8.4
+      "dit_high_low", "dit_conductance"}  # WP8.5
 M7 = {"sampling_summary", "time_to_breakdown", "dibl", "body_effect", "forward_voltage",  # WP7.4, WP7.2
       "kelvin_resistance", "zero_floor",  # WP7.1
       "bti_power_law", "degradation_vs_time", "silc",  # WP7.6

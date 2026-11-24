@@ -9,7 +9,9 @@ inversion-layer formation time within 10 %, the equilibrium capacitance within 1
 within 2 %; C-ACV: the small-signal capacitance within 0.5 % and the curvature of the model's C-V within 25 %; pulsed
 C-V: Cox +-1 %, Vfb +-20 mV of the model and of a DC C-V swept from the same (accumulation) state, deep depletion in
 inversion; FeCap butterfly: peaks at +-Vc (= +-Ec x t) within 5 %. The C-f list must be covered by the corrections
-at every frequency (the default correction list does not hold its 4-per-decade points).
+at every frequency (the default correction list does not hold its 4-per-decade points). WP8.5: ``moscap_dit`` lands
+the device through the SCUU of CMU1 (one landing for QSCV and C-V), so its runs use pin map ``moscap-scuu``
+(``DIT``): the MFCMU is connected by ``SSP 7,4`` and the plans add ``unverified_topology``.
 """
 
 from __future__ import annotations
@@ -34,6 +36,8 @@ from tests.integration.helpers import REPO_ROOT, World
 
 CORRECTIONS = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short")
 MOSCAP = {"pin_map": "moscap-cmu", "dut_profile": "moscap-generic"}
+DIT = {"pin_map": "moscap-scuu", "dut_profile": "moscap-generic"}
+"""The ``moscap_dit`` landing: through SCUU1 (WP8.5)."""
 FECAP = {"recipe_id": "fecap.cv_butterfly", "pin_map": "fecap-cmu", "dut_profile": "fecap-generic"}
 CF_LIST = [1e3, 1778.279, 3162.278, 5623.413, 1e4, 17782.79, 31622.78, 56234.13, 1e5, 177827.9, 316227.8, 562341.3,
            1e6]
@@ -96,15 +100,16 @@ def svc(world: World) -> B1500Service:
 def test_cf_needs_corrections_at_every_listed_frequency_then_meets_the_dit_truth(recipe_id: str, world: World,
                                                                                  svc: B1500Service) -> None:
     world.use_scenario("moscap_dit")
-    request = {"recipe_id": recipe_id, **MOSCAP}
-    correct(svc, "moscap-cmu")  # the 23 default correction frequencies: 1-2-5 steps, not the 4-per-decade list
+    request = {"recipe_id": recipe_id, **DIT}
+    correct(svc, "moscap-scuu")  # the 23 default correction frequencies: 1-2-5 steps, not the 4-per-decade list
     uncovered = svc.validate_plan(**request)
     assert uncovered.tier == "blocked" and CORRECTION_NEXT_STEP in uncovered.next_steps
     assert any(f.rule_id == "R-CORR-01" and "does not cover 1778.28 Hz" in f.message for f in uncovered.findings)
-    correct(svc, "moscap-cmu", freqs_hz=CF_LIST)
+    correct(svc, "moscap-scuu", freqs_hz=CF_LIST)
     plan, result = run(svc, request)
-    assert set(plan.confirm_reasons) == {"unverified_pin_map", "dut_envelope"}
-    assert plan.summary is not None and "gate=CMU1:H 1 kHz..1 MHz 30 mVrms DC -0.6 V corr <1h" in plan.summary
+    assert set(plan.confirm_reasons) == {"unverified_pin_map", "dut_envelope", "unverified_topology"}
+    assert plan.summary is not None and "gate=CMU1 via SCUU1.OUT1 1 kHz..1 MHz 30 mVrms DC -0.6 V corr <1h" in \
+        plan.summary
     assert result.ok and result.outcome == "completed" and result.simulated, result.message
     assert result.cleanup_verified == "sim_state" and result.quality_verdict == "ok"
     truth = moscap("moscap_dit").interface_trap_truth(-0.6, 1e5)
@@ -127,10 +132,10 @@ def test_cf_needs_corrections_at_every_listed_frequency_then_meets_the_dit_truth
 def test_cf_frequencies_off_a_stair_or_a_peak_outside_the_sweep_are_refused(recipe_id: str, world: World,
                                                                           svc: B1500Service) -> None:
     world.use_scenario("moscap_dit")
-    off = svc.validate_plan(recipe_id=recipe_id, **MOSCAP, params={"freqs_hz": [1e3, 2e3, 5e3, 1e4]})
+    off = svc.validate_plan(recipe_id=recipe_id, **DIT, params={"freqs_hz": [1e3, 2e3, 5e3, 1e4]})
     assert not off.ok and off.plan_id is None and "equally spaced" in off.message
-    correct(svc, "moscap-cmu", freqs_hz=CF_LIST)
-    _, result = run(svc, {"recipe_id": recipe_id, **MOSCAP}, dc_v=-0.2)  # near midgap: the peak is below 1 kHz
+    correct(svc, "moscap-scuu", freqs_hz=CF_LIST)
+    _, result = run(svc, {"recipe_id": recipe_id, **DIT}, dc_v=-0.2)  # near midgap: the peak is below 1 kHz
     assert result.ok, result.message
     failed = next(a for a in result.analyses if a.quantity == "dit")
     assert failed.outcome == "failed" and "lies outside the measured" in (failed.error or "")
@@ -143,9 +148,10 @@ def test_cf_frequencies_off_a_stair_or_a_peak_outside_the_sweep_are_refused(reci
 @recipe("moscap.ct")
 def test_ct_recovers_the_inversion_layer_formation_time(recipe_id: str, world: World, svc: B1500Service) -> None:
     world.use_scenario("moscap_dit")
-    correct(svc, "moscap-cmu")
-    plan, result = run(svc, {"recipe_id": recipe_id, **MOSCAP})
-    assert plan.summary is not None and "gate=CMU1:H 1 MHz 30 mVrms DC -2.5..2 V corr <1h" in plan.summary
+    correct(svc, "moscap-scuu")
+    plan, result = run(svc, {"recipe_id": recipe_id, **DIT})
+    assert plan.summary is not None and "gate=CMU1 via SCUU1.OUT1 1 MHz 30 mVrms DC -2.5..2 V corr <1h" in \
+        plan.summary
     assert result.ok and result.outcome == "completed", result.message
     device = moscap("moscap_dit")
     assert value(result, "ct_recovery", "tau_recovery") == pytest.approx(device.params.tau_inv_s, rel=0.10)
@@ -167,8 +173,8 @@ def test_ct_recovers_the_inversion_layer_formation_time(recipe_id: str, world: W
 def test_a_long_ct_transient_runs_as_chained_blocks_with_continuous_time(recipe_id: str, world: World,
                                                                          svc: B1500Service) -> None:
     world.use_scenario("moscap_dit")
-    correct(svc, "moscap-cmu")
-    plan, result = run(svc, {"recipe_id": recipe_id, **MOSCAP}, interval_s=0.1, points=900)  # 90 s of sampling
+    correct(svc, "moscap-scuu")
+    plan, result = run(svc, {"recipe_id": recipe_id, **DIT}, interval_s=0.1, points=900)  # 90 s of sampling
     assert plan.resolved is not None and plan.resolved.est_s > 90.0
     assert result.ok and result.outcome == "completed", result.message
     folder = next(p for p in world.runs_dir.rglob(str(result.run_id)) if p.is_dir())
@@ -301,10 +307,10 @@ def plot_record(world: World, run_id: str) -> dict[str, Any]:
 
 def test_cf_ct_and_ac_level_runs_plot_against_their_own_axis(world: World, svc: B1500Service) -> None:
     world.use_scenario("moscap_dit")
-    correct(svc, "moscap-cmu", freqs_hz=CF_LIST)
-    _, cf = run(svc, {"recipe_id": "moscap.cf", **MOSCAP})
-    _, ct = run(svc, {"recipe_id": "moscap.ct", **MOSCAP}, points=50)
-    _, acv = run(svc, {"recipe_id": "moscap.cv_ac_level", **MOSCAP})
+    correct(svc, "moscap-scuu", freqs_hz=CF_LIST)
+    _, cf = run(svc, {"recipe_id": "moscap.cf", **DIT})
+    _, ct = run(svc, {"recipe_id": "moscap.ct", **DIT}, points=50)
+    _, acv = run(svc, {"recipe_id": "moscap.cv_ac_level", **DIT})
     for result, axis, name in ((cf, "freq_hz", "cf"), (ct, "t_s", "ct"), (acv, "ac_vrms", "cv-ac")):
         plotted = svc.analyze_run(result.run_id, "plot_cv")  # type: ignore[arg-type]
         assert plotted.ok and [Path(p).name for p in plotted.plots] == [f"{name}-1.png"], plotted.message

@@ -4,13 +4,14 @@ visa; WP8.3), the composite ``stress_measure`` (sim + visa; built from ``catalog
 the kinds those blocks use), ``system`` (sim + visa), ``spgu_pulse`` (sim + visa; its ``route_only`` mode since WP9.2,
 the ``pg``/``alwg`` pulse modes since WP9.3), the composite ``pulse_read`` (sim + visa, WP9.4; HV-SPGU and SMU pulse
 sources, built from ``catalog/blocks.py`` and ``catalog/kinds/pulse_sources.py``), ``wgfmu_waveform`` (sim + visa;
-WP10.4) and the declared ``UnimplementedKind`` ids. ``default_kinds()`` is the mapping the recipe registry loads
-against."""
+WP10.4), ``smu_qscv`` (sim + visa; WP8.5) and the declared ``UnimplementedKind`` ids. ``default_kinds()`` is the
+mapping the recipe registry loads against."""
 
 from b1500_test_agent.catalog.kinds.base import MeasurementKind, implemented_on
 from b1500_test_agent.catalog.kinds.cmu_correction import CmuCorrectionKind
 from b1500_test_agent.catalog.kinds.cmu_measure import CmuMeasureKind, CmuProgram
 from b1500_test_agent.catalog.kinds.smu_pulsed import PulsedProgram, SmuPulsedKind
+from b1500_test_agent.catalog.kinds.smu_qscv import QscvProgram, SmuQscvKind
 from b1500_test_agent.catalog.kinds.smu_sampling import SamplingProgram, SmuSamplingKind
 from b1500_test_agent.catalog.kinds.smu_search import SearchProgram, SmuSearchKind
 from b1500_test_agent.catalog.kinds.smu_spot import SmuSpotKind, SpotProgram
@@ -30,7 +31,7 @@ def default_kinds() -> dict[str, MeasurementKind]:
     kinds: dict[str, MeasurementKind] = dict(unimplemented_kinds())
     for kind in (SmuStaircaseKind(), SmuSteppedKind(), SmuSamplingKind(), SystemKind(), SmuSpotKind(),
                  StressMeasureKind(), CmuCorrectionKind(), SpguPulseKind(), SmuPulsedKind(), SmuSearchKind(),
-                 CmuMeasureKind(), PulseReadKind(), WgfmuWaveformKind()):
+                 CmuMeasureKind(), PulseReadKind(), WgfmuWaveformKind(), SmuQscvKind()):
         kinds[kind.kind_id] = kind
     return kinds
 
@@ -44,9 +45,11 @@ __all__ = [
     "PulseReadKind",
     "PulseReadProgram",
     "PulsedProgram",
+    "QscvProgram",
     "SamplingProgram",
     "SearchProgram",
     "SmuPulsedKind",
+    "SmuQscvKind",
     "SmuSamplingKind",
     "SmuSearchKind",
     "SmuSpotKind",

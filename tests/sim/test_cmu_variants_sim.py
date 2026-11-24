@@ -147,8 +147,8 @@ def test_interface_trap_truth_matches_the_conductance_peak() -> None:
 
 
 def test_ct_sampling_records_the_recovery_with_time_stamps(make_sim: Callable[..., SimTransport]) -> None:
-    sim = cmu_sim(make_sim, "moscap_dit")
-    run(sim, f"CN {CMU}", "FMT 1,1", "TSC 1", "IMP 100", "ACT 0,1", f"FC {CMU},1000000", f"ACV {CMU},0.03",
+    sim = cmu_sim(make_sim, "moscap_dit")  # landed through the SCUU of CMU1 (WP8.5): SSP connects the MFCMU
+    run(sim, f"SSP {CMU},4", "FMT 1,1", "TSC 1", "IMP 100", "ACT 0,1", f"FC {CMU},1000000", f"ACV {CMU},0.03",
         "MTDCV 0,0.05,101,1", f"MDCV {CMU},-2.5,2,2", f"MM 26,{CMU}", "TSR", "XE")
     layout = CmuLayout(imp=100, mode=26, index=True, timestamp=True)
     blocks = parse_cmu_blocks(parse_data(sim.read(timeout_s=60), 1), layout)

@@ -38,7 +38,7 @@ optional recovery reads. Numbers marked `TODO(verify)` are literature typicals, 
 | IGZO bias-stress transient Id(t) | yes (WP7.4) | `mosfet.id_t_sampling` (card `smu-sampling`) |
 | Breakdown voltage ramps (dielectric, junction) | yes (WP7.5, destructive) | `dielectric.bdv`, `basic.breakdown_search` (card `tddb-bdv`) |
 | Dit by charge pumping | yes (WP9.3) | `mosfet.charge_pumping` (card `charge-pumping`) |
-| Dit by C-V (high-low, conductance) | reserved (WP8.5) | `moscap.qscv` with `moscap.cv` (WP8.3) |
+| Dit by C-V (high-low, conductance) | yes (WP8.5) | `moscap.qscv` + `moscap.cv`, `moscap.cv_multi_freq` (card `moscap-dit`) |
 
 Never imitate a stress with a sweep recipe (for example a long or repeated high-voltage sweep): it bypasses the
 destructive-test confirmation and produces data without a defined stress history.

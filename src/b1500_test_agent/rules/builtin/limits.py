@@ -17,9 +17,9 @@ from b1500_test_agent.driver.modules import (
     module_spec,
     violations,
 )
-from b1500_test_agent.models.plan import ChannelEnvelope
+from b1500_test_agent.models.plan import ChannelEnvelope, CompiledEnvelope
 from b1500_test_agent.models.recipe import COMPLIANCE_FREE_FUNCTIONS, SMU_FUNCTIONS
-from b1500_test_agent.models.station import InstrumentError, ModuleSlot
+from b1500_test_agent.models.station import InstrumentError, ModuleSlot, StationProfile
 from b1500_test_agent.rules.builtin.common import (
     CEILING_A_SYMBOL,
     CEILING_V_SYMBOL,
@@ -293,24 +293,17 @@ def interlock_closed(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 
 @rule("R-GNDU-01", {"plan"})
 def gndu_budget(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
-    """When a role uses the GNDU, every current that can return through it stays within its 4.2 A (UG p58 (2-18)
-    "4.2 A"): the compliances of the SMU channels plus the expected currents of the sources without compliance
-    (a pulse channel's short-circuit bound ``pulse.max_short_circuit_a``; without a pulse envelope an HV-SPGU's
-    open-load maximum into its 50 Ohm, a WGFMU's ``WGFMU_SPEC.max_output_a``)."""
-    if not any(b.gndu for b in ctx.plan.binding.roles.values()):
+    """When a role uses the GNDU, or the pin map lands any DUT terminal on it (a pad on the GNDU carries return current
+    whether a recipe role names it or not; WP8.5), every current that can return through it stays within its 4.2 A
+    (UG p58 (2-18) "4.2 A"): the compliances of the SMU channels plus the expected currents of the sources without
+    compliance (a pulse channel's short-circuit bound ``pulse.max_short_circuit_a``; without a pulse envelope an
+    HV-SPGU's open-load maximum into its 50 Ohm, a WGFMU's ``WGFMU_SPEC.max_output_a``). The simulator accounts the
+    current that really returns (``Circuit.ground_peak_a``); tests keep it within this bound."""
+    roles = any(b.gndu for b in ctx.plan.binding.roles.values())
+    pads = ctx.pin_map is not None and any(target == "GNDU" for target in ctx.pin_map.terminals.values())
+    if not (roles or pads):
         return
-    dc = pulsed = 0.0
-    for channel, entry in envelope_items(ctx):
-        if entry.max_abs_i is not None:
-            dc += entry.max_abs_i
-        elif entry.pulse is not None:
-            pulsed += entry.pulse.max_short_circuit_a
-        else:
-            module = ctx.station.module_for_channel(channel)
-            if module is not None and module.type == "WGFMU":
-                pulsed += WGFMU_SPEC.max_output_a
-            else:
-                pulsed += SPGU_SPEC.max_open_v / SPGU_SPEC.output_ohm
+    dc, pulsed = gndu_return_a(ctx.plan.envelope, ctx.station)
     gndu = module_spec("GNDU")
     total = dc + pulsed
     if total > gndu.max_abs_i:
@@ -318,6 +311,25 @@ def gndu_budget(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
                     f"sources without compliance), above its {gndu.max_abs_i:g} A", subject="GNDU",
                     source=env.code(f"{SPEC_SYMBOL}.MODULE_SPECS[GNDU] ({gndu.envelope_source})"),
                     observed=round(total, 9), limit=gndu.max_abs_i)
+
+
+def gndu_return_a(envelope: CompiledEnvelope, station: StationProfile) -> tuple[float, float]:
+    """The R-GNDU-01 bound of a compiled envelope: ``(dc, pulsed)`` (A), the compliances of the channels with one and
+    the expected currents of the sources without compliance (rule docstring). Pure; the GNDU table tests compare it
+    with the simulator's accounting."""
+    dc = pulsed = 0.0
+    for channel, entry in sorted(envelope.channels.items()):
+        if entry.max_abs_i is not None:
+            dc += entry.max_abs_i
+        elif entry.pulse is not None:
+            pulsed += entry.pulse.max_short_circuit_a
+        else:
+            module = station.module_for_channel(channel)
+            if module is not None and module.type == "WGFMU":
+                pulsed += WGFMU_SPEC.max_output_a
+            else:
+                pulsed += SPGU_SPEC.max_open_v / SPGU_SPEC.output_ohm
+    return dc, pulsed
 
 
 def interlock_errors(errors: Iterable[InstrumentError]) -> list[InstrumentError]:

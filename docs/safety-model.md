@@ -93,10 +93,10 @@ plan (`plan:...`) or a state file (`data/state/fault.json`). "pre" = `pre_execut
 | R-DUT-01 | plan | A recipe with DUT roles needs a named, existing DUT profile that describes every driven terminal (else block; not for recipes whose roles all bind by `cmu_side`: the MFCMU corrections touch no DUT, a profile given anyway is checked); \|V\| or \|Icomp\| above a terminal's envelope → confirm; DUT device type not among the recipe's → warn | block / confirm / warn | `plan:request.dut_profile`, `duts/<name>.yaml#terminals.<t>.max_abs_{v,i}` |
 | R-COMP-01 | plan | Every connected channel has an envelope with non-zero compliance; voltage-forcing roles (`sweep_v`, `bias_v`, `step_v`, `sync_v`, `pulse_v`) set `icomp`, current-forcing roles (`sweep_i`, `bias_i`, `step_i`, `sync_i`) set `vcomp` explicitly and non-zero; the envelope compliance is `max_abs_i` of a voltage-forcing channel and `max_abs_v` of a current-forcing one (whose `max_abs_i` is the forced current, 0 A for a voltmeter; WP7.1); `pgu`/`wgfmu` roles are exempt (R-PULSE-*, R-SPGU-01, R-WG-* bound them) | block | recipe `#roles.<role>.settings.{icomp,vcomp}`, `plan:envelope.channels.<ch>.{max_abs_i,max_abs_v}` |
 | R-IL-01 | plan, pre | When the envelope's max \|V\| exceeds `interlock.required_above_v`: the station records `interlock.available: true`; with live state, status-byte bit 3 is clear **and** no `ERRX?` 202/203 is pending (ATV-10 fallback); at pre a missing status byte blocks | block | `station.yaml#interlock.available`, `live:status_byte.bit3`, `live:errors` |
-| R-GNDU-01 | plan | When a role uses the GNDU: the compliances of the SMU channels plus the expected currents of the sources without compliance (a pulse channel's short-circuit bound; an HV-SPGU without one 40 V / 50 Ω, a WGFMU 100 mA) ≤ 4.2 A | block | `code:…MODULE_SPECS[GNDU] (UG GNDU, PDF 58)` |
+| R-GNDU-01 | plan | When a role uses the GNDU or the pin map lands any pad on it (WP8.5): the compliances of the SMU channels plus the expected currents of the sources without compliance (a pulse channel's short-circuit bound; an HV-SPGU without one 40 V / 50 Ω, a WGFMU 100 mA) ≤ 4.2 A | block | `code:…MODULE_SPECS[GNDU] (UG GNDU, PDF 58)` |
 | R-RUN-01 | plan | Points ≤ `run_limits.max_points.<family>` (the smallest over the measuring families of the bound channels: `smu`, `cmu`; WGFMU points count per channel in R-WG-02; a v1 integer applies to every family) | block | `policy.yaml#run_limits.max_points.*` |
 | R-RUN-02 | plan | Estimate above `max_sync_run_s`: an `async` plan (info; the planner sets `mode: async` there) or a blocked `sync` one; above `long_run_confirm_s` → confirm; above `max_async_run_s` → block; an async plan has checkpoints (`estimate.max_segment_s`, e.g. one sweep of a stepped run) at most `segment_max_s` apart, a kind without checkpoints cannot run asynchronously | info / confirm `long_run` / block | `policy.yaml#run_limits.*`, `plan:estimate.max_segment_s` |
-| R-ALWAYS-01 | plan | Recipe `always_confirm` reasons (`destructive`, `system_self_test`, `system_self_cal`, `physical_setup` ...); kind `cmu_correction` always `physical_setup` (declared or not), the message naming the probe state the human sets up (`program.setup`: lift the probes, land them on a short, connect the load standard); a `file` parameter from `work/waveforms/` (ad-hoc waveform) | confirm (that reason; `adhoc_recipe` for the file) | recipe `#always_confirm`, `code:…run.PHYSICAL_SETUP_KINDS`, `plan:files.<name>` |
+| R-ALWAYS-01 | plan | Recipe `always_confirm` reasons (`destructive`, `system_self_test`, `system_self_cal`, `physical_setup` ...); kind `cmu_correction` always `physical_setup` (declared or not), the message naming the probe state the human sets up (`program.setup`: lift the probes, land them on a short, connect the load standard), and so does any plan whose program carries such a prompt (WP8.5: the QSCV offset measurement, probes lifted); a `file` parameter from `work/waveforms/` (ad-hoc waveform) | confirm (that reason; `adhoc_recipe` for the file) | recipe `#always_confirm`, `code:…run.PHYSICAL_SETUP_KINDS`, `plan:files.<name>` |
 | R-ERRX-01 | pre (plan with a snapshot) | Pre-existing `ERRX?` entries drained by the snapshot are recorded | warn | `live:errors` |
 | R-CAL-01 | pre | Auto-calibration state and the last completed self-calibration (archive) are recorded | warn if unknown, else info | `live:auto_calibration`, `data/runs/index.jsonl` |
 | R-CAL-02 | pre | An async run records the auto-calibration state (`*LRN? 31`); the run sends `CM 0` before the kind and the cleanup's `restore` step puts the state back after a verified cleanup (an unverified cleanup leaves it off) | info | `live:auto_calibration` |
@@ -295,6 +295,24 @@ reading. The search target never exceeds the monitor's compliance (PG error 275)
 limited by the compliance the human approved. Residual: one `XE` is not interruptible by checkpoints (only `AB`), so
 a search is planned as one segment and a search longer than `segment_max_s` cannot run asynchronously (blocked); the
 broken site keeps the start value (usually 0 V) until the cleanup.
+
+**Quasi-static C-V (`smu_qscv`, WP8.5).** The `QSV` source passes `check` at its start and stop (every level it
+forces, `V_N +/- cvoltage/2` included, lies between them: start and stop are never measured and cvoltage is at most
+the step) and the measurement channel `check_channel`, before anything is written. The smart operation (`QSO 1`) would
+let a second SMU force a current the instrument chooses; the guard could bound only its voltage compliance, so no kind
+enables it (`QSO 0` in every normal-mode setup). Through an SCUU the SMU roles reach their pads by `SSP` (route
+`smu`, guarded by `check_route`; the SCUU's modules never take `CN`) and the cleanup restores and verifies the rest
+state. The offset measurement (`QSZ 2`) needs the terminals open at the device end: its program carries the probe
+prompt, so R-ALWAYS-01 asks for `physical_setup`. The automatic abort (`QSM 2`, error 242) stops the sweep at any
+compliance, overflow or oscillation and returns the source to start. Residual: one `XE` (as a search), so a sweep
+longer than `segment_max_s` cannot run asynchronously.
+
+**GNDU budget (R-GNDU-01, WP8.5).** Every current returning through the GNDU (4.2 A, UG p58 (2-18)) is bounded at
+plan time by the compliances of the plan's channels plus the expected currents of the sources without compliance,
+whenever a role or any pin-map pad is on the GNDU; the simulator accounts the current that really returns
+(`gndu_peak_a`) and the GNDU table tests keep it within the bound. With the lab's modules (MP/HRSMUs at 100 mA, two
+SPGU and two WGFMU channels) the bound stays near 2.2 A; the rule protects added high-power modules and custom
+station profiles.
 
 **Program/read (`pulse_read`, WP9.4).** The composite kind pulses one terminal (HV-SPGU or SMU pulse source; the
 WGFMU source is refused at plan time until WP10.6) and reads it with SMUs after every operation. A read SMU on the

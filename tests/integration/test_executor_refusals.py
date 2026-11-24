@@ -39,7 +39,7 @@ def test_not_implemented_recipes_never_touch_the_instrument(world: World, tmp_pa
     world.recipes = recipes
     executor = world.executor()
     for recipe_id, dut in (("wgfmu.fast_bti", "nmos-generic"), ("mosfet.spot", "nmos-generic"),
-                           ("moscap.qscv", None)):
+                           ("fecap.pund", None)):
         record = plan(executor, recipe_id=recipe_id, dut_profile=dut)
         assert record.tier == "blocked"
         assert any(f.rule_id == "R-REC-01" and f.severity == "block" for f in record.rules.findings)

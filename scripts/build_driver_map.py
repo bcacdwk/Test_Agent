@@ -54,7 +54,8 @@ PRIORITY_SCALE = {
     "PG/ALWG commands by WP9.1, the 16440A selector settings ERMOD/ERSSP by WP9.2, the SMU pulsed modes MM 3, 4, 5, "
     "27, 28 with PT, PV, PI, PWV, PWI, MCPT, MCPNT, MCPNX, MCPWS, MCPWNX by WP7.3, the SMU search modes MM 14, 15 "
     "and the quasi-pulsed spot MM 9 with LS*, LG*, BS*, BG*, BDV, BDT, BDM by WP7.5, the SMU conditioning FL, SSR, "
-    "AZ, AV, RM and WNCC by WP7.7)",
+    "AZ, AV, RM and WNCC by WP7.7, the quasi-static C-V MM 13 with QSV, QST, QSM, QSL, QSO, QSC, QSR and the "
+    "offset QSZ by WP8.5)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
     "simulator's FLEX subset v1 (AV, BC, NUB?, TSC)",
     "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
@@ -80,6 +81,7 @@ DRIVER_METHODS = (
     "pulsed_setup", "pulsed_update",
     "search_setup", "quasi_pulse_setup",
     "set_filter", "set_series_resistor", "set_adc_zero", "set_averaging", "set_range_mode", "clear_sweep_sources",
+    "qscv_setup", "measure_qscv_offset",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
@@ -96,6 +98,7 @@ COMMAND_BUILDERS = (
     "lsv", "lsi", "lgv", "lgi", "lsm", "lstm", "lssv", "lssi", "lsvm", "bsv", "bsi", "bgv", "bgi", "bsm", "bst",
     "bssv", "bssi", "bsvm", "bdv", "bdt", "bdm",
     "fl", "ssr", "az", "av", "rm", "wncc",
+    "qsv", "qst", "qsm", "qsl", "qso", "qsc", "qsr", "qsz",
 )  # fmt: skip
 DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
 
@@ -145,7 +148,7 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "MM": CommandTarget("staircase", "mm", "staircase sends MM 2 (staircase) and MM 16 (multi-channel sweep, "
                         "WP7.2), sampling_setup MM 10, spot_setup MM 1 (WP7.1), the MFCMU setups MM 17-26 (WP8.1), "
                         "pulsed_setup MM 3/4/5/27/28 (WP7.3), search_setup MM 14/15 and quasi_pulse_setup MM 9 "
-                        "(WP7.5) (MM_MODE_TARGETS); every other mode is unmapped"),
+                        "(WP7.5), qscv_setup MM 13 (WP8.5) (MM_MODE_TARGETS); every other mode is unmapped"),
     "CMM": CommandTarget("staircase", "cmm", "sent inside the staircase, sampling and spot setups"),
     "WV": CommandTarget("staircase", "wv", "OutputGuard-checked voltage primary sweep"),
     "WI": CommandTarget("staircase", "wi", "OutputGuard-checked current primary sweep, lin/log single/double "
@@ -286,6 +289,18 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
     "AV": CommandTarget("set_averaging", "av", "high-speed ADC averaging; the kinds use AIT presets instead"),
     "RM": CommandTarget("set_range_mode", "rm", "auto-range operation of a current measurement"),
     "WNCC": CommandTarget("clear_sweep_sources", "wncc", "clears the WNX sources of a multi-channel sweep"),
+    # SMU quasi-static C-V (WP8.5, kind smu_qscv)
+    "QSV": CommandTarget("qscv_setup", "qsv", "MM 13 sweep source; OutputGuard.check at start and stop, Icomp always "
+                         "sent"),
+    "QST": CommandTarget("qscv_setup", "qst", "cinteg, linteg (whole line periods), hold, delay1, delay2 always sent"),
+    "QSM": CommandTarget("qscv_setup", "qsm", "automatic abort (error 242) and post value, both always sent"),
+    "QSL": CommandTarget("qscv_setup", "qsl", "leakage data output and compensation (recipe setting leakage)"),
+    "QSO": CommandTarget("qscv_setup", "qso", "always QSO 0 in normal mode: the smart operation's current is not "
+                         "bounded by the guard"),
+    "QSC": CommandTarget("qscv_setup", "qsc", "normal or 4155C/4156C compatible operation"),
+    "QSR": CommandTarget("qscv_setup", "qsr", "fixed range -9..-14; the kind checks the module has it"),
+    "QSZ": CommandTarget("measure_qscv_offset", "qsz", "QSZ 0/1 in qscv_setup (offset cancel off/on), QSZ 2 = the "
+                         "offset measurement (physical_setup: probes lifted)"),
 }
 MM_MODE_TARGETS: dict[int, str] = {1: "B1500Driver.spot_setup", 2: "B1500Driver.staircase",
                                    10: "B1500Driver.sampling_setup", 16: "B1500Driver.staircase",
@@ -296,7 +311,7 @@ MM_MODE_TARGETS: dict[int, str] = {1: "B1500Driver.spot_setup", 2: "B1500Driver.
                                    4: "B1500Driver.pulsed_setup", 5: "B1500Driver.pulsed_setup",
                                    27: "B1500Driver.pulsed_setup", 28: "B1500Driver.pulsed_setup",
                                    9: "B1500Driver.quasi_pulse_setup", 14: "B1500Driver.search_setup",
-                                   15: "B1500Driver.search_setup"}
+                                   15: "B1500Driver.search_setup", 13: "B1500Driver.qscv_setup"}
 """``MM <mode>`` entries of the legacy atoms: the driver method that sends each mapped mode (others unmapped)."""
 # Mapped commands are all m1; these unmapped ones are m2; everything else is `later`.
 M2_COMMANDS = frozenset({"AV", "BC", "NUB?", "TSC"})
@@ -424,6 +439,15 @@ GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "AV": ([362, 363], ["4-44 to 4-45"]),
     "RM": ([501, 502], ["4-183 to 4-184"]),
     "WNCC": ([556], ["4-238"]),
+    # SMU quasi-static C-V (WP8.5)
+    "QSC": ([493], ["4-175"]),
+    "QSL": ([493, 494], ["4-175 to 4-176"]),
+    "QSM": ([494, 495], ["4-176 to 4-177"]),
+    "QSO": ([495], ["4-177"]),
+    "QSR": ([496], ["4-178"]),
+    "QST": ([496, 497], ["4-178 to 4-179"]),
+    "QSV": ([497, 498, 499], ["4-179 to 4-181"]),
+    "QSZ": ([499, 500], ["4-181 to 4-182"]),
 }
 CHAPTER_4_PDF_OFFSET = 318
 
@@ -499,7 +523,8 @@ ATOM_OVERRIDES: dict[str, dict[str, str]] = {
     },
     "C_atom_smu_set_measurement_mode": {"note": "staircase sends MM 2 and MM 16 (WP7.2), sampling_setup MM 10 "
                                         "(WP7.4), spot_setup MM 1 (WP7.1), pulsed_setup MM 3/4/5/27/28 (WP7.3), "
-                                        "search_setup MM 14/15, quasi_pulse_setup MM 9 (WP7.5); other modes later"},
+                                        "search_setup MM 14/15, quasi_pulse_setup MM 9 (WP7.5), qscv_setup MM 13 "
+                                        "(WP8.5); other modes later"},
     "C_atom_smu_configure_integration": {"priority": "m1", "note": "AV (averaging): set_averaging (WP7.7)"},
     "C_atom_smu_set_measurement_ranging": {"priority": "m1", "note": "RM (auto-ranging operation): set_range_mode "
                                            "(WP7.7)"},

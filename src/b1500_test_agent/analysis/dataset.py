@@ -19,8 +19,10 @@ when the derived folder has no manifest.
   ``V`` (V), ``I`` (A); MFCMU quantities by the IMP model ``Cp`` (F), ``G`` (S), ``Cs`` (F), ``Rs`` (Ohm), ``D`` (1),
   ``Z`` (Ohm), ``theta`` (rad). With a status column it is a measured value; a ``V``/``I`` column without one is the
   programmed source value (e.g. ``gate_V`` of a swept gate whose voltage is not measured); MFCMU quantities are
-  always measured. WGFMU points use ``<role>_V``/``<role>_I`` like SMU points. Empty cells are missing values; the
-  invalid-data value ``199.999E+99`` is kept as read.
+  always measured. ``Cp`` also holds the SMU's quasi-static capacitance of a QSCV run (kind ``smu_qscv``, WP8.5:
+  ``dc_v`` the step voltage, ``<role>_I`` the leakage current, no ``freq_hz``). WGFMU points use
+  ``<role>_V``/``<role>_I`` like SMU points. Empty cells are missing values; the invalid-data value ``199.999E+99`` is
+  kept as read.
 - ``<role>_<qty>_status``: the single-letter status of that value (``N`` normal, ``C``/``T`` compliance,
   ``V X F D G S U`` invalid; any other letter is untrusted), exactly one upper-case letter. WGFMU flags map to
   letters (range overflow ``V``, error ``X``).

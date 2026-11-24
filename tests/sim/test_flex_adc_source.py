@@ -90,7 +90,8 @@ def test_mm1_spot_measures_each_channel_in_mm_order(make_sim) -> None:
     assert values(",".join(data)) == pytest.approx([-1e-3, 1e-3])
 
 
-@pytest.mark.parametrize("mode", [13])  # 3, 4, 5, 27, 28: units/pulsed.py (WP7.3); 9, 14, 15: units/search.py (WP7.5)
+@pytest.mark.parametrize("mode", [6, 11])  # 3, 4, 5, 27, 28: units/pulsed.py (WP7.3); 9, 14, 15: units/search.py
+# (WP7.5); 13: units/qscv.py (WP8.5)
 def test_other_mm_modes_are_unsupported(make_sim, mode: int) -> None:
     sim = make_sim()
     sim.write(f"MM {mode},1")

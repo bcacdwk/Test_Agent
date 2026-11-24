@@ -212,7 +212,8 @@ def source_request(record: CommandRecord, primary: CommandRecord | None = None
     ``PWV``/``PWI``, ``MCPNX``/``MCPWNX`` (488, 485, 492, 490, 462, 465; levels base, pulse or start/stop); the
     search sources ``LSV``/``LSI``, ``BSV``/``BSI`` and the quasi-pulse ``BDV`` (459, 453, 374, 369, 365; start and
     stop) and the synchronous search sources ``LSSV``/``LSSI``/``BSSV``/``BSSI`` (456, 455, 373, 372; ``polarity x
-    start/stop + offset`` of their search source ``primary``) (WP7.5)."""
+    start/stop + offset`` of their search source ``primary``) (WP7.5); the QSCV sweep source ``QSV`` (497-499; start
+    and stop) (WP8.5)."""
     args = record.args
     mnemonic = record.mnemonic
 
@@ -247,6 +248,8 @@ def source_request(record: CommandRecord, primary: CommandRecord | None = None
         sign = 1.0 if int(args[1]) == 1 else -1.0
         start, stop = float(primary.args[2]), float(primary.args[3])
         return int(args[0]), mnemonic[3], [sign * start + float(args[2]), sign * stop + float(args[2])], comp(3)
+    if mnemonic == "QSV":  # PDF 497-499: channel, mode, range, start, stop, cvoltage, step, Icomp (WP8.5)
+        return int(args[0]), "V", [float(args[3]), float(args[4])], comp(7)
     raise AssertionError(f"source command the invariant does not know: {record.command}")
 
 
@@ -255,7 +258,7 @@ def assert_within_envelope(log: list[CommandRecord], envelope: CompiledEnvelope 
     voltage source within |V| and its Icomp within |I|, a current source within |I| and its Vcomp within |V|."""
     primaries: dict[str, CommandRecord] = {}  # the last LSV/LSI (L) and BSV/BSI (B) search source (WP7.5)
     for record in log:
-        if not record.source:
+        if not record.source or record.mnemonic == "SSP":  # SSP: an SCUU route (OutputGuard.check_route), no level
             continue
         if record.mnemonic in ("LSV", "LSI", "BSV", "BSI"):
             primaries[record.mnemonic[0]] = record

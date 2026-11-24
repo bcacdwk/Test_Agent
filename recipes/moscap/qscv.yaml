@@ -1,0 +1,57 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# MOS capacitor quasi-static C-V (kind smu_qscv, MM 13; card moscap-dit; blueprint v2 3.2, implements the reserved id
+# moscap.qscv; bring-up stage L6): the gate SMU sweeps from v_start to v_stop in steps of step_v and integrates the
+# charge each cvoltage_v transition moves (cinteg_s), with the leakage measured before and after it (linteg_s) and
+# subtracted (QSL 1,1, normal mode): C = (I - Leak) cinteg / (V - V0) per step (Programming Guide Ed. 15 PDF 115-117,
+# QSV PDF 497-499, QST PDF 496-497, QSL PDF 493-494, QSM PDF 494-495, QSR PDF 496, QSZ PDF 499-500; example Table
+# 3-17 PDF 241-245). The bulk sits at 0 V (an SMU or the GNDU). With the SCUU of CMU1 (pin map moscap-scuu: gate
+# SCUU1.OUT1 = SMU6, bulk SCUU1.OUT2 = SMU5) the same landing then gives the high-frequency C-V (moscap.cv) for the
+# high-low Dit (dit_high_low with options.reference_run). Default direction inversion -> accumulation (hold_s lets
+# the inversion layer form first); irange_a must hold C x cvoltage / cinteg plus the leakage (an MPSMU from 1 nA).
+# offset: off (QSZ 0), cancel (QSZ 1: subtract the offset the instrument measured last) or measure (QSZ 2 with the
+# probes lifted: physical_setup; the run returns the offset only). Default analysis: Cox (accumulation extrapolation
+# of the quasi-static curve).
+# status: sim_validated by tests/integration/test_recipes_qscv.py (moscap_dit through the SCUU: Cox +-2 %, high-low
+# Dit +-30 % of the model truth); the visa path by tests/visa_loop/test_qscv_visa.py; hw_validated only through a
+# reviewed validation record (stage L6).
+id: moscap.qscv
+version: 1
+title: MOS capacitor quasi-static C-V (SMU charge integration with leakage compensation) for the LF curve and Dit
+family: cmu
+kind: smu_qscv
+status: sim_validated
+card: .agents/skills/b1500-test/cards/cmu/moscap-dit.md
+device_types: [moscap]
+roles:
+  gate:
+    function: sweep_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU]
+    settings: {start: $v_start, stop: $v_stop, step: $step_v, cvoltage: $cvoltage_v, icomp: $icomp_a,
+               sweep: $sweep_mode, hold: $hold_s, delay1: $delay_s, cinteg: $cinteg_s, linteg: $linteg_s,
+               irange: $irange_a, leakage: $leakage, operation: $operation, offset: $offset}
+  bulk: {function: ground, allow_gndu: true, module_types: [MPSMU, HRSMU]}
+params:
+  v_start: {unit: V, default: 2.0, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: Gate start (inversion side; not measured).}
+  v_stop: {unit: V, default: -2.5, recommended: [-3.0, 3.0], range: [-25.0, 25.0], doc: Gate stop (accumulation side; not measured).}
+  step_v: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [0.001, 10.0], doc: Sweep step; |v_stop - v_start| must be a whole number of steps.}
+  cvoltage_v: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [0.001, 10.0], doc: Capacitance measurement voltage (the transition; at most the step).}
+  icomp_a: {unit: A, default: 1.0e-6, recommended: [1.0e-7, 1.0e-6], range: [1.0e-9, 1.0e-3], doc: Gate current compliance.}
+  sweep_mode: {type: enum, choices: [single, double], default: single, doc: single start->stop; double start->stop->start.}
+  hold_s: {unit: s, default: 5.0, recommended: [2.0, 10.0], range: [0.0, 655.35], doc: Hold at the first step (equilibrium; QST hold).}
+  delay_s: {unit: s, default: 0.0, recommended: [0.0, 0.5], range: [0.0, 65.535], doc: Delay after each step's start (QST delay1).}
+  cinteg_s: {unit: s, default: 0.1, recommended: [0.1, 1.0], range: [0.02, 400.0], doc: Charge integration time (whole line periods).}
+  linteg_s: {unit: s, default: 0.1, recommended: [0.1, 0.5], range: [0.02, 2.0], doc: Leakage integration time (whole line periods).}
+  irange_a: {unit: A, default: 1.0e-8, recommended: [1.0e-9, 1.0e-7], range: [1.0e-11, 1.0e-6], doc: "QSR range: 1e-11, 1e-10 (HRSMU), 1e-9, 1e-8, 1e-7 or 1e-6 A."}
+  leakage: {type: enum, choices: [compensate, data, "off"], default: compensate, doc: "QSL 1,1 (data and compensation), 1,0 (data only), 0,0 (no leakage measurement)."}
+  operation: {type: enum, choices: [normal, compatible], default: normal, doc: QSC normal or 4155C/4156C compatible.}
+  offset: {type: enum, choices: ["off", cancel, measure], default: "off", doc: "QSZ 0, QSZ 1 (subtract the stored offset) or QSZ 2 (measure it; probes lifted)."}
+quality: {limited: [], untrusted: [V, X, C, T, F, G, S, U, D], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: cv_cox, options: {}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind smu_qscv), 2.10 (dit_high_low), 3.2 (moscap.qscv), 4.2 (moscap Dit)
+    - Programming Guide Ed. 15 QSCV (PDF 115-117), QSC/QSL/QSM/QSO/QSR/QST/QSV/QSZ (PDF 493-500), Table 3-17 (PDF 241-245)
+    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 8 (quasi-static and high-low methods)
+  validation_runs: []

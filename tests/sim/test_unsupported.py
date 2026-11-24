@@ -39,7 +39,7 @@ def test_supported_commands_are_exactly_the_v1_subset() -> None:
     and multi-channel sweep sources; WP7.1 the ASU commands; WP8.1 the MFCMU commands, ``CORR?`` and the SCUU's
     ``SSP``/``SSL``; WP9.1 the HV-SPGU commands; WP8.2 the correction set-up queries ``CORRL?``, ``DCORR?``; WP9.2 the
 16440A selector settings ``ERMOD``/``ERSSP``; WP7.5 the search and quasi-pulsed setup; WP7.7 the SMU conditioning
-``FL``, ``SSR``, ``AZ``, ``RM``."""
+``FL``, ``SSR``, ``AZ``, ``RM``; WP8.5 the quasi-static C-V setup and offset ``QS*``."""
     assert flex.CMU_COMMANDS == {
         "IMP", "FC", "ACV", "DCV", "RC", "ACT", "LMN", "WDCV", "WTDCV", "WMDCV", "WFC", "WTFC", "WMFC", "WACV",
         "WTACV", "WMACV", "PDCV", "PTDCV", "PWDCV", "MDCV", "MTDCV", "ADJ", "CORRL", "CLCORR", "DCORR", "CORRDT",
@@ -59,6 +59,7 @@ def test_supported_commands_are_exactly_the_v1_subset() -> None:
         "BSV", "BSI", "BGV", "BGI", "BSM", "BST", "BSSV", "BSSI", "BSVM", "BDV", "BDT", "BDM",
         "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
         "FL", "SSR", "AZ", "RM",
+        "QSV", "QST", "QSM", "QSL", "QSO", "QSC", "QSR", "QSZ",
         "SAP", "SAR", "SAL",
         "SSP", "SSL",
         "ERMOD", "ERSSP",

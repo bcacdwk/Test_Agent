@@ -15,5 +15,5 @@ terminals:
 notes:
   - Corrections (phase, open, short) are measured through the SCUU with this pin map; the direct map moscap-cmu needs
     its own.
-  - The SCUU's SMUs (SMU5, SMU6) are switched by SSP only; I-V recipes on this landing use a map with the SCUU
-    outputs as SMU terminals.
+  - The SCUU's SMUs (SMU5, SMU6) are switched by SSP only. SMU recipes use this same map (WP8.5); their roles bind
+    to the outputs' SMU inputs (SSP 7,3), e.g. moscap.qscv for the quasi-static C-V of this landing (card moscap-dit).

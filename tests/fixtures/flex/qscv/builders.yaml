@@ -1,0 +1,30 @@
+# Golden FLEX strings of the SMU quasi-static C-V builders (src/b1500_test_agent/driver/flex/qscv.py), WP8.5.
+# Each case: the builder, its arguments, the exact string the builder writes (`expect`) and, where the Programming
+# Guide prints an example with the same parameters, that example (`manual`) with its PDF page; the builder writes
+# numbers in its own canonical form (shortest round-trip decimal), which must be numerically equal to the manual's.
+# The builders always send the compliance, both QSM values and delay2, so examples that omit them are cited without
+# `manual`. The QSV case of Table 3-17 (PDF 243) is the example's gate sweep 3.2 V -> -7.2 V, 0.2 V steps.
+source: >-
+  Keysight B1500 Series Programming Guide, Edition 15: QSC PDF 493, QSL PDF 493-494, QSM PDF 494-495, QSO PDF 495,
+  QSR/QST PDF 496-497, QSV PDF 497-499, QSZ PDF 499-500, and the programming example Table 3-17 (PDF 241-245).
+kind: builders
+cases:
+  - {builder: qsc, args: [compatible], expect: "QSC 1", manual: "QSC 1", pdf: 493}
+  - {builder: qsc, args: [normal], expect: "QSC 0", manual: "QSC 0", pdf: 243}
+  - {builder: qsl, args: [false, false], expect: "QSL 0,0", manual: "QSL 0,0", pdf: 494}
+  - {builder: qsl, args: [true, true], expect: "QSL 1,1", manual: "QSL 1,1", pdf: 243}
+  - {builder: qsm, args: [true, stop], expect: "QSM 2,2", manual: "QSM 2,2", pdf: 495}
+  - {builder: qsm, args: [true, start], expect: "QSM 2,1", manual: "QSM 2,1", pdf: 243}
+  - {builder: qso, args: [true, 5, 20], expect: "QSO 1,5,20", manual: "QSO 1,5,20", pdf: 495}
+  - {builder: qso, args: [false], expect: "QSO 0", pdf: 495}
+  - {builder: qsr, args: [-10], expect: "QSR -10", manual: "QSR -10", pdf: 496}
+  - {builder: qst, args: [0.35, 0.1, 5, 0.2, 0.2], expect: "QST 0.35,0.1,5,0.2,0.2", manual: "QST 0.35,0.1,5,0.2,0.2",
+     pdf: 497}
+  - {builder: qst, args: [0.1, 0.1, 5, 0, 0], expect: "QST 0.1,0.1,5,0,0", manual: "QST 0.1,0.1,5,0.0,0.0", pdf: 243}
+  - {builder: qsv, args: [1, single, 0, 0, 5, 1, 4, 0.1], expect: "QSV 1,1,0,0,5,1,4,0.1",
+     manual: "QSV 1,1,0,0,5,1,4,0.1", pdf: 499}
+  - {builder: qsv, args: [2, single, 0, 3.2, -7.2, 0.25, 51, 0.1], expect: "QSV 2,1,0,3.2,-7.2,0.25,51,0.1", pdf: 243}
+  - {builder: qsv, args: [6, double, 12, -2, 2, 0.05, 79, 1.0e-6], expect: "QSV 6,3,12,-2,2,0.05,79,1E-06", pdf: 498}
+  - {builder: qsz, args: [2], expect: "QSZ 2", manual: "QSZ 2", pdf: 500}
+  - {builder: qsz, args: [1], expect: "QSZ 1", manual: "QSZ 1", pdf: 500}
+  - {builder: qsz, args: [0], expect: "QSZ 0", manual: "QSZ 0", pdf: 243}

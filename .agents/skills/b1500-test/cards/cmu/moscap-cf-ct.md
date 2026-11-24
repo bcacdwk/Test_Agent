@@ -29,20 +29,22 @@ Two time/frequency views of a MOS capacitor at one gate bias:
 - `moscap.ct` (MM 26): Cp after a step from `v_base` (accumulation) to `v_bias` (inversion side), sampled in time:
   deep depletion (C below the HF minimum) recovering as the inversion layer forms (generation). Long transients run
   as chained blocks with progress and cancel.
-- Not for: C-V (`moscap-cv`), Dit over the band gap from many biases or QSCV (the conductance and high-low
-  methods), oxide leakage (`gate-leakage`).
+- Not for: C-V (`moscap-cv`), Dit over the band gap from many biases or QSCV (card `moscap-dit`), oxide leakage
+  (`gate-leakage`).
 
 ## 2. Wiring, pin map, modules
 
 | terminal | role | module | notes |
 |---|---|---|---|
-| gate | `gate` (cmu_high) | MFCMU High (`7H`) | DC bias, AC drive |
-| bulk | `bulk` (cmu_low) | MFCMU Low (`7L`) | substrate / back contact |
+| gate | `gate` (cmu_high) | MFCMU High (`7H`, or `SCUU1.OUT1`) | DC bias, AC drive |
+| bulk | `bulk` (cmu_low) | MFCMU Low (`7L`, or `SCUU1.OUT2`) | substrate / back contact |
 
-Example pin map `moscap-cmu`, DUT `moscap-generic` (`geometry.area_um2` and `tox_nm` for Dit and the geometry Cox).
+Pin map `moscap-cmu` (direct) or `moscap-scuu` (through SCUU1: the simulator's `moscap_dit` lands this way, so QSCV
+and C-V share one landing, card `moscap-dit`), DUT `moscap-generic` (`geometry.area_um2` and `tox_nm` for Dit and the
+geometry Cox).
 
-- Routes per phase: none with `moscap-cmu`; through an SCUU (`moscap-scuu`): measure `SCUU1.OUT1/OUT2 -> cmu`,
-  then rest; cleanup: rest.
+- Routes per phase: none with `moscap-cmu`; with `moscap-scuu`: measure `SCUU1.OUT1/OUT2 -> cmu`, then rest;
+  cleanup: rest.
 
 ## 3. Pre-run checklist
 
@@ -81,7 +83,7 @@ Example plan (validated on the simulator by `b1500 dev lint-skills`, corrections
 ```yaml
 recipe_id: moscap.cf
 params: {}
-pin_map: moscap-cmu
+pin_map: moscap-scuu
 dut_profile: moscap-generic
 sim_scenario: moscap_dit
 ```

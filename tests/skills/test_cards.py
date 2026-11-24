@@ -56,6 +56,7 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "wgfmu/wgfmu-custom-waveform": ["wgfmu.custom_waveform", "wgfmu.dc_spot"],  # WP10.4
     "nvm/fefet-switching-kinetics": ["fefet.switching_kinetics"],  # WP9.5
     "nvm/fefet-endurance-retention": ["fefet.endurance", "fefet.retention"],  # WP9.5
+    "cmu/moscap-dit": ["moscap.qscv", "moscap.cv_multi_freq"],  # WP8.5
 }
 CARDS["cmu/moscap-cv"] = ["moscap.cv", "moscap.cv_ac_level", "moscap.pulsed_cv"]  # WP8.4 adds the AC-level/pulsed C-V
 ROUTES = {"spgu/selector-check": ["selector_16440a:smu", "selector_16440a:pgu", "selector_16440a:pgu_open"],
@@ -65,10 +66,11 @@ ROUTES = {"spgu/selector-check": ["selector_16440a:smu", "selector_16440a:pgu", 
           "cmu/moscap-cf-ct": ["scuu:cmu"],  # WP8.4
           "wgfmu/wgfmu-pulsed-iv": ["rsu:wgfmu"], "wgfmu/wgfmu-custom-waveform": ["rsu:wgfmu"],
           "nvm/fefet-switching-kinetics": ["selector_16440a:pgu", "selector_16440a:smu"],  # WP9.5
-          "nvm/fefet-endurance-retention": ["selector_16440a:pgu", "selector_16440a:smu"]}
+          "nvm/fefet-endurance-retention": ["selector_16440a:pgu", "selector_16440a:smu"],
+          "cmu/moscap-dit": ["scuu:smu", "scuu:cmu"]}  # WP8.5
 """Cards whose recipes set switch routes (WP9.2, WP9.3; WP8.3: the MFCMU recipes through an SCUU when the pin map says
-so; WP9.4: program/read through the selector; WP10.4: the RSU path of the WGFMU); every other card's recipes route
-nothing ("Routes: none")."""
+so; WP9.4: program/read through the selector; WP10.4: the RSU path of the WGFMU; WP8.5: QSCV through the SCUU's SMU
+path); every other card's recipes route nothing ("Routes: none")."""
 STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfet-idvg": "L4", "smu/mosfet-idvd": "L4",
             "smu/gate-leakage": "L4", "nvm/fefet-dual-sweep-mw": "L7", "system/self-test-cal": "L1",
             "smu/smu-sampling": "L5", "reliability/tddb-bdv": "L9", "smu/smu-spot-kelvin": "L2",
@@ -81,7 +83,8 @@ STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfe
             "cmu/moscap-cf-ct": "L6", "nvm/fecap-pund": "L6",  # WP8.4
             "smu/compact-model-spice": "L4",  # WP7.7
             "wgfmu/wgfmu-pulsed-iv": "L8", "wgfmu/wgfmu-custom-waveform": "L8",  # WP10.4
-            "nvm/fefet-switching-kinetics": "L7", "nvm/fefet-endurance-retention": "L9"}  # WP9.5
+            "nvm/fefet-switching-kinetics": "L7", "nvm/fefet-endurance-retention": "L9",  # WP9.5
+            "cmu/moscap-dit": "L6"}  # WP8.5
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault", "cmu-correction-stale",  # WP8.2: the first v2 runbook

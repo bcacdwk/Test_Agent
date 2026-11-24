@@ -10,15 +10,15 @@ skill's rules, a card, a recipe, the policy or a DUT profile, and it never autho
 | Domain | Scope | When to load |
 |---|---|---|
 | [01 device physics](01-device-physics.md) | resistor (contact vs bulk), capacitor models, PN and Schottky diodes, MOSFET Vth/gm/SS/Ion-Ioff/Id-Vd, MOS-C | interpreting a curve's physics; choosing bias regions; explaining a derived value |
-| [02 B1500A instrument](02-b1500-instrument.md) | modules and limits, channel numbering, `UNT?`, measurement modes, status letters, integration time, errors, interlock, self-test/cal, FLEX glossary | choosing modules or presets; reading status counts, errors, a plan's FLEX preview or an audit log |
-| [02b SMU modes and long runs](02b-smu-modes.md) | sampling MM 10, pulsed MM 3/4/5/27/28, search MM 9/14/15, zero-check floor, SMU conditioning (FL, SSR, AZ, AV, RM), long runs (async, CM 0, recovery) | planning or reading a sampling, pulsed, search or long SMU run; a conditioning question |
+| [02 B1500A instrument](02-b1500-instrument.md) | modules and limits, GNDU and its 4.2 A return budget, channel numbering, `UNT?`, measurement modes, status letters, integration time, errors, interlock, self-test/cal, FLEX glossary | choosing modules or presets; reading status counts, errors, a plan's FLEX preview or an audit log |
+| [02b SMU modes and long runs](02b-smu-modes.md) | sampling MM 10, pulsed MM 3/4/5/27/28, search MM 9/14/15, quasi-static C-V MM 13, zero-check floor, SMU conditioning (FL, SSR, AZ, AV, RM), long runs (async, CM 0, recovery) | planning or reading a sampling, pulsed, search, QSCV or long SMU run; a conditioning question |
 | [03 probe station and wiring](03-probe-station-wiring.md) | signal path, triax, guard, Kelvin and four-wire R, ASU/SCUU/selector, shielding and grounding, probe contact, contact checks | low-current or low-resistance work; a fresh landing; suspect wiring or noise |
 | [04 ferroelectric and oxide](04-ferroelectric-oxide.md) | Ec/Pr/Ps, FeFET operation, memory window by dual sweep, read disturb, pulse write/read, endurance, NLS switching kinetics, retention, PUND (reserved), IGZO TFTs | FeFET or FeCap requests; oxide TFT measurements |
 | [05 reliability and defects](05-reliability-defects.md) | gate leakage safe envelope, BTI/HCI/TDDB, breakdown voltage ramps, Dit, SILC and trapping, IGZO instability, wake-up/imprint/fatigue | gate leakage; drift or hysteresis; any stress or breakdown request |
 | [06 analysis and extraction](06-analysis-extraction.md) | run table and trust, quality gate, gm, Vth (3 methods), SS, Ion/Ioff, Ron/gds, R, diode fit, leakage, MW, plots, reporting rules | before `analyze_run`; writing the report; ad-hoc analysis |
 | [06b time series, pulsed and search runs](06b-analysis-time-pulse.md) | sampling summary and relaxation fit, time to breakdown and Weibull, pulsed vs DC (two-run), pulse plateau, Vth by search, breakdown voltage, program/read memory window, switching kinetics (NLS), endurance, retention | analysing a sampling, TDDB, pulsed, search, program/read, kinetics, endurance or retention run |
 | [07 compact models](07-compact-models.md) | level-1 and EKV model fits, model vs run comparison, SPICE `.model`/subcircuit and netlist export (ngspice, HSPICE), BSIM4/Verilog-A later | a model card, SPICE, netlist or simulation-comparison request; reading a model fit |
-| [08 capacitance and C-V](08-capacitance-cv.md) | MFCMU pairs Cp-G/Cs-Rs/Z-theta, corrections, MOS-C HF C-V, Cox/EOT, 1/C^2 doping, flatband, Vth, hysteresis, split C-V, SCUU same landing | any capacitance or C-V request; before `analyze_run` on a C-V run |
+| [08 capacitance and C-V](08-capacitance-cv.md) | MFCMU pairs Cp-G/Cs-Rs/Z-theta, corrections, MOS-C HF C-V, Cox/EOT, 1/C^2 doping, flatband, Vth, hysteresis, split C-V, SCUU same landing, AC level, pulsed, C-f, C-t, QSCV, Dit over the gap (high-low, conductance), FeCap butterfly | any capacitance, C-V, QSCV or Dit request; before `analyze_run` on a C-V run |
 | debug | skill `b1500-debug`: triage order, runbooks, cases | noisy, impossible, compliance-limited or drifting data; faults; VISA errors |
 | [09 pulses, HV-SPGU and selector](09-pulse-spgu-selector.md) | HV-SPGU output and SER (open-load doubling, high_z residual), PG and ALWG trains, count/duration bounds, running a train, readings during a train, R-PULSE/R-SPGU rules, program/read (pulse_read) and its schedules (cycles, endurance bursts, grid, retention), simulator | any SPGU pulse or waveform plan; program/erase then read; a gate pulse that did nothing or too much |
 | [11 switching and routing](11-switching-routing.md) | switches in the station profile, routes per phase, 16440A selector (ERSSP, PGU open, Force only), SCUU/ASU paths, RSU, guard and R-ROUTE rules, cleanup to rest, selector check, simulator | any plan through a switch target; selector wiring (L7); a run blocked or failed on a route |
@@ -64,6 +64,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Sampling measurement MM 10](02b-smu-modes.md#sampling-measurement-mm-10)
 - [Pulsed measurements MM 3 4 5 27 28](02b-smu-modes.md#pulsed-measurements-mm-3-4-5-27-28)
 - [Search measurements MM 9 14 15](02b-smu-modes.md#search-measurements-mm-9-14-15)
+- [Quasi-static C-V MM 13](02b-smu-modes.md#quasi-static-c-v-mm-13)
 - [Zero check floor](02b-smu-modes.md#zero-check-floor)
 - [SMU output conditioning](02b-smu-modes.md#smu-output-conditioning)
 - [Long SMU runs](02b-smu-modes.md#long-smu-runs)
@@ -172,6 +173,13 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Hysteresis](08-capacitance-cv.md#hysteresis)
 - [Split C-V Cgc and Cgd](08-capacitance-cv.md#split-c-v-cgc-and-cgd)
 - [SCUU same-landing I-V and C-V](08-capacitance-cv.md#scuu-same-landing-i-v-and-c-v)
+- [AC level dependence](08-capacitance-cv.md#ac-level-dependence)
+- [Pulsed C-V](08-capacitance-cv.md#pulsed-c-v)
+- [C-f and frequency dispersion](08-capacitance-cv.md#c-f-and-frequency-dispersion)
+- [C-t and deep-depletion recovery](08-capacitance-cv.md#c-t-and-deep-depletion-recovery)
+- [Quasi-static C-V](08-capacitance-cv.md#quasi-static-c-v)
+- [Dit over the band gap](08-capacitance-cv.md#dit-over-the-band-gap)
+- [FeCap C-V butterfly](08-capacitance-cv.md#fecap-c-v-butterfly)
 - [Reporting C-V results](08-capacitance-cv.md#reporting-c-v-results)
 
 ### 09 pulses, HV-SPGU and selector

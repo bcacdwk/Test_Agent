@@ -22,10 +22,19 @@ run it); there is no raw-command tool and none may be improvised. PDF page numbe
 
 ## Mainframe slots and GNDU
 
-- Ten module slots plus the built-in ground unit (GNDU) (UG PDF 44). HPSMU, HCSMU and HVSMU occupy two slots.
-- GNDU: 0 V constant-voltage source used as the measurement ground reference; it sinks up to 4.2 A (UG PDF 58).
-  Its cable must be the 16493L GNDU cable: an ordinary triaxial cable is rated 1 A (UG PDF 93).
-- In pin maps a terminal bound to `GNDU` (source, bulk) is grounded through the GNDU.
+- Ten module slots plus the built-in ground unit (GNDU) (UG PDF 44). HPSMU, HCSMU and HVSMU occupy two slots. With a
+  WGFMU the sum of the module ratings must stay below 60 (lab: 37; WG p17).
+- GNDU: a 0 V source, the measurement ground reference, Force and Sense in one connector; it sinks up to 4.2 A (UG
+  p58 (2-18) "4.2 A"). Its cable must be the 16493L GNDU cable (4.2 A; an ordinary triax cable is rated 1 A, UG PDF
+  93). It measures nothing: a terminal whose current matters (substrate current, charge pumping) needs an SMU at 0 V.
+- In pin maps a terminal bound to `GNDU` (source, bulk) is grounded through the GNDU; only a plain `ground` role may
+  use it (R-PIN-01). Status letters name it `V` (Table 1-11).
+- Return-current budget (rule R-GNDU-01, plan phase, block): when a role or any pin-map pad is on the GNDU, the
+  compliances of every SMU channel of the plan plus the currents of the sources without compliance (an HV-SPGU's
+  short-circuit bound from its pulse envelope, else 40 V into 50 Ohm; a WGFMU's 100 mA) must stay within 4.2 A. The
+  lab station (four MP/HRSMUs at <= 100 mA, two SPGU channels, two WGFMU channels) stays below about 2.2 A, so the rule
+  matters for added high-power modules and custom station profiles. The simulator accounts the current that really
+  returns (`gndu_peak_a`); tests keep it below the rule's bound.
 
 ## SMU and module table
 
@@ -77,7 +86,7 @@ multi-channel sweeps; WP7.1 the spot, mode 1; WP7.3 the pulsed modes; WP7.5 the 
 | 3, 4, 5 | pulsed spot, pulsed sweep, staircase with pulsed bias | SMU | `smu_pulsed` (section below) |
 | 9 | quasi-pulsed spot (`BDV` ramp to the compliance, then one reading) | SMU | `smu_search` (`dielectric.bdv`) |
 | 10 | sampling | SMU | `smu_sampling` (I(t) transients, TDDB; section below) |
-| 13 | quasi-static C-V | SMU | reserved |
+| 13 | quasi-static C-V (`QSV` sweep, charge integration, leakage compensation) | SMU | `smu_qscv` (`moscap.qscv`; [02b](02b-smu-modes.md#quasi-static-c-v-mm-13)) |
 | 14, 15 | linear / binary search (`LS*`/`LG*`, `BS*`/`BG*`) | SMU | `smu_search` (section below) |
 | 16 | multi-channel sweep (`WV`/`WI` primary + `WNX` sources, either mode; PDF 102) | SMU | `smu_staircase` with two or more sweep roles |
 | 17-20, 22, 23, 26 | spot C, C-V, pulsed C, C-f, C-V(AC level), C-t | MFCMU | driver + simulator (WP8.1); recipes M8 |
@@ -157,6 +166,8 @@ measurement as `mosfet.idvg` on pin map `mosfet-3t-lab` with these deliberate di
 | `SER`, `SPM`, `SPT`, `SPV` | SPGU load (sets the open-load level); 2/3-level mode; timing; levels | 507, 510-511, 514-517 |
 | `SPUPD`, `SRP`, `SPP`, `SPST?` | apply setup (base level); start; stop; output active | 515-516, 518, 511, 513-514 |
 | `ODSW`, `STGP`, `CORRSER?`, `ALW`/`ALS` | pulse switch; trigger out; load measurement; ALWG data blocks | 478, 523, 385-386, 360-362 |
+| `QSV`, `QST`, `QSL`, `QSM` | QSCV sweep source; integration, hold and delays; leakage data/compensation; abort/post | 497-499, 496-497, 493-494, 494-495 |
+| `QSR`, `QSC`, `QSO`, `QSZ` | QSCV range; normal/4155C mode; smart operation (always off); offset cancel or measure | 496, 493, 495, 499-500 |
 
 ## Data status codes
 

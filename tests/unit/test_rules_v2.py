@@ -494,8 +494,13 @@ CASES: list[Case] = [
                                                               function="pgu")
                                           for ch in (101, 102, 301, 401, 501, 601)}),
          (F("block", ANY, 4.2, f"{SPEC}.MODULE_SPECS[GNDU] (UG GNDU, PDF 58)"),)),
-    Case("gndu-ok-no-role-on-gndu", "R-GNDU-01",
-         partial(context, pm=pin_map(source=6), extra_envelope={101: pgu_entry("p1"), 102: pgu_entry("p2")})),
+    Case("gndu-ok-nothing-on-gndu", "R-GNDU-01",
+         partial(context, pm=pin_map(source=6, bulk=None), extra_envelope={101: pgu_entry("p1"),
+                                                                            102: pgu_entry("p2")})),
+    # WP8.5: a pad landed on the GNDU carries return current even when no role of the recipe names it
+    Case("gndu-pad-without-role", "R-GNDU-01",
+         partial(context, pm=pin_map(source=6), extra_envelope={101: pgu_entry("p1"), 102: pgu_entry("p2")}),
+         (F("block", 5.001001, 4.2, f"{SPEC}.MODULE_SPECS[GNDU] (UG GNDU, PDF 58)"),)),
     # R-ASU-01
     Case("asu-ok-nanoamp-range", "R-ASU-01", partial(context, rec=v2.IRANGE_REC)),
     Case("asu-ok-picoamp-with-asu", "R-ASU-01",

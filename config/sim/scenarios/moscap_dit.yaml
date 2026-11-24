@@ -16,11 +16,19 @@
 # shows deep depletion recovering over seconds (C-t; truth: tau_inv_s, MoscapDevice.deep_depletion_capacitance and
 # equilibrium_capacitance). No border traps (hysteresis 0) and a small series resistance (5 Ohm) keep the trap
 # signals clean. Truth: Cox = 69.06 pF, Vfb = phi_ms - q Qf / Cox - Qit(0)/Cox = MoscapDevice.vfb() (-0.887 V).
+#
+# WP8.5: one landing for SMU and MFCMU work. CMU1 has an SCUU (`scuu: [7]`), so 7H/7L are the SCUU outputs (CMUH/
+# Force1 = SMU6, CMUL/Force2 = SMU5; PG p520 (4-202)): SSP 7,4 connects the MFCMU (C-V, C-f, C-t, corrections), SSP 7,3
+# the two MPSMUs (QSCV `moscap.qscv`, leakage), with the probes untouched; pin map moscap-scuu (gate SCUU1.OUT1, bulk
+# SCUU1.OUT2). The QSCV (low-frequency) curve and an HF C-V of this same device give Dit(E) by the high-low method
+# (dit_high_low), the C-V at many frequencies by the conductance method (moscap.cv_multi_freq, dit_conductance). The
+# MPSMU current floor (1e-13 A at one power-line cycle) is the 1 nA range's, the QSR range a QSCV uses.
 
 description: >-
   MOS capacitor with interface traps (p-Si 1e17 cm^-3, 5 nm SiO2, 100 um x 100 um, U-shaped Dit 2e11 cm^-2 eV^-1 at
-  midgap, inversion-layer formation 0.5 s) on CMU1 (gate 7H, bulk 7L) behind the fixture parasitics; for moscap.cf,
-  moscap.ct (C-f dispersion, C-t recovery); instant timing.
+  midgap, inversion-layer formation 0.5 s) on CMU1 through its SCUU (gate 7H/SCUU1.OUT1, bulk 7L/SCUU1.OUT2: the
+  MFCMU or SMU6/SMU5 on one landing) behind the fixture parasitics; for moscap.cf, moscap.ct (C-f dispersion, C-t
+  recovery), moscap.qscv and moscap.cv_multi_freq (Dit by high-low and conductance); instant timing.
 idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101
 slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
   - {slot: 1, model: B1525A}
@@ -30,6 +38,7 @@ slots:                          # lab layout (config/station.example.yaml): SPGU
   - {slot: 5, model: B1511B}
   - {slot: 6, model: B1511B}
   - {slot: 7, model: B1520A}
+scuu: [7]                       # SCUU on CMU1: SMU6 (Force1) and SMU5 (Force2) reach the pads through it
 interlock_closed: false
 wiring:
   dut:
@@ -61,7 +70,7 @@ models:
     model: fixture
     params: {}                  # blueprint 4.2 defaults (models.sim_devices.FixtureParams); TODO(verify) at M12 L6
 noise:
-  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  floor_a: {MPSMU: 1.0e-13, HRSMU: 1.0e-13}
   rel: 2.0e-4
   seed: 17
 faults: null

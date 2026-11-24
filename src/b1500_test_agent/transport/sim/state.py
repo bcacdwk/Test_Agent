@@ -143,7 +143,12 @@ class SimPersistentState(_Mutable):
 
     WGFMU (WP10.1): ``wgfmu`` = channel id (``201``) -> ``WgfmuChannelState`` (missing = power-on state), changed only
     through the instrument library (``transport/sim/wgfmu.py``); ``*RST`` and a device clear leave it as it is
-    (conservative reading, TODO(verify) at bring-up L8). ``wgfmu_runs`` counts executed sequencer runs (noise seeds)."""
+    (conservative reading, TODO(verify) at bring-up L8). ``wgfmu_runs`` counts executed sequencer runs (noise seeds).
+
+WP8.5: ``qscv_offsets`` = QSCV measurement channel -> the capacitance offset (F) its last ``QSZ 2`` measured, which
+``QSZ 1`` subtracts (``*RST``/device clear clear it; simulator convention). ``gndu_peak_a`` = the largest current that
+returned through the GNDU (A) in any applied state since the state was created (sim GNDU accounting: the GNDU sinks up
+to 4.2 A, UG p58 (2-18); rule R-GNDU-01 bounds it before a run); never reset by the instrument."""
 
     version: int = STATE_VERSION
     scenario: str
@@ -165,6 +170,8 @@ class SimPersistentState(_Mutable):
     channels: dict[int, ChannelState] = Field(default_factory=dict)
     wgfmu: dict[int, WgfmuChannelState] = Field(default_factory=dict)
     wgfmu_runs: int = 0
+    qscv_offsets: dict[int, float] = Field(default_factory=dict)
+    gndu_peak_a: float = Field(default=0.0, ge=0)
     devices: dict[str, dict[str, float | int | bool | str]] = Field(default_factory=dict)
     measurement_count: int = 0
     next_seq: int = 0

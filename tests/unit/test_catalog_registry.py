@@ -16,10 +16,12 @@ from tests.unit.helpers import REPO_ROOT
 
 RECIPES = REPO_ROOT / "recipes"
 CORRECTION_RECIPES = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short", "cmu.correction_load")
-RESERVED_SLOTS = {"wgfmu.pulsed_iv", "wgfmu.fast_bti", "fecap.pund", "moscap.qscv", "hspice.compare"}
+RESERVED_SLOTS = {"wgfmu.pulsed_iv", "wgfmu.fast_bti", "fecap.pund", "moscap.qscv"}
 """Reserved ids still waiting for their kinds (WP7.6 implemented reliability.bti_sms and reliability.hci; WP8.2 retired
 cmu.correction for the four cmu.* correction recipes; WP8.3 implemented moscap.cv and mosfet.cgd_cv; WP9.4
-implemented fefet.pulse_write_read and spgu.program_smu_read with kind pulse_read)."""
+implemented fefet.pulse_write_read and spgu.program_smu_read with kind pulse_read; WP7.7 retired hspice.compare:
+compact models are the analysis methods compact_model_fit, model_compare and export_spice_netlist, card
+smu/compact-model-spice)."""
 
 
 def minimal(recipe_id: str = "basic.thing", **changes: Any) -> dict[str, Any]:

@@ -53,7 +53,8 @@ PRIORITY_SCALE = {
     "MM 17-26 and the SCUU's SSP/SSL by WP8.1, the correction set-up queries CORRL?/DCORR? by WP8.2, the HV-SPGU "
     "PG/ALWG commands by WP9.1, the 16440A selector settings ERMOD/ERSSP by WP9.2, the SMU pulsed modes MM 3, 4, 5, "
     "27, 28 with PT, PV, PI, PWV, PWI, MCPT, MCPNT, MCPNX, MCPWS, MCPWNX by WP7.3, the SMU search modes MM 14, 15 "
-    "and the quasi-pulsed spot MM 9 with LS*, LG*, BS*, BG*, BDV, BDT, BDM by WP7.5)",
+    "and the quasi-pulsed spot MM 9 with LS*, LG*, BS*, BG*, BDV, BDT, BDM by WP7.5, the SMU conditioning FL, SSR, "
+    "AZ, AV, RM and WNCC by WP7.7)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
     "simulator's FLEX subset v1 (AV, BC, NUB?, TSC)",
     "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
@@ -78,6 +79,7 @@ DRIVER_METHODS = (
     "set_selector_control", "route_selector",
     "pulsed_setup", "pulsed_update",
     "search_setup", "quasi_pulse_setup",
+    "set_filter", "set_series_resistor", "set_adc_zero", "set_averaging", "set_range_mode", "clear_sweep_sources",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
@@ -93,6 +95,7 @@ COMMAND_BUILDERS = (
     "pt", "pv", "pi", "pwv", "pwi", "mcpt", "mcpnt", "mcpnx", "mcpws", "mcpwnx",
     "lsv", "lsi", "lgv", "lgi", "lsm", "lstm", "lssv", "lssi", "lsvm", "bsv", "bsi", "bgv", "bgi", "bsm", "bst",
     "bssv", "bssi", "bsvm", "bdv", "bdt", "bdm",
+    "fl", "ssr", "az", "av", "rm", "wncc",
 )  # fmt: skip
 DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
 
@@ -276,6 +279,13 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
                          "and stop"),
     "BDT": CommandTarget("quasi_pulse_setup", "bdt"),
     "BDM": CommandTarget("quasi_pulse_setup", "bdm", "detection interval and V/I measurement, both always sent"),
+    # SMU conditioning (WP7.7, blueprint v2 1.2): driver capabilities; no v2 kind sends them (initial settings kept)
+    "FL": CommandTarget("set_filter", "fl", "named channels only, each in the guard's allowlist"),
+    "SSR": CommandTarget("set_series_resistor", "ssr", "channel in the guard's allowlist; not behind an ASU"),
+    "AZ": CommandTarget("set_adc_zero", "az", "high-resolution ADC offset cancel; off at *RST"),
+    "AV": CommandTarget("set_averaging", "av", "high-speed ADC averaging; the kinds use AIT presets instead"),
+    "RM": CommandTarget("set_range_mode", "rm", "auto-range operation of a current measurement"),
+    "WNCC": CommandTarget("clear_sweep_sources", "wncc", "clears the WNX sources of a multi-channel sweep"),
 }
 MM_MODE_TARGETS: dict[int, str] = {1: "B1500Driver.spot_setup", 2: "B1500Driver.staircase",
                                    10: "B1500Driver.sampling_setup", 16: "B1500Driver.staircase",
@@ -407,6 +417,13 @@ GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "BDV": ([365, 366], ["4-47 to 4-48"]),
     "BDT": ([365], ["4-47"]),
     "BDM": ([364], ["4-46"]),
+    # SMU conditioning (WP7.7)
+    "FL": ([436], ["4-118"]),
+    "SSR": ([521], ["4-203"]),
+    "AZ": ([363], ["4-45"]),
+    "AV": ([362, 363], ["4-44 to 4-45"]),
+    "RM": ([501, 502], ["4-183 to 4-184"]),
+    "WNCC": ([556], ["4-238"]),
 }
 CHAPTER_4_PDF_OFFSET = 318
 
@@ -483,8 +500,9 @@ ATOM_OVERRIDES: dict[str, dict[str, str]] = {
     "C_atom_smu_set_measurement_mode": {"note": "staircase sends MM 2 and MM 16 (WP7.2), sampling_setup MM 10 "
                                         "(WP7.4), spot_setup MM 1 (WP7.1), pulsed_setup MM 3/4/5/27/28 (WP7.3), "
                                         "search_setup MM 14/15, quasi_pulse_setup MM 9 (WP7.5); other modes later"},
-    "C_atom_smu_configure_integration": {"priority": "m1", "note": "AV (averaging) is m2"},
-    "C_atom_smu_set_measurement_ranging": {"priority": "m1", "note": "RM (auto-ranging limit) is later"},
+    "C_atom_smu_configure_integration": {"priority": "m1", "note": "AV (averaging): set_averaging (WP7.7)"},
+    "C_atom_smu_set_measurement_ranging": {"priority": "m1", "note": "RM (auto-ranging operation): set_range_mode "
+                                           "(WP7.7)"},
     "C_atom_smu_configure_staircase_sweep": {
         "priority": "m1",
         "note": "WV or WI primary, lin/log single/double; WSV/WSI synchronous and WNX multi-channel sources "
@@ -506,18 +524,21 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
     "D_atom_qualify_iv_check_resolution": ("analysis.assess_quality (noise)", "m2"),
     "D_atom_qualify_run_check_context": ("run manifest: rules reports, IDN/UNT?, cleanup report", "m1"),
     "D_atom_qualify_dataset_grade_trust": ("RunData.trusted + QualityReport verdict", "m1"),
-    "D_atom_qualify_iv_check_source_tracking": (None, "later"),
-    "D_atom_qualify_dataset_check_continuity": (None, "later"),
+    "D_atom_qualify_iv_check_source_tracking": (
+        "analysis.assess_quality (C/T: a source that left its set value; status letters per point)", "m1"),
+    "D_atom_qualify_dataset_check_continuity": ("smu_sampling kind_result index_gaps, time_source (WP7.4)", "later"),
     "D_atom_qualify_cv_check_correction": (None, "later"),
-    "D_atom_qualify_timeseries_check_events": (None, "later"),
+    "D_atom_qualify_timeseries_check_events": ("analysis.time_to_breakdown (WP7.4)", "later"),
     "D_atom_shape_dataset_split_segments": ("segment fwd/rev option of the Vth extractors", "m2"),
     "D_atom_shape_dataset_stack_family": ("smu_stepped table (Id-Vd family)", "m2"),
-    "D_atom_shape_dataset_normalize_geometry": (None, "later"),
+    "D_atom_shape_dataset_normalize_geometry": (
+        "w_over_l/area_um2/w_um options (vth_constant_current, charge_pumping, compact_model_fit)", "later"),
     "D_atom_derive_curve_compute_derivative": ("analysis.gm", "m1"),
-    "D_atom_derive_curve_interpolate": (None, "later"),
+    "D_atom_derive_curve_interpolate": ("analysis.common.interpolate (ion_ioff, leakage_at, forward_voltage)",
+                                        "m2"),
     "D_atom_derive_curve_fit_linear": ("inside analysis.vth_linear_extrapolation", "m1"),
     "D_atom_derive_dataset_summarize_columns": (None, "later"),
-    "D_atom_derive_timeseries_summarize_windows": (None, "later"),
+    "D_atom_derive_timeseries_summarize_windows": ("analysis.sampling_summary (WP7.4)", "later"),
     "D_atom_extract_leakage_current": ("analysis.leakage_at", "m2"),
     "D_atom_extract_transfer_vth": ("analysis.vth_linear_extrapolation (M2: vth_constant_current, vth_max_gm)", "m1"),
     "D_atom_extract_transfer_gm_max": ("analysis.gm_max", "m2"),
@@ -530,7 +551,8 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
     "D_atom_extract_cv_vfb": (None, "later"),
     "D_atom_assess_value_check_limits": (None, "later"),
     "D_atom_assess_dataset_check_envelope": (None, "later"),
-    "D_atom_assess_dataset_compare_reference": (None, "later"),
+    "D_atom_assess_dataset_compare_reference": (
+        "analysis.pulsed_vs_dc (reference_run), analysis.model_compare (WP7.3, WP7.7)", "later"),
     "D_atom_archive_run_build_manifest": ("archive.store (manifest.json)", "m1"),
     "D_atom_archive_run_write_bundle": ("archive.store (run folder)", "m1"),
     "D_atom_archive_run_load_bundle": ("analysis.load_run", "m1"),
@@ -538,6 +560,156 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
     "D_atom_render_dataset_build_table": ("data.csv + get_run rows", "m1"),
     "D_atom_render_run_build_report": (None, "later"),
 }
+
+
+# --- Coverage ledger (blueprint v2 0 row 1, 9 "Driver map v2 = coverage ledger"; WP7.7 closes the SMU rows) ----------
+# Every atom, flow and command belongs to one family; an entry is `mapped` (a driver target, a D-atom successor or a
+# flow target), `out_of_scope` (a reason from OUT_OF_SCOPE) or `open`. `--check` fails on an `open` entry of a closed
+# family. The module closures add theirs (8.6 cmu, 9.6 spgu, 10.8 wgfmu); WP11.2 closes `system` and maps the rest.
+LEDGER_FAMILIES = ("smu", "cmu", "spgu", "wgfmu", "system")
+CLOSED_FAMILIES = ("smu",)
+"""Families whose every entry is mapped or out of scope (`--check` enforces it)."""
+
+COMMAND_CATEGORY_FAMILY: dict[str, str] = {
+    "ASU / SCUU / SMU Conditioning": "smu", "SMU Integration Time and Averaging": "smu",
+    "High Speed Spot Measurement": "smu", "Source Output": "smu", "Measurement Setup and Ranging": "smu",
+    "Staircase Sweep Source Setup": "smu", "Pulsed Source and Sweep": "smu", "Multi-channel Pulse/Sweep Setup": "smu",
+    "Quasi-pulsed Spot": "smu", "Sampling Measurement": "smu", "Binary Search": "smu", "Linear Search": "smu",
+    "Signal Monitor": "smu", "N1265A Ultra High Current Expander / Fixture": "smu",
+    "N1266A HVSMU Current Expander": "smu", "N1268A Ultra High Voltage Expander": "smu",
+    "N1272A/B1506A/B1507A Selector and Adapter Control": "smu", "HVSMU Control and Variables": "smu",
+    "MFCMU Data Correction": "cmu", "MFCMU Setup": "cmu", "Quasi-static CV": "cmu",
+    "MFCMU Sweep and Pulsed Source": "cmu", "MFCMU Sampling": "cmu",
+    "SPGU Control": "spgu", "SPGU Pulse Setup": "spgu", "SPGU ALWG Setup": "spgu", "Output Comparison": "spgu",
+    "Digital I/O and Selectors": "spgu",
+}  # fmt: skip
+"""Manual category (first group a mnemonic appears in) -> family; every other category is `system`."""
+
+COMMAND_FAMILY: dict[str, str] = {
+    "SSP": "cmu", "SSL": "cmu", "TC": "cmu", "TTC": "cmu", "TMACV": "cmu", "TMDCV": "cmu", "FC": "cmu", "ACV": "cmu",
+    "DCV": "cmu", "TACV": "cmu", "TDCV": "cmu", "RC": "cmu", "MSP": "spgu", "VAR": "system", "VAR?": "system",
+    "PCH": "smu", "PCH?": "smu", "WAT": "smu", "HSS": "smu",
+    **{c: "smu" for c in ("ERHPA", "ERHPA?", "ERHPL", "ERHPL?", "ERHPS", "ERHPS?", "ERHPP", "ERHPP?", "ERHPE",
+                          "ERHPE?", "ERHPR", "ERHPR?")},
+}  # fmt: skip
+"""Per-mnemonic overrides of the category rule (SCUU/MFCMU commands in SMU categories, the SPGU-synchronised sampling
+pulse, program-memory variables, the HCSMU parallel channel, the SMU wait time, the N1258A/N1259A module selector)."""
+
+_HIGH_SPEED_SPOT = ("high-speed spot (TI/TV/TIV, timer variants): out of scope by blueprint v2 1.2, the MM 1 spot "
+                    "(smu_spot) covers single points")
+_TIMER_START = "timer-start DC source (TDV/TDI): out of scope by blueprint v2 1.2; DV/DI and TSR serve the kinds"
+_SIGNAL_MONITOR = "signal monitor (DSMPL*): out of scope by blueprint v2 1.2; MM 10 sampling records I(t)"
+_EXPANDER = ("HV/HC/UHC units, expanders and their selectors/fixtures (N1258A/N1259A, N1265A, N1266A, N1268A, N1272A): "
+             "not installed in this station and above the 42 V / 100 mA ceiling (blueprint v2 1.2)")
+_HCSMU = "HCSMU dual (parallel) channel: no HCSMU in this station (blueprint v2 1.1)"
+_TRIGGER = ("external trigger input/output to other instruments: out of scope (blueprint v2 1.2); the kinds trigger "
+            "with XE and poll")
+OUT_OF_SCOPE: dict[str, str] = {
+    # commands of family smu
+    **{c: _HIGH_SPEED_SPOT for c in ("TI", "TV", "TIV", "TTI", "TTV", "TTIV", "HSS")},
+    "TDV": _TIMER_START, "TDI": _TIMER_START,
+    **{c: _SIGNAL_MONITOR for c in ("DSMPLSETUP", "DSMPLARM", "DSMPLFLUSH")},
+    "LIM": _EXPANDER, "LIM?": _EXPANDER, "HVSMUOP": _EXPANDER, "HVSMUOP?": _EXPANDER,
+    **{c: _EXPANDER for c in ("ERPFUHCA", "ERPFUHCA?", "ERPFUHCTST?", "ERPFUHCCAL?", "ERPFUHCMAX?", "ERPFGA", "ERPFGA?",
+                              "ERPFDA", "ERPFDA?", "ERPFDP", "ERPFDP?", "ERPFDS", "ERPFDS?", "ERPFGP", "ERPFGP?",
+                              "ERPFGR", "ERPFGR?", "ERPFTEMP?", "ERHVCA", "ERHVCA?", "ERHVCTST?", "ERHVP", "ERHVP?",
+                              "ERHVS", "ERHVS?", "ERHVPV", "ERUHVA", "ERUHVA?", "ERCMAA", "ERCMAA?", "ERCMAGRD",
+                              "ERCMAGRD?", "ERCMAIO", "ERCMAIO?", "ERCMAPFGD", "ERPFQG", "ERPFQG?", "ERHPQG", "ERHPQG?",
+                              "ERHPA", "ERHPA?", "ERHPL", "ERHPL?", "ERHPS", "ERHPS?", "ERHPP", "ERHPP?", "ERHPE",
+                              "ERHPE?", "ERHPR", "ERHPR?")},
+    "PCH": _HCSMU, "PCH?": _HCSMU,
+    "PAD": ("parallel measurement of several high-speed-ADC SMUs (PG p482 (4-164)): only a speed option; the kinds "
+            "keep the initial non-parallel measurement (channel order and timing as the manual's sequence tables)"),
+    "AITM": ("HRSMU PLC-mode operation type (PG p360 (4-42)): the initial type is kept; integration is set by the AIT "
+             "presets short/medium/long"),
+    "AITM?": "query of AITM (out of scope, see AITM)",
+    "WAT": ("source/measurement wait-time factor (PG p547-548 (4-229)): the initial factor is kept; settling is set "
+            "per recipe with WT hold and delays"),
+    # atoms of family smu
+    "C_atom_smu_measure_high_speed_spot": _HIGH_SPEED_SPOT,
+    "C_atom_smu_configure_high_speed_spot": _HIGH_SPEED_SPOT,
+    "C_atom_smu_force_timer_start_voltage": _TIMER_START,
+    "C_atom_smu_force_timer_start_current": _TIMER_START,
+    "C_atom_smu_configure_signal_monitor": _SIGNAL_MONITOR,
+    "C_atom_smu_set_parallel_measurement": "parallel measurement (PAD) and HCSMU dual channel (PCH): see PAD and PCH",
+    "C_atom_smu_configure_trigger_io": _TRIGGER,
+    "C_atom_smu_set_trigger_mode": _TRIGGER,
+    "B_atom_output_smu_set_output_switch_type": "trigger outputs OS/OSX: " + _TRIGGER,
+    "B_atom_output_smu_set_compliance_limit": "LIM: " + _EXPANDER,
+    **{a: _EXPANDER for a in ("C_atom_hvsmu_set_operation_mode", "C_atom_hvsmu_execute_iv", "C_atom_hcsmu_execute_iv",
+                              "C_atom_uhcu_execute_iv", "C_atom_hvmcu_execute_iv", "C_atom_uhvu_execute_iv")},
+    # flows of family smu
+    "C_flow_spot_smu_high_speed": _HIGH_SPEED_SPOT,
+    "C_flow_sampling_smu_signal_monitor": _SIGNAL_MONITOR,
+}  # fmt: skip
+"""Reasons for the entries that stay out of scope (blueprint v2 1.2 out-of-scope column, or the stated reason)."""
+
+FLOW_TARGETS: dict[str, list[str]] = {
+    "B_flow_baseline_smu_housekeeping": ["B1500Driver.set_auto_calibration", "B1500Driver.set_adc_zero",
+                                         "B1500Driver.set_filter", "B1500Driver.set_series_resistor"],
+    "B_flow_preparation_asu_low_current_path": ["recipe:mosfet.gate_leakage", "B1500Driver.set_asu_path"],
+    "AB_flow_preparation_asu_low_current_path": ["recipe:mosfet.gate_leakage", "B1500Driver.set_asu_path"],
+    "C_flow_spot_smu_iv": ["recipe:generic.smu_spot", "recipe:resistor.kelvin_4w", "kind:smu_spot"],
+    "C_flow_sweep_smu_staircase": ["recipe:mosfet.idvg", "recipe:basic.diode_iv", "kind:smu_staircase"],
+    "C_flow_sweep_smu_staircase_biased": ["recipe:mosfet.idvd", "recipe:mosfet.idvg_family", "kind:smu_stepped"],
+    "C_flow_sweep_smu_synchronous": ["recipe:mosfet.idvg_sync", "kind:smu_staircase"],
+    "C_flow_sweep_smu_multi_channel": ["recipe:generic.smu_multi_sweep", "kind:smu_staircase"],
+    "C_flow_pulse_smu_spot": ["recipe:basic.pulsed_spot", "kind:smu_pulsed"],
+    "C_flow_pulse_smu_sweep": ["recipe:mosfet.idvg_pulsed", "kind:smu_pulsed"],
+    "C_flow_pulse_smu_staircase_pulsed_bias": ["recipe:mosfet.idvd_pulsed", "kind:smu_pulsed"],
+    "C_flow_pulse_smu_multi_channel": ["recipe:generic.smu_multi_pulsed", "kind:smu_pulsed"],
+    "C_flow_pulse_smu_quasi": ["recipe:dielectric.bdv", "kind:smu_search"],
+    "C_flow_sampling_smu_iv_time": ["recipe:generic.smu_sampling", "recipe:mosfet.id_t_sampling",
+                                    "kind:smu_sampling"],
+    "C_flow_search_smu_target": ["recipe:mosfet.vth_search", "recipe:basic.breakdown_search", "kind:smu_search"],
+    "D_flow_qualify_iv_dataset": ["analysis:quality_report"],
+    "D_flow_screen_iv_leakage": ["analysis:leakage_at"],
+    "D_flow_analyze_iv_transfer": ["analysis:vth_linear_extrapolation", "analysis:subthreshold_swing",
+                                   "analysis:gm_max", "analysis:ion_ioff", "analysis:compact_model_fit"],
+    "D_flow_analyze_iv_output": ["analysis:output_metrics", "analysis:compact_model_fit"],
+    "CD_flow_qualify_iv_dataset": ["recipe:mosfet.idvg", "analysis:quality_report"],
+    "CD_flow_screen_iv_leakage": ["recipe:mosfet.gate_leakage", "analysis:leakage_at"],
+    "CD_flow_analyze_iv_transfer": ["recipe:mosfet.idvg", "analysis:vth_linear_extrapolation"],
+}
+"""v2 successors of the legacy flows (recipes, kinds, analysis methods, driver methods): a flow is a recipe now."""
+
+_ATOM_FAMILY_TOKENS: tuple[tuple[str, frozenset[str]], ...] = (
+    ("cmu", frozenset({"qscv", "cmu", "scuu", "cv"})),
+    ("spgu", frozenset({"spgu", "selector", "dio"})),
+    ("wgfmu", frozenset({"wgfmu"})),
+    ("system", frozenset({"easyexpert"})),
+    ("smu", frozenset({"smu", "asu", "hvsmu", "hcsmu", "uhcu", "hvmcu", "uhvu"})),
+)
+"""First match wins: id words -> family (QSCV is an SMU mode the CMU work package owns; EasyEXPERT is `system`)."""
+
+_ANALYSIS_SMU_TOKENS = frozenset({"iv", "transfer", "output", "leakage", "curve"})
+"""Words that make a D/CD (analysis) atom or flow an SMU I-V entry."""
+
+
+def entry_family(entry_id: str) -> str:
+    """Family of an atom or flow id by its words (``_ATOM_FAMILY_TOKENS``; analysis entries with an I-V word are
+    ``smu``; else ``system``)."""
+    words = set(entry_id.split("_"))
+    found = next((family for family, tokens in _ATOM_FAMILY_TOKENS if words & tokens), None)
+    if found is None and entry_id.startswith(("D_", "CD_")) and words & _ANALYSIS_SMU_TOKENS:
+        return "smu"
+    return found or "system"
+
+
+def command_family(mnemonic: str, categories: dict[str, str]) -> str:
+    """Family of a manual mnemonic: ``COMMAND_FAMILY`` override, else its first manual category."""
+    if mnemonic in COMMAND_FAMILY:
+        return COMMAND_FAMILY[mnemonic]
+    return COMMAND_CATEGORY_FAMILY.get(categories.get(mnemonic, ""), "system")
+
+
+def scope_of(entry_id: str, mapped: bool) -> dict[str, str]:
+    """``scope`` (mapped | out_of_scope | open) and the reason of an out-of-scope entry."""
+    if mapped:
+        return {"scope": "mapped"}
+    if entry_id in OUT_OF_SCOPE:
+        return {"scope": "out_of_scope", "reason": OUT_OF_SCOPE[entry_id]}
+    return {"scope": "open"}
 
 
 class DriverMapError(RuntimeError):
@@ -695,6 +867,15 @@ class CommandSummary:
     groups: dict[str, list[str]]  # grouped_command_index category -> mnemonics
 
     @property
+    def categories(self) -> dict[str, str]:
+        """mnemonic -> the first grouped-index category that lists it."""
+        out: dict[str, str] = {}
+        for category, names in self.groups.items():
+            for name in names:
+                out.setdefault(name, category)
+        return out
+
+    @property
     def vocabulary(self) -> set[str]:
         return set(self.order) | set(EXTRA_COMMANDS)
 
@@ -776,6 +957,7 @@ def map_atom(atom: dict[str, Any], summary: CommandSummary) -> dict[str, Any]:
         entry.update(flex=[], target=UNMAPPED, priority=priority, legacy_priority=atom["legacy_priority"])
         if successor:
             entry["successor"] = successor
+        entry.update(family=entry_family(atom_id), **scope_of(atom_id, successor is not None))
         return entry
     flex: list[str] = []
     targets: list[str] = []
@@ -814,6 +996,7 @@ def map_atom(atom: dict[str, Any], summary: CommandSummary) -> dict[str, Any]:
     entry["priority"] = priority
     if "note" in override:
         entry["note"] = override["note"]
+    entry.update(family=entry_family(atom_id), **scope_of(atom_id, bool(targets)))
     return entry
 
 
@@ -848,8 +1031,20 @@ def map_commands(summary: CommandSummary, atoms: list[dict[str, Any]]) -> list[d
         entry["atoms"] = users.get(mnemonic, [])
         if target and target.note:
             entry["note"] = target.note
+        entry.update(family=command_family(mnemonic, summary.categories), **scope_of(mnemonic, target is not None))
         entries.append(entry)
     return entries
+
+
+def map_flow(flow: dict[str, Any]) -> dict[str, Any]:
+    """One flow entry: id, class, family, scope, and the v2 ``target`` elements (``FLOW_TARGETS``) when mapped."""
+    entry = dict(flow)
+    targets = FLOW_TARGETS.get(flow["id"])
+    entry["family"] = entry_family(flow["id"])
+    if targets:
+        entry["target"] = list(targets)
+    entry.update(scope_of(flow["id"], bool(targets)))
+    return entry
 
 
 def build_map(
@@ -870,6 +1065,7 @@ def build_map(
         raise DriverMapError(f"GROUPED_PAGES: inconsistent pages {bad_pages} or not a grouped-only command")
     atoms = [map_atom(a, summary) for a in raw_atoms]
     commands = map_commands(summary, atoms)
+    flows = [map_flow(f) for f in flows]
     doc = {
         "schema_version": SCHEMA_VERSION,
         "source": {"ref": source_ref, "commit": commit, "package": LEGACY_PACKAGE, "command_summary": COMMAND_SUMMARY},
@@ -897,7 +1093,21 @@ def _counts(atoms: list[dict[str, Any]], flows: list[dict[str, Any]], commands: 
         "flows": {**{c: flow_counts[c] for c in FLOW_CLASSES}, "total": len(flows)},
         "commands": len(commands),
         "commands_mapped": sum(c["target"] != UNMAPPED for c in commands),
+        "ledger": ledger_counts(atoms, flows, commands),
     }
+
+
+def ledger_counts(atoms: list[dict[str, Any]], flows: list[dict[str, Any]],
+                  commands: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, int]]]:
+    """Per family and entry type, the number of mapped, out-of-scope and open entries."""
+    out: dict[str, dict[str, dict[str, int]]] = {}
+    for family in LEDGER_FAMILIES:
+        out[family] = {}
+        for name, entries in (("atoms", atoms), ("flows", flows), ("commands", commands)):
+            mine = [e for e in entries if e.get("family") == family]
+            out[family][name] = {scope: sum(e.get("scope") == scope for e in mine)
+                                 for scope in ("mapped", "out_of_scope", "open")}
+    return out
 
 
 def check_map(doc: dict[str, Any], summary_path: Path | None = None) -> list[str]:
@@ -950,7 +1160,53 @@ def check_map(doc: dict[str, Any], summary_path: Path | None = None) -> list[str
             problems.append(f"mapped command {entry['command']!r} has no manual pages")
     if doc.get("counts") != _counts(atoms, flows, commands):
         problems.append("counts block does not match the entries")
+    problems += check_ledger(atoms, flows, commands)
     return problems
+
+
+def check_ledger(atoms: list[dict[str, Any]], flows: list[dict[str, Any]],
+                 commands: list[dict[str, Any]]) -> list[str]:
+    """Ledger rules: known family and scope on every entry, a reason on every out-of-scope entry, valid flow targets,
+    no out-of-scope decision on a mapped entry, and no `open` entry in a closed family."""
+    problems: list[str] = []
+    known_recipes = _recipe_ids()
+    for kind, entries, key in (("atom", atoms, "id"), ("flow", flows, "id"), ("command", commands, "command")):
+        for entry in entries:
+            name = entry[key]
+            if entry.get("family") not in LEDGER_FAMILIES or entry.get("scope") not in ("mapped", "out_of_scope",
+                                                                                        "open"):
+                problems.append(f"{kind} {name}: family/scope missing or unknown")
+                continue
+            if entry["scope"] == "out_of_scope" and not entry.get("reason"):
+                problems.append(f"{kind} {name}: out_of_scope without a reason")
+            if entry["scope"] == "open" and entry["family"] in CLOSED_FAMILIES:
+                problems.append(f"{kind} {name}: {entry['family']} entry is neither mapped nor out_of_scope "
+                                "(closed family: map it or give an OUT_OF_SCOPE reason)")
+    for name in OUT_OF_SCOPE:
+        mapped = [e for e in [*atoms, *flows, *commands] if e.get("id", e.get("command")) == name
+                  and e.get("scope") == "mapped"]
+        if mapped:
+            problems.append(f"{name}: mapped and listed in OUT_OF_SCOPE (remove the out-of-scope decision)")
+    for flow in flows:
+        for target in flow.get("target", []):
+            prefix, _, value = target.partition(":")
+            if target.startswith("B1500Driver.") and target not in DRIVER_TARGETS:
+                problems.append(f"flow {flow['id']}: target {target} is not a driver target")
+            elif prefix == "recipe" and known_recipes and value not in known_recipes:
+                problems.append(f"flow {flow['id']}: recipe {value} does not exist")
+            elif prefix not in ("recipe", "kind", "analysis") and not target.startswith("B1500Driver."):
+                problems.append(f"flow {flow['id']}: target {target!r} is not recipe:/kind:/analysis:/B1500Driver.")
+    return problems
+
+
+def _recipe_ids() -> set[str]:
+    """Recipe ids of ``recipes/**/*.yaml`` (empty when the folder is missing)."""
+    ids: set[str] = set()
+    for path in (REPO_ROOT / "recipes").rglob("*.yaml"):
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and isinstance(data.get("id"), str) and "reserved" not in path.parts:
+            ids.add(data["id"])
+    return ids
 
 
 # --- Rendering ---------------------------------------------------------------------------------------------

@@ -55,6 +55,8 @@ from tests.safety.helpers import Harness, HookTransport, assert_global_invariant
 from tests.sim.helpers import load_scenario, noiseless
 from tests.unit.rules_factory import T0, bundle, dut, engine, pin_map
 
+pytestmark = pytest.mark.smu
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 KIND = SmuSamplingKind()
 POSITIONS = ("configure", "after_xe", "during_read", "during_cleanup")

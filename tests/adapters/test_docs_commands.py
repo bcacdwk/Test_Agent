@@ -100,8 +100,8 @@ def test_bringup_overview_is_one_page_pointing_to_the_stage_files() -> None:
     assert "the procedure itself lives in one place, the stage files of skill `b1500-bringup`" in " ".join(text.split())
     rows = [line for line in text.splitlines() if line.startswith("| ") and not line.startswith("| Stage")]
     ids = [row.split("|")[1].strip() for row in rows]
-    expected = [s for s in STAGES if s not in ("L5", "L6", "L7", "L8", "L9")]
-    assert [i for i in ids if i != "L5-L9"] == expected and "L5-L9" in ids
+    expected = [s for s in STAGES if s not in ("L6", "L7", "L8")]  # L5 and L9 (SMU part): WP7.7
+    assert [i for i in ids if i != "L6-L8"] == expected and "L6-L8" in ids
     for stage in expected:
         link = f"../.agents/skills/b1500-bringup/stages/{stage_file_name(stage)}"
         assert f"]({link})" in text, stage

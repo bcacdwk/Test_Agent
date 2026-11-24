@@ -23,6 +23,8 @@ from b1500_test_agent.models.run import RunSummary
 from b1500_test_agent.transport.sim.units.core import NOISE_MULTIPLIERS
 from tests.integration.helpers import REPO_ROOT, World, plan, run
 
+pytestmark = pytest.mark.smu
+
 SPOT = {"recipe_id": "generic.smu_spot", "pin_map": "resistor-2t", "dut_profile": "resistor-generic"}
 KELVIN = {"recipe_id": "resistor.kelvin_4w", "pin_map": "resistor-4w", "dut_profile": "resistor-1r"}
 ZERO = {"recipe_id": "system.zero_check", "pin_map": "open-smus", "dut_profile": "open-circuit"}

@@ -11,6 +11,8 @@ from b1500_test_agent.analysis.registry import run_method
 from b1500_test_agent.errors import InvalidInputError
 from tests.unit.analysis_helpers import iv_table, output_family, run_of
 
+pytestmark = pytest.mark.smu
+
 VD = np.linspace(0.0, 3.0, 301)
 LEVELS = [1.0, 1.5, 2.0]
 VTH, BETA, LAM = 0.4, 1e-3, 0.05

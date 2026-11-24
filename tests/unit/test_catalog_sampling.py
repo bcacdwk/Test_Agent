@@ -24,6 +24,8 @@ from b1500_test_agent.transport.sim.format import Element
 from tests.unit.helpers import REPO_ROOT
 from tests.unit.rules_factory import T0, bundle, dut, engine, example_station, pin_map
 
+pytestmark = pytest.mark.smu
+
 REGISTRY = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)
 STATION = example_station()
 KIND = SmuSamplingKind()

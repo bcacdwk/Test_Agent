@@ -14,6 +14,8 @@ from b1500_test_agent.models.sim import ComplianceAt, IgnoreDz
 from tests.sim.helpers import FIXTURE_DIR, elements, errx_all, resistor_scenario, run, scenario_with, values
 from tests.unit.flex_fixtures import load_fixture
 
+pytestmark = pytest.mark.smu
+
 R = 1000.0
 
 

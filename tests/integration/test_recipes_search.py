@@ -27,6 +27,8 @@ from b1500_test_agent.service import B1500Service
 from b1500_test_agent.transport.sim.devices import Circuit
 from tests.integration.helpers import World
 
+pytestmark = pytest.mark.smu
+
 VTH = {"recipe_id": "mosfet.vth_search", "pin_map": "mosfet-4t", "dut_profile": "nmos-generic"}
 IDVG = {"recipe_id": "mosfet.idvg", "pin_map": "mosfet-4t", "dut_profile": "nmos-generic"}
 BREAKDOWN = {"recipe_id": "basic.breakdown_search", "pin_map": "diode-2t", "dut_profile": "diode-generic"}

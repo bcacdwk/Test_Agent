@@ -18,6 +18,8 @@ from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, Quantity
 from tests.unit.analysis_helpers import linear_region_id, run_of, subthreshold_id
 
+pytestmark = pytest.mark.smu
+
 VG = np.round(np.linspace(-0.2, 1.5, 35), 9)
 V0 = 0.3  # subthreshold_id crosses its i0 = 100 nA at v0: the constant-current Vth of an unshifted read
 

@@ -17,6 +17,8 @@ from b1500_test_agent.models.recipe import QualityCriteria
 from tests.unit.analysis_helpers import BETA, VD, VTH, ekv_like_id, idvg_table, linear_region_id, manifest
 from tests.unit.helpers import assert_roundtrip
 
+pytestmark = pytest.mark.smu
+
 TOL = 5e-3  # V, the WP1.5 acceptance bound
 VG = np.linspace(-1.0, 3.0, 101)
 INVALID = 199.999e99

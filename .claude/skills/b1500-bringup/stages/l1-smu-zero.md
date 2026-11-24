@@ -49,11 +49,12 @@ summary, stop, the human's own consent, one run per consent (skill `b1500-test`)
    `config/pinmaps/open-smus.example.yaml` listing exactly the station's SMU slots, and
    `config/duts/open-circuit.example.yaml`; YAML only, the adoption command never goes into a file); give the
    adoption command in chat, hand the adoption to the human and stop. Simulator rehearsal, or a write the harness
-   refuses: show the YAML in chat instead, without a shell workaround.
-3. Self-test, then self-calibration, with open terminals: `validate_plan` of `system.self_test` (any adopted pin
-   map, e.g. `open-smus`), tier `needs_confirmation` (`system_self_test`, `first_hw_run`); ask the human to confirm
-   the open terminals in the same message as the summary; stop; after consent `run_confirmed_plan`. Same for
-   `system.self_cal`. Report `kind_result` (result, failed units) from `get_run`.
+   refuses: show the YAML in chat instead, without a shell workaround. Then stop in a rehearsal too: no L1 plan,
+   not even `validate_plan`, before the human reports the L1 physical steps done.
+3. After that report: self-test, then self-calibration, with open terminals: `validate_plan` of `system.self_test`
+   (any adopted pin map, e.g. `open-smus`), tier `needs_confirmation` (`system_self_test`, `first_hw_run`); ask the
+   human to confirm the open terminals in the same message as the summary; stop; after consent
+   `run_confirmed_plan`. Same for `system.self_cal`. Report `kind_result` (result, failed units) from `get_run`.
 4. Zero check: `validate_plan` of `system.zero_check` with pin map `open-smus` and DUT profile `open-circuit`,
    default params (about 50 s); summary, stop, consent, `run_confirmed_plan`; `get_run` with `summary`, `quality`,
    `audit`; report the default `zero_floor` results (floor per SMU and range, offsets; derived; integration and

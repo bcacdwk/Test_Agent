@@ -195,6 +195,7 @@ def check_card(lint: Lint, path: Path, registry: RecipeRegistry, entry_dir: Path
         if effective != front.status:
             lint.add("card_status", path, f"status {front.status} differs from recipe {recipe_id}'s effective "
                                           f"status on the simulator ({effective})", 1)
+    check_analysis(lint, path, front, registry)
     check_device_types(lint, path, front, recipes)
     check_modules_and_routes(lint, path, front, recipes, registry)
     check_stage(lint, path, front, recipes, stages)
@@ -224,7 +225,13 @@ def check_card(lint: Lint, path: Path, registry: RecipeRegistry, entry_dir: Path
     if not rows and not row_problems:
         lint.add("param_table", path, "section 4 has no parameter table (param | default | recommended | recipe "
                                       "range | why | effect)", span[0])
+    options = {o for name in front.analysis if name in ANALYSIS_METHODS for o in ANALYSIS_METHODS[name].options}
     for row in rows:
+        if not front.recipes:  # analysis only: the rows are options of the card's methods
+            if row.name not in options:
+                lint.add("param_table", path, f"option {row.name!r} is not an option of the card's analysis methods "
+                                              f"{front.analysis} ({', '.join(sorted(options))})", row.line)
+            continue
         unknown = [r for r in row.recipes if r not in front.recipes]
         if unknown:
             lint.add("param_table", path, f"param {row.name!r} names {unknown}, which are not recipes of the card "
@@ -241,11 +248,44 @@ def check_card(lint: Lint, path: Path, registry: RecipeRegistry, entry_dir: Path
             for code, message in check_param_row(row, recipe_id, spec):
                 lint.add(code, path, message, row.line)
     card.example, card.example_line = parse_example_plan(lint, doc, span)
-    if card.example is not None and card.example.recipe_id not in front.recipes:
+    if card.example is not None and front.recipes and card.example.recipe_id not in front.recipes:
         lint.add("example_plan", path, f"example plan recipe_id {card.example.recipe_id} is not one of the card's "
                                        f"recipes {front.recipes}", card.example_line)
         card.example = None
+    elif card.example is not None and not front.recipes:
+        problem = analysis_example_problem(card.example.recipe_id, front, registry)
+        if problem:
+            lint.add("example_plan", path, problem, card.example_line)
+            card.example = None
     return card
+
+
+def check_analysis(lint: Lint, path: Path, front: CardFrontmatter, registry: RecipeRegistry) -> None:
+    """``analysis`` names implemented methods of ``ANALYSIS_METHODS`` that serve the card's family."""
+    for name in front.analysis:
+        method = ANALYSIS_METHODS.get(name)
+        if method is None:
+            lint.add("analysis_method", path, f"analysis lists {name!r}, which is not in ANALYSIS_METHODS", 1)
+        elif method.status != "implemented":
+            lint.add("analysis_method", path, f"analysis method {name} is only declared (not implemented)", 1)
+        elif front.family not in method.families:
+            lint.add("analysis_method", path, f"analysis method {name} serves {list(method.families)}, not the "
+                                              f"card family {front.family}", 1)
+
+
+def analysis_example_problem(recipe_id: str, front: CardFrontmatter, registry: RecipeRegistry) -> str | None:
+    """Why the example plan of an analysis-only card cannot feed its methods (``None`` when it can): a registered,
+    runnable recipe that every listed method applies to."""
+    if recipe_id not in registry.ids():
+        return f"example plan recipe_id {recipe_id} is not a registered recipe"
+    recipe = registry.get(recipe_id)
+    if recipe.status == "not_implemented":
+        return f"example plan recipe_id {recipe_id} is reserved (not_implemented)"
+    misfits = [m for m in front.analysis if m in ANALYSIS_METHODS
+               and not ANALYSIS_METHODS[m].applies_to(recipe_id, recipe.kind)]
+    if misfits:
+        return f"the card's analysis methods {misfits} do not apply to example plan recipe {recipe_id}"
+    return None
 
 
 def check_device_types(lint: Lint, path: Path, front: CardFrontmatter, recipes: list[Recipe]) -> None:

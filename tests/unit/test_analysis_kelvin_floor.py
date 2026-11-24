@@ -16,6 +16,8 @@ from b1500_test_agent.errors import InvalidInputError
 from tests.unit.analysis_helpers import iv_table, manifest, run_of
 from tests.unit.helpers import assert_roundtrip
 
+pytestmark = pytest.mark.smu
+
 CURRENTS = np.repeat([-0.01, -0.005, 0.005, 0.01], 4)
 
 

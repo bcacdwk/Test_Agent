@@ -59,6 +59,8 @@ from tests.safety.test_stepped_matrix import run_case as run_stepped_case
 from tests.sim.helpers import load_scenario, noiseless
 from tests.unit.rules_factory import T0, bundle, dut, engine, pin_map
 
+pytestmark = pytest.mark.smu
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)
 FIXTURES = RecipeRegistry.load(REPO_ROOT / "tests" / "fixtures" / "recipes", repo_root=REPO_ROOT)

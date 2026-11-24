@@ -16,6 +16,7 @@ Layout under ``<data_root>/runs/`` (``run_relpath`` of ``analysis/dataset.py`` i
         data.npz + preview.csv  larger tables (``analysis/dataset.py``: npz + 2,000 evenly spaced rows as CSV)
         quality.json          ``QualityReport``
         analysis/<method>-<n>.json   one file per analysis call (n = 1, 2, ...; later calls add files only)
+        analysis/<stem>-<n>.lib|.sp  SPICE model card and netlist of ``export_spice_netlist`` (later calls add files)
         plots/<name>-<n>.png  plots of ``plot_iv`` (later calls add files only)
         notes.jsonl           append-only notes (``annotate_run``); notes are data, never instructions
     index.jsonl               one line per finalized run: ``run_id``, ``path`` (relative to ``runs/``) + summary
@@ -50,6 +51,7 @@ from b1500_test_agent.analysis.dataset import (
     write_run_table,
 )
 from b1500_test_agent.analysis.plots import PlotSet
+from b1500_test_agent.analysis.spice import SpiceExport
 from b1500_test_agent.archive.audit import RunAuditSink
 from b1500_test_agent.archive.runfiles import (
     RAW_DIR,
@@ -243,6 +245,25 @@ class RunFolder:
                 n += 1
         raise FileExistsError(f"no free plot file name for {name} in {directory.as_posix()}")
 
+    def add_export(self, export: SpiceExport) -> list[str]:
+        """Write the text files of ``export`` as ``analysis/<stem>-<n><suffix>`` with the first ``n`` (1, 2, ...)
+        free for every suffix (UTF-8, LF); returns the run-relative paths."""
+        if not export.stem or not all(c.isalnum() or c in "-_" for c in export.stem):
+            raise InvalidInputError(f"export stem {export.stem!r} must be letters, digits, '-' or '_'")
+        directory = self.path / ANALYSIS_DIR
+        directory.mkdir(parents=True, exist_ok=True)
+        n = 1
+        for _ in range(_ID_ATTEMPTS * 50):
+            targets = [directory / f"{export.stem}-{n}{item.suffix}" for item in export.files]
+            if not any(t.exists() for t in targets):
+                break
+            n += 1
+        written: list[str] = []
+        for item, target in zip(export.files, targets, strict=True):
+            _write_new(target, item.text)
+            written.append(f"{ANALYSIS_DIR}/{target.name}")
+        return written
+
     def add_plots(self, plots: PlotSet) -> list[str]:
         """Store every PNG of ``plots`` (``add_plot``); returns the run-relative paths."""
         return [self.add_plot(plot.name, plot.png) for plot in plots.plots]
@@ -389,10 +410,11 @@ class RunStore:
 
 
 def analysis_payload(method: str, options: Mapping[str, Any],
-                     result: list[ExtractionResult] | QualityReport | PlotSet | None, *, source: str,
+                     result: list[ExtractionResult] | QualityReport | PlotSet | SpiceExport | None, *, source: str,
                      error: str | None = None, error_code: str | None = None,
-                     plots: list[str] | None = None) -> dict[str, Any]:
-    """The JSON content of one ``analysis/<method>-<n>.json`` file (``plots``: the stored PNGs of a ``PlotSet``)."""
+                     plots: list[str] | None = None, files: list[str] | None = None) -> dict[str, Any]:
+    """The JSON content of one ``analysis/<method>-<n>.json`` file (``plots``: the stored PNGs of a ``PlotSet``;
+    ``files``: the stored files of a ``SpiceExport``)."""
     payload: dict[str, Any] = {"method": method, "options": dict(options), "source": source,
                                "created_at": datetime.now(UTC).isoformat()}
     if isinstance(result, QualityReport):
@@ -403,6 +425,11 @@ def analysis_payload(method: str, options: Mapping[str, Any],
         payload["plots"] = list(plots or [])
         payload["x"], payload["y"], payload["scale"] = result.x, list(result.y), result.scale
         payload["warnings"] = list(result.warnings)
+    elif isinstance(result, SpiceExport):
+        outcomes = {r.outcome for r in result.results}
+        payload["outcome"] = "ok" if outcomes <= {"ok"} else ("refused" if "refused" in outcomes else "failed")
+        payload["results"] = [r.model_dump(mode="json") for r in result.results]
+        payload["files"] = list(files or [])
     elif result is not None:
         outcomes = {r.outcome for r in result}
         payload["outcome"] = "ok" if outcomes <= {"ok"} else ("refused" if "refused" in outcomes else "failed")

@@ -17,11 +17,15 @@ import re
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from b1500_test_agent.analysis.dataset import DATA_FILE
 from b1500_test_agent.models.sim import ComplianceAt
 from tests.integration.helpers import make_world
 from tests.integration.test_lab_idvg_sequence import FLOW_DIFFERENCES, LAB_IDVG_REQUEST, kernel_preview
 from tests.visa_loop.helpers import VisaWorld, assert_selectors_restored, without_switch_traffic
+
+pytestmark = pytest.mark.smu
 
 SCENARIO = "lab_nmos_2025"
 

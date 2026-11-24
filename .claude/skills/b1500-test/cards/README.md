@@ -15,6 +15,7 @@ SMU I-V with HRSMU/MPSMU and the GNDU: contact and resistance, diode, MOSFET DC,
 
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
+| smu | compact model, SPICE, HSPICE, ngspice, model card, netlist, EKV, level 1, model fit, simulation comparison | [compact-model-spice](smu/compact-model-spice.md) | analysis only: `compact_model_fit`, `model_compare`, `export_spice_netlist` | sim_validated | HRSMU, MPSMU, GNDU | L4 |
 | smu | contact check, landing, resistance, open/short, 2-wire R | [contact-resistor-check](smu/contact-resistor-check.md) | `basic.contact_resistor` | sim_validated | HRSMU, MPSMU, GNDU | L2 |
 | smu | diode, Is, ideality, Rs, reverse leakage, forward I-V, forward voltage, Vf, current forcing | [diode-iv](smu/diode-iv.md) | `basic.diode_iv`, `basic.iv_force_i` | sim_validated | HRSMU, GNDU | L3 |
 | smu | gate leakage, Ig, oxide, Ig-Vg | [gate-leakage](smu/gate-leakage.md) | `mosfet.gate_leakage` | sim_validated | HRSMU, MPSMU, GNDU | L4 |
@@ -25,7 +26,6 @@ SMU I-V with HRSMU/MPSMU and the GNDU: contact and resistance, diode, MOSFET DC,
 | smu | Vth search, threshold voltage search, binary search, constant-current Vth, fast Vth, Vth mapping, search | [smu-search](smu/smu-search.md) | `mosfet.vth_search` | sim_validated | HRSMU, MPSMU, HPSMU, GNDU | L5 |
 | smu | spot measurement, single bias point, bias list, current forcing, Kelvin, 4-wire, low resistance, milliohm, multi-channel sweep, MM 16, several sweep terminals, WNX | [smu-spot-kelvin](smu/smu-spot-kelvin.md) | `generic.smu_spot`, `resistor.kelvin_4w`, `generic.smu_multi_sweep` | sim_validated | HRSMU, MPSMU, GNDU | L2 |
 | smu | Generic SMU staircase sweep (ad-hoc; one swept, one optional biased, one ground terminal) | no card by design: ask the human first | `generic.smu_staircase` | sim_validated | - | - |
-| smu | reserved: Compare a measured run with an HSPICE simulation | [reserved](reserved/README.md) | `hspice.compare` | not_implemented | - | - |
 
 ## cmu
 

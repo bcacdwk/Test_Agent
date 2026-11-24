@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from b1500_test_agent.catalog.planner import Planner
 from b1500_test_agent.catalog.registry import RecipeRegistry
 from b1500_test_agent.models.plan import PlanRecord, PlanRequest
@@ -13,6 +15,8 @@ from b1500_test_agent.models.sources import DcStress, SourcePlan, StressSchedule
 from b1500_test_agent.rules.tiers import SUMMARY_MAX_CHARS, plan_summary
 from tests.unit.helpers import REPO_ROOT
 from tests.unit.rules_factory import T0, bundle, dut, engine, pin_map
+
+pytestmark = pytest.mark.smu
 
 REGISTRY = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)
 

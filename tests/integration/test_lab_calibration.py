@@ -30,6 +30,8 @@ from tests.integration.helpers import World, make_world
 from tests.unit.lab_fixtures import REAL_VD, log_decades, real_idvg, real_idvg_run
 from tests.unit.test_analysis_lab_data import I_CRIT_A
 
+pytestmark = pytest.mark.smu
+
 SCENARIO = "lab_nmos_2025"
 LAB_REQUEST = {"recipe_id": "mosfet.idvg", "pin_map": "mosfet-3t-lab", "dut_profile": "nmos-generic",
                "params": {"vg_start": -2.0, "vg_stop": 2.0, "vg_points": 61, "vd": REAL_VD}}

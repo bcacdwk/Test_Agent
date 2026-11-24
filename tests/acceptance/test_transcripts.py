@@ -143,3 +143,40 @@ def test_sanitize_replaces_paths_and_trims_account_details() -> None:
     assert init["cwd"] == "<REPO>" and init["tools"] == ["Bash", "mcp__b1500__x"]
     assert "skills" not in init and "memory_paths" not in init
     assert '"signature": "<signature>"' in out[1] and "<HOME>" in out[1]
+
+
+# -- Codex stream retries (WP6.6 handoff, WP7.7) ----------------------------------------------------------------------
+
+RECONNECT = "Reconnecting... 2/5 (stream disconnected before completion: error sending request for url)"
+
+
+def _codex_turn(*records: dict) -> list[str]:
+    head = [{"type": "thread.started", "thread_id": "t-1"}, {"type": "turn.started"}]
+    return [json.dumps(r) for r in (*head, *records)]
+
+
+def test_codex_reconnect_notices_are_not_errors() -> None:
+    t = parse_codex(_codex_turn({"type": "error", "message": RECONNECT},
+                                {"type": "item.completed", "item": {"id": "e", "type": "error",
+                                                                    "message": "Reconnecting\u2026 3/5"}},
+                                {"type": "item.completed", "item": {"id": "m", "type": "agent_message", "text": "ok"}},
+                                {"type": "turn.completed", "usage": {"input_tokens": 1, "output_tokens": 1}}))
+    assert t.completed and t.errors == [] and t.notices == [RECONNECT, "Reconnecting\u2026 3/5"]
+
+
+def test_codex_failed_retries_and_other_errors_stay_errors() -> None:
+    gave_up = parse_codex(_codex_turn({"type": "error", "message": RECONNECT},
+                                      {"type": "turn.failed", "error": {"message": "stream disconnected: retries "
+                                                                                    "exhausted"}}))
+    assert not gave_up.completed and gave_up.errors == ["stream disconnected: retries exhausted"]
+    other = parse_codex(_codex_turn({"type": "error", "message": "unexpected status 401 Unauthorized"},
+                                    {"type": "turn.completed", "usage": {}}))
+    assert other.errors == ["unexpected status 401 Unauthorized"] and other.notices == []
+    fallback = "Falling back from WebSockets to HTTPS transport. workspace routing discovery failed"
+    fell_back = parse_codex(_codex_turn({"type": "error", "message": fallback},
+                                        {"type": "turn.completed", "usage": {}}))
+    assert fell_back.errors == [] and fell_back.notices == [fallback] and fell_back.completed
+    quoted = parse_codex(_codex_turn({"type": "error", "message": "tool failed: Reconnecting... 1/5"},
+                                     {"type": "turn.completed", "usage": {}}))
+    assert quoted.errors and not quoted.notices  # only a notice that starts with the retry text is transient
+

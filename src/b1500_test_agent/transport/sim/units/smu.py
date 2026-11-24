@@ -12,7 +12,10 @@ dispatched by measurement mode in ``units/cmu.py`` (WP8.1): the MFCMU modes ther
 ``RV`` 503; ``MM`` 470-471; ``CMM`` 380; ``DV`` 396; ``DI`` 391-392; ``WV`` 568-569; ``WI`` 551-552; ``WSV`` 561-563;
 ``WSI`` 560-561; ``WNX`` 556-559; ``WNCC`` 556; ``WT`` 564-565; ``WM`` 552-553; ``XE`` 570; current/voltage source
 limits Tables 4-6/4-7 (PDF 341-342); interlock in the high-voltage state 577; multi-channel sweep 102-103; errors
-220, 223, 224 (PDF 578-579).
+220, 223, 224 (PDF 578-579). Conditioning (WP7.7): ``FL`` 436, ``SSR`` 521, ``RM`` 501-502 keep their settings per
+channel (reset like every SMU setting); the filter and the auto-range operation do not change a DC reading here, and
+the series resistor's 1 MOhm divider is not modelled (no v2 kind connects it; an SMU behind an ASU refuses it with
+error 151, as the manual's execution conditions say).
 ``MM 10`` (sampling) triggers are handed to ``SamplingUnit._start_sampling`` (``units/sampling.py``, WP7.4), the pulsed
 modes ``MM 3/4/5/27/28`` to ``PulsedUnit._start_pulsed`` (``units/pulsed.py``, WP7.3), the search modes ``MM 9/14/15``
 to ``SearchUnit._start_search`` (``units/search.py``, WP7.5); ``WSV``/``WSI`` may follow a
@@ -166,6 +169,46 @@ class SmuUnit:
         self._wnx: dict[int, SweepSource] = {}
         self._wt = (0.0, 0.0, 0.0, 0.0, 0.0)
         self._wm = (1, 1)
+        self._filter: dict[int, bool] = {}
+        self._series_r: dict[int, bool] = {}
+        self._rm: dict[int, tuple[int, int]] = {}
+
+    # -- conditioning (WP7.7) ------------------------------------------------------------------------------------------
+
+    @handles("FL")
+    def _cmd_fl(self, cmd: flex.Command) -> None:
+        """``FL mode[,ch...]``: SMU filter connected (1) or not (0, initial); all SMUs without channels (PDF 436)."""
+        flex.arity(cmd, 1, 11)
+        mode = flex.integer(cmd.args[0])
+        if mode not in (0, 1):
+            raise flex.FlexError(flex.ERR_PARAMETER, f"FL mode {mode}")
+        channels = [self._smu(a) for a in cmd.args[1:]] or [
+            ch for ch in self.installed_channels() if self._is_smu(ch)]
+        for channel in channels:
+            self._filter[channel] = bool(mode)
+
+    @handles("SSR")
+    def _cmd_ssr(self, cmd: flex.Command) -> None:
+        """``SSR ch,mode``: SMU series resistor connected (1) or not (0, initial); refused behind an ASU (PDF 521)."""
+        flex.arity(cmd, 2, 2)
+        channel = self._smu(cmd.args[0])
+        mode = flex.integer(cmd.args[1])
+        if mode not in (0, 1):
+            raise flex.FlexError(flex.ERR_PARAMETER, f"SSR mode {mode}")
+        if mode and self._has_asu(channel):
+            raise flex.FlexError(flex.ERR_NOT_ALLOWED, "SSR on an SMU connected to an ASU")
+        self._series_r[channel] = bool(mode)
+
+    @handles("RM")
+    def _cmd_rm(self, cmd: flex.Command) -> None:
+        """``RM ch,mode[,rate]``: auto-range operation 1-3, rate 11-100 for modes 2 and 3 (PDF 501-502)."""
+        flex.arity(cmd, 2, 3)
+        channel = self._smu(cmd.args[0])
+        mode = flex.integer(cmd.args[1])
+        rate = flex.integer(cmd.args[2]) if len(cmd.args) > 2 else 50
+        if mode not in (1, 2, 3) or (len(cmd.args) > 2 and (mode == 1 or not 11 <= rate <= 100)):
+            raise flex.FlexError(flex.ERR_PARAMETER, f"RM {mode},{rate}")
+        self._rm[channel] = (mode, rate)
 
     # -- ranges and modes ----------------------------------------------------------------------------------------------
 

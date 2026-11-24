@@ -33,6 +33,8 @@ from tests.integration.helpers import REPO_ROOT, World
 from tests.integration.test_async_cancel import abort_at
 from tests.integration.test_recipes_sampling import by_quantity, run_request, truth_device
 
+pytestmark = pytest.mark.smu
+
 BASE = {"pin_map": "mosfet-4t", "dut_profile": "nmos-generic"}
 BTI = {"recipe_id": "reliability.bti_sms", **BASE}
 IGZO = {"recipe_id": "igzo.bias_stress", **BASE}

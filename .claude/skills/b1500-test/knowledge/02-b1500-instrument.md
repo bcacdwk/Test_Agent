@@ -9,7 +9,6 @@ sources:
   - "B1500A User's Guide Ed. 17 (UG), PDF pages cited inline"
   - references/manuals/structured (command parameters, command summary, error codes, initial settings)
   - code tables in src/b1500_test_agent/driver/modules.py and models/station.py
-  - src/b1500_test_agent/analysis/floor.py (zero_floor; v2 WP7.1)
 last_reviewed: null
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
@@ -87,41 +86,8 @@ multi-channel sweeps; WP7.1 the spot, mode 1; WP7.3 the pulsed modes; WP7.5 the 
 WGFMU waveforms run through the B1530A instrument library and SPGU pulses through their own commands, not through
 `MM` (the old stub listed them under sampling and pulsed sweep) `TODO(verify)` against the B1530A guide.
 
-## Sampling measurement MM 10
-
-Kind `smu_sampling` (recipes `mosfet.id_t_sampling`, `generic.smu_sampling`, `reliability.tddb_cvs`); PG sampling
-measurements PG p112-114 (2-24), `MT` PG p474-476 (4-156).
-
-- On the trigger the synchronous sources (`MV`/`MI`) force their base value, `hold_base` later their bias value
-  (the time origin, `t_s = 0`), `hold_bias` later the first sample; then one sample per `interval` (2 ms to 65 s
-  in 1 ms steps; below 2 ms linear only). DC sources (`DV`/`DI`) are set before the trigger and keep their level.
-- Each sample carries its sampling index (`FMT 1,1`) and, with `TSC 1`, a time stamp per channel (time since `TSR`);
-  `t_s` comes from the stamps. A sample that would start while the channels are busy is skipped (index gap).
-- `MSC 2,2`: compliance of any channel, overflow or oscillation stops the sampling at once (later data read
-  `199.999E+99`, dropped from the table) and the sources go to their base value; a normal end keeps the bias.
-- Runs with more than 60 s of linear sampling are chains of 25 s blocks: continuation blocks hold the stress
-  (base = bias) and the time stamps run on, so `t_s` stays exact; each block is a checkpoint (progress, cancel).
-
-## Pulsed measurements MM 3 4 5 27 28
-
-Kind `smu_pulsed` (card `smu-pulsed-iv`); PG p93-105 (2-5), `PT` PG p486-487 (4-168), `MCPT` PG p464 (4-146).
-
-- A pulse source sits at its base, pulses to its peak for `width` once per `period` and returns to base; the
-  measurement (pulsed ADC, `AIT 2,3,<time>`) ends with the pulse. MM 3: one pulse, one reading; MM 4: one pulse per
-  step of a `PWV` pulsed sweep; MM 5: a `WV`/`WI` staircase with one `PV` pulse per step; MM 27/28: up to ten
-  channels pulse together (`MCPNX` bias, `MCPWNX` sweep, `WNX` staircase) and measure in parallel.
-- HR/MP/HPSMU: width 500 us-2 s in 100 us steps, period 5 ms-5 s with period >= width + 2 ms (10 ms above 100 ms),
-  no delay, one common width (R-PULSE-01, PG p462 (4-144)); MM 4/5 sweep linearly only (error 226).
-- Auto ranging in a pulsed measurement means the compliance range (PG p337 (4-19)): set a tight compliance or
-  `irange` for small pulsed currents. A pulse far shorter than the thermal time constant reads the device cold.
-
-## Search measurements MM 9 14 15
-
-Kind `smu_search` (cards `smu-search`, `tddb-bdv`); PG p108-111 (2-20), p106-107 (2-18). One `XE`, one result.
-- Linear (`LSV`) steps, binary (`BSV`) halves its change until the monitor (`LGI`/`BGI`) meets the target: result
-  `Data_search` (value forced there), `Data_sense`; `G` not in range, `S` aborted; binary cautious never forces stop.
-- Quasi-pulsed (`BDV`): ramps until the source hits its compliance (breakdown, `C`) and reads the voltage there; it
-  needs a 10 V change from start before the compliance (else `S`, PG p53 (1-33)): thin films use a linear ramp.
+The SMU modes beyond the staircase (sampling, pulsed, search), the zero-check floor, the SMU conditioning commands
+(filter, series resistor, ADC zero, averaging, auto-range operation) and long SMU runs: [02b](02b-smu-modes.md).
 
 ## Measurement sequence and cleanup
 
@@ -231,19 +197,6 @@ Measurement status letter `A` of each data element (PG Table 1-10, PDF 53):
   (limited auto from the ASU's 1 pA range, R-ASU-01) or a `ranges` survey (fixed ranges, the zero check). Low-current points need settling time after a range change; slow settling shows as `X` or drift.
 - The wait before a measurement grows with cable and DUT capacitance; slow-response devices need longer hold and
   delay times (PG PDF 81).
-
-## Zero check floor
-
-Implemented (`zero_floor`, M7; recipe `system.zero_check`; the definition shared with
-`src/b1500_test_agent/analysis/floor.py`, kept here next to the ranging because the analysis file is at its line
-budget).
-
-- Every SMU at 0 V, terminals open: per measured current and range label (`<role>_range`) the offset = mean and the
-  floor = sample standard deviation of the trusted readings (3 significant digits). One result per role:
-  `<role>_floor` = floor on its lowest range; `fit` = the floor of every range (`10pA`, `1nA` ...), `offset` (lowest
-  range) and `max_abs_offset`. Options `max_floor_a`, `max_offset_a` give `pass`/`fail`. C/T readings at 0 V are
-  excluded and warned: the terminal is not open. Trust classes as in
-  [06](06-analysis-extraction.md#run-table-and-trust-classes).
 
 ## Status byte errors and interlock
 

@@ -50,6 +50,8 @@ from b1500_test_agent.transport.sim import SimTransport
 from tests.safety.helpers import Harness, HookTransport, assert_global_invariant, make_harness
 from tests.unit.rules_factory import T0, bundle, dut, engine, example_station, pin_map_exact
 
+pytestmark = pytest.mark.smu
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 KIND = SmuSpotKind()
 POSITIONS = ("configure", "after_xe", "during_read", "during_cleanup")

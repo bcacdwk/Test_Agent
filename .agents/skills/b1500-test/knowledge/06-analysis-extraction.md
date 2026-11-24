@@ -20,6 +20,8 @@ Seeded from deck slide 15. Definitions here are identical to the docstrings of t
 `diode.py`, `leakage.py`, `fefet.py`, `plots.py`, `reliability.py`); the code wins on any difference and a change to
 either must change both (synced in WP2.5, WP5.7). `list_recipes` and `analyze_run` say which methods apply to a run.
 Time series (sampling, breakdown), pulsed and search runs (pulsed vs DC, plateau, Vth/BDV by search): [06b](06b-analysis-time-pulse.md).
+Compact models (EKV and level-1 fits, model vs run, SPICE export): [07](07-compact-models.md). Every SMU method and
+where it is defined: [06b](06b-analysis-time-pulse.md#smu-method-index).
 
 ## Run table and trust classes
 

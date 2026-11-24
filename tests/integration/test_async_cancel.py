@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 from b1500_test_agent.archive.store import RunStore
+from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.plan import PlanRequest, RunProgress
 from b1500_test_agent.session import AbortFile, Transaction
 from b1500_test_agent.session.lock import atomic_write_json
@@ -186,12 +187,17 @@ def test_safe_shutdown_without_a_run_leaves_no_abort_request(world: World) -> No
 # -- orphaned runs -----------------------------------------------------------------------------------------------------
 
 
-def _orphan(world: World) -> tuple[str, str]:
+def _orphan(world: World, *, confirmed: bool = False) -> tuple[str, str]:
     """A run folder and in-flight marker as a killed async run leaves them: progress running, rows so far,
-    outputs on in the simulator state."""
+    outputs on in the simulator state; ``confirmed``: the run's ``tier_check`` audit event says the human confirmed
+    it (``run_confirmed_plan``)."""
     service = world.service()
     plan = service.validate_plan(**IDVD_LONG)
     folder = RunStore(world.runs_dir).create("sim")
+    if confirmed:
+        folder.audit.emit(AuditEvent.now("tier_check", "sim", run=folder.run_id, data={
+            "plan_id": plan.plan_id, "tier": "needs_confirmation", "confirm_reasons": "long_run", "confirmed": True,
+            "mode": "async"}))
     folder.write_progress(RunProgress(state="running", done=3, total=21, phase="sweep", elapsed_s=1.0, eta_s=5.0,
                                       updated_at=datetime.now(UTC)))
     marker = InflightMarker(tx="T20261118T000000Z-dead", run=folder.run_id, intent="run mosfet.idvd",
@@ -234,6 +240,20 @@ def test_the_next_transaction_recovers_and_finalizes_an_orphaned_run(world: Worl
     assert sim_state_safe(world) == []
     after = service.run_plan(service.validate_plan(**idvd_long(vg_points=2)).plan_id or "")
     assert after.outcome == "completed"
+    assert manifest.confirmed_summary is None and manifest.confirmed_via is None  # never confirmed
+
+
+def test_an_orphaned_confirmed_run_keeps_its_consent_record(world: World) -> None:
+    """WP7.7 (acceptance S15 on Codex: the harness killed the MCP server mid-run): the recovery finalizes a run the
+    human had confirmed with ``confirmed_summary`` = the plan summary and ``confirmed_via`` from the adapter."""
+    timed_world(world)
+    run_id, plan_id = _orphan(world, confirmed=True)
+    service = world.service()
+    assert service.safe_shutdown("after a crash").ok
+    manifest = manifest_of(world, run_id)
+    assert manifest is not None and manifest.outcome == "aborted"
+    assert manifest.confirmed_summary == manifest.plan.summary and manifest.plan.plan_id == plan_id
+    assert manifest.confirmed_via == "run_confirmed_plan"
 
 
 # -- faults (blueprint v2 4.3) -----------------------------------------------------------------------------------------

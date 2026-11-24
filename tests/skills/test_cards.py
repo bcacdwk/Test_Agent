@@ -51,6 +51,7 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "smu/smu-search": ["mosfet.vth_search"],  # WP7.5
     "nvm/fefet-pulse-write-read": ["fefet.pulse_write_read", "spgu.program_smu_read"],  # WP9.4
     "cmu/moscap-cf-ct": ["moscap.cf", "moscap.ct"], "nvm/fecap-pund": ["fecap.cv_butterfly"],  # WP8.4
+    "smu/compact-model-spice": [],  # WP7.7: analysis only (compact_model_fit, model_compare, export_spice_netlist)
 }
 CARDS["cmu/moscap-cv"] = ["moscap.cv", "moscap.cv_ac_level", "moscap.pulsed_cv"]  # WP8.4 adds the AC-level/pulsed C-V
 ROUTES = {"spgu/selector-check": ["selector_16440a:smu", "selector_16440a:pgu", "selector_16440a:pgu_open"],
@@ -69,11 +70,13 @@ STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfe
             "smu/smu-search": "L5",  # WP7.5
             "cmu/cmu-spot": "L6", "cmu/moscap-cv": "L6", "cmu/mosfet-split-cv": "L6",  # WP8.3
             "nvm/fefet-pulse-write-read": "L7",  # WP9.4
-            "cmu/moscap-cf-ct": "L6", "nvm/fecap-pund": "L6"}  # WP8.4
+            "cmu/moscap-cf-ct": "L6", "nvm/fecap-pund": "L6",  # WP8.4
+            "smu/compact-model-spice": "L4"}  # WP7.7
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault", "cmu-correction-stale",  # WP8.2: the first v2 runbook
-            "spgu-selector-state", "spgu-pulse-no-effect", "spgu-load-mismatch"}  # WP9.3
+            "spgu-selector-state", "spgu-pulse-no-effect", "spgu-load-mismatch",  # WP9.3
+            "smu-sampling-skips", "stress-degradation-unexpected"}  # WP7.7
 RUN_ID = re.compile(r"\bS\d{8}T\d{6}Z-[0-9a-f]{4}\b")
 SCENARIOS = sorted(p.stem for p in (ROOT / "config" / "sim" / "scenarios").glob("*.yaml"))
 

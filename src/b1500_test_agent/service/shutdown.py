@@ -112,7 +112,7 @@ def shutdown_with(svc: B1500Service, session: Session, backend: Backend, reason:
                               message="safe shutdown could NOT verify that all outputs are off; the fault latch is set",
                               next_steps=[("do not measure; load skill b1500-debug; a human checks the station and "
                                           "runs b1500 fault clear")])
-    message = f"all outputs zeroed and disconnected (verified: {report.verified})"
+    message = f"cleanup verified ({report.verified}): all outputs zeroed and disconnected"
     next_steps: list[str] = []
     if fault is not None:
         message += f"; the fault latch is still set ({fault.reason}): only a human clears it (b1500 fault clear)"

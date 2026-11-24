@@ -14,6 +14,8 @@ from b1500_test_agent.models.station import SimScenario, SimSlot
 from b1500_test_agent.transport.sim import SimTransport
 from tests.sim.helpers import NMOS_SLOTS, errx_all, resistor_scenario, run, scenario_with, values
 
+pytestmark = pytest.mark.smu
+
 
 def kelvin_scenario(kelvin: str, *, r_ohm: float = 1.0, lead_ohm: float = 0.5, asu: bool = False) -> SimScenario:
     """A resistor from SMU3 (``a``) to the GNDU (``b``) with force-path resistance and the given Sense landing."""

@@ -21,8 +21,9 @@ from b1500_test_agent.models.validation import STAGE_FILES_DIR, STAGES, StageFro
 
 ROOT = Path(__file__).resolve().parents[2]
 STAGE_DIR = ROOT.joinpath(*STAGE_FILES_DIR)
-WRITTEN = ("S0", "L0", "L1", "L2", "L3", "L4", "L10")
-"""Stages of WP6.3; L5-L9 arrive with their module work packages."""
+WRITTEN = ("S0", "L0", "L1", "L2", "L3", "L4", "L5", "L9", "L10")
+"""Stages of WP6.3 and the SMU closure (WP7.7: L5, the SMU part of L9); L6-L8 arrive with their module work
+packages (L9's WGFMU part with WP10.8)."""
 HUMAN_ONLY = ("con" + "fig init", "con" + "fig adopt", "run " + "--confirm", "fa" + "ult clear")
 """Human-only CLI verbs, assembled at run time (the harness guard blocks shell commands that spell them)."""
 RECIPES = {
@@ -32,6 +33,10 @@ RECIPES = {
     "L3": ["basic.diode_iv", "basic.iv_force_i"],
     "L4": ["mosfet.idvg", "mosfet.idvd", "mosfet.gate_leakage", "mosfet.idvg_family", "mosfet.idvg_sync",
            "mosfet.body_effect"],
+    "L5": ["mosfet.idvg_pulsed", "mosfet.idvd_pulsed", "basic.pulsed_spot", "generic.smu_multi_pulsed",
+           "mosfet.id_t_sampling", "generic.smu_sampling", "mosfet.vth_search"],  # WP7.7 (QSCV leakage: M8)
+    "L9": ["reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "reliability.silc", "reliability.tddb_cvs",
+           "dielectric.bdv", "basic.breakdown_search"],  # WP7.7: the SMU part
 }
 
 
@@ -48,7 +53,7 @@ def _section(stage: str, title: str) -> str:
     return "\n".join(doc.lines[span[0]:span[1] - 1])
 
 
-def test_exactly_the_wp63_stage_files_exist() -> None:
+def test_exactly_the_written_stage_files_exist() -> None:
     present = sorted(p.name for p in STAGE_DIR.glob("*.md") if p.name != "_TEMPLATE.md")
     assert present == sorted(stage_file_name(s) for s in WRITTEN)
     for stage in set(STAGES) - set(WRITTEN):
@@ -148,3 +153,23 @@ def test_physical_steps_are_numbered_for_the_human(stage: str) -> None:
     assert re.search(r"^1\. ", physical, re.MULTILINE), stage
     abort = _section(stage, "Abort criteria")
     assert "wait for the human" in abort or "wait for the owner" in abort
+
+
+def test_l5_and_l9_pass_criteria_follow_the_blueprint() -> None:
+    """Blueprint v2 7.4: L5 pulsed = DC at low duty +-2 %, sampling grid as set; L9 async + cancel + recovery with
+    cleanup verified and auto-calibration restored (WP7.7); Vth by search +-5 mV of the constant-current Vth (10.3)."""
+    pulsed = _check("L5", "pulsed_vs_dc")
+    assert (pulsed.quantity, pulsed.method, pulsed.tolerance and pulsed.tolerance.absolute) == (
+        "pulsed_over_dc", "pulsed_vs_dc", 0.02)
+    gaps = _check("L5", "id_t_gaps")
+    assert (gaps.quantity, gaps.method) == ("index_gaps", "kind_result") and gaps.tolerance.check(0, None)  # type: ignore[union-attr]
+    assert not gaps.tolerance.check(3, None)  # type: ignore[union-attr]
+    assert _check("L5", "vth_search").tolerance.absolute == 0.005  # type: ignore[union-attr]
+    for check in ("async_progress", "cancel_drill", "recovery_drill", "autocal_restored"):
+        assert _check("L9", check).recipe is None, check  # stage-record checks
+    assert _front("L9").record_keys()[-1] is None and "reliability.bti_sms" in _front("L9").record_keys()
+    agent = _section("L9", "Agent steps")
+    assert "`stress_time: 600`" in agent and "get_run(run, include=[progress])" in agent
+    physical = _section("L9", "Physical steps (human)")
+    assert "uv run b1500 shutdown" in physical and "b1500-mcp" in physical
+

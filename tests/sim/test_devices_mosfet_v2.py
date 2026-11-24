@@ -15,6 +15,8 @@ from b1500_test_agent.transport.sim.devices.mosfet import Mosfet, MosfetEkv
 from tests.sim.device_fits import EPS0_F_CM, constant_current_vth, linfit
 from tests.sim.helpers import run, scenario_with, values
 
+pytestmark = pytest.mark.smu
+
 EKV = {"vth0": 0.5, "slope_factor": 1.3, "beta": 2e-3, "theta": 0.2, "lambda": 0.05, "rs_ohm": 0.0}
 
 

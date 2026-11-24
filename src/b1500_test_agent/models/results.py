@@ -336,14 +336,15 @@ class RunDetail(ResultEnvelope):
 
 
 class AnalysisResult(ResultEnvelope):
-    """Result of ``analyze_run``: the extraction results (or the quality report, or the PNG files of ``plot_iv``)
-    and the analysis file written."""
+    """Result of ``analyze_run``: the extraction results (or the quality report, or the PNG files of ``plot_iv``,
+    or the SPICE files of ``export_spice_netlist`` in ``files``) and the analysis file written."""
 
     run_id: RunId | None = None
     method: str | None = None
     results: list[ExtractionResult] = Field(default_factory=list)
     quality: QualityReport | None = None
     plots: list[str] = Field(default_factory=list)
+    files: list[str] = Field(default_factory=list)
     artifact: str | None = None
 
 

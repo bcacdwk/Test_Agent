@@ -25,6 +25,8 @@ from b1500_test_agent.models.plan import PlanRequest
 from tests.integration.helpers import World
 from tests.unit.lab_fixtures import REAL_VD, load_sequence
 
+pytestmark = pytest.mark.smu
+
 LAB_PIN_MAP = "mosfet-3t-lab"
 LAB_IDVG_REQUEST: dict[str, Any] = {
     "recipe_id": "mosfet.idvg", "pin_map": LAB_PIN_MAP, "dut_profile": "nmos-generic",

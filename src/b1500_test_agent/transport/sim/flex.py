@@ -231,6 +231,7 @@ SUPPORTED = QUERIES | SAMPLING_COMMANDS | PULSED_COMMANDS | SEARCH_COMMANDS | CM
     "*RST", "FMT", "BC", "TSC", "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "RI", "RV",
     "MM", "CMM", "DV", "WV", "WT", "WM", "XE", "CM",
     "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
+    "FL", "SSR", "AZ", "RM",
     "SAP", "SAR", "SAL",
     "SSP", "SSL",
     "ERMOD", "ERSSP",

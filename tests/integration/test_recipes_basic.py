@@ -17,6 +17,8 @@ from b1500_test_agent.transport.sim.devices import Circuit
 from b1500_test_agent.transport.sim.devices.basic import DiodeDevice
 from tests.integration.helpers import World, plan, run
 
+pytestmark = pytest.mark.smu
+
 CONTACT = {"recipe_id": "basic.contact_resistor", "pin_map": "resistor-2t", "dut_profile": "resistor-generic"}
 DIODE = {"recipe_id": "basic.diode_iv", "pin_map": "diode-2t", "dut_profile": "diode-generic"}
 

@@ -524,6 +524,7 @@ def analyze_lines(result: AnalysisResult) -> list[str]:
     if result.quality is not None:
         lines.append(f"quality: {result.quality.verdict}; counts {result.quality.counts}")
     lines += [f"plot: {path}" for path in result.plots]
+    lines += [f"file: {path}" for path in result.files]
     if result.artifact:
         lines.append(f"artifact: {result.artifact}")
     return lines

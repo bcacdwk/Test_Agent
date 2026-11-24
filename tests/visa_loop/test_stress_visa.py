@@ -20,6 +20,8 @@ from b1500_test_agent.analysis.dataset import DATA_FILE
 from tests.visa_loop.helpers import VisaWorld, assert_selectors_restored, bus_events, without_switch_traffic
 from tests.visa_loop.test_sampling_visa import run_to_end, sim_data
 
+pytestmark = pytest.mark.smu
+
 CHUNK = 256
 SHORT = {"stress_time": 30.0, "reads_per_decade": 1}
 BASE = {"pin_map": "mosfet-4t", "dut_profile": "nmos-generic"}

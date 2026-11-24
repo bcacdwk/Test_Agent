@@ -109,3 +109,59 @@ def _archive_tag_available() -> bool:
 @pytest.mark.skipif(not _archive_tag_available(), reason="git tag archive/v0.2-fake-mcp not available")
 def test_builder_check_mode_reproduces_committed_map_from_archive_tag(capsys: pytest.CaptureFixture[str]) -> None:
     assert builder.main(["--check"]) == 0, capsys.readouterr().err
+
+
+# -- coverage ledger (blueprint v2 9, WP7.7: the SMU rows) -----------------------------------------------------------
+
+
+@pytest.mark.smu
+def test_every_smu_entry_is_mapped_or_out_of_scope_with_a_reason(doc: dict) -> None:
+    ledger = doc["counts"]["ledger"]
+    assert set(ledger) == set(builder.LEDGER_FAMILIES) and builder.CLOSED_FAMILIES == ("smu",)
+    smu = ledger["smu"]
+    assert {kind: smu[kind]["open"] for kind in ("atoms", "flows", "commands")} == {"atoms": 0, "flows": 0,
+                                                                                     "commands": 0}
+    assert smu["atoms"]["mapped"] >= 40 and smu["flows"]["mapped"] >= 20 and smu["commands"]["mapped"] >= 60
+    for entry in [*doc["atoms"], *doc["flows"], *doc["commands"]]:
+        assert entry["scope"] in ("mapped", "out_of_scope", "open")
+        if entry["scope"] == "out_of_scope":
+            assert entry["reason"]
+    by_command = {c["command"]: c for c in doc["commands"]}
+    for mnemonic in ("FL", "SSR", "AZ", "AV", "RM", "WNCC"):  # blueprint v2 1.2 in-scope SMU conditioning
+        assert by_command[mnemonic]["scope"] == "mapped" and by_command[mnemonic]["family"] == "smu"
+    for mnemonic in ("TI", "TDV", "DSMPLARM", "HVSMUOP"):  # blueprint v2 1.2 out-of-scope column
+        assert by_command[mnemonic]["scope"] == "out_of_scope"
+    assert by_command["MSP"]["family"] == "spgu" and by_command["SSP"]["family"] == "cmu"
+    assert by_command["QSV"]["family"] == "cmu"  # QSCV belongs to the CMU work package (8.5)
+    flows = {f["id"]: f for f in doc["flows"]}
+    assert flows["C_flow_search_smu_target"]["target"] == ["recipe:mosfet.vth_search", "recipe:basic.breakdown_search",
+                                                            "kind:smu_search"]
+    assert flows["C_flow_sweep_smu_qscv"]["family"] == "cmu"
+
+
+@pytest.mark.smu
+def test_ledger_check_rejects_open_smu_entries_and_bad_flow_targets(doc: dict) -> None:
+    broken = copy.deepcopy(doc)
+    command = next(c for c in broken["commands"] if c["command"] == "FL")
+    command.update(scope="open")
+    flow = next(f for f in broken["flows"] if f["id"] == "C_flow_pulse_smu_spot")
+    flow["target"] = ["recipe:basic.no_such_recipe", "B1500Driver.no_such_method", "plot:iv"]
+    oos = next(c for c in broken["commands"] if c["command"] == "TI")
+    del oos["reason"]
+    problems = builder.check_ledger(broken["atoms"], broken["flows"], broken["commands"])
+    assert any("command FL: smu entry is neither mapped nor out_of_scope" in p for p in problems)
+    assert any("recipe basic.no_such_recipe does not exist" in p for p in problems)
+    assert any("B1500Driver.no_such_method is not a driver target" in p for p in problems)
+    assert any("'plot:iv' is not recipe:/kind:/analysis:" in p for p in problems)
+    assert any("command TI: out_of_scope without a reason" in p for p in problems)
+
+
+@pytest.mark.parametrize(("entry_id", "family"), [
+    ("C_atom_smu_force_voltage", "smu"), ("C_atom_smu_configure_qscv", "cmu"),
+    ("B_atom_routing_asu_set_path", "smu"), ("C_atom_hvsmu_execute_iv", "smu"),
+    ("B_atom_output_b1500_zero_all", "system"), ("D_atom_extract_transfer_vth", "smu"),
+    ("D_atom_extract_cv_cox", "cmu"), ("C_flow_pulse_spgu_train", "spgu"), ("A_atom_easyexpert_identify", "system"),
+    ("CD_flow_screen_iv_leakage", "smu"), ("A_flow_snapshot_flex_status", "system"),
+])
+def test_entry_families(entry_id: str, family: str) -> None:
+    assert builder.entry_family(entry_id) == family

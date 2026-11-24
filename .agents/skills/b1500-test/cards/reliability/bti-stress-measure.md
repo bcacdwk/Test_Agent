@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/05-reliability-defects.md#bti-stress-measure-stress, knowledge/05-reliability-defects.md#stress-measure-analysis, knowledge/06-analysis-extraction.md#vth-constant-current]
 manual: [PG p474-475 (4-156) "MT", PG p472-473 (4-154) "MSC", PG p568 (4-250) "WV", PG p396 (4-78) "DV"]
-debug: [vth-drift-igzo, compliance-hit, noisy-data, errx-codes, cleanup-failed-fault]
+debug: [stress-degradation-unexpected, vth-drift-igzo, compliance-hit, noisy-data, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 3.1 2.7 and 4.2, deck slide 14, Kaczer et al. IRPS 2008]
 version: 1
 ---
@@ -109,7 +109,10 @@ sim_scenario: nmos_bti
   (|dVth| at 1 s), `dvth` (signed, last stress read); with recovery reads `recovery`, `recovery_rate`.
   `min_change` (1 mV) drops reads lost in the noise; `t_min`/`t_max` restrict the fit.
 - `degradation_vs_time` (`quantity: id`, `at_v`) for the drain current loss; `plot_timeseries` (`log_time: true`).
-- Report: stress V, time, read times and read duration, `n` and `A` with r2 and reads used, measured status counts.
+- Report: stress V, time, read times and read duration; `n` and `A` as `bti_power_law` results (name the method,
+  Vth criterion, r2, reads used); measured status counts.
+- After a stop (`safe_shutdown`): run id, outcome (`cancelled`, or `aborted` when a recovery finalized it), "cleanup
+  verified" (or not, from the `cleanup` result) and the rows so far as partial data.
 
 ## 8. Expected result shape
 
@@ -126,6 +129,7 @@ sim_scenario: nmos_bti
 | stopped: read with `C` on the drain | `icomp_drain` too low for the read | Id at `vg_stop` from the reference read | `compliance-hit` |
 | stopped: hold block `C` on the gate | gate breakdown / leaky stack | low-voltage gate leakage | `current-too-high` |
 | dVth scattered, n off | noisy reads, recovery during reads | fewer points, `short` | `noisy-data` |
+| no shift, wrong sign, huge shift | stress too weak, recovery, polarity, breakdown | reference read, Ig trend | `stress-degradation-unexpected` |
 | Vth drifts without stress | trapping, temperature | rest the device, repeat the reference read | `vth-drift-igzo` |
 | run `failed`, fault latched | instrument error, unverified cleanup | `safe_shutdown`, skill `b1500-debug` | `errx-codes`, `cleanup-failed-fault` |
 

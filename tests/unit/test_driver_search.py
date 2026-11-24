@@ -28,6 +28,8 @@ from b1500_test_agent.driver.search import parse_quasi_pulsed, parse_search
 from b1500_test_agent.models.plan import ChannelEnvelope, CompiledEnvelope
 from tests.unit.flex_fixtures import FIXTURE_DIR, load_fixture
 
+pytestmark = pytest.mark.smu
+
 
 class Recorder:
     """A transport stand-in that records writes."""

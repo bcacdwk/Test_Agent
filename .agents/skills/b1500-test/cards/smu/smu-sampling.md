@@ -10,9 +10,9 @@ routes: []
 bringup_stage: L5
 status: sim_validated
 confirmation: conditional
-knowledge: [knowledge/02-b1500-instrument.md#sampling-measurement-mm-10, knowledge/06b-analysis-time-pulse.md#sampling-summary-and-relaxation-fit, knowledge/05-reliability-defects.md#igzo-instability-mechanisms, knowledge/02-b1500-instrument.md#data-status-codes]
+knowledge: [knowledge/02b-smu-modes.md#sampling-measurement-mm-10, knowledge/06b-analysis-time-pulse.md#sampling-summary-and-relaxation-fit, knowledge/05-reliability-defects.md#igzo-instability-mechanisms, knowledge/02-b1500-instrument.md#data-status-codes]
 manual: [PG p474-475 (4-156) "MT", PG p477 (4-159) "MV", PG p472-473 (4-154) "MSC", PG p538 (4-220) "TSC"]
-debug: [vth-drift-igzo, compliance-hit, noisy-data, errx-codes, cleanup-failed-fault]
+debug: [smu-sampling-skips, vth-drift-igzo, compliance-hit, noisy-data, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 3.1 and 4.2, lwp lib/IVt_sampling.m, PG sampling measurements p112-114]
 version: 1
 ---
@@ -133,6 +133,7 @@ sim_scenario: igzo_transient
 | Vth/Id differs every run | IGZO drift, light, humidity, previous stress | rest the device, repeat, compare `initial` | `vth-drift-igzo` |
 | `aborted` with `C`/`T` | drain or gate in compliance | report the abort; lower `vg`/`vd` or check the gate | `compliance-hit` |
 | scattered Id, tau unstable | noise, short integration at a short interval | `quality_report`; longer `interval`/`integration` | `noisy-data` |
+| `index_gaps` > 0, host time | interval shorter than a sample, range changes | `kind_result`, `irange` | `smu-sampling-skips` |
 | run `failed`, errors, fault latched | instrument error, unverified cleanup | `safe_shutdown`, then skill `b1500-debug` | `errx-codes`, `cleanup-failed-fault` |
 
 ## 10. Validation record

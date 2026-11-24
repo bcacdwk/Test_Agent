@@ -10,10 +10,10 @@ Source material for developers and for the agent's knowledge files. Nothing here
 Where the rest lives:
 
 - Agent-facing domain knowledge (device physics, B1500A instrument, probe station and wiring, ferroelectric and
-  oxide devices, reliability, analysis and extraction, HSPICE) is in the skill: `.agents/skills/b1500-test/knowledge/`
-  (index `knowledge/README.md`). The former `references/{instruments,physics,hspice}/` notes and the measurement-mode
-  stub were folded into these knowledge files and removed; history:
-  `git show archive/v0.2-fake-mcp:references/`.
+  oxide devices, reliability, analysis and extraction, compact models and SPICE export) is in the skill:
+  `.agents/skills/b1500-test/knowledge/` (index `knowledge/README.md`). The former
+  `references/{instruments,physics,hspice}/` notes and the measurement-mode stub were folded into these knowledge
+  files and removed; history: `git show archive/v0.2-fake-mcp:references/`.
 - Debug know-how and case records from real experiments: skill `b1500-debug` (`.agents/skills/b1500-debug/`:
   runbooks, cases).
 - Recipes (validated measurement flows and their envelopes): `recipes/`, checked by `b1500 dev recipe-check`.

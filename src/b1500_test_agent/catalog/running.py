@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from b1500_test_agent.analysis.dataset import MANIFEST_FILE
+from b1500_test_agent.archive.audit import read_audit
 from b1500_test_agent.archive.runfiles import read_progress
 from b1500_test_agent.archive.store import RunStore, process_software_version
 from b1500_test_agent.catalog.planner import PlanError, PlanStore
@@ -170,7 +171,10 @@ class RunningRuns:
     def _finalize_orphan(self, bundle: ConfigBundle, marker: InflightMarker, report: CleanupReport) -> None:
         """``Session.on_recovery``: archive the run of a process that died inside its transaction (in-flight marker
         recovered) as ``aborted``, with the recovery cleanup as its cleanup report. Runs that are already finalized,
-        unknown or whose plan is gone are left as they are."""
+        unknown or whose plan is gone are left as they are. A run the human had confirmed keeps that record: its own
+        ``tier_check`` audit event says ``confirmed``, and the executor runs a confirmed plan only when the echoed
+        summary equals the plan's, so the manifest gets ``confirmed_summary`` = the plan summary (WP7.7: a harness
+        that kills the MCP server mid-run otherwise lost the consent record)."""
         if marker.run is None:
             return
         store = RunStore(bundle.paths.runs_dir)
@@ -200,11 +204,16 @@ class RunningRuns:
                    f"without finalizing it{at}; the in-flight recovery of the next transaction ran the cleanup "
                    f"({report.verified}); rows acquired so far, if any, are in partial.csv")
         started = marker.since or datetime.now(UTC)
+        confirmed = any(e.data and e.data.get("confirmed") is True and e.data.get("plan_id") == plan.plan_id
+                        for e in read_audit(folder.path, events=["tier_check"]))
         manifest = RunManifest(
             run_id=marker.run, plan=plan, plan_hash=plan.plan_hash, recipe_id=plan.recipe_id,
             recipe_version=plan.recipe_version, recipe_sha=plan.recipe_sha, recipe_status=status,
             backend=bundle.backend, simulated=bundle.backend == "sim", hashes=dict(plan.hashes), config_files=[],
             rules=[plan.rules], tier=plan.tier, client=ClientInfo(adapter=marker.adapter or "cli"),
+            confirmed_summary=plan.summary if confirmed else None,
+            confirmed_via=None if not confirmed else (
+                "run_confirmed_plan" if marker.adapter == "mcp" else "cli --confirm"),
             software_version=process_software_version(), started_at=started, finished_at=datetime.now(UTC),
             outcome="aborted", error_code="internal", message=message, cleanup=report,
             assumptions=[*self._assumptions(bundle, plan), ("finalized by the in-flight recovery of a later "

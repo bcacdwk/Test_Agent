@@ -22,6 +22,8 @@ from b1500_test_agent.analysis import mosfet
 from b1500_test_agent.models.analysis import ExtractionResult
 from tests.unit.lab_fixtures import real_idvg, real_idvg_run
 
+pytestmark = pytest.mark.smu
+
 VTH_SPREAD_V = 0.10
 """Stated agreement of the three Vth methods on the lab curve (max - min)."""
 

@@ -19,9 +19,9 @@ Owns run loading, the run-table contract, quality, extraction, plots and the met
   `forced_on_untrusted`, warns); `V` (incl. `199.999E+99`) never limited. `assess_quality` first; report the counts.
 - A refusal or failure is a result (`outcome` `refused`/`failed`, `value=None`, `error`), never an exception;
   exceptions only for unusable calls (unknown run/column/option, declared method → `not_implemented`).
-- Definitions live in the module docstrings (`mosfet.py` ... `pulse.py`; shared `common.py`) and must match skill
-  `b1500-test` knowledge `06-analysis-extraction.md` (time series, pulses, `nvm.py`: `06b-...`; `stress.py`: `05-...`;
-  `cv.py`, `cv_variants.py`: `08-...`); change both together. Two-run methods take `reference` (option `reference_run`).
+- Definitions live in the module docstrings (shared `common.py`) and match skill `b1500-test` knowledge `06-...`
+  (time series, pulses, `nvm.py`: `06b-...`; `stress.py`: `05-...`; `cv.py`, `cv_variants.py`: `08-...`; `model.py`,
+  `spice.py`: `07-...`); change both together. Two-run methods take `reference` (option `reference_run`).
 - Deterministic algorithms only (language-model text narrates, never computes). Units on every quantity; tables
   are pandas DataFrames. Plot raw data before extraction; semilog axes for currents over decades.
 - Run folders are written only by the server (`analyze_run`); ad-hoc results go to `work/<run_id>/` with the

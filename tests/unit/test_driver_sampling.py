@@ -15,6 +15,8 @@ from b1500_test_agent.driver.sampling import parse_sampling
 from b1500_test_agent.models.plan import ChannelEnvelope, CompiledEnvelope
 from tests.unit.flex_fixtures import FIXTURE_DIR, load_fixture
 
+pytestmark = pytest.mark.smu
+
 # -- builders ----------------------------------------------------------------------------------------------------
 
 

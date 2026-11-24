@@ -23,6 +23,8 @@ from b1500_test_agent.models.recipe import Recipe
 from tests.unit.helpers import REPO_ROOT
 from tests.unit.rules_factory import IDVD, T0, bundle, dut, engine, example_station, pin_map, recipe
 
+pytestmark = pytest.mark.smu
+
 REGISTRY = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)
 STATION = example_station()
 KIND = SmuSteppedKind()

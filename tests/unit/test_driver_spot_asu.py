@@ -21,6 +21,8 @@ from b1500_test_agent.models.plan import ChannelEnvelope, CompiledEnvelope
 from b1500_test_agent.models.routing import Route, SwitchPort, SwitchSpec
 from tests.unit.driver_helpers import SpyTransport
 
+pytestmark = pytest.mark.smu
+
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "flex"
 
 

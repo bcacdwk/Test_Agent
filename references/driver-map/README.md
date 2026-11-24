@@ -59,6 +59,14 @@ architecture composes measurements as recipes (§2.6), not as flows.
 entries, and grouped entries listed in `GROUPED_PAGES`; every mapped command has pages), `target` (method, else builder, else `unmapped`), `builder`, `priority`, `atoms` (legacy atoms
 naming it), `note`.
 
+Coverage ledger (blueprint v2 §9, WP7.7): every atom, flow and command also carries `family` (`smu`, `cmu`, `spgu`,
+`wgfmu`, `system`) and `scope`: `mapped` (a driver target, a D-atom `successor`, or a flow `target` list of
+`recipe:<id>`, `kind:<id>`, `analysis:<method>` or `B1500Driver.<method>`), `out_of_scope` (with `reason`, from
+`OUT_OF_SCOPE`) or `open`. Families come from `entry_family` (id words) and, for commands, from the manual category
+(`COMMAND_CATEGORY_FAMILY`) with the `COMMAND_FAMILY` overrides. `counts.ledger` holds mapped/out_of_scope/open per
+family and entry type; `--check` fails on an `open` entry of a family in `CLOSED_FAMILIES` (`smu` since WP7.7; the
+module closures 8.6, 9.6, 10.8 add theirs, WP11.2 the rest).
+
 ## Target vocabulary (§2.3)
 
 | FLEX | `B1500Driver` method | `driver/flex/` builder |
@@ -74,6 +82,7 @@ naming it), `note`.
 | `*OPC?` | `wait_complete` (added by WP1.3) | `OPC_Q` |
 | `CM`, `*LRN?`; `ERMOD?`, `ERSSP?`, `SPST?`, `CORRST?`, `ADJ?` | `set_auto_calibration`, `auto_calibration`; the probe queries | WP5.6; WP6.1 |
 | MFCMU: `IMP`, `FC`/`ACV`/`DCV`, `RC`, `ACT`, `LMN`, the MM 18-26 sources and timing, `ADJ`, `CORRL`, `CLCORR`, `CORR?`, `DCORR`, `CORRDT`, `CORRST`; `MM` 17-20, 22, 23, 26 (`MM_MODE_TARGETS`); SCUU `SSP`, `SSL` | `CmuOps` (`apply_cmu_signal`, `cv_sweep`, `cf_sweep`, ...), `SwitchOps.scuu_route` | WP8.1 |
+| SMU conditioning `FL` / `SSR` / `AZ` / `AV` / `RM`; `WNCC` (WP7.7) | `set_filter` / `set_series_resistor` / `set_adc_zero` / `set_averaging` / `set_range_mode`; `clear_sweep_sources` | `fl` / `ssr` / `az` / `av` / `rm`; `wncc` |
 
 Mapped since: `CM`, `*LRN?` (WP5.6); the probe queries `ERMOD?`, `ERSSP?`, `SPST?`, `CORRST?`, `ADJ?` (WP6.1); the
 sampling setup `MM 10`, `MCC`, `ML`, `MT`, `MSC`, `MV`, `MI` and the time stamps `TSC`, `TSR` (WP7.4); `DI`, `WI`,

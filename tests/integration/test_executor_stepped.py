@@ -23,6 +23,8 @@ from b1500_test_agent.transport.sim.devices.mosfet import MosfetEkv
 from b1500_test_agent.transport.sim.state import load_state_file, sim_state_file
 from tests.integration.helpers import REPO_ROOT, World, plan, run
 
+pytestmark = pytest.mark.smu
+
 IDVD = {"recipe_id": "mosfet.idvd", "pin_map": "mosfet-4t", "dut_profile": "nmos-generic"}
 
 

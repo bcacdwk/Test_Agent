@@ -11,7 +11,8 @@ plans; the human does every physical step. Backend `sim`: symptoms and fixes are
 
 ## 1. First moves
 
-1. Fault, error, `cleanup_unverified` or outputs in doubt: `safe_shutdown(reason)` first. It is never gated.
+1. Fault, error, stop request, `cleanup_unverified` or outputs in doubt: `safe_shutdown(reason)` first (never
+   gated); then report "cleanup verified" (or unverified, from its `cleanup`) and a stopped run's rows as partial.
 2. Report no derived value from the suspect run: no Vth, SS or fit from untrusted or noise-floor data, no `force`.
 3. `station_status`: fault latch, lock holder, interlock bit, instrument errors, outputs on, config problems.
 4. Pick the runbook (part 3), work through it in order, then record the case (part 7).
@@ -41,6 +42,8 @@ Do not blame the DUT before steps 1-3 are cleared. One change at a time; note ea
 | Selector off rest, SPGU output running, SPP fallback (`spp_fallbacks`) | [spgu-selector-state](runbooks/spgu-selector-state.md) |
 | SPGU pulses did nothing (no switching, no charge-pumping current) | [spgu-pulse-no-effect](runbooks/spgu-pulse-no-effect.md) |
 | Pulse level at the pad not the set level, R-SPGU-01 SER/high_z block | [spgu-load-mismatch](runbooks/spgu-load-mismatch.md) |
+| Sampling run with skipped samples, `index_gaps`, host/index time, early abort | [smu-sampling-skips](runbooks/smu-sampling-skips.md) |
+| BTI/HCI/SILC/IGZO stress: no shift, wrong sign, huge shift, odd exponent | [stress-degradation-unexpected](runbooks/stress-degradation-unexpected.md) |
 
 No match: follow part 2 and record a case.
 
@@ -94,6 +97,5 @@ change the picture. Say what you saw, what you ruled out and what the human shou
 - A case seen twice becomes a runbook entry; a validated parameter fix becomes a card recommendation.
 - The human reviews both; any change to skill, card or rule text must pass the M3 acceptance suite again.
 - Seed cases from deck slide 17, all `draft`:
-  [current too high](cases/2026-11-04-current-orders-too-high.md),
-  [noisy data](cases/2026-11-04-noisy-data.md),
+  [current too high](cases/2026-11-04-current-orders-too-high.md), [noisy data](cases/2026-11-04-noisy-data.md),
   [IGZO Vth drift](cases/2026-11-04-igzo-vth-drift.md).

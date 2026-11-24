@@ -11,6 +11,8 @@ import pytest
 from b1500_test_agent.analysis.diode import BOLTZMANN_OVER_Q, diode_fit
 from tests.unit.analysis_helpers import iv_table, run_of
 
+pytestmark = pytest.mark.smu
+
 IS, N, RS, LEAK = 2e-14, 1.08, 15.0, 1e-11
 UT = BOLTZMANN_OVER_Q * 300.0
 

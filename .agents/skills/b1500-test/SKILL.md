@@ -92,10 +92,10 @@ before re-running); `running`, `cancelled` (part 6).
 - `validate_plan` shows `mode` and `est_s`; long plans run async (very long ones need `long_run` consent).
 - Async runs return `outcome: running`, `run_id`, `eta_s`: say so, then poll `get_run(run_id, include=[progress])`
   (state, done/total, eta); other calls may answer `busy`.
-- `completed`: quality gate and analysis as usual. `cancelled`/`failed`: partial rows; say so, report the cleanup;
-  extract only what the card allows.
-- Stop: `safe_shutdown(reason)` from any process (human: `uv run b1500 shutdown`): cancels at a checkpoint, then
-  verified cleanup.
+- `completed`: quality gate and analysis as usual. `cancelled`/`failed`: partial rows; say so; extract only what
+  the card allows.
+- Stop: `safe_shutdown(reason)` (any process; human: `uv run b1500 shutdown`) cancels at a checkpoint; write
+  "cleanup verified" verbatim (or "unverified").
 
 ## 7. Manual lookup
 
@@ -112,7 +112,7 @@ Run: <run_id> | plan <plan_id> | recipe <id>@<version> | tier <tier> | DUT <prof
 Conditions: <swept/biased terminals, ranges, compliance, integration>
 Data: <points>; status counts <N=..., C=...>; quality <verdict>; cleanup <verified>; partial <no|yes>
 Measured: <direct readings with units>
-Derived: <quantity = value unit; method; window; points used/excluded>   (one line each, not a table)
+Derived: <quantity = value unit; method; window; points used/excluded>  (one line each, not a table)
 Warnings: <flags, compliance hits, forced extraction>
 Assumptions, next steps: <...>
 ```

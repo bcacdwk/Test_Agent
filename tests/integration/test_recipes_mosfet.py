@@ -26,6 +26,8 @@ from b1500_test_agent.transport.sim.devices import Circuit
 from b1500_test_agent.transport.sim.devices.mosfet import MosfetEkv
 from tests.integration.helpers import IDVG, World, plan, run
 
+pytestmark = pytest.mark.smu
+
 IDVD = {"recipe_id": "mosfet.idvd", "pin_map": "mosfet-4t", "dut_profile": "nmos-generic"}
 LEAK = {"recipe_id": "mosfet.gate_leakage", "pin_map": "mosfet-4t", "dut_profile": "nmos-generic"}
 VTH_METHODS = ("vth_linear_extrapolation", "vth_constant_current", "vth_max_gm")

@@ -23,6 +23,8 @@ from tests.unit.helpers import REPO_ROOT
 from tests.unit.rules_factory import example_station
 from tests.unit.rules_factory import recipe as factory_recipe
 
+pytestmark = pytest.mark.smu
+
 REGISTRY = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)
 STATION = example_station()
 TWO = PinMap(name="two", certainty="verified", terminals={"a": 3, "b": 5, "c": 4, "d": 6, "g": "GNDU"})

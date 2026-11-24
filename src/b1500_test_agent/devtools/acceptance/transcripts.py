@@ -9,7 +9,12 @@ sessions (``tests/fixtures/transcripts/``, harness versions in their ``meta.json
   ``item.started``/``item.completed`` with items ``agent_message`` (``text``), ``command_execution`` (``command``,
   ``aggregated_output``, ``exit_code``, ``status``), ``file_change`` (``changes[{path, kind}]``), ``mcp_tool_call``
   (``server``, ``tool``, ``arguments``, ``result{content, structured_content}``, ``error{message}``, ``status``),
-  ``turn.completed`` / ``turn.failed``. A command refused by an execution-policy rule never becomes an item; it is
+  ``turn.completed`` / ``turn.failed``. An ``error`` event (top level or item) is a transcript error, except the
+  transient stream notices that codex-cli 0.170.0 emits while it retries a dropped connection,
+  ``Reconnecting... n/m (...)``, and while it switches transport, ``Falling back from WebSockets to HTTPS transport``
+  (WP6.6 handoff, fixed WP7.7): they go to ``notices``; a retry that gives up still ends in ``turn.failed`` (an error)
+  or no ``turn.completed`` (the session fails either way). A command refused by an
+  execution-policy rule never becomes an item; it is
   recovered from the ``Rejected(...)`` line Codex prints on stderr. Codex may drive its tools through a
   JavaScript "code mode" tool, so the session rollout file (``$CODEX_HOME/sessions/**/rollout-*-<id>.jsonl``) is
   read as well: every ``custom_tool_call``/``function_call``/``local_shell_call`` input becomes a ``ToolInput``
@@ -46,6 +51,11 @@ OUTPUT_CLIP = 4000
 _ID_KEYS = ("plan_id", "run_id", "recipe_id", "tier", "outcome", "cancelled_run")
 _APPROVAL_DENIED = re.compile(r"requires approval|approval policy|denied|rejected|not granted|permission",
                               re.IGNORECASE)
+_TRANSIENT = re.compile(r"^\s*(?:Re-?connecting\s*(?:\.\.\.|\u2026)\s*\d+\s*/\s*\d+"
+                        r"|Falling back from WebSockets to HTTPS transport\b)", re.IGNORECASE)
+"""A Codex stream-retry or transport-fallback notice (``Reconnecting... 2/5 (stream disconnected before completion:
+...)``, ``Falling back from WebSockets to HTTPS transport. workspace routing discovery failed``): not an error of the
+turn by itself."""
 _REJECTED = re.compile(r'Rejected\(\\?"`(?P<cmd>[^`]*)` rejected: (?P<why>[^"\\]*)')
 _PATCH_FILE = re.compile(r"\*\*\* (?P<kind>Add|Update|Delete) File: (?P<path>[^\n\\\"]+)")
 
@@ -187,6 +197,7 @@ class TurnTranscript(BaseModel):
     final_answer: str = ""
     completed: bool = False
     errors: list[str] = Field(default_factory=list)
+    notices: list[str] = Field(default_factory=list)
     info: dict[str, Any] = Field(default_factory=dict)
     usage: Usage | None = None
 
@@ -303,7 +314,7 @@ def parse_codex(lines: Iterable[str], *, turn: int = 1, stderr: str = "") -> Tur
             error = record.get("error")
             out.errors.append(str(error.get("message") if isinstance(error, dict) else error))
         elif kind == "error":
-            out.errors.append(str(record.get("message", record)))
+            _codex_error(out, str(record.get("message", record)))
     for item in items.values():
         _codex_item(out, item)
     for match in _REJECTED.finditer(stderr):
@@ -342,7 +353,12 @@ def _codex_item(out: TurnTranscript, item: dict[str, Any]) -> None:
                         result=_mcp_result(item.get("result")), call_id=item.get("id"))
         out.tool_calls.append(_ids(call))
     elif kind == "error":
-        out.errors.append(str(item.get("message", "")))
+        _codex_error(out, str(item.get("message", "")))
+
+
+def _codex_error(out: TurnTranscript, message: str) -> None:
+    """An ``error`` event: a transient reconnect notice goes to ``notices``, anything else to ``errors``."""
+    (out.notices if _TRANSIENT.match(message) else out.errors).append(message)
 
 
 def parse_codex_rollout(lines: Iterable[str], turn_of: Callable[[datetime | None], int | None]) \

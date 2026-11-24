@@ -7,10 +7,10 @@ helpers (``state``, ``faults``, ``_channel``, ``_smu``, ``_queue_error``, ``_sta
 measurement lifecycle). Manual references (Programming Guide Ed. 15, physical PDF pages): ``*IDN?`` 440; ``UNT?``
 545; ``ERRX?`` 431-432; ``*STB?`` 523; ``*OPC?`` 480; ``*RST`` 502 (initialise like power-on, PDF 175); ``LOP?``
 446-447 (Table 4-26); ``*TST?`` 540-541; ``*CAL?`` 377; ``NUB?`` 478; ``FMT`` 436-438; ``BC`` 364; ``TSC`` 538-539;
-``CN`` 380-381; ``CL`` 378; ``DZ`` 397; ``AB`` 351-352; ``AAD`` 351; ``AIT`` 356-359; ``AV`` 362-363; ``CM`` 379
-(printed 4-61); ``*LRN?`` 447-452 (printed 4-129 to 4-134; types 0 and 31 here, the family types registered with
-``units.base.learns`` by their units, any other type is logged ``unsupported``). The simulator does not run the
-auto-calibration itself (it only keeps the ``CM`` switch).
+``CN`` 380-381; ``CL`` 378; ``DZ`` 397; ``AB`` 351-352; ``AAD`` 351; ``AIT`` 356-359; ``AV`` 362-363; ``AZ`` 363;
+``CM`` 379 (printed 4-61); ``*LRN?`` 447-452 (printed 4-129 to 4-134; types 0 and 31 here, the family types
+registered with ``units.base.learns`` by their units, any other type is logged ``unsupported``). The simulator does
+not run the auto-calibration itself (it only keeps the ``CM`` switch).
 """
 
 from __future__ import annotations
@@ -37,6 +37,7 @@ class CoreUnit:
         self._tsc = False
         self._adc: dict[int, int] = {}
         self._ait: dict[int, tuple[int, float]] = {0: (0, 1), 1: (0, 6), 2: (2, 1)}
+        self._adc_zero = False
 
     def _switchable(self) -> frozenset[str]:
         return SMU_TYPES | CMU_TYPES | SPGU_TYPES
@@ -360,17 +361,28 @@ class CoreUnit:
             raise flex.FlexError(flex.ERR_PARAMETER)
         self._ait[0] = (2, -number) if number < 0 else (mode, number)
 
+    @handles("AZ")
+    def _cmd_az(self, cmd: flex.Command) -> None:
+        """``AZ mode``: ADC zero function of the high-resolution ADC, off (0) at power-on and ``*RST`` (PDF 363)."""
+        flex.arity(cmd, 1, 1)
+        mode = flex.integer(cmd.args[0])
+        if mode not in (0, 1):
+            raise flex.FlexError(flex.ERR_PARAMETER, f"AZ mode {mode}")
+        self._adc_zero = bool(mode)
+
     def integration_time(self, channel: int) -> float:
-        """Nominal time (s) of one measurement on ``channel`` from ``AAD``/``AIT``/``AV`` (Table 4-21)."""
+        """Nominal time (s) of one measurement on ``channel`` from ``AAD``/``AIT``/``AV`` (Table 4-21); the ADC zero
+        function (``AZ 1``) doubles a high-resolution measurement (PDF 363: off roughly halves it)."""
         adc = self._adc.get(channel, 0)
         mode, n = self._ait[adc]
         plc = 1.0 / flex.LINE_FREQUENCY_HZ
         if adc == 1:
+            zero = 2.0 if self._adc_zero else 1.0
             if mode == 0:
-                return n * flex.HR_AUTO_UNIT_S
+                return zero * n * flex.HR_AUTO_UNIT_S
             if mode == 1:
-                return n * flex.HR_MANUAL_UNIT_S
-            return n * plc
+                return zero * n * flex.HR_MANUAL_UNIT_S
+            return zero * n * plc
         if mode == 3:
             return float(n)
         samples = n * flex.SAMPLES_PER_PLC if mode == 2 else n

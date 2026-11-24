@@ -32,6 +32,8 @@ from tests.unit.analysis_helpers import (
 )
 from tests.unit.helpers import assert_roundtrip
 
+pytestmark = pytest.mark.smu
+
 VG = np.linspace(-1.0, 3.0, 401)
 INVALID = 199.999e99
 TRANSFER = [vth_constant_current, vth_max_gm, subthreshold_swing, gm_max, ion_ioff]

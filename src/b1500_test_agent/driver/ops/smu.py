@@ -198,7 +198,9 @@ class StaircaseSetup(StrictModel):
 
 class SmuOps(DriverBase):
     """SMU operations of ``B1500Driver``: integration, ranging, guarded ``DV``/``DI``, the spot setup (``MM 1``) and
-    the staircase sweep setup (``WV``/``WI`` primary, ``WSV``/``WSI`` synchronous or ``WNX`` multi-channel sources)."""
+    the staircase sweep setup (``WV``/``WI`` primary, ``WSV``/``WSI`` synchronous or ``WNX`` multi-channel sources);
+    the conditioning settings ``FL``/``SSR`` (channel allowlist checked), ``AZ``, ``AV``, ``RM`` and ``WNCC``. No v2
+    kind sends a conditioning command (each keeps its initial setting); a kind that does restores it in cleanup."""
 
     def set_integration(self, adc: int, mode: int, n: float, *, chs: Sequence[int] = ()) -> None:
         """``AAD ch,adc`` for each of ``chs``, then ``AIT adc,mode,n`` (PG PDF 351, 356-359)."""
@@ -218,6 +220,40 @@ class SmuOps(DriverBase):
             self._write(flex.rv(ch, code))
         else:
             raise ValueError(f"quantity must be 'I' or 'V', got {quantity!r}")
+
+    # -- conditioning (WP7.7, blueprint v2 1.2: RM, AV, AZ, FL, SSR) ------------------------------------------------
+
+    def set_filter(self, on: bool, chs: Sequence[int]) -> None:
+        """``FL mode,ch...`` on named channels only (each in the guard's allowlist; PG PDF 436): the filter changes
+        the output path, so it is never sent to every channel."""
+        if not chs:
+            raise ValueError("set_filter needs the channels (FL without channels would reach every SMU)")
+        for ch in chs:
+            self._require_guard("set_filter", ch).check_channel(ch)
+        self._write(flex.fl(on, list(chs)))
+
+    def set_series_resistor(self, ch: int, on: bool) -> None:
+        """``SSR ch,mode`` for a channel in the guard's allowlist (PG PDF 521); with the output switch closed the
+        output forces 0 V for a moment."""
+        self._require_guard("set_series_resistor", ch).check_channel(ch)
+        self._write(flex.ssr(ch, on))
+
+    def set_adc_zero(self, on: bool) -> None:
+        """``AZ mode``: ADC zero function of the high-resolution ADC (PG PDF 363); no output change."""
+        self._write(flex.az(on))
+
+    def set_averaging(self, number: int, mode: int | None = None) -> None:
+        """``AV number[,mode]``: high-speed ADC averaging (PG PDF 362-363); no output change."""
+        self._write(flex.av(number, mode))
+
+    def set_range_mode(self, ch: int, mode: int, rate: int | None = None) -> None:
+        """``RM ch,mode[,rate]``: auto-ranging operation of a current measurement (PG PDF 501-502); no output
+        change."""
+        self._write(flex.rm(ch, mode, rate))
+
+    def clear_sweep_sources(self) -> None:
+        """``WNCC``: clears the multi-channel sweep sources set by ``WNX`` (PG PDF 556); no output change."""
+        self._write(flex.wncc())
 
     def force_v(self, ch: int, v: float, *, icomp: float, rng: int = 0) -> None:
         """Guarded ``DV ch,rng,v,icomp`` (PG PDF 396)."""

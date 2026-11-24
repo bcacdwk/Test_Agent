@@ -11,6 +11,8 @@ from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import Quantity
 from tests.unit.analysis_helpers import iv_table, run_of
 
+pytestmark = pytest.mark.smu
+
 VG = np.linspace(0.0, 3.0, 31)
 G = 1e-12
 INVALID = 199.999e99

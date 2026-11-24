@@ -15,6 +15,8 @@ from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import Quantity
 from tests.unit.analysis_helpers import run_of, subthreshold_id
 
+pytestmark = pytest.mark.smu
+
 VG = np.round(np.linspace(-0.2, 1.2, 141), 9)
 I_CRIT = 1e-7
 

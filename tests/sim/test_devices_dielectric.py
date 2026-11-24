@@ -13,6 +13,8 @@ from b1500_test_agent.models.sim import DielectricParams
 from b1500_test_agent.transport.sim.devices.dielectric import DielectricDevice
 from tests.sim.device_fits import EPS0_F_CM, linfit
 
+pytestmark = pytest.mark.smu
+
 
 def oxide(**extra: float) -> DielectricDevice:
     return DielectricDevice("ox", DielectricParams.model_validate({"seed": 11, **extra}))

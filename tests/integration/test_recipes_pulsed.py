@@ -23,6 +23,8 @@ from b1500_test_agent.service import B1500Service
 from b1500_test_agent.transport.sim.devices import Circuit
 from tests.integration.helpers import World
 
+pytestmark = pytest.mark.smu
+
 IDVG_P = {"recipe_id": "mosfet.idvg_pulsed", "pin_map": "mosfet-4t", "dut_profile": "nmos-pulsed"}
 IDVG_DC = {"recipe_id": "mosfet.idvg", "pin_map": "mosfet-4t", "dut_profile": "nmos-pulsed"}
 IDVD_P = {"recipe_id": "mosfet.idvd_pulsed", "pin_map": "mosfet-4t", "dut_profile": "nmos-pulsed"}

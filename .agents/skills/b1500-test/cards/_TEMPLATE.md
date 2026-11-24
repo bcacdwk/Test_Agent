@@ -4,6 +4,7 @@ title: <measurement — extracted quantities>
 family: <smu|cmu|spgu|wgfmu|nvm|reliability|system>   # lint: = the folder cards/<family>/ and every recipe's family
 intent: [<keywords a request uses, e.g. Vth, gm, SS>]  # shown in the generated index cards/README.md
 recipes: [<recipe.id>]             # lint: each exists and its recipe `card:` points back to this file
+analysis: []                       # optional: analysis methods the card documents; recipes [] = analysis-only card
 device_types: [<types>]            # lint: subset of the recipes' device_types (empty only if they name none)
 modules: [<HRSMU, MPSMU, MFCMU, HVSPGU, WGFMU, GNDU ...>]   # lint: subset of the module types the recipe roles use
 routes: [<switch kind:state, e.g. selector_16440a:pgu>]   # lint: subset of the routes the roles' resources need

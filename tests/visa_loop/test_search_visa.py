@@ -21,6 +21,8 @@ from b1500_test_agent.analysis.dataset import DATA_FILE
 from tests.visa_loop.helpers import VisaWorld, assert_selectors_restored, bus_events, without_switch_traffic
 from tests.visa_loop.test_sampling_visa import run_to_end, sim_data
 
+pytestmark = pytest.mark.smu
+
 SEARCH_CASES: list[dict[str, Any]] = [
     {"recipe_id": "mosfet.vth_search", "scenario": "nmos_basic", "chunk": 8, "mode": 15,
      "reasons": ["first_hw_run"], "setup": ["MM", "BSM", "BSVM", "BST", "BGI", "BSV"],

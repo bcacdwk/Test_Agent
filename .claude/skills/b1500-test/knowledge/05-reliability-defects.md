@@ -36,7 +36,9 @@ optional recovery reads. Numbers marked `TODO(verify)` are literature typicals, 
 | TDDB constant-voltage stress | yes (WP7.4, destructive) | `reliability.tddb_cvs` (card `tddb-bdv`) |
 | IGZO bias stress dVth(t) (PBS/NBS) | yes (WP7.6, destructive) | `igzo.bias_stress` (card `igzo-bias-stress`) |
 | IGZO bias-stress transient Id(t) | yes (WP7.4) | `mosfet.id_t_sampling` (card `smu-sampling`) |
-| Dit by C-V or charge pumping | reserved | `moscap.cv`, `moscap.qscv` |
+| Breakdown voltage ramps (dielectric, junction) | yes (WP7.5, destructive) | `dielectric.bdv`, `basic.breakdown_search` (card `tddb-bdv`) |
+| Dit by charge pumping | yes (WP9.3) | `mosfet.charge_pumping` (card `charge-pumping`) |
+| Dit by C-V (high-low, conductance) | reserved (WP8.5) | `moscap.qscv` with `moscap.cv` (WP8.3) |
 
 Never imitate a stress with a sweep recipe (for example a long or repeated high-voltage sweep): it bypasses the
 destructive-test confirmation and produces data without a defined stress history.
@@ -225,6 +227,9 @@ Implemented (`analysis/stress.py`, WP7.6; the docstring there is the definition,
   (C, trapezoid integral of the stress monitor current over `t_s`).
 - Report measured reads (counts, status letters, read duration) and derived values with method, Vth criterion and
   the reads used; a simulated run is SIMULATED.
+- Unexpected results (no shift, wrong sign, huge shift, odd exponent, early breakdown): runbook
+  `stress-degradation-unexpected` of skill `b1500-debug`; sampling time-base problems (TDDB, IGZO transients):
+  `smu-sampling-skips`. Long runs, cancel and recovery: [02b](02b-smu-modes.md#long-smu-runs); hardware drills: L9.
 
 ## Ferroelectric wake-up imprint and fatigue
 

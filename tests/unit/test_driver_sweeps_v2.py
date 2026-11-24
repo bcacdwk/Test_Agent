@@ -11,6 +11,8 @@ from b1500_test_agent.driver.b1500 import B1500Driver, StaircaseSetup, SweepSour
 from b1500_test_agent.driver.guard import EnvelopeViolation, OutputGuard
 from tests.unit.driver_helpers import SpyTransport, envelope
 
+pytestmark = pytest.mark.smu
+
 # ch1: a voltage source (3 V, 1 mA); ch3: a current source (1 mA, 2 V); ch4/ch5: further sources
 ENV = envelope(ch1=(3.0, 1e-3), ch3=(2.0, 1e-3), ch4=(1.5, 1e-4), ch5=(2.0, 1e-5))
 

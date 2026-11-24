@@ -23,8 +23,9 @@ from b1500_test_agent.transport.sim.units.spgu import SpguUnit
 from b1500_test_agent.transport.sim.units.switch import SwitchUnit
 
 CORE = {"*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "*RST", "LOP?", "*TST?", "*CAL?", "NUB?", "FMT", "BC", "TSC",
-        "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "CM", "*LRN?"}
-SMU = {"RI", "RV", "CMM", "DV", "WV", "WT", "WM", "DI", "WI", "WSV", "WSI", "WNX", "WNCC"}
+        "CN", "CL", "DZ", "AB", "AAD", "AIT", "AV", "AZ", "CM", "*LRN?"}  # AZ: WP7.7
+SMU = {"RI", "RV", "CMM", "DV", "WV", "WT", "WM", "DI", "WI", "WSV", "WSI", "WNX", "WNCC",
+       "FL", "SSR", "RM"}  # conditioning: WP7.7
 SAMPLING = {"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"}
 PULSED = {"PT", "PV", "PI", "PWV", "PWI", "MCPT", "MCPNT", "MCPNX", "MCPWS", "MCPWNX"}  # WP7.3
 SEARCH = set(flex.SEARCH_COMMANDS)  # WP7.5

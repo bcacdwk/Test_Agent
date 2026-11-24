@@ -18,6 +18,10 @@ keyword ``reference`` (a ``RunData``) is offered the option ``reference_run`` (a
 run with ``load_reference`` (the service passes one that only accepts finished runs of its data root) or, without one,
 ``load_run`` from the data root that holds ``data`` (the ``runs/`` folder above its run folder), and passes it as
 ``reference``. A missing or unknown ``reference_run`` is ``InvalidInputError``.
+
+File methods (output ``files``, WP7.7): ``export_spice_netlist`` returns a ``SpiceExport`` (text files plus results)
+that the server stores under the run folder's ``analysis/`` (``RunFolder.add_export``), like the PNGs of a
+``PlotSet``.
 """
 
 from __future__ import annotations
@@ -55,6 +59,7 @@ from b1500_test_agent.analysis.errors import MethodNotImplementedError
 from b1500_test_agent.analysis.fefet import memory_window
 from b1500_test_agent.analysis.floor import zero_floor
 from b1500_test_agent.analysis.leakage import leakage_at
+from b1500_test_agent.analysis.model import compact_model_fit, export_spice_netlist, model_compare
 from b1500_test_agent.analysis.mosfet import (
     gm_max,
     ion_ioff,
@@ -71,6 +76,7 @@ from b1500_test_agent.analysis.pulse import breakdown_voltage, pulse_plateau, pu
 from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.reliability import plot_timeseries_method, sampling_summary, time_to_breakdown
 from b1500_test_agent.analysis.resistor import kelvin_resistance, resistance
+from b1500_test_agent.analysis.spice import SpiceExport
 from b1500_test_agent.analysis.stress import bti_power_law, degradation_vs_time, silc
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport, TrustPolicy
@@ -79,8 +85,8 @@ from b1500_test_agent.models.recipe import RecipeFamily
 MethodStatus = Literal["implemented", "declared"]
 Milestone = Literal["M1", "M2", "M5", "M6", "M7", "M8", "M9", "M10", "M11"]
 FAMILIES: tuple[RecipeFamily, ...] = get_args(RecipeFamily)
-MethodOutput = Literal["quality_report", "extraction", "plots"]
-MethodResult = list[ExtractionResult] | QualityReport | PlotSet
+MethodOutput = Literal["quality_report", "extraction", "plots", "files"]
+MethodResult = list[ExtractionResult] | QualityReport | PlotSet | SpiceExport
 
 _RESERVED_ARGS = frozenset({"d", "criteria", "reference"})
 REFERENCE_OPTION = "reference_run"
@@ -101,6 +107,10 @@ _SMU_RELIABILITY: tuple[RecipeFamily, ...] = ("smu", "reliability")
 _SAMPLING = ("generic.smu_sampling", "mosfet.id_t_sampling", "reliability.tddb_cvs", "generic.*")
 _SAMPLING_KINDS = ("smu_sampling",)
 _STRESS_KINDS = ("stress_measure",)
+_MODEL_RECIPES = ("mosfet.idvg", "mosfet.idvd", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
+                  "mosfet.idvg_pulsed", "mosfet.idvd_pulsed", "generic.*")
+"""Id-Vg and Id-Vd recipes a compact model is fitted to (WP7.7)."""
+_MODEL_KINDS = ("smu_staircase", "smu_stepped", "smu_pulsed")
 _RELIABILITY: tuple[RecipeFamily, ...] = ("reliability",)
 _CMU: tuple[RecipeFamily, ...] = ("cmu",)
 _CMU_NVM: tuple[RecipeFamily, ...] = ("cmu", "nvm")
@@ -367,6 +377,18 @@ _METHODS += [
             "(compliance at the detection); no breakdown: a lower bound.",
             ("basic.breakdown_search", "dielectric.bdv", "generic.*"), ("smu_search",), families=_RELIABILITY,
             milestone="M7"),
+    _method("compact_model_fit", "extraction", compact_model_fit,
+            "Fit an EKV (vth, n, beta, theta, lambda, rs) or SPICE level-1 (vto, beta, lambda) model to an Id-Vg or "
+            "Id-Vd run; standard errors and rms_log/rms_rel of the fit.", _MODEL_RECIPES, _MODEL_KINDS,
+            families=_SMU, milestone="M7"),
+    _method("model_compare", "extraction", model_compare,
+            "Evaluate a compact model (options.params, else fitted to this run) against the run: rms_rel, rms_log "
+            "(decades), max_rel, rms_error (A), per curve.", _MODEL_RECIPES, _MODEL_KINDS, families=_SMU,
+            milestone="M7"),
+    _method("export_spice_netlist", "files", export_spice_netlist,
+            "Write the compact model as a SPICE .model card (level 1) or EKV subcircuit (.lib) and a netlist that "
+            "reproduces the run's sweep (.sp) under analysis/; ngspice or HSPICE dialect.", _MODEL_RECIPES,
+            _MODEL_KINDS, families=_SMU, milestone="M7"),
 ]
 
 ANALYSIS_METHODS: Mapping[str, AnalysisMethod] = MappingProxyType({m.name: m for m in _METHODS})

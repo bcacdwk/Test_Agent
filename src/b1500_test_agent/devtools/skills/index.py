@@ -4,7 +4,8 @@
 One section per family (``## smu`` ... ``## system``, in ``Recipe.family`` order; the entry skill's family router
 links ``cards/README.md#<family>``), each with one table ``family | intent keywords | card | recipes | status |
 modules | stage``: a row per card (from its frontmatter; status = the recipes' effective status on the simulator from
-the registry), then a row per runnable recipe without a card (``CARDLESS_RECIPES``) and per reserved
+the registry; an analysis-only card lists its analysis methods and its own status), then a row per runnable recipe
+without a card (``CARDLESS_RECIPES``) and per reserved
 (``not_implemented``) recipe of the family, which point at ``reserved/README.md`` until WP11.2.
 
 The text is a pure function of the card frontmatter and the registry: UTF-8, LF line endings, no timestamps, so
@@ -86,9 +87,10 @@ def render_index(cards: list[tuple[str, CardFrontmatter]], registry: RecipeRegis
         rows: list[str] = []
         for rel, front in sorted((c for c in cards if c[1].family == family), key=lambda c: c[1].id):
             statuses = list(dict.fromkeys(registry.effective_status(r, "sim") if r in registry.ids() else "unknown"
-                                          for r in front.recipes))
+                                          for r in front.recipes)) or [front.status]
+            recipes = _codes(front.recipes) if front.recipes else f"analysis only: {_codes(front.analysis)}"
             rows.append(f"| {family} | {_cell(', '.join(front.intent))} | [{front.id}]({rel}) | "
-                        f"{_codes(front.recipes)} | {', '.join(statuses)} | "
+                        f"{recipes} | {', '.join(statuses)} | "
                         f"{', '.join(front.modules) or 'all installed'} | {front.bringup_stage} |")
         others = [registry.get(r) for r in registry.ids() if r not in carded and registry.get(r).family == family]
         for recipe in sorted((r for r in others if r.status != "not_implemented"), key=lambda r: r.id):

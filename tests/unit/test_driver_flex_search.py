@@ -13,6 +13,8 @@ import yaml
 
 from b1500_test_agent.driver import flex
 
+pytestmark = pytest.mark.smu
+
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "flex" / "search"
 BUILDERS: dict[str, Any] = yaml.safe_load((FIXTURES / "builders.yaml").read_text(encoding="utf-8"))
 

@@ -115,13 +115,17 @@ class CardFrontmatter(StrictModel):
     ``intent`` (keywords of the generated index), ``modules`` (module types, checked against the recipes' roles),
     ``routes`` (switch routes, checked against the roles' resources), ``bringup_stage`` (7.4 stage id) and
     ``manual`` (canonical manual citations, checked by the citation lint). ``device_types`` and ``modules`` may be
-    empty only for recipes without device types / roles (system recipes)."""
+    empty only for recipes without device types / roles (system recipes). ``analysis`` names registered analysis
+    methods the card documents; a card with no ``recipes`` is an analysis-only card (WP7.7, blueprint v2 6.3
+    ``compact-model-spice``): its section 4 lists the methods' options and its example plan is a measurement the
+    methods apply to."""
 
     id: KebabId
     title: NonEmptyStr
     family: RecipeFamily
     intent: Annotated[list[NonEmptyStr], Field(min_length=1, max_length=12)]
-    recipes: Annotated[list[RecipeId], Field(min_length=1)]
+    recipes: list[RecipeId]
+    analysis: list[Identifier] = Field(default_factory=list)
     device_types: list[Identifier]
     modules: list[CardModule]
     routes: list[RouteToken]
@@ -136,10 +140,12 @@ class CardFrontmatter(StrictModel):
 
     @model_validator(mode="after")
     def _unique(self) -> CardFrontmatter:
-        for name in ("intent", "recipes", "device_types", "modules", "routes", "manual"):
+        for name in ("intent", "recipes", "analysis", "device_types", "modules", "routes", "manual"):
             values = getattr(self, name)
             if len(set(values)) != len(values):
                 raise ValueError(f"{name} lists an entry twice")
+        if not self.recipes and not self.analysis:
+            raise ValueError("recipes is empty: a card lists its recipes (or, analysis only, its analysis methods)")
         return self
 
 

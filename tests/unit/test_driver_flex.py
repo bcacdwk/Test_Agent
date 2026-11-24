@@ -123,6 +123,17 @@ def _cited_pages(text: str) -> set[int]:
         (flex.corrst_q(7, "short"), "CORRST? 7,2"),
         (flex.adj_q(7, flex.ADJ_READ_LAST), "ADJ? 7,0"),
         (flex.adj_q(9, 1), "ADJ? 9,1"),  # PDF 355-356 syntax with the mode written out
+        (flex.fl(True), "FL 1"),  # PDF 436 example
+        (flex.fl(False, [1, 3, 5]), "FL 0,1,3,5"),  # PDF 436 example
+        (flex.ssr(1, True), "SSR 1,1"),  # PDF 521 example
+        (flex.ssr(2, False), "SSR 2,0"),
+        (flex.az(False), "AZ 0"),  # PDF 363 example
+        (flex.av(10), "AV 10"),  # PDF 363 example
+        (flex.av(-50), "AV -50"),  # PDF 363 example
+        (flex.av(100, 1), "AV 100,1"),  # PDF 363 example
+        (flex.rm(1, 2), "RM 1,2"),  # PDF 502 example
+        (flex.rm(2, 3, 60), "RM 2,3,60"),  # PDF 502 example
+        (flex.wncc(), "WNCC"),  # PDF 556
     ],
 )
 def test_builder_output(built: str, expected: str) -> None:
@@ -271,6 +282,17 @@ def test_numbers_are_round_trip_exact() -> None:
         lambda: flex.corrst_q(11, "open"),
         lambda: flex.adj_q(7, 2),  # modes 0 and 1 only
         lambda: flex.adj_q(0, 0),
+        lambda: flex.fl(True, list(range(1, 12))),  # at most ten channels (WP7.7)
+        lambda: flex.av(0),  # 1..1023 or -1..-100
+        lambda: flex.av(1024),
+        lambda: flex.av(-101),
+        lambda: flex.av(10, 2),
+        lambda: flex.av(-5, 0),  # a PLC count takes no mode
+        lambda: flex.rm(1, 4),
+        lambda: flex.rm(1, 1, 50),  # mode 1 takes no rate
+        lambda: flex.rm(1, 2, 10),  # rate 11..100
+        lambda: flex.rm(1, 2, 101),
+        lambda: flex.ssr(0, True),
     ],
 )
 def test_builders_reject_values_outside_the_manual_domain(call) -> None:
@@ -289,6 +311,9 @@ def test_builders_reject_values_outside_the_manual_domain(call) -> None:
         lambda: flex.di(1, True, 1e-6, 2),
         lambda: flex.dv(1, 0, True, 1e-3),
         lambda: flex.cm(True),
+        lambda: flex.fl(1, [1]),  # mode is a bool (WP7.7)
+        lambda: flex.az(0),
+        lambda: flex.ssr(1, 1),
         lambda: flex.lrn_q(31.0),
         lambda: flex.erssp_q(True),
         lambda: flex.adj_q(7, 0.0),
@@ -385,8 +410,8 @@ def test_family_modules_hold_disjoint_builders() -> None:
         _own_functions(flex_pulsed))  # WP7.3
     assert {"lsv", "lsi", "lgv", "lgi", "lsm", "lstm", "lssv", "lssi", "lsvm", "bsv", "bsi", "bgv", "bgi", "bsm",
             "bst", "bssv", "bssi", "bsvm", "bdv", "bdt", "bdm"} == set(_own_functions(flex_search))  # WP7.5
-    assert {"cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "di", "wi", "wsv", "wsi", "wnx"} == set(
-        _own_functions(flex_smu))
+    assert {"cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "di", "wi", "wsv", "wsi", "wnx",
+            "fl", "ssr", "az", "av", "rm", "wncc"} == set(_own_functions(flex_smu))  # conditioning: WP7.7
     assert {"corrst_q", "adj_q", "imp", "fc", "acv", "dcv", "rc", "act", "lmn", "wdcv", "wtdcv", "wmdcv", "wfc",
             "wtfc", "wmfc", "wacv", "wtacv", "wmacv", "pdcv", "ptdcv", "pwdcv", "mdcv", "mtdcv", "adj", "corrl",
             "clcorr", "corr_q", "dcorr", "corrdt", "corrst", "corrl_q", "dcorr_q"} == set(

@@ -13,6 +13,8 @@ from b1500_test_agent.driver.guard import EnvelopeViolation, OutputGuard
 from b1500_test_agent.models.plan import ChannelEnvelope, CompiledEnvelope, PulseEnvelope
 from tests.unit.driver_helpers import SpyTransport
 
+pytestmark = pytest.mark.smu
+
 GATE, DRAIN = 4, 3
 PULSE = PulseEnvelope(max_abs_v_dut=3.0, min_width_s=1e-3, max_width_s=1e-3, max_duty=0.1, max_count=61,
                       max_on_time_s=0.061, max_short_circuit_a=0.0)

@@ -11,6 +11,8 @@ Ad-hoc use from agent scripts in ``work/``::
     lives = weibull_fit([load_run(r) for r in tddb_run_ids])   # Weibull beta/eta over TDDB runs (library only)
     bti = bti_power_law(load_run(bti_run_id))  # stress-measure runs: dVth = A t^n (+ recovery)
     mw = memory_window_pulse(load_run(pr_run_id))  # program/read runs: Vth(erase) - Vth(program)
+    ekv = compact_model_fit(d)                 # EKV vth, n, beta, theta (+ lambda, rs); level 1 with model="level1"
+    files = write_spice_files(export_spice_netlist(d), run_id=d.run_id)   # .lib + .sp under work/<run_id>/spice/
     out_dir = work_dir_for(d.run_id)           # never write into the run folder
 
 Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_for(family)``; definitions in the
@@ -22,7 +24,9 @@ Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_f
 ``degradation_vs_time``, ``silc``, the C-V methods of ``cv.py`` (``cv_cox``, ``cv_flatband``, ``cv_doping_profile``,
 ``cv_vth``, ``cv_hysteresis``, ``impedance_convert``, ``plot_cv``; ``convert_table`` converts a whole run), the C-V
 variants of ``cv_variants.py`` (``cf_dispersion``, ``ct_recovery``, ``cv_ac_dependence``, ``cv_butterfly``, the
-two-run ``cv_pulsed_vs_dc``), ``memory_window_pulse`` (``nvm.py``); library helper over a run list: ``weibull_fit``.
+two-run ``cv_pulsed_vs_dc``), ``memory_window_pulse`` (``nvm.py``), the compact models ``compact_model_fit``,
+``model_compare`` and ``export_spice_netlist`` (``model.py``, ``spice.py``); library helper over a run list:
+``weibull_fit``.
 The run-table contract (``data.csv`` or ``data.npz`` +
 ``preview.csv``, columns) is defined in ``dataset.py``.
 
@@ -85,6 +89,7 @@ from b1500_test_agent.analysis.diode import diode_fit, forward_voltage
 from b1500_test_agent.analysis.errors import MethodNotImplementedError, RunFormatError, RunNotFoundError
 from b1500_test_agent.analysis.fefet import memory_window
 from b1500_test_agent.analysis.leakage import leakage_at
+from b1500_test_agent.analysis.model import CompactModel, compact_model_fit, export_spice_netlist, model_compare
 from b1500_test_agent.analysis.mosfet import (
     gm,
     gm_max,
@@ -110,6 +115,7 @@ from b1500_test_agent.analysis.reliability import (
     weibull_fit,
 )
 from b1500_test_agent.analysis.resistor import resistance
+from b1500_test_agent.analysis.spice import SpiceExport, write_spice_files
 from b1500_test_agent.analysis.stress import bti_power_law, degradation_vs_time, silc, stress_reads
 
 __all__ = [
@@ -128,16 +134,19 @@ __all__ = [
     "TRUST",
     "TRUST_LEVELS",
     "AnalysisMethod",
+    "CompactModel",
     "MethodNotImplementedError",
     "PlotSet",
     "RunData",
     "RunFormatError",
     "RunNotFoundError",
+    "SpiceExport",
     "assess_quality",
     "body_effect",
     "bti_power_law",
     "cf_dispersion",
     "column_unit",
+    "compact_model_fit",
     "convert_table",
     "ct_recovery",
     "cv_ac_dependence",
@@ -151,6 +160,7 @@ __all__ = [
     "degradation_vs_time",
     "dibl",
     "diode_fit",
+    "export_spice_netlist",
     "find_run",
     "fit_stretched_exponential",
     "forward_voltage",
@@ -166,6 +176,7 @@ __all__ = [
     "memory_window",
     "memory_window_pulse",
     "methods_for",
+    "model_compare",
     "noise_sigma",
     "output_metrics",
     "plot_cv",
@@ -198,5 +209,6 @@ __all__ = [
     "with_trust",
     "work_dir_for",
     "write_run_table",
+    "write_spice_files",
     "write_table",
 ]

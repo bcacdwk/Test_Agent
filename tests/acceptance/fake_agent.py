@@ -330,6 +330,8 @@ def main() -> int:
                     variables[action["save"]] = _flatten(result)
             elif "sleep" in action:
                 time.sleep(float(action["sleep"]))
+            elif "stream_error" in action:  # a Codex top-level error event (e.g. "Reconnecting... 1/5 (...)")
+                emit.out({"type": "error", "message": str(action["stream_error"])})
             elif "say" in action:
                 emit.say(action["say"])
     finally:

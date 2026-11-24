@@ -33,6 +33,8 @@ from tests.integration.async_helpers import (
 from tests.integration.helpers import REPO_ROOT, World
 from tests.integration.test_async_cancel import abort_at
 
+pytestmark = pytest.mark.smu
+
 ID_T = {"recipe_id": "mosfet.id_t_sampling", "pin_map": "mosfet-4t", "dut_profile": "nmos-generic"}
 TDDB = {"recipe_id": "reliability.tddb_cvs", "pin_map": "mosfet-4t", "dut_profile": "dielectric-generic"}
 GENERIC_CONFIG: dict[str, Any] = {

@@ -230,6 +230,22 @@ def test_timeout_kills_the_turn_and_fails_the_session(tmp_path: Path, monkeypatc
     assert record["turns"][0]["timed_out"] is True and len(record["turns"]) == 1
 
 
+def test_codex_reconnect_notices_do_not_fail_the_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    agent = tmp_path / "flaky.yaml"
+    agent.write_text("turns:\n  1:\n    - {stream_error: 'Reconnecting... 1/5 (stream disconnected)'}\n"
+                     "    - {say: one}\n  2:\n    - {say: two}\n", encoding="utf-8")
+    grade, _ = run_scripted(monkeypatch, tmp_path / "w", "codex", agent, scenario=SELFTEST_SCENARIO)
+    session = grade.results[0]
+    assert session.name == "session ok" and session.verdict == "pass", session.details
+    assert "1 transient transport notice(s)" in session.message
+    assert any("notice (not an error): Reconnecting... 1/5" in d for d in session.details)
+    broken = tmp_path / "broken.yaml"
+    broken.write_text("turns:\n  1:\n    - {stream_error: 'unexpected status 500'}\n    - {say: one}\n"
+                      "  2:\n    - {say: two}\n", encoding="utf-8")
+    grade, _ = run_scripted(monkeypatch, tmp_path / "w2", "codex", broken, scenario=SELFTEST_SCENARIO)
+    assert grade.results[0].verdict == "fail" and any("unexpected status 500" in d for d in grade.results[0].details)
+
+
 def test_session_records_resume_and_harness_facts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     agent = tmp_path / "a.yaml"
     agent.write_text("turns:\n  1:\n    - {say: one}\n  2:\n    - {say: two}\n", encoding="utf-8")

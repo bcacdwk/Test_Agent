@@ -12,6 +12,8 @@ from b1500_test_agent.transport.sim import SimTransport
 from b1500_test_agent.transport.sim.devices import Circuit
 from tests.sim.helpers import elements, errx_all, load_scenario, noiseless, resistor_scenario, run, values
 
+pytestmark = pytest.mark.smu
+
 R = 1000.0
 
 

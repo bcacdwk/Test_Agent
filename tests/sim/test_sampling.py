@@ -17,6 +17,8 @@ from b1500_test_agent.transport.sim.devices import Circuit
 from b1500_test_agent.transport.sim.units.sampling import log_indices
 from tests.sim.helpers import errx_all, load_scenario, noiseless, run, scenario_with
 
+pytestmark = pytest.mark.smu
+
 R_OHM = 1000.0
 
 

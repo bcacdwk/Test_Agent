@@ -37,6 +37,7 @@ from b1500_test_agent.analysis.dataset import (
 from b1500_test_agent.analysis.errors import RunFormatError
 from b1500_test_agent.analysis.plots import PlotSet
 from b1500_test_agent.analysis.registry import ANALYSIS_METHODS, run_method
+from b1500_test_agent.analysis.spice import SpiceExport
 from b1500_test_agent.archive.audit import RUN_AUDIT_FILE, read_audit
 from b1500_test_agent.archive.runfiles import PARTIAL_FILE, PROGRESS_FILE, read_partial, read_progress
 from b1500_test_agent.archive.store import ANALYSIS_DIR, NOTES_FILE, QUALITY_FILE, RunFolder, RunStore, analysis_payload
@@ -391,10 +392,24 @@ def analyze_run(svc: B1500Service, bundle: ConfigBundle, run_id: str, method: st
     out = run_method(method, data, options, criteria=criteria,
                      load_reference=lambda ref: reference_run(svc, bundle, ref))
     plots = folder.add_plots(out) if isinstance(out, PlotSet) else None
-    rel = folder.add_analysis(method, analysis_payload(method, options, out, source="analyze_run", plots=plots))
+    files = folder.add_export(out) if isinstance(out, SpiceExport) else None
+    rel = folder.add_analysis(method, analysis_payload(method, options, out, source="analyze_run", plots=plots,
+                                                       files=files))
     artifact = bundle.paths.display(folder.path / rel)
     backend = data.manifest.backend
     sim = " (derived from SIMULATED data)" if backend == "sim" else " (derived)"
+    shown_files = [bundle.paths.display(folder.path / f) for f in files or []]
+    if isinstance(out, SpiceExport) and shown_files:
+        value = next((r for r in out.results if r.quantity == "rms_rel" and r.value is not None), None)
+        error = f"; error on this run rms_rel {value.value:.3g}" if value is not None else ""
+        message = clip(f"SPICE model and netlist written{sim}{error}: " + ", ".join(shown_files))
+        return AnalysisResult(ok=True, status="ok", **svc._envelope(backend), run_id=run_id, method=method,
+                              results=out.results, files=shown_files, artifact=artifact, message=message,
+                              next_steps=[("the human runs the netlist in ngspice or HSPICE (running a simulator "
+                                           "is not part of this server); report the model as derived (method, fit "
+                                           "window, rms error)")])
+    if isinstance(out, SpiceExport):
+        out = out.results
     if isinstance(out, PlotSet):
         shown = [bundle.paths.display(folder.path / p) for p in plots or []]
         label = " of SIMULATED data" if backend == "sim" else ""

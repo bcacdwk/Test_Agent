@@ -23,6 +23,8 @@ from b1500_test_agent.service import B1500Service
 from tests.integration.helpers import make_world
 from tests.visa_loop.helpers import VisaWorld, assert_selectors_restored, bus_events, without_switch_traffic
 
+pytestmark = pytest.mark.smu
+
 CHUNK = 256
 GENERIC_CONFIG: dict[str, Any] = {
     "pinmaps/generic-sampling-2t.yaml": {"certainty": "verified", "terminals": {"stress": 3, "ground": "GNDU"}},

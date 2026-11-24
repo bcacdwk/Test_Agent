@@ -1,5 +1,7 @@
 """SMU FLEX builders: measurement operation mode, A/D converter, ranging, staircase sweeps (primary ``WV``/``WI``,
-synchronous ``WSV``/``WSI``, multi-channel ``WNX``) and DC force (``DV``/``DI``) (blueprint 2.5).
+synchronous ``WSV``/``WSI``, multi-channel ``WNX``) and DC force (``DV``/``DI``) (blueprint 2.5), and the SMU
+conditioning settings of blueprint v2 1.2 (WP7.7): output filter ``FL``, series resistor ``SSR``, ADC zero ``AZ``,
+high-speed ADC averaging ``AV``, auto-ranging operation ``RM`` and the multi-channel sweep clear ``WNCC``.
 
 Part of ``driver/flex/``, the only package that spells FLEX mnemonics in string literals; see ``core.py`` for the
 conventions (one command per string, syntax-domain checks only, page citations). Source: Keysight B1500 Series
@@ -33,6 +35,16 @@ SWEEP_SOURCE_MODES: dict[str, int] = {"V": 1, "I": 2}
 
 MAX_SWEEP_STEPS = 10001
 """``WV``/``WI`` ``step`` (number of sweep steps): 1 to 10001 (PG PDF 551, 568)."""
+
+RM_MODES = frozenset({1, 2, 3})
+"""``RM`` range changing operation: 1 = initial setting, 2 = range up after a reading >= range x rate/100, 3 = also
+range down at once below range x rate/1000 (PG PDF 501-502)."""
+
+RM_RATE_LIMITS = (11, 100)
+"""``RM`` rate (percent) for modes 2 and 3: 11 to 100, default 50 (PG PDF 502)."""
+
+AV_LIMITS = ((1, 1023), (-100, -1))
+"""``AV`` number: 1 to 1023 samples (auto or manual mode) or -1 to -100 power-line cycles (PG PDF 362)."""
 
 _AIT_N_LIMITS: dict[tuple[int, int], tuple[float, float]] = {
     (0, 0): (1, 1023),
@@ -296,3 +308,69 @@ def wnx(n: int, ch: int, source: str, rng: int, start: float, stop: float, comp:
     _finite(stop, "WNX stop")
     _compliance(comp, "WNX comp")
     return f"WNX {n},{_channel(ch)},{SWEEP_SOURCE_MODES[source]},{rng},{_num(start)},{_num(stop)},{_num(comp)}"
+
+
+# -- SMU conditioning (WP7.7, blueprint v2 1.2 "ranging RM; ADC AV/AZ; FL/SSR") --------------------------------------
+
+
+def _switch(on: bool, name: str) -> int:
+    if not isinstance(on, bool):
+        raise TypeError(f"{name} must be True or False, got {on!r}")
+    return int(on)
+
+
+def fl(on: bool, chs: tuple[int, ...] | list[int] = ()) -> str:
+    """``FL mode[,chnum...]``: SMU output filter connected (1) or disconnected (0, initial setting) on the channels,
+    all channels without any (PG PDF 436, printed 4-118). At most ten channels."""
+    channels = [_channel(ch) for ch in chs]
+    if len(channels) > 10:
+        raise ValueError(f"FL takes at most ten channels, got {len(channels)}")
+    return ",".join([f"FL {_switch(on, 'FL mode')}", *map(str, channels)])
+
+
+def ssr(ch: int, on: bool) -> str:
+    """``SSR chnum,mode``: the SMU series resistor (about 1 MOhm) connected (1) or disconnected (0, initial setting)
+    (PG PDF 521, printed 4-203). Not for an SMU behind an ASU or in the high-voltage state; with the output switch
+    closed the output forces 0 V for a moment."""
+    return f"SSR {_channel(ch)},{_switch(on, 'SSR mode')}"
+
+
+def az(on: bool) -> str:
+    """``AZ mode``: ADC zero function of the high-resolution ADC on (1) or off (0, initial setting); off roughly
+    halves the integration time (PG PDF 363, printed 4-45)."""
+    return f"AZ {_switch(on, 'AZ mode')}"
+
+
+def av(number: int, mode: int | None = None) -> str:
+    """``AV number[,mode]``: averaging samples of the high-speed ADC, not for the high-resolution ADC or pulsed
+    measurements (PG PDF 362-363, printed 4-44 to 4-45). ``number`` 1 to 1023 (``mode`` 0 auto, the default when
+    omitted: number x the initial number; 1 manual: number) or -1 to -100 power-line cycles (no mode)."""
+    _int(number, "AV number")
+    if not any(low <= number <= high for low, high in AV_LIMITS):
+        raise ValueError(f"AV number must be 1 to 1023 or -1 to -100, got {number}")
+    if mode is None:
+        return f"AV {number}"
+    if number < 0:
+        raise ValueError("AV with a negative number (power-line cycles) takes no mode")
+    return f"AV {number},{_choice(mode, range(2), 'AV mode')}"
+
+
+def rm(ch: int, mode: int, rate: int | None = None) -> str:
+    """``RM chnum,mode[,rate]``: auto-ranging operation of an SMU current measurement (PG PDF 501-502, printed 4-183
+    to 4-184). ``mode`` 1 (initial; no rate), 2 (range up after a reading >= range x rate/100) or 3 (also down at once
+    below range x rate/1000); ``rate`` 11 to 100 (default 50)."""
+    _choice(mode, sorted(RM_MODES), "RM mode")
+    if rate is None:
+        return f"RM {_channel(ch)},{mode}"
+    if mode == 1:
+        raise ValueError("RM mode 1 takes no rate")
+    _int(rate, "RM rate")
+    if not RM_RATE_LIMITS[0] <= rate <= RM_RATE_LIMITS[1]:
+        raise ValueError(f"RM rate must be {RM_RATE_LIMITS[0]} to {RM_RATE_LIMITS[1]}, got {rate}")
+    return f"RM {_channel(ch)},{mode},{rate}"
+
+
+def wncc() -> str:
+    """``WNCC``: clears the set-up of every channel defined for the multi-channel sweep (``WNX``) (PG PDF 556, printed
+    4-238)."""
+    return "WNCC"

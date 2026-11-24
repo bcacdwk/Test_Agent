@@ -22,6 +22,8 @@ from b1500_test_agent.models.routing import SwitchPort, SwitchSpec
 from b1500_test_agent.models.station import StationProfile
 from tests.unit.rules_factory import T0, bundle, dut, engine, example_station, pin_map_exact
 
+pytestmark = pytest.mark.smu
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)
 KIND = SmuSpotKind()

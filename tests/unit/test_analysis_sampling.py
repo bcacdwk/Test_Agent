@@ -26,6 +26,8 @@ from b1500_test_agent.models.sim import DielectricParams
 from b1500_test_agent.transport.sim.devices.dielectric import DielectricDevice
 from tests.unit.analysis_helpers import manifest
 
+pytestmark = pytest.mark.smu
+
 TAU, BETA, Y0, YINF = 4.0, 0.5, 1.45e-6, 1.27e-6
 
 

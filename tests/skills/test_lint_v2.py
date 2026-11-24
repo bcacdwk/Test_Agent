@@ -8,18 +8,28 @@ from pathlib import Path
 from typing import get_args
 
 import pytest
+from pydantic import ValidationError
 
 from b1500_test_agent.catalog.registry import RecipeRegistry
 from b1500_test_agent.devtools.skills import lint as lint_skills
-from b1500_test_agent.devtools.skills.cards import card_folder_problem, recipe_modules, recipe_routes
+from b1500_test_agent.devtools.skills.cards import (
+    analysis_example_problem,
+    card_folder_problem,
+    check_analysis,
+    recipe_modules,
+    recipe_routes,
+)
 from b1500_test_agent.devtools.skills.commands import alternatives, command_files, command_problems, named_commands_at
 from b1500_test_agent.devtools.skills.common import (
     CARDLESS_RECIPES,
     FAMILIES,
     STAGES,
+    CardFrontmatter,
     CardModule,
+    Lint,
     StageId,
 )
+from b1500_test_agent.devtools.skills.markdown import parse_markdown
 from b1500_test_agent.devtools.skills.params import split_param_cell
 from b1500_test_agent.models.recipe import RecipeFamily
 from b1500_test_agent.models.station import ModuleType
@@ -153,8 +163,40 @@ def test_repository_lint_notes_stages_without_files() -> None:
     assert any(n.startswith("bring-up stage L7 ") and "fefet-dual-sweep-mw" in n for n in stage_notes)
     assert not any(n.startswith(("bring-up stage S0 ", "bring-up stage L1 ", "bring-up stage L4 "))
                    for n in stage_notes)  # WP6.3 wrote S0, L0-L4 and L10
+    assert not any(n.startswith(("bring-up stage L5 ", "bring-up stage L9 ")) for n in stage_notes)  # WP7.7
     assert report.stages == [f".agents/skills/b1500-bringup/stages/{stem}.md" for stem in sorted(
         ("s0-physical", "l0-probe-config", "l1-smu-zero", "l2-resistors", "l3-diode", "l4-mosfet",
-         "l10-harness-handoff"))]
+         "l5-smu-advanced", "l9-long-runs", "l10-harness-handoff"))]
     assert "recipes without a card by design: generic.smu_staircase" in report.notes
     assert report.skills == ["b1500-bringup", "b1500-debug", "b1500-test"]
+
+
+# -- analysis-only cards (WP7.7: smu/compact-model-spice) ------------------------------------------------------------
+
+
+def _front(**changes: object) -> dict[str, object]:
+    doc = parse_markdown(ENTRY / "cards" / "smu" / "compact-model-spice.md", "card")
+    assert isinstance(doc.front, dict)
+    return {**doc.front, **changes}
+
+
+def test_analysis_only_card_frontmatter() -> None:
+    card = CardFrontmatter.model_validate(_front())
+    assert card.recipes == [] and card.analysis == ["compact_model_fit", "model_compare", "export_spice_netlist"]
+    with pytest.raises(ValidationError, match="recipes is empty"):
+        CardFrontmatter.model_validate(_front(analysis=[]))
+    with pytest.raises(ValidationError, match="twice"):
+        CardFrontmatter.model_validate(_front(analysis=["model_compare", "model_compare"]))
+
+
+def test_analysis_methods_and_example_of_an_analysis_only_card(registry: RecipeRegistry, tmp_path: Path) -> None:
+    lint = Lint(tmp_path, ROOT / "recipes", ROOT / "config")
+    front = CardFrontmatter.model_validate(_front(analysis=["compact_model_fit", "no_such_method", "charge_pumping"]))
+    check_analysis(lint, tmp_path / "card.md", front, registry)
+    messages = [p.message for p in lint.problems]
+    assert any("no_such_method" in m and "not in ANALYSIS_METHODS" in m for m in messages)
+    assert any("charge_pumping serves ['spgu']" in m for m in messages) and len(messages) == 2
+    good = CardFrontmatter.model_validate(_front())
+    assert analysis_example_problem("mosfet.idvg", good, registry) is None
+    assert "do not apply" in (analysis_example_problem("basic.diode_iv", good, registry) or "")
+    assert "not a registered recipe" in (analysis_example_problem("mosfet.nothing", good, registry) or "")

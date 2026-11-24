@@ -10,13 +10,14 @@ skill's rules, a card, a recipe, the policy or a DUT profile, and it never autho
 | Domain | Scope | When to load |
 |---|---|---|
 | [01 device physics](01-device-physics.md) | resistor (contact vs bulk), capacitor models, PN and Schottky diodes, MOSFET Vth/gm/SS/Ion-Ioff/Id-Vd, MOS-C | interpreting a curve's physics; choosing bias regions; explaining a derived value |
-| [02 B1500A instrument](02-b1500-instrument.md) | modules and limits, channel numbering, `UNT?`, measurement modes, status letters, integration time, zero-check floor, errors, interlock, self-test/cal, FLEX glossary | choosing modules or presets; reading status counts, errors, a plan's FLEX preview or an audit log |
+| [02 B1500A instrument](02-b1500-instrument.md) | modules and limits, channel numbering, `UNT?`, measurement modes, status letters, integration time, errors, interlock, self-test/cal, FLEX glossary | choosing modules or presets; reading status counts, errors, a plan's FLEX preview or an audit log |
+| [02b SMU modes and long runs](02b-smu-modes.md) | sampling MM 10, pulsed MM 3/4/5/27/28, search MM 9/14/15, zero-check floor, SMU conditioning (FL, SSR, AZ, AV, RM), long runs (async, CM 0, recovery) | planning or reading a sampling, pulsed, search or long SMU run; a conditioning question |
 | [03 probe station and wiring](03-probe-station-wiring.md) | signal path, triax, guard, Kelvin and four-wire R, ASU/SCUU/selector, shielding and grounding, probe contact, contact checks | low-current or low-resistance work; a fresh landing; suspect wiring or noise |
 | [04 ferroelectric and oxide](04-ferroelectric-oxide.md) | Ec/Pr/Ps, FeFET operation, memory window by dual sweep, read disturb, pulse write (reserved), PUND (reserved), IGZO TFTs | FeFET or FeCap requests; oxide TFT measurements |
 | [05 reliability and defects](05-reliability-defects.md) | gate leakage safe envelope, BTI/HCI/TDDB, breakdown voltage ramps, Dit, SILC and trapping, IGZO instability, wake-up/imprint/fatigue | gate leakage; drift or hysteresis; any stress or breakdown request |
 | [06 analysis and extraction](06-analysis-extraction.md) | run table and trust, quality gate, gm, Vth (3 methods), SS, Ion/Ioff, Ron/gds, R, diode fit, leakage, MW, plots, reporting rules | before `analyze_run`; writing the report; ad-hoc analysis |
 | [06b time series, pulsed and search runs](06b-analysis-time-pulse.md) | sampling summary and relaxation fit, time to breakdown and Weibull, pulsed vs DC (two-run), pulse plateau, Vth by search, breakdown voltage, program/read memory window | analysing a sampling, TDDB, pulsed, search or program/read run |
-| [07 HSPICE simulation](07-hspice-simulation.md) | reserved workflow: level-1 model card, netlist, comparison, BSIM4/Verilog-A later | a simulation-comparison request (answer: reserved) |
+| [07 compact models](07-compact-models.md) | level-1 and EKV model fits, model vs run comparison, SPICE `.model`/subcircuit and netlist export (ngspice, HSPICE), BSIM4/Verilog-A later | a model card, SPICE, netlist or simulation-comparison request; reading a model fit |
 | [08 capacitance and C-V](08-capacitance-cv.md) | MFCMU pairs Cp-G/Cs-Rs/Z-theta, corrections, MOS-C HF C-V, Cox/EOT, 1/C^2 doping, flatband, Vth, hysteresis, split C-V, SCUU same landing | any capacitance or C-V request; before `analyze_run` on a C-V run |
 | debug | skill `b1500-debug`: triage order, runbooks, cases | noisy, impossible, compliance-limited or drifting data; faults; VISA errors |
 | [09 pulses, HV-SPGU and selector](09-pulse-spgu-selector.md) | HV-SPGU output and SER (open-load doubling, high_z residual), PG and ALWG trains, count/duration bounds, running a train, readings during a train, R-PULSE/R-SPGU rules, program/read (pulse_read), simulator | any SPGU pulse or waveform plan; program/erase then read; a gate pulse that did nothing or too much |
@@ -48,18 +49,24 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [SMU and module table](02-b1500-instrument.md#smu-and-module-table)
 - [Channel numbering and UNT](02-b1500-instrument.md#channel-numbering-and-unt)
 - [Measurement modes](02-b1500-instrument.md#measurement-modes)
-- [Pulsed measurements MM 3 4 5 27 28](02-b1500-instrument.md#pulsed-measurements-mm-3-4-5-27-28)
-- [Search measurements MM 9 14 15](02-b1500-instrument.md#search-measurements-mm-9-14-15)
 - [Measurement sequence and cleanup](02-b1500-instrument.md#measurement-sequence-and-cleanup)
 - [Lab scripts vs the kernel](02-b1500-instrument.md#lab-scripts-vs-the-kernel)
 - [FLEX glossary for reading plans and audit logs](02-b1500-instrument.md#flex-glossary-for-reading-plans-and-audit-logs)
 - [Data status codes](02-b1500-instrument.md#data-status-codes)
 - [Integration time and ranging](02-b1500-instrument.md#integration-time-and-ranging)
-- [Zero check floor](02-b1500-instrument.md#zero-check-floor)
 - [Status byte errors and interlock](02-b1500-instrument.md#status-byte-errors-and-interlock)
 - [Self-test self-calibration and auto calibration](02-b1500-instrument.md#self-test-self-calibration-and-auto-calibration)
 - [MFCMU phase compensation and correction](02-b1500-instrument.md#mfcmu-phase-compensation-and-correction)
 - [Manual extracts and page conventions](02-b1500-instrument.md#manual-extracts-and-page-conventions)
+
+### 02b SMU modes, conditioning and long runs
+
+- [Sampling measurement MM 10](02b-smu-modes.md#sampling-measurement-mm-10)
+- [Pulsed measurements MM 3 4 5 27 28](02b-smu-modes.md#pulsed-measurements-mm-3-4-5-27-28)
+- [Search measurements MM 9 14 15](02b-smu-modes.md#search-measurements-mm-9-14-15)
+- [Zero check floor](02b-smu-modes.md#zero-check-floor)
+- [SMU output conditioning](02b-smu-modes.md#smu-output-conditioning)
+- [Long SMU runs](02b-smu-modes.md#long-smu-runs)
 
 ### 03 probe station and wiring
 
@@ -131,15 +138,21 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Threshold voltage by search](06b-analysis-time-pulse.md#threshold-voltage-by-search)
 - [Breakdown voltage](06b-analysis-time-pulse.md#breakdown-voltage)
 - [Program read memory window](06b-analysis-time-pulse.md#program-read-memory-window)
+- [SMU method index](06b-analysis-time-pulse.md#smu-method-index)
 
-### 07 HSPICE simulation
+### 07 compact models
 
-- [Status and boundaries](07-hspice-simulation.md#status-and-boundaries)
-- [Planned workflow](07-hspice-simulation.md#planned-workflow)
-- [Level-1 model card from measured parameters](07-hspice-simulation.md#level-1-model-card-from-measured-parameters)
-- [Example netlist](07-hspice-simulation.md#example-netlist)
-- [Comparing measured and simulated curves](07-hspice-simulation.md#comparing-measured-and-simulated-curves)
-- [BSIM4 and Verilog-A later](07-hspice-simulation.md#bsim4-and-verilog-a-later)
+- [Status and boundaries](07-compact-models.md#status-and-boundaries)
+- [Workflow](07-compact-models.md#workflow)
+- [Level-1 model](07-compact-models.md#level-1-model)
+- [EKV model](07-compact-models.md#ekv-model)
+- [Points and trust](07-compact-models.md#points-and-trust)
+- [Fit](07-compact-models.md#fit)
+- [Comparing a model with a run](07-compact-models.md#comparing-a-model-with-a-run)
+- [SPICE export](07-compact-models.md#spice-export)
+- [Example files](07-compact-models.md#example-files)
+- [Reading the results](07-compact-models.md#reading-the-results)
+- [BSIM4 and Verilog-A later](07-compact-models.md#bsim4-and-verilog-a-later)
 
 ### 08 capacitance and C-V
 

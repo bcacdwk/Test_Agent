@@ -16,6 +16,8 @@ from b1500_test_agent.analysis.registry import ANALYSIS_METHODS, REFERENCE_OPTIO
 from b1500_test_agent.errors import InvalidInputError
 from tests.unit.analysis_helpers import idvg_table, manifest, write_run
 
+pytestmark = pytest.mark.smu
+
 PULSED_ID = "S20261122T010000Z-0a01"
 DC_ID = "S20261122T005900Z-0a02"
 VG = np.linspace(0.0, 3.0, 31)

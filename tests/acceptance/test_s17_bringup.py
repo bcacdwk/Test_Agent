@@ -100,7 +100,8 @@ def _ideal(tmp_path_factory: pytest.TempPathFactory) -> Evidence:
 def test_stage_recipes_come_from_the_stage_files() -> None:
     recipes = stage_recipes(REPO_ROOT)
     assert recipes["L1"] == ["system.zero_check", "system.self_test", "system.self_cal"]  # WP7.1
-    assert recipes["S0"] == [] and "L5" not in recipes
+    assert recipes["S0"] == [] and "L6" not in recipes  # L5 and L9 (SMU part) since WP7.7
+    assert "mosfet.vth_search" in recipes["L5"] and "reliability.bti_sms" in recipes["L9"]
 
 
 def test_skill_tool_counts_as_loading(tmp_path_factory: pytest.TempPathFactory) -> None:

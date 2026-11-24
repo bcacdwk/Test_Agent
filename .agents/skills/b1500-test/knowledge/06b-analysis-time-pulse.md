@@ -108,3 +108,23 @@ Implemented (`memory_window_pulse`, WP9.4; kind `pulse_read`: `fefet.pulse_write
   `vth_program`, `vth_erase`, `vth_initial` (mean; `fit` `first`, `last`, `std`, `reads`). A program-only sequence
   has no window: its state's mean, first and last read show the cumulative shift.
 - Spot reads: `i_program`, `i_erase`, `i_initial` (A) and `current_ratio` = |I(program)| / |I(erase)| (1).
+
+## SMU method index
+
+Every `analyze_run` method for SMU runs (family `smu`, plus the stress methods of family `reliability`) and where it
+is defined; `list_recipes(recipe_id)` names a recipe's default analyses.
+
+| method | runs | definition |
+|---|---|---|
+| `quality_report`, `plot_iv`, `plot_timeseries` | every run | [06](06-analysis-extraction.md#quality-gate-and-noise), [plots](06-analysis-extraction.md#plots) |
+| `vth_linear_extrapolation`, `vth_constant_current`, `vth_max_gm`, `subthreshold_swing`, `gm_max`, `ion_ioff` | Id-Vg (`mosfet.idvg*`, pulsed) | [06](06-analysis-extraction.md#vth-linear-extrapolation) |
+| `output_metrics` | Id-Vd (`mosfet.idvd*`) | [06](06-analysis-extraction.md#output-metrics-ron-and-gds) |
+| `dibl`, `body_effect` | `mosfet.idvg_family`, `mosfet.body_effect` | [06](06-analysis-extraction.md#dibl-and-body-effect) |
+| `resistance`, `kelvin_resistance` | contact, spot, four-wire | [06](06-analysis-extraction.md#resistance-fit), [03](03-probe-station-wiring.md#four-wire-resistance) |
+| `diode_fit`, `forward_voltage`, `leakage_at` | diode, gate leakage | [06](06-analysis-extraction.md#diode-fit-is-n-and-rs) |
+| `zero_floor` | `system.zero_check` | [02b](02b-smu-modes.md#zero-check-floor) |
+| `pulsed_vs_dc`, `pulse_plateau` | SMU pulsed | [above](#pulsed-versus-dc) |
+| `sampling_summary`, `time_to_breakdown` | sampling, TDDB | [above](#sampling-summary-and-relaxation-fit) |
+| `vth_search_value`, `breakdown_voltage` | search, BDV | [above](#threshold-voltage-by-search) |
+| `bti_power_law`, `degradation_vs_time`, `silc` | stress-measure | [05](05-reliability-defects.md#stress-measure-analysis) |
+| `compact_model_fit`, `model_compare`, `export_spice_netlist` | Id-Vg, Id-Vd, families | [07](07-compact-models.md#fit) |

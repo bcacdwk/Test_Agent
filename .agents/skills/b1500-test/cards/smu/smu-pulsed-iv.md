@@ -10,7 +10,7 @@ routes: []
 bringup_stage: L5
 status: sim_validated
 confirmation: conditional
-knowledge: [knowledge/02-b1500-instrument.md#pulsed-measurements-mm-3-4-5-27-28, knowledge/06b-analysis-time-pulse.md#pulsed-versus-dc, knowledge/06b-analysis-time-pulse.md#pulse-plateau, knowledge/06-analysis-extraction.md#vth-constant-current, knowledge/02-b1500-instrument.md#data-status-codes]
+knowledge: [knowledge/02b-smu-modes.md#pulsed-measurements-mm-3-4-5-27-28, knowledge/06b-analysis-time-pulse.md#pulsed-versus-dc, knowledge/06b-analysis-time-pulse.md#pulse-plateau, knowledge/06-analysis-extraction.md#vth-constant-current, knowledge/02-b1500-instrument.md#data-status-codes]
 manual: [PG p486-487 (4-168) "PT", PG p492 (4-174) "PWV", PG p488 (4-170) "PV", PG p464 (4-146) "MCPT", PG p100 (2-12) "Pulsed Sweep"]
 debug: [compliance-hit, noisy-data, current-too-high, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 3.1, 2.7 and 4.2, PG pulsed measurements p93-105, PG examples Tables 3-4/3-8/3-9/3-14/3-15]

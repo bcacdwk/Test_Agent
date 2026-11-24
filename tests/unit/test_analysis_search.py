@@ -14,6 +14,8 @@ from b1500_test_agent.analysis.pulse import breakdown_voltage, vth_search_value
 from b1500_test_agent.errors import InvalidInputError
 from tests.unit.analysis_helpers import manifest
 
+pytestmark = pytest.mark.smu
+
 
 def run(row: dict[str, Any], result: dict[str, Any], recipe_id: str = "mosfet.vth_search") -> RunData:
     data = manifest(recipe_id=recipe_id).model_copy(update={"kind_result": result})

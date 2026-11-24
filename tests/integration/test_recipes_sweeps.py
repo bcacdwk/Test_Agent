@@ -45,6 +45,8 @@ from tests.integration.sweep_cases import (
     use_two_resistors,
 )
 
+pytestmark = pytest.mark.smu
+
 
 def for_recipe(recipe_id: str) -> Any:
     """Parametrize a test with the recipe it validates, so ``pytest -k <recipe id>`` selects it (per-recipe AC)."""

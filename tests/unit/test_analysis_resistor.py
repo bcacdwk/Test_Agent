@@ -11,6 +11,8 @@ from b1500_test_agent.errors import InvalidInputError
 from tests.unit.analysis_helpers import iv_table, run_of
 from tests.unit.helpers import assert_roundtrip
 
+pytestmark = pytest.mark.smu
+
 V = np.linspace(-0.1, 0.1, 21)
 INVALID = 199.999e99
 

@@ -25,6 +25,8 @@ from b1500_test_agent.models.plan import PlanRequest
 from tests.integration.helpers import World
 from tests.unit.lab_fixtures import load_sequence
 
+pytestmark = pytest.mark.smu
+
 LAB_IVT_REQUEST: dict[str, Any] = {
     "recipe_id": "mosfet.id_t_sampling", "pin_map": "mosfet-3t-lab", "dut_profile": "nmos-generic", "params": {},
 }

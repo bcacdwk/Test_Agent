@@ -17,7 +17,9 @@ Strictly in order; a stage starts only after the previous one is signed off. Not
 | L2 | known resistors against a DMM (sweep and spot), 1 Ohm four-wire | [l2-resistors](../.agents/skills/b1500-bringup/stages/l2-resistors.md) | `basic.contact_resistor`, `generic.smu_spot`, `resistor.kelvin_4w` |
 | L3 | known diode | [l3-diode](../.agents/skills/b1500-bringup/stages/l3-diode.md) | `basic.diode_iv` |
 | L4 | known-good MOSFET against EasyEXPERT | [l4-mosfet](../.agents/skills/b1500-bringup/stages/l4-mosfet.md) | `mosfet.idvg`, `mosfet.idvd`, `mosfet.gate_leakage` |
-| L5-L9 | SMU advanced, CMU, SPGU + selector, WGFMU, long runs | arrive with their module work packages | - |
+| L5 | SMU advanced: pulsed vs DC, sampling time grid, Vth by search | [l5-smu-advanced](../.agents/skills/b1500-bringup/stages/l5-smu-advanced.md) | `mosfet.idvg_pulsed`, `mosfet.idvd_pulsed`, `basic.pulsed_spot`, `generic.smu_multi_pulsed`, `mosfet.id_t_sampling`, `generic.smu_sampling`, `mosfet.vth_search` |
+| L6-L8 | CMU, SPGU + selector, WGFMU | arrive with their module work packages | - |
+| L9 | long runs (SMU part): async BTI, cancel and kill-recovery drills, stress and breakdown recipes | [l9-long-runs](../.agents/skills/b1500-bringup/stages/l9-long-runs.md) | `stage-l9`, `reliability.bti_sms`, `igzo.bias_stress`, `reliability.hci`, `reliability.silc`, `reliability.tddb_cvs`, `dielectric.bdv`, `basic.breakdown_search` |
 | L10 | acceptance prompts on hardware, records reviewed and transferred | [l10-harness-handoff](../.agents/skills/b1500-bringup/stages/l10-harness-handoff.md) | `stage-l10` |
 
 Each stage file has the same six sections: Preconditions, Physical steps (human), Agent steps, Expected values

@@ -10,7 +10,7 @@ routes: []
 bringup_stage: L5
 status: sim_validated
 confirmation: never
-knowledge: [knowledge/02-b1500-instrument.md#search-measurements-mm-9-14-15, knowledge/06b-analysis-time-pulse.md#threshold-voltage-by-search, knowledge/06-analysis-extraction.md#vth-constant-current, knowledge/02-b1500-instrument.md#data-status-codes]
+knowledge: [knowledge/02b-smu-modes.md#search-measurements-mm-9-14-15, knowledge/06b-analysis-time-pulse.md#threshold-voltage-by-search, knowledge/06-analysis-extraction.md#vth-constant-current, knowledge/02-b1500-instrument.md#data-status-codes]
 manual: [PG p108-109 (2-20) "Binary Search", PG p366 (4-48) "BGI", PG p370 (4-52) "BSM", PG p374-375 (4-56) "BSV", PG p223 (3-43) "Binary Search"]
 debug: [compliance-hit, noisy-data, current-too-high, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 3.1, 2.7 and 4.2, PG binary search p108-109, PG example Table 3-12 p222-223]

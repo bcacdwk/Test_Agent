@@ -776,9 +776,12 @@ def _session_ok(ev: Evidence) -> GraderResult:
     for transcript in ev.transcripts:
         if transcript.info.get("permissionMode") == "bypassPermissions":
             problems.append(f"Claude Code turn {transcript.turn} ran in bypassPermissions mode")
+    notices = [f"turn {t.turn} notice (not an error): {_clip(n, 120)}" for t in ev.transcripts for n in t.notices]
     message = f"{len(ev.record.turns)} turn(s) completed" if not problems else "session invalid or incomplete"
+    if notices:
+        message += f"; {len(notices)} transient transport notice(s)"
     return GraderResult(name="session ok", type="session", verdict="fail" if problems else "pass",
-                        message=message, details=_details(problems))
+                        message=message, details=_details([*problems, *notices]))
 
 
 def grade(ev: Evidence) -> SessionGrade:

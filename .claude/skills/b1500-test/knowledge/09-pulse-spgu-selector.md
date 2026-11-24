@@ -6,6 +6,7 @@ sources:
   - "B1500 Programming Guide Ed. 15 (PG), PDF pages cited inline"
   - lwp/matlab_B1500/lib/SPGU_pulse.m, test_SPGU.m (ERMOD 1, ERSSP p,2, SIM 0, SPRM, SPPER, SER, SPM, SPT, SPV, SPUPD, SRP, SPST? polling)
   - src/b1500_test_agent/models/spgu.py, driver/ops/spgu.py (WP9.1), catalog/kinds/spgu_train.py, catalog/blocks.py spgu_burst (WP9.3)
+  - src/b1500_test_agent/catalog/kinds/pulse_read.py, pulse_sources.py, catalog/blocks.py smu_pulse_burst, analysis/nvm.py (WP9.4)
 last_reviewed: null
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
@@ -14,8 +15,8 @@ last_reviewed: null
 
 How the kernel puts pulse trains and arbitrary linear waveforms on a pad with the HV-SPGU (B1525A), why the level at
 the pad depends on the declared load, and what bounds every output. Routing through the 16440A selector is
-[11 switching and routing](11-switching-routing.md); program/erase and read sequences (kind `pulse_read`) extend
-this file with WP9.4.
+[11 switching and routing](11-switching-routing.md); program/erase and read sequences are kind `pulse_read`
+([Program and read](#program-and-read)).
 
 ## Contents
 
@@ -25,6 +26,7 @@ this file with WP9.4.
 - [Running a train](#running-a-train)
 - [Readings during a train](#readings-during-a-train)
 - [Guard and rules](#guard-and-rules)
+- [Program and read](#program-and-read)
 - [Simulator behaviour](#simulator-behaviour)
 - [Troubleshooting pulses](#troubleshooting-pulses)
 
@@ -99,6 +101,38 @@ this file with WP9.4.
   short-circuit current within the hard limit unless `high_z` (then the residual in the summary).
 - Summary form: `gate=SPGU1:101 via SEL1.OUT1 pulse 0->4 V 1 us x1000 @10 kHz SER 1 MOhm Isc<=0.08 A residual`.
 
+## Program and read
+
+Kind `pulse_read` (WP9.4; card `nvm/fefet-pulse-write-read`, recipes `fefet.pulse_write_read`,
+`spgu.program_smu_read`): route -> pulse source -> route back -> read, per operation and cycle; no step language,
+the recipe picks everything by parameters.
+
+- **Roles.** One pulse role: `pgu` (HV-SPGU source), `pulse_v` (SMU pulse source; HR/MP/HPSMU widths 500 us to 2 s,
+  PG p486 (4-168) "PT") or `wgfmu` (the WGFMU source arrives in WP10.6: such a plan is refused at plan time). Read
+  roles are SMU roles (`sweep_v`, `bias_v`, `ground`, `measure_only`). The SMU that reads the pulsed gate is a second
+  role on the same pad: `gate_read` with `terminal: gate`; pin map `fefet-sel` puts `gate` on `SEL1.OUT1`, so the
+  PGU input carries the pulses and the SMU input the read (Force only through the selector: no Kelvin read there).
+- **Operations.** `program` and `erase` levels (set levels, SER-adjusted), `width` (and `erase_width`), `period`,
+  `count` pulses per operation; `sequence` `erase_program` (erase, read, program, read), `program_erase`,
+  `program` or `erase`; `cycles` repeats it; `initial_read` adds a reference read first. Every operation is a
+  bounded SPGU output (`SPRM 1,count`) or `count` single SMU pulses (MM 3, one per `XE`; the pulse-end current is
+  recorded in `kind_result`, a compliance stops the run).
+- **Run per operation.** The read SMUs go to their pulse level (the gate read SMU to 0 V, a `bias_v` read role to
+  its `pulse_bias`, falling levels first), phase `erase`/`program` (`ERMOD 1`, `ERSSP 0,2`, read back), the burst,
+  phase `read` (`ERSSP 0,1`, read back), `settle`, the read (Id-Vg sweep or spot), checkpoint. At the end phase
+  `rest` (`ERSSP 0,0`); the cleanup returns and verifies every selector output whatever happened.
+- **Routes in the plan.** `validate_plan` `resolved.routes` lists them per phase, e.g. `erase: SEL1.OUT1->pgu`,
+  `program: SEL1.OUT1->pgu`, `read: SEL1.OUT1->smu`, `rest: SEL1.OUT1->open`; the run's `kind_result.routes` logs
+  every application with its cycle (`c1 erase SEL1.OUT1->pgu; c1 read SEL1.OUT1->smu; ...; end rest ...`).
+- **Reads.** A read must not program the film: keep the read sweep well inside the coercive voltage (the example
+  reads -0.5 to 1.8 V on a 2.8 V film); single sweeps only. Table rows: `cycle` (0 = reference read) and `phase`
+  (the operation the read follows: `program` or `erase`; `read` for the reference read).
+- **Long plans** (many cycles, long pulses) run asynchronously with a checkpoint per read and per 10 s of pulse
+  output; `safe_shutdown` cancels at the next checkpoint (selector back to rest, verified). Bipolar endurance
+  cycling, retention reads at log times and amplitude x width grids are their own recipes (WP9.5).
+- **Analysis** `memory_window_pulse`: MW = mean Vth(after erase) - mean Vth(after program) of the Id-Vg reads
+  ([06b](06b-analysis-time-pulse.md#program-read-memory-window)); spot reads give the read currents and their ratio.
+
 ## Simulator behaviour
 
 - The level at the pad follows the SER divider exactly; a run drives the circuit in virtual time (FeFET switching
@@ -119,3 +153,5 @@ this file with WP9.4.
 | level at the pad differs from the set level | load is not the declared `SER` | runbook `spgu-load-mismatch` |
 | `spp_fallbacks` > 0, or SPST? stuck | ATV-19: status not falling at the end | runbook `spgu-selector-state`; `safe_shutdown` |
 | plan blocked "is pgu, not its rest state" | a run left the selector on PGU | `safe_shutdown`; runbook `spgu-selector-state` |
+| reads after program and erase identical | pulses below the coercive voltage, or the read on the wrong path | audit `routes` (pgu before, smu after each operation); runbook `spgu-pulse-no-effect` |
+| plan refused "WGFMU source arrives in WP10.6" | a `wgfmu` pulse role or `read_kind: wgfmu` | use the HV-SPGU (`pgu`) or an SMU pulse (`pulse_v`) |

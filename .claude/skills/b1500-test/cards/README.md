@@ -64,9 +64,8 @@ Ferroelectric memory: FeFET memory window, program/read, switching kinetics, end
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
 | nvm | FeFET, memory window, hysteresis, dual sweep, Vth_fwd/Vth_rev | [fefet-dual-sweep-mw](nvm/fefet-dual-sweep-mw.md) | `fefet.dual_sweep_mw` | sim_validated | HRSMU, MPSMU, GNDU | L7 |
+| nvm | FeFET, memory window from pulses, program pulse, erase pulse, write read, program verify, pulse then read, SPGU program SMU read | [fefet-pulse-write-read](nvm/fefet-pulse-write-read.md) | `fefet.pulse_write_read`, `spgu.program_smu_read` | sim_validated | HVSPGU, HRSMU, MPSMU, GNDU | L7 |
 | nvm | reserved: Ferroelectric capacitor PUND (positive-up-negative-down) | [reserved](reserved/README.md) | `fecap.pund` | not_implemented | - | - |
-| nvm | reserved: FeFET pulse write/read for endurance and retention (program, read Id-Vg, erase, read Id-Vg) | [reserved](reserved/README.md) | `fefet.pulse_write_read` | not_implemented | - | - |
-| nvm | reserved: SPGU/HV-SPGU program pulse, then SMU read through the 16440A selector | [reserved](reserved/README.md) | `spgu.program_smu_read` | not_implemented | - | - |
 
 ## reliability
 

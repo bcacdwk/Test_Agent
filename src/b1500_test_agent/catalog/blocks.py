@@ -35,6 +35,12 @@ the transaction's cleanup (``AB`` -> ``DZ`` -> ``CL`` -> verify) runs on any exi
   checkpoints, at least once a second), and the ATV-19 fallback (blueprint v2 11): ``SpguStillActive`` after the
   planned time plus a margin -> ``SPP``, verified by ``SPST?`` 0, else ``DriverError`` (the cleanup's step 2 tries
   again and latches); finally an ``ERRX?`` drain. The output switches (``CN``) and the routes are the caller's.
+- ``smu_pulse_burst`` (WP9.4): ``count`` single SMU voltage pulses (``MM 3`` pulsed spot, one pulse per ``XE``, PG p93
+  (2-5)): ``FMT 1,0``, the guarded pulsed setup (``PulsedOps.pulsed_setup``: every level against the compliance and
+  the train against the pulse envelope before the first write), ``ERRX?`` drain, then per pulse ``XE``, one reading
+  of the pulsed channel at the pulse end, ``tx.check_abort`` and the caller's ``on_pulse`` (checkpoints); a reading
+  with a ``STOP_STATUSES`` letter (compliance: a gate that broke under the pulse) ends the burst
+  (``PulseBurstResult.stopped``). The output switch (``CN``) is the caller's.
 - ``Monitor``/``hold_chunks``/``hold_bias``: hold DC levels for a time, timed by the instrument itself. A hold is a
   chain of sampling measurements (``MM 10``, one sample each) of at most ``SEGMENT_S`` (25 s) per block: the outputs
   stay at their DC levels (``DV`` before the trigger; ``MSC`` never touches DC outputs) and the measured roles are
@@ -77,7 +83,7 @@ from b1500_test_agent.catalog.kinds.smu_staircase import (
 )
 from b1500_test_agent.catalog.schema import CompileError
 from b1500_test_agent.driver import flex
-from b1500_test_agent.driver.b1500 import RawBlock, SamplingSetup
+from b1500_test_agent.driver.b1500 import PulsedSetup, RawBlock, SamplingSetup
 from b1500_test_agent.driver.errors import DriverError, SpguStillActive
 from b1500_test_agent.driver.sampling import parse_sampling
 from b1500_test_agent.models.common import StrictModel
@@ -98,6 +104,7 @@ __all__ = [
     "BurstResult",
     "HoldResult",
     "Monitor",
+    "PulseBurstResult",
     "RouteStep",
     "apply_routes",
     "configure_staircase",
@@ -113,6 +120,8 @@ __all__ = [
     "route_lines",
     "route_steps",
     "set_levels",
+    "smu_pulse_burst",
+    "smu_pulse_s",
     "spgu_burst",
     "spot_once",
     "spot_read",
@@ -450,6 +459,63 @@ def spgu_burst(tx: Transaction, program: SpguProgram, *, during: Callable[[], ob
             raise DriverError(f"{label}: the SPGU output did not stop (SPST? 1 after SPP)") from exc
     drain_or_raise(tx, f"the {label} output")
     tx.mark(f"{label}: SPGU output ended after {result.waited_s:g} s" + (" (SPP)" if result.stopped_by_spp else ""))
+    return result
+
+
+# -- SMU pulses ------------------------------------------------------------------------------------------------------
+
+PULSE_TRIGGER_OVERHEAD_S = 0.2
+"""Allowance per SMU pulse trigger for the ``XE``, the data transfer and the abort check (as kind ``smu_pulsed``)."""
+
+
+def smu_pulse_s(setup: PulsedSetup) -> float:
+    """Estimated time of one SMU pulse trigger: hold + period + ``PULSE_TRIGGER_OVERHEAD_S``."""
+    return setup.hold + setup.period + PULSE_TRIGGER_OVERHEAD_S
+
+
+@dataclass
+class PulseBurstResult:
+    """What ``smu_pulse_burst`` did: the readings in pulse order (one block each) and whether a reading ended the
+    burst early (``reason``)."""
+
+    blocks: list[RawBlock] = field(default_factory=list)
+    stopped: bool = False
+    reason: str = ""
+
+
+def smu_pulse_burst(tx: Transaction, setup: PulsedSetup, count: int, *,
+                    on_pulse: Callable[[int, RawBlock], None] | None = None,
+                    label: str = "pulse") -> PulseBurstResult:
+    """``count`` single SMU pulses of the ``MM 3`` ``setup`` (module docstring); the output switch is already on.
+
+    Raises:
+        ValueError: If ``setup`` is not a pulsed spot measurement (``MM 3``) or ``count`` is not positive.
+        EnvelopeViolation: A level or the train is outside the channel's envelope (nothing of the setup written).
+        AcquisitionError: The instrument reported an error after the setup (no pulse started).
+    """
+    if setup.mode != flex.PULSED_SPOT_MODE:
+        raise ValueError(f"smu_pulse_burst runs single pulses (pulsed spot, measurement mode {flex.PULSED_SPOT_MODE}), "
+                         f"not mode {setup.mode}")
+    if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+        raise ValueError(f"smu_pulse_burst needs a positive pulse count, got {count!r}")
+    driver = tx.driver
+    driver.set_format(1, setup.format_mode)
+    driver.pulsed_setup(setup)
+    drain_or_raise(tx, f"the {label} setup")
+    timeout = 2.0 * smu_pulse_s(setup) + READ_TIMEOUT_MARGIN_S
+    result = PulseBurstResult()
+    for index in range(count):
+        block = driver.execute_and_read(expected_points=len(setup.measure), timeout_s=timeout)
+        result.blocks.append(block)
+        tx.check_abort()
+        if on_pulse is not None:
+            on_pulse(index, block)
+        flagged = flagged_statuses([block])
+        if flagged:
+            result.stopped = True
+            result.reason = f"{label} pulse {index + 1} of {count} reported status {','.join(flagged)}"
+            break
+    tx.mark(f"{label}: {len(result.blocks)} SMU pulse(s)" + (f"; stopped: {result.reason}" if result.stopped else ""))
     return result
 
 

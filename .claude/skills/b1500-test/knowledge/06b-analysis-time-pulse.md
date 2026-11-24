@@ -4,6 +4,7 @@ maturity: seed
 sources:
   - src/b1500_test_agent/analysis/reliability.py (sampling_summary, time_to_breakdown, weibull_fit; WP7.4)
   - src/b1500_test_agent/analysis/pulse.py (pulsed_vs_dc, pulse_plateau; WP7.3; vth_search_value, breakdown_voltage; WP7.5)
+  - src/b1500_test_agent/analysis/nvm.py (memory_window_pulse; WP9.4)
   - src/b1500_test_agent/analysis/registry.py (two-run methods, options.reference_run)
   - docs/design/blueprint.md sections 2.9 (analyze_run reference_run) and 2.10 (pulse.py)
 last_reviewed: null
@@ -14,8 +15,8 @@ last_reviewed: null
 
 Split from [06](06-analysis-extraction.md) when it reached 300 lines (WP7.3); trust classes, the quality gate and the
 reporting rules there apply here too. Definitions here are identical to the docstrings of
-`src/b1500_test_agent/analysis/reliability.py` and `pulse.py`; the code wins on any difference and a change to
-either must change both.
+`src/b1500_test_agent/analysis/reliability.py`, `pulse.py` and `nvm.py`; the code wins on any difference and a change
+to either must change both.
 
 ## Sampling summary and relaxation fit
 
@@ -91,3 +92,20 @@ Implemented (`breakdown_voltage`, WP7.5; recipes `basic.breakdown_search`, `diel
   no_breakdown` (censored). The value is signed as forced (a reverse junction breakdown is negative;
   `fit.magnitude_v`). Report the criterion (`target`, `icomp`), the step, the status counts and that the site is
   destroyed.
+
+## Program read memory window
+
+Implemented (`memory_window_pulse`, WP9.4; kind `pulse_read`: `fefet.pulse_write_read`, `spgu.program_smu_read`).
+
+- Reads: one group of rows per `cycle` and `phase`; `read` (cycle 0) is the reference read before any pulse,
+  `program` / `erase` rows are the read after that operation in that cycle (programmed / erased state).
+- Per read (`quantity`, default `auto`): `vth` of a staircase read (`x` default `gate_V`, else the only swept source
+  column, e.g. `gate_read_V`; `y` default `drain_I`) by `vth_method` `constant_current` (default; `i_crit_a` x
+  `w_over_l`, 100 nA) or `linear_extrapolation`; `current` = the mean of a spot read's trusted samples, or a sweep's
+  `y` at `x = at_v` (default the plan parameter `vg_read`). Untrusted points refuse that read unless `force`
+  (flagged); `C`/`T` points never enter; a refused or failed read drops out with a warning.
+- `memory_window` (V) = mean Vth(erase) - mean Vth(program) (positive for an n-channel FeFET; negative is flagged:
+  polarity or naming); `fit`: per-cycle `mw_min`, `mw_max`, `mw_std`, `cycles`, `vth_initial`. Per state
+  `vth_program`, `vth_erase`, `vth_initial` (mean; `fit` `first`, `last`, `std`, `reads`). A program-only sequence
+  has no window: its state's mean, first and last read show the cumulative shift.
+- Spot reads: `i_program`, `i_erase`, `i_initial` (A) and `current_ratio` = |I(program)| / |I(erase)| (1).

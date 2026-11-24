@@ -232,9 +232,9 @@ def test_recipe_overview_lists_every_family_within_the_budget(world: World) -> N
     assert cards["mosfet.idvg"] == "smu/mosfet-idvg" and cards["mosfet.idvg_pulsed"] == "smu/smu-pulsed-iv"
     assert service.list_recipes(recipe_id="mosfet.idvg").recipe.card.endswith("cards/smu/mosfet-idvg.md")
     nvm = service.list_recipes(device_type="fefet").families["nvm"]
-    assert "fefet.dual_sweep_mw" in nvm.runnable and "fefet.pulse_write_read" in nvm.not_implemented
+    assert {"fefet.dual_sweep_mw", "fefet.pulse_write_read"} <= set(nvm.runnable)  # WP9.4: pulse_read
     fefet = service.list_recipes(family="nvm", device_type="fefet")
-    assert {r.id for r in fefet.recipes} >= {"fefet.dual_sweep_mw", "fefet.pulse_write_read"}
+    assert {r.id for r in fefet.recipes} >= {"fefet.dual_sweep_mw", "fefet.pulse_write_read", "spgu.program_smu_read"}
     assert all(r.family == "nvm" for r in fefet.recipes)
     bad = service.list_recipes(family="pulse")
     assert not bad.ok and bad.error_code == "invalid_input" and "smu, cmu, spgu, wgfmu, nvm" in bad.message

@@ -210,6 +210,12 @@ class RoleSpec(StrictModel):
     """``cmu_side``: the role drives no DUT terminal of its own name but the MFCMU measurement path the pin map lands
     (correction recipes); R-DUT-01 then needs no DUT profile for it (the probes are lifted, shorted or on a
     standard)."""
+    terminal: Identifier | None = None
+    """The pin-map terminal a ``bind: terminal`` role binds to when it is not the terminal of the role's own name: a
+    second role on one pad (kind ``pulse_read``, WP9.4: the SMU read role ``gate_read`` of a gate that an HV-SPGU pulses
+    through a 16440A selector output declares ``terminal: gate``; the pin map's switch target then gives each role
+    the route to its own resource, ``SEL1.OUT1 -> pgu`` and ``-> smu``). The DUT profile's envelope of that terminal
+    bounds both roles; R-PIN-01 still allows one role per channel."""
 
     @model_validator(mode="after")
     def _consistent(self) -> RoleSpec:
@@ -217,6 +223,9 @@ class RoleSpec(StrictModel):
             raise ValueError("measure lists a quantity twice.")
         if self.bind == "cmu_side" and self.function not in CMU_SIDES:
             raise ValueError(f"only MFCMU roles (cmu_high, cmu_low) can bind by cmu_side, not {self.function}.")
+        if self.terminal is not None and self.bind != "terminal":
+            raise ValueError("terminal names the pin-map terminal of a bind: terminal role; a cmu_side role finds its "
+                             "terminal by its MFCMU side.")
         if self.kelvin and self.function not in SMU_FUNCTIONS:
             raise ValueError(f"only SMU roles can be Kelvin roles, not {self.function}.")
         if self.prefer is not None and self.module_types and self.prefer not in self.module_types:
@@ -233,12 +242,13 @@ class RoleSpec(StrictModel):
     def pin_terminal(self, name: str, terminals: Mapping[str, object],
                      station: StationProfile | None = None) -> str | None:
         """The pin-map terminal role ``name`` binds to (``None`` when the pin map has none): the terminal of the same
-        name, or the first terminal on the role's MFCMU side for ``bind: cmu_side`` (an SCUU output counts with the
-        station profile)."""
+        name (or the one ``terminal`` names), or the first terminal on the role's MFCMU side for ``bind: cmu_side`` (an
+        SCUU output counts with the station profile)."""
         if self.bind == "cmu_side":
             found = side_terminals(self.function, terminals, station)
             return found[0] if found else None
-        return name if name in terminals else None
+        own = self.terminal or name
+        return own if own in terminals else None
 
     @property
     def resource(self) -> SwitchInput:

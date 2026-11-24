@@ -15,11 +15,11 @@ skill's rules, a card, a recipe, the policy or a DUT profile, and it never autho
 | [04 ferroelectric and oxide](04-ferroelectric-oxide.md) | Ec/Pr/Ps, FeFET operation, memory window by dual sweep, read disturb, pulse write (reserved), PUND (reserved), IGZO TFTs | FeFET or FeCap requests; oxide TFT measurements |
 | [05 reliability and defects](05-reliability-defects.md) | gate leakage safe envelope, BTI/HCI/TDDB, breakdown voltage ramps, Dit, SILC and trapping, IGZO instability, wake-up/imprint/fatigue | gate leakage; drift or hysteresis; any stress or breakdown request |
 | [06 analysis and extraction](06-analysis-extraction.md) | run table and trust, quality gate, gm, Vth (3 methods), SS, Ion/Ioff, Ron/gds, R, diode fit, leakage, MW, plots, reporting rules | before `analyze_run`; writing the report; ad-hoc analysis |
-| [06b time series, pulsed and search runs](06b-analysis-time-pulse.md) | sampling summary and relaxation fit, time to breakdown and Weibull, pulsed vs DC (two-run), pulse plateau, Vth by search, breakdown voltage | analysing a sampling, TDDB, pulsed or search run |
+| [06b time series, pulsed and search runs](06b-analysis-time-pulse.md) | sampling summary and relaxation fit, time to breakdown and Weibull, pulsed vs DC (two-run), pulse plateau, Vth by search, breakdown voltage, program/read memory window | analysing a sampling, TDDB, pulsed, search or program/read run |
 | [07 HSPICE simulation](07-hspice-simulation.md) | reserved workflow: level-1 model card, netlist, comparison, BSIM4/Verilog-A later | a simulation-comparison request (answer: reserved) |
 | [08 capacitance and C-V](08-capacitance-cv.md) | MFCMU pairs Cp-G/Cs-Rs/Z-theta, corrections, MOS-C HF C-V, Cox/EOT, 1/C^2 doping, flatband, Vth, hysteresis, split C-V, SCUU same landing | any capacitance or C-V request; before `analyze_run` on a C-V run |
 | debug | skill `b1500-debug`: triage order, runbooks, cases | noisy, impossible, compliance-limited or drifting data; faults; VISA errors |
-| [09 pulses, HV-SPGU and selector](09-pulse-spgu-selector.md) | HV-SPGU output and SER (open-load doubling, high_z residual), PG and ALWG trains, count/duration bounds, running a train, readings during a train, R-PULSE/R-SPGU rules, simulator | any SPGU pulse or waveform plan; a gate pulse that did nothing or too much |
+| [09 pulses, HV-SPGU and selector](09-pulse-spgu-selector.md) | HV-SPGU output and SER (open-load doubling, high_z residual), PG and ALWG trains, count/duration bounds, running a train, readings during a train, R-PULSE/R-SPGU rules, program/read (pulse_read), simulator | any SPGU pulse or waveform plan; program/erase then read; a gate pulse that did nothing or too much |
 | [11 switching and routing](11-switching-routing.md) | switches in the station profile, routes per phase, 16440A selector (ERSSP, PGU open, Force only), SCUU/ASU paths, RSU, guard and R-ROUTE rules, cleanup to rest, selector check, simulator | any plan through a switch target; selector wiring (L7); a run blocked or failed on a route |
 
 ## Sections by file
@@ -130,6 +130,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Pulse plateau](06b-analysis-time-pulse.md#pulse-plateau)
 - [Threshold voltage by search](06b-analysis-time-pulse.md#threshold-voltage-by-search)
 - [Breakdown voltage](06b-analysis-time-pulse.md#breakdown-voltage)
+- [Program read memory window](06b-analysis-time-pulse.md#program-read-memory-window)
 
 ### 07 HSPICE simulation
 
@@ -163,6 +164,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Running a train](09-pulse-spgu-selector.md#running-a-train)
 - [Readings during a train](09-pulse-spgu-selector.md#readings-during-a-train)
 - [Guard and rules](09-pulse-spgu-selector.md#guard-and-rules)
+- [Program and read](09-pulse-spgu-selector.md#program-and-read)
 - [Simulator behaviour](09-pulse-spgu-selector.md#simulator-behaviour)
 - [Troubleshooting pulses](09-pulse-spgu-selector.md#troubleshooting-pulses)
 

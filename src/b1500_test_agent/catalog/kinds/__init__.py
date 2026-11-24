@@ -2,8 +2,9 @@
 ``smu_pulsed`` and ``smu_search`` (sim + visa; WP7.5), ``cmu_correction`` (sim + visa; WP8.2), ``cmu_measure`` (sim +
 visa; WP8.3), the composite ``stress_measure`` (sim + visa; built from ``catalog/blocks.py``, so it is imported after
 the kinds those blocks use), ``system`` (sim + visa), ``spgu_pulse`` (sim + visa; its ``route_only`` mode since WP9.2,
-the ``pg``/``alwg`` pulse modes since WP9.3) and the declared ``UnimplementedKind`` ids. ``default_kinds()`` is the
-mapping the recipe registry loads against."""
+the ``pg``/``alwg`` pulse modes since WP9.3), the composite ``pulse_read`` (sim + visa, WP9.4; HV-SPGU and SMU pulse
+sources, built from ``catalog/blocks.py`` and ``catalog/kinds/pulse_sources.py``) and the declared
+``UnimplementedKind`` ids. ``default_kinds()`` is the mapping the recipe registry loads against."""
 
 from b1500_test_agent.catalog.kinds.base import MeasurementKind, implemented_on
 from b1500_test_agent.catalog.kinds.cmu_correction import CmuCorrectionKind
@@ -19,6 +20,7 @@ from b1500_test_agent.catalog.kinds.system import SystemKind
 from b1500_test_agent.catalog.kinds.unimplemented import UNIMPLEMENTED_KINDS, UnimplementedKind, unimplemented_kinds
 
 from b1500_test_agent.catalog.kinds.stress_measure import StressMeasureKind, StressProgram  # isort: skip  # after smu_*
+from b1500_test_agent.catalog.kinds.pulse_read import PulseReadKind, PulseReadProgram  # isort: skip  # after the above
 
 
 def default_kinds() -> dict[str, MeasurementKind]:
@@ -26,7 +28,7 @@ def default_kinds() -> dict[str, MeasurementKind]:
     kinds: dict[str, MeasurementKind] = dict(unimplemented_kinds())
     for kind in (SmuStaircaseKind(), SmuSteppedKind(), SmuSamplingKind(), SystemKind(), SmuSpotKind(),
                  StressMeasureKind(), CmuCorrectionKind(), SpguPulseKind(), SmuPulsedKind(), SmuSearchKind(),
-                 CmuMeasureKind()):
+                 CmuMeasureKind(), PulseReadKind()):
         kinds[kind.kind_id] = kind
     return kinds
 
@@ -37,6 +39,8 @@ __all__ = [
     "CmuMeasureKind",
     "CmuProgram",
     "MeasurementKind",
+    "PulseReadKind",
+    "PulseReadProgram",
     "PulsedProgram",
     "SamplingProgram",
     "SearchProgram",

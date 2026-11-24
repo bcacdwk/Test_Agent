@@ -1,0 +1,53 @@
+# Test-only recipe (not in recipes/; schema b1500_test_agent.models.recipe.Recipe): kind pulse_read with the SMU pulse
+# source (WP9.4). The gate SMU pulses the FeFET gate (MM 3 single pulses, 1 ms, through SEL1.OUT1 -> SMU on pin map
+# fefet-sel) and reads it with the same SMU (Id-Vg sweep or spot), the drain SMU reads Id. Used by the unit,
+# integration, visa-loop and safety tests of pulse_read; the committed recipes use the HV-SPGU source.
+id: generic.smu_pulse_read
+version: 1
+title: Test-only SMU pulse program/erase then SMU read (pulse_read, SMU pulse source)
+family: nvm
+kind: pulse_read
+status: draft
+card: null
+device_types: [fefet]
+roles:
+  gate:
+    function: pulse_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {program: $v_program, erase: $v_erase, base: 0.0, width: $width, icomp: $icomp_gate,
+               start: $vg_start, stop: $vg_stop, points: $vg_points, v: $vg_read}
+  drain:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {v: $vd, icomp: $icomp_drain}
+  source: {function: ground, allow_gndu: true}
+  bulk: {function: ground, allow_gndu: true, optional: true}
+params:
+  v_program: {unit: V, default: 4.0, range: [-10.0, 10.0], doc: Program pulse level.}
+  v_erase: {unit: V, default: -4.0, range: [-10.0, 10.0], doc: Erase pulse level.}
+  width: {unit: s, default: 1.0e-3, range: [5.0e-4, 1.0e-3], doc: SMU pulse width (HR/MP 500 us minimum).}
+  period: {unit: s, default: 5.0e-3, range: [5.0e-3, 1.0], doc: SMU pulse period (>= width + 2 ms).}
+  count: {type: int, default: 1, range: [1, 100], doc: Pulses per operation.}
+  sequence: {type: enum, choices: [erase_program, program_erase, program, erase], default: erase_program, doc: Sequence.}
+  cycles: {type: int, default: 1, range: [1, 200], doc: Cycles.}
+  initial_read: {type: bool, default: true, doc: Reference read.}
+  read_kind: {type: enum, choices: [staircase, spot, wgfmu], default: staircase, doc: "Read (wgfmu: refused, WP10.6)."}
+  vg_start: {unit: V, default: -0.5, range: [-5.0, 5.0], doc: Read sweep start.}
+  vg_stop: {unit: V, default: 1.8, range: [-5.0, 5.0], doc: Read sweep stop.}
+  vg_points: {type: int, default: 47, range: [11, 401], doc: Read sweep points.}
+  vg_read: {unit: V, default: 0.6, range: [-5.0, 5.0], doc: Spot read level.}
+  vd: {unit: V, default: 0.05, range: [-1.0, 1.0], doc: Drain read bias.}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate compliance (pulses and reads).}
+  icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-2], doc: Drain compliance.}
+  settle: {unit: s, default: 0.0, range: [0.0, 600.0], doc: Wait before each read.}
+  samples: {type: int, default: 1, range: [1, 100], doc: Spot samples.}
+  integration: {type: enum, choices: [short, medium, long], default: medium, doc: ADC preset.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: memory_window_pulse, options: {}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind pulse_read, SMU pulse source), WP9.4 tests
+  validation_runs: []

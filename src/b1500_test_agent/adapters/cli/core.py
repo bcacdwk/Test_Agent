@@ -284,6 +284,8 @@ def plan_lines(result: PlanValidation) -> list[str]:
         lines.append("channels: " + ", ".join(f"{k}={v}" for k, v in res.channels.items())
                      + f"; max |V| {res.max_v:g} V, max |I| {res.max_i:g} A; {res.points} points, ~{res.est_s:g} s"
                      + (" (asynchronous)" if res.mode == "async" else ""))
+        if res.routes:
+            lines.append("routes: " + "; ".join(f"{phase} {', '.join(items)}" for phase, items in res.routes.items()))
     for finding in result.findings:
         extra = f" (observed {finding.observed}, limit {finding.limit})" if finding.limit is not None else ""
         lines.append(f"  {finding.severity:<7} {finding.rule_id} {finding.message}{extra} [{finding.source}]")

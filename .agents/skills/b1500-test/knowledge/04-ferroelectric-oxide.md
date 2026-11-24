@@ -20,8 +20,10 @@ typical literature value marked `TODO(verify)`, never a limit. Limits come from 
 ## Scope and v1 status
 
 - v1 measures FeFETs only by an SMU double (dual) sweep: recipe `fefet.dual_sweep_mw`, card `fefet-dual-sweep-mw`.
-- Pulse programming (WGFMU or HVSPGU), endurance, retention and FeCap PUND are reserved recipes
-  (`fefet.pulse_write_read`, `fecap.pund`): `not_implemented`. Never emulate them with sweep recipes.
+- Pulse programming with the HV-SPGU through the 16440A selector and SMU reads: `fefet.pulse_write_read` (memory
+  window from program/erase pulses) and `spgu.program_smu_read` (generic), card `fefet-pulse-write-read` (WP9.4).
+  Switching kinetics, endurance, retention (WP9.5), WGFMU fast program/read and FeCap PUND (`fecap.pund`, reserved,
+  `not_implemented`) follow. Never emulate them with sweep recipes.
 - Oxide TFTs use the MOSFET recipes (`mosfet.idvg` lists `igzo_tft`); their quirks are below.
 
 ## Ferroelectric basics Ec Pr Ps
@@ -85,14 +87,16 @@ bidirectional Id-Vg sweep") and the deck text reference parameters.
 
 ## Pulse write read endurance and retention
 
-Reserved (`fefet.pulse_write_read`, `not_implemented`). Seeded from deck slide 13 and the deck text.
+Pulse write/read implemented (`fefet.pulse_write_read`, WP9.4, card `fefet-pulse-write-read`; the mechanics are in
+[09](09-pulse-spgu-selector.md#program-and-read)); endurance and retention recipes follow (WP9.5). Seeded from deck
+slide 13 and the deck text.
 
-- Program and erase with short gate pulses (WGFMU or HVSPGU through the 16440A selector), read with an SMU Id-Vg
+- Program and erase with short gate pulses (HVSPGU through the 16440A selector; WGFMU later), read with an SMU Id-Vg
   sweep. Deck text: pulse amplitude 3-5 V, width 100 ns to 10 us `TODO(verify)` per stack.
 - Endurance: Vth (or MW) after N program/erase cycles; the window closes by fatigue or breakdown. Retention: Vth
   of each state versus time after writing; imprint shows as an asymmetric drift.
-- Preconditions to un-reserve are listed in the reserved recipe (pulse kind, simulator model, analysis methods,
-  write-pulse envelope per DUT profile, validation).
+- The write-pulse envelope comes from the DUT profile's gate `pulse` block (amplitude, width, duty, count), reviewed
+  by a human against film thickness and coercive field; never widen it to reach a larger window.
 
 ## FeCap P-V and PUND
 

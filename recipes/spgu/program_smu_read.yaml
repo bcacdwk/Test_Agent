@@ -1,0 +1,88 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Generic program pulses -> SMU reads (card nvm/fefet-pulse-write-read, bring-up stage L7; blueprint v2 3.3, implements
+# the reserved id spgu.program_smu_read): any device whose pulsed terminal (`gate`) has a DUT pulse envelope and an
+# SMU path through a 16440A selector output (pin map like fefet-sel): HV-SPGU pulses (v_program, optionally v_erase;
+# `count` x `width`, SER = load_ohm) with the selector on PGU, then the selector back to the SMU and a read (spot Id at
+# vg_read with `samples` readings, the default, or an Id-Vg sweep), per operation and cycle; the drain may hold
+# vd_pulse during the pulses (0 V by default; a non-zero level programs by hot carriers). Ad hoc by design: every
+# plan needs confirmation (adhoc_recipe); prefer fefet.pulse_write_read for a FeFET memory window. Default analysis
+# memory_window_pulse: the read current after each operation (and the window when both operations run).
+# status: sim_validated by tests/integration/test_recipes_pulse_read.py (fefet_lab: read currents after program and
+# erase within 5 % of the model truth, routes PGU -> SMU per operation, selector at rest verified).
+id: spgu.program_smu_read
+version: 1
+title: Generic HV-SPGU program (and erase) pulses then SMU reads through the selector (ad hoc; any pulse-envelope DUT)
+family: nvm
+kind: pulse_read
+status: sim_validated
+card: .agents/skills/b1500-test/cards/nvm/fefet-pulse-write-read.md
+device_types: [fefet, flash, nvm, nmos, pmos]
+roles:
+  gate:
+    function: pgu
+    module_types: [HVSPGU]
+    settings: {program: $v_program, erase: $v_erase, base: $v_base, width: $width, erase_width: $erase_width,
+               lead: $t_edge, trail: $t_edge, load_ohm: $load_ohm}
+  gate_read:
+    function: sweep_v
+    terminal: gate
+    module_types: [MPSMU, HRSMU, HPSMU]
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, v: $vg_read, icomp: $icomp_gate}
+  drain:
+    function: bias_v
+    measure: [I]
+    module_types: [MPSMU, HRSMU, HPSMU]
+    prefer: HRSMU
+    settings: {v: $vd, icomp: $icomp_drain, pulse_bias: $vd_pulse}
+  source: {function: ground, allow_gndu: true}
+  bulk: {function: ground, allow_gndu: true, optional: true}
+params:
+  v_program: {unit: V, default: 4.0, recommended: [-5.0, 5.0], range: [-20.0, 20.0],
+              doc: "Program pulse amplitude (set level; SER-adjusted)."}
+  v_erase: {unit: V, default: -4.0, recommended: [-5.0, 5.0], range: [-20.0, 20.0],
+            doc: "Erase pulse amplitude (used when the sequence erases)."}
+  v_base: {unit: V, default: 0.0, recommended: [-1.0, 1.0], range: [-20.0, 20.0], doc: Level between pulses.}
+  width: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-3], range: [1.0e-8, 1.0], doc: Program pulse width.}
+  erase_width: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-3], range: [1.0e-8, 1.0], doc: Erase pulse width.}
+  period: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-3], range: [2.0e-8, 1.0],
+           doc: "Pulse period (>= width + t_edge / 0.8)."}
+  count: {type: int, default: 1, recommended: [1, 100], range: [1, 100000], doc: Pulses per operation.}
+  t_edge: {unit: s, default: 2.0e-8, recommended: [2.0e-8, 1.0e-6], range: [8.0e-9, 0.4],
+           doc: "Leading and trailing transition time (width >= t_edge / 0.8)."}
+  load_ohm: {unit: Ohm, default: 1.0e+6, recommended: [1.0e+3, 1.0e+6], range: [0.1, 1.0e+6],
+             doc: "Declared load SER (1 MOhm for an insulated gate; 50 Ohm doubles the level on an open load)."}
+  sequence: {type: enum, choices: [program_erase, erase_program, program, erase], default: program_erase,
+             doc: "Operations of one cycle, each followed by a read (program: cumulative program pulses)."}
+  cycles: {type: int, default: 3, recommended: [1, 20], range: [1, 200], doc: Repetitions of the sequence.}
+  initial_read: {type: bool, default: true, doc: A reference read before the first pulse.}
+  schedule: {type: enum, choices: [cycles], default: cycles, doc: Schedule of the operations.}
+  read_kind: {type: enum, choices: [spot, staircase], default: spot,
+              doc: "spot: Id at vg_read (samples readings); staircase: an Id-Vg sweep per read."}
+  vg_read: {unit: V, default: 0.9, recommended: [-2.0, 2.0], range: [-10.0, 10.0], doc: Gate level of a spot read.}
+  vg_start: {unit: V, default: -0.5, recommended: [-2.0, 0.0], range: [-10.0, 10.0], doc: Read sweep start.}
+  vg_stop: {unit: V, default: 1.8, recommended: [0.0, 2.0], range: [-10.0, 10.0], doc: Read sweep stop.}
+  vg_points: {type: int, default: 47, recommended: [21, 101], range: [11, 401], doc: Read sweep points.}
+  vd: {unit: V, default: 0.05, recommended: [0.02, 0.5], range: [-5.0, 5.0], doc: Drain read bias.}
+  vd_pulse: {unit: V, default: 0.0, recommended: [0.0, 0.0], range: [-5.0, 5.0],
+             doc: "Drain level while the pulses run (0 V; non-zero: hot-carrier programming)."}
+  icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance of the reads.}
+  icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-2], doc: Drain current compliance of the reads.}
+  settle: {unit: s, default: 0.0, recommended: [0.0, 1.0], range: [0.0, 60.0],
+           doc: "Wait between the route back to the SMU and the read."}
+  samples: {type: int, default: 3, recommended: [1, 10], range: [1, 100], doc: Spot measurements per spot read.}
+  integration:
+    type: enum
+    choices: [short, medium, long]
+    default: medium
+    doc: ADC preset of the reads.
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: memory_window_pulse, options: {}}
+always_confirm: [adhoc_recipe]
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind pulse_read), 3.3 (spgu.program_smu_read; generic, adhoc_recipe)
+    - v0.2 references/recipes/flash/spgu_program_smu_read.example.yaml (tag archive/v0.2-fake-mcp)
+    - lwp matlab_B1500/lib/SPGU_pulse.m (ERMOD 1, ERSSP p,2 for pulses, ERSSP p,1 back to the SMU)
+    - Programming Guide Ed. 15 ERSSP (PDF 433-434), SER (PDF 507), SPRM (PDF 512-513), DV (PDF 396), MM 1 (PDF 470)
+  validation_runs: []

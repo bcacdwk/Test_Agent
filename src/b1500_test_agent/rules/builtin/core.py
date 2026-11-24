@@ -201,7 +201,8 @@ def pin_map_complete(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     """The pin map exists, maps every non-optional role, uses existing channels once each with an allowed module
     type (``low_current`` needs an HRSMU), and the plan binding and envelope agree with it. MFCMU roles use an MFCMU
     side target (``7H`` for ``cmu_high``, ``7L`` for ``cmu_low``) and only they may; a role with ``bind: cmu_side``
-    (correction recipes) uses the pin map's terminal on its MFCMU side, whatever its name. A terminal wired through a
+    (correction recipes) uses the pin map's terminal on its MFCMU side, whatever its name; a role with ``terminal``
+    (a second role on one pad, kind ``pulse_read``) uses the terminal it names. A terminal wired through a
     switch (``SEL1.OUT1``) needs a declared, not absent switch that can connect the role's resource to that output, a
     known channel on that input, and a plan that applies the route (``envelope.routes``); kinds that route no switch
     therefore cannot use such a terminal. Presence on hardware, Kelvin paths and rest states are R-ROUTE-01."""
@@ -235,7 +236,7 @@ def _check_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, 
                 seen: dict[tuple[int, str], str]) -> Iterator[Finding]:
     assert ctx.pin_map is not None
     pin_map, station, recipe = ctx.pin_map, ctx.station, ctx.recipe
-    terminal = role_name
+    terminal = spec.terminal or role_name  # a second role on one pad names its terminal (RoleSpec.terminal, WP9.4)
     if spec.bind == "cmu_side":  # the terminal on the role's MFCMU side, whatever its name (WP8.2)
         side = CMU_SIDES[spec.function]
         terminal = spec.pin_terminal(role_name, pin_map.terminals, station) or ""
@@ -258,8 +259,8 @@ def _check_role(ctx: RuleContext, env: RuleEnv, role_name: str, spec: RoleSpec, 
                 yield block(f"optional role {role_name} is bound although the pin map leaves it unconnected",
                             subject=role_name, source=terminal_src, observed=None, limit=None)
             return
-        why = "has no terminal" if role_name not in pin_map.terminals else "leaves the terminal unconnected"
-        yield block(f"role {role_name} is not mapped: pin map {pin_map.name} {why} {role_name!r}",
+        why = "has no terminal" if terminal not in pin_map.terminals else "leaves the terminal unconnected"
+        yield block(f"role {role_name} is not mapped: pin map {pin_map.name} {why} {terminal!r}",
                     subject=role_name, source=terminal_src, observed=None, limit="a channel, GNDU or switch output")
         return
     if bound is None:

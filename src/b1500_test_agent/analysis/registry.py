@@ -58,6 +58,7 @@ from b1500_test_agent.analysis.mosfet import (
     vth_max_gm,
 )
 from b1500_test_agent.analysis.mosfet_family import body_effect, dibl
+from b1500_test_agent.analysis.nvm import memory_window_pulse
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv_method
 from b1500_test_agent.analysis.pulse import breakdown_voltage, pulse_plateau, pulsed_vs_dc, vth_search_value
 from b1500_test_agent.analysis.quality import assess_quality
@@ -321,6 +322,11 @@ _METHODS += [
             "Pulsed minus DC current at v (default: the largest pulsed current) against a DC reference run "
             "(options.reference_run), the ratio and the largest relative difference.", _PULSED_RECIPES, _PULSED,
             families=_SMU, milestone="M7"),
+    _method("memory_window_pulse", "extraction", memory_window_pulse,
+            "Program/read runs: memory window Vth(erase) - Vth(program) of the reads after the pulses (or the read "
+            "currents and their ratio for spot reads), per state mean and spread.",
+            ("fefet.pulse_write_read", "spgu.program_smu_read", "generic.*"), ("pulse_read",), families=("nvm",),
+            milestone="M9"),
     _method("pulse_plateau", "extraction", pulse_plateau,
             "Plateau current (or voltage) of a pulse: per-pulse mean with edge trimming (time-resolved data) or the "
             "pulse-end reading, at level v, pulse number or the strongest pulse.", (*_PULSED_RECIPES, "wgfmu.*"),

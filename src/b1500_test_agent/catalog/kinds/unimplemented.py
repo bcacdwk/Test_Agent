@@ -25,7 +25,6 @@ UNIMPLEMENTED_KINDS: dict[str, str] = {
     "wgfmu_pulsed_iv": "WGFMU fast pulsed I-V; needs the WGFMU instrument library extraction",
     "wgfmu_fast_bti": "WGFMU fast BTI (on-the-fly); needs the WGFMU library and async runs",
     "wgfmu_pulse_sequence": "WGFMU pulse write + read sequences (FeFET endurance/retention, FeCap PUND)",
-    "spgu_program_read": "SPGU/HVSPGU program pulse + SMU read through the 16440A selector",
     "hspice_compare": "compare a measured curve with an HSPICE simulation; no instrument action",
 }
 """Declared kind ids and what each is waiting for."""

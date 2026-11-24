@@ -10,17 +10,18 @@ Ad-hoc use from agent scripts in ``work/``::
     pngs = plot_timeseries(d, log_time=True)   # time-series runs (t_s, cycle or step on x)
     lives = weibull_fit([load_run(r) for r in tddb_run_ids])   # Weibull beta/eta over TDDB runs (library only)
     bti = bti_power_law(load_run(bti_run_id))  # stress-measure runs: dVth = A t^n (+ recovery)
+    mw = memory_window_pulse(load_run(pr_run_id))  # program/read runs: Vth(erase) - Vth(program)
     out_dir = work_dir_for(d.run_id)           # never write into the run folder
 
 Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_for(family)``; definitions in the
 ``mosfet.py``, ``mosfet_family.py``, ``resistor.py``, ``diode.py``, ``leakage.py``, ``fefet.py``, ``plots.py``,
-``reliability.py`` and ``stress.py`` docstrings): ``quality_report``, ``vth_linear_extrapolation``,
+``reliability.py``, ``stress.py`` and ``nvm.py`` docstrings): ``quality_report``, ``vth_linear_extrapolation``,
 ``vth_constant_current``, ``vth_max_gm``, ``subthreshold_swing``, ``gm_max``, ``ion_ioff``, ``output_metrics``,
 ``dibl``, ``body_effect``, ``resistance``, ``diode_fit``, ``forward_voltage``, ``leakage_at``, ``memory_window``,
 ``plot_iv``, ``plot_timeseries``, ``sampling_summary``, ``time_to_breakdown``, ``bti_power_law``,
 ``degradation_vs_time``, ``silc``, the C-V methods of ``cv.py`` (``cv_cox``, ``cv_flatband``, ``cv_doping_profile``,
-``cv_vth``, ``cv_hysteresis``, ``impedance_convert``, ``plot_cv``; ``convert_table`` converts a whole run);
-library helper over a run list: ``weibull_fit``.
+``cv_vth``, ``cv_hysteresis``, ``impedance_convert``, ``plot_cv``; ``convert_table`` converts a whole run),
+``memory_window_pulse`` (``nvm.py``); library helper over a run list: ``weibull_fit``.
 The run-table contract (``data.csv`` or ``data.npz`` +
 ``preview.csv``, columns) is defined in ``dataset.py``.
 
@@ -88,6 +89,7 @@ from b1500_test_agent.analysis.mosfet import (
     vth_max_gm,
 )
 from b1500_test_agent.analysis.mosfet_family import body_effect, dibl
+from b1500_test_agent.analysis.nvm import memory_window_pulse, pulse_reads
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv, render_iv
 from b1500_test_agent.analysis.quality import MIN_SNR, assess_quality, noise_sigma, signal_to_noise
 from b1500_test_agent.analysis.registry import ANALYSIS_METHODS, AnalysisMethod, methods_for, run_method
@@ -149,12 +151,14 @@ __all__ = [
     "local_derivative",
     "measured_columns",
     "memory_window",
+    "memory_window_pulse",
     "methods_for",
     "noise_sigma",
     "output_metrics",
     "plot_cv",
     "plot_iv",
     "plot_timeseries",
+    "pulse_reads",
     "read_table",
     "read_table_excerpt",
     "render_iv",

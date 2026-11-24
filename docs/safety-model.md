@@ -296,6 +296,18 @@ limited by the compliance the human approved. Residual: one `XE` is not interrup
 a search is planned as one segment and a search longer than `segment_max_s` cannot run asynchronously (blocked); the
 broken site keeps the start value (usually 0 V) until the cleanup.
 
+**Program/read (`pulse_read`, WP9.4).** The composite kind pulses one terminal (HV-SPGU or SMU pulse source; the
+WGFMU source is refused at plan time until WP10.6) and reads it with SMUs after every operation. A read SMU on the
+pulsed pad is a second recipe role naming that terminal (`RoleSpec.terminal`): it binds through the switch input of
+its own resource, so the DUT profile's envelope of that pad bounds both roles and R-PIN-01 still allows one role per
+channel. Every SPGU program it starts is stored and checked like `spgu_pulse`'s; the SMU pulses pass `check` and
+`check_pulse` per trigger. Routes per phase (`erase`/`program` -> PGU, `read` -> SMU, `rest`) are guarded, settled
+and read back at every application (a stuck relay stops the run and latches the fault in the cleanup); before a relay
+moves, every read SMU is set to its pulse level (0 V unless a bias role declares `pulse_bias`), falling levels first,
+so no SMU is switched onto the pad at a read level and no pulse meets a driven SMU. A compliance in a read or an SMU
+pulse stops the run (the rest phase still runs). Long waits (`settle`, long SPGU outputs) are cut into checkpoint
+segments with abort checks every second, so a long plan runs asynchronously and cancels within one segment.
+
 ## Cleanup and fault latch
 
 Every instrument action runs inside one transaction. On any exit, including errors, interrupts and guard

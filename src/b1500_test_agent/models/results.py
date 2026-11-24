@@ -203,7 +203,7 @@ class RecipeList(ResultEnvelope):
 
 class ResolvedPlan(StrictModel):
     """What a plan will do: role → channel (``SMU1(MPSMU)`` or ``GNDU``), largest |V| and |I|, points, duration
-    estimate and the resolved parameters (value with unit)."""
+    estimate, the switch routes per phase and the resolved parameters (value with unit)."""
 
     channels: dict[str, str] = Field(default_factory=dict)
     max_v: float = 0.0
@@ -212,6 +212,10 @@ class ResolvedPlan(StrictModel):
     est_s: float = 0.0
     mode: Literal["sync", "async"] = "sync"
     """``async``: ``run_plan`` returns ``running`` at once; follow with ``get_run`` (v2 2.6, R-RUN-02)."""
+    routes: dict[str, list[str]] = Field(default_factory=dict)
+    """Switch routes per phase in the order the plan lists them (``routes_by_phase``, v2 2.9; WP9.4), e.g.
+    ``{"program": ["SEL1.OUT1->pgu"], "read": ["SEL1.OUT1->smu"], "rest": ["SEL1.OUT1->open"]}``; empty when the plan
+    routes no switch."""
     params: dict[str, JsonValue] = Field(default_factory=dict)
 
 

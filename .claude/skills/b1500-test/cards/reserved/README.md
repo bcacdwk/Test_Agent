@@ -18,8 +18,6 @@ When a request needs one of them:
 |---|---|---|
 | `wgfmu.pulsed_iv` | WGFMU fast pulsed I-V (Id-Vg/Id-Vd with short pulses) | DC staircase: [mosfet-idvg](../smu/mosfet-idvg.md), [mosfet-idvd](../smu/mosfet-idvd.md) |
 | `wgfmu.fast_bti` | WGFMU fast BTI with on-the-fly Vth monitoring (destructive) | SMU stress-measure-stress (slower reads): [bti-stress-measure](../reliability/bti-stress-measure.md) |
-| `spgu.program_smu_read` | SPGU/HV-SPGU program pulse, then SMU read via the 16440A selector | none |
-| `fefet.pulse_write_read` | FeFET pulse write/read, endurance, retention (destructive) | [fefet-dual-sweep-mw](../nvm/fefet-dual-sweep-mw.md) |
 | `fecap.pund` | Ferroelectric capacitor PUND (Pr, Ec) | none (FeFET: [fefet-dual-sweep-mw](../nvm/fefet-dual-sweep-mw.md)) |
 | `moscap.qscv` | Quasi-static C-V with SMUs | high-frequency C-V: [moscap-cv](../cmu/moscap-cv.md) |
 | `hspice.compare` | Compare a measured run with an HSPICE simulation | ad-hoc analysis of archived runs (skill part 9) |
@@ -37,12 +35,6 @@ change, a card from [the template](../_TEMPLATE.md), a passing `b1500 dev lint-s
 - `wgfmu.fast_bti`: `wgfmu.pulsed_iv` validated first; asynchronous runs (`outcome: running`, `get_run` progress) for stresses
   longer than `policy.run_limits.max_sync_run_s`; stress-envelope rules and a DUT-profile stress budget; knowledge
   05 reviewed by a human; sim and hardware validation.
-- `spgu.program_smu_read`: 16440A selector and SPGU commands extracted from the manuals; selector topology recorded
-  and verified in the station profile; a switching driver path whose cleanup leaves the selector on the SMU side;
-  pulse-envelope rules; sim model; sim and hardware validation.
-- `fefet.pulse_write_read`: a validated pulse source kind (WGFMU or SPGU); the simulator's FeFET polarization model
-  extended to pulse programming; `memory_window` and `vth_shift` analysis plus `endurance_trend`; write-pulse
-  envelope reviewed against film thickness and coercive field (DUT profile); sim and hardware validation.
 - `fecap.pund`: WGFMU pulse sequences with fast current sampling; PUND charge-integration analysis (Pr, Ec)
   documented in knowledge 04; capacitor DUT profiles with field limits; sim model; sim and hardware validation.
 - `moscap.qscv`: QSCV commands extracted from the manual and a leakage-compensation flow; low-current pin maps on

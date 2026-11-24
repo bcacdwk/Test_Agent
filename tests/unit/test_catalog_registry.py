@@ -16,10 +16,10 @@ from tests.unit.helpers import REPO_ROOT
 
 RECIPES = REPO_ROOT / "recipes"
 CORRECTION_RECIPES = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short", "cmu.correction_load")
-RESERVED_SLOTS = {"wgfmu.pulsed_iv", "wgfmu.fast_bti", "spgu.program_smu_read", "fefet.pulse_write_read",
-                  "fecap.pund", "moscap.qscv", "hspice.compare"}
+RESERVED_SLOTS = {"wgfmu.pulsed_iv", "wgfmu.fast_bti", "fecap.pund", "moscap.qscv", "hspice.compare"}
 """Reserved ids still waiting for their kinds (WP7.6 implemented reliability.bti_sms and reliability.hci; WP8.2 retired
-cmu.correction for the four cmu.* correction recipes; WP8.3 implemented moscap.cv and mosfet.cgd_cv)."""
+cmu.correction for the four cmu.* correction recipes; WP8.3 implemented moscap.cv and mosfet.cgd_cv; WP9.4
+implemented fefet.pulse_write_read and spgu.program_smu_read with kind pulse_read)."""
 
 
 def minimal(recipe_id: str = "basic.thing", **changes: Any) -> dict[str, Any]:
@@ -93,6 +93,11 @@ def test_committed_statuses() -> None:
     for recipe_id in ("spgu.pulse_train", "spgu.alwg_sequence", "mosfet.charge_pumping"):
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
         assert registry.get(recipe_id).kind == "spgu_pulse" and registry.get(recipe_id).family == "spgu"
+    # WP9.4: kind pulse_read (tests/integration/test_recipes_pulse_read.py); the generic one is always confirmed
+    for recipe_id in ("fefet.pulse_write_read", "spgu.program_smu_read"):
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+        assert registry.get(recipe_id).kind == "pulse_read" and registry.get(recipe_id).family == "nvm"
+    assert registry.get("spgu.program_smu_read").always_confirm == ["adhoc_recipe"]
     # WP7.6: kind stress_measure (tests/integration/test_recipes_stress.py); destructive, always confirmed
     for recipe_id in ("reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "reliability.silc"):
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
@@ -131,7 +136,9 @@ def test_committed_statuses() -> None:
          "mosfet.vth_search": "smu/smu-search", "basic.breakdown_search": "reliability/tddb-bdv",
          "dielectric.bdv": "reliability/tddb-bdv",  # WP7.5
          "cmu.spot": "cmu/cmu-spot", "moscap.cv": "cmu/moscap-cv", "mosfet.cgc_cv": "cmu/mosfet-split-cv",
-         "mosfet.cgd_cv": "cmu/mosfet-split-cv"}  # WP8.3
+         "mosfet.cgd_cv": "cmu/mosfet-split-cv",  # WP8.3
+         "fefet.pulse_write_read": "nvm/fefet-pulse-write-read",
+         "spgu.program_smu_read": "nvm/fefet-pulse-write-read"}  # WP9.4
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):
@@ -155,7 +162,9 @@ def test_kinds() -> None:
     assert "stress_measure" not in UNIMPLEMENTED_KINDS and "smu_stress_measure" not in kinds
     assert kinds["smu_pulsed"].implemented_on == {"sim", "visa"} and "smu_pulsed" not in UNIMPLEMENTED_KINDS  # WP7.3
     assert kinds["cmu_measure"].implemented_on == {"sim", "visa"} and "cmu_cv" not in kinds  # WP8.3 replaced cmu_cv
-    for kind_id in ("wgfmu_pulsed_iv", "spgu_program_read"):
+    assert kinds["pulse_read"].implemented_on == {"sim", "visa"}  # WP9.4
+    assert "pulse_read" not in UNIMPLEMENTED_KINDS and "spgu_program_read" not in kinds
+    for kind_id in ("wgfmu_pulsed_iv", "wgfmu_pulse_sequence"):
         assert kind_id in UNIMPLEMENTED_KINDS and kinds[kind_id].implemented_on == frozenset()
 
 
@@ -174,11 +183,11 @@ def test_kinds() -> None:
     ({"basic/thing.yaml": minimal(params={})}, "reference undeclared parameters ['a']"),
     ({"basic/thing.yaml": minimal("basic.other")}, "does not match its file name (expected basic.thing)"),
     ({"basic/thing.yaml": minimal(), "basic/thing2.yaml": minimal()}, "duplicate recipe id basic.thing"),
-    ({"reserved/x.y.yaml": minimal("x.y", kind="spgu_program_read")}, "must be not_implemented"),
-    ({"reserved/x.y.yaml": minimal("x.y", kind="spgu_program_read", status="not_implemented")}, "preconditions"),
-    ({"reserved/x.z.yaml": minimal("x.y", kind="spgu_program_read", status="not_implemented", preconditions=["a"])},
+    ({"reserved/x.y.yaml": minimal("x.y", kind="wgfmu_pulse_sequence")}, "must be not_implemented"),
+    ({"reserved/x.y.yaml": minimal("x.y", kind="wgfmu_pulse_sequence", status="not_implemented")}, "preconditions"),
+    ({"reserved/x.z.yaml": minimal("x.y", kind="wgfmu_pulse_sequence", status="not_implemented", preconditions=["a"])},
      "reserved/x.y.yaml"),
-    ({"basic/thing.yaml": minimal(kind="spgu_program_read", status="sim_validated")}, "no simulator code path"),
+    ({"basic/thing.yaml": minimal(kind="wgfmu_pulse_sequence", status="sim_validated")}, "no simulator code path"),
 ])
 def test_problems_are_reported(tmp_path: Path, files: dict[str, Any], expected: str) -> None:
     problems = tree(tmp_path, files).problems()
@@ -200,7 +209,7 @@ def test_existing_card_and_listing(tmp_path: Path) -> None:
         "basic/thing.yaml": minimal(card="cards/c.md", device_types=["nmos"]),
         "basic/other.yaml": minimal("basic.other", device_types=["diode"]),
         "generic/any.yaml": minimal("generic.any"),
-        "basic/later.yaml": minimal("basic.later", kind="spgu_program_read"),
+        "basic/later.yaml": minimal("basic.later", kind="wgfmu_pulse_sequence"),
     })
     assert registry.problems() == []
     # recipes without device types (basic.later, generic.any) match every device type

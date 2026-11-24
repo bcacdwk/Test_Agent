@@ -491,9 +491,10 @@ class B1500Service:
         params: dict[str, Any] = {}
         for name, quantity in sorted(plan.resolved_params.items()):
             params[name] = quantity.value if quantity.unit is None else f"{quantity.value} {quantity.unit}"
+        routes = {phase: [str(r) for r in items] for phase, items in plan.routes_by_phase.items()}
         resolved = ResolvedPlan(channels=channels, max_v=plan.envelope.max_abs_v, max_i=plan.envelope.max_abs_i,
                                 points=plan.estimate.points, est_s=round(plan.estimate.duration_s, 3),
-                                mode=plan.mode, params=params)
+                                mode=plan.mode, routes=routes, params=params)
         return PlanValidation(ok=ok, status=result_status, error_code=code, **self._envelope(backend),
                               message=clip(message), next_steps=next_steps, plan_id=plan.plan_id,
                               recipe_id=plan.recipe_id, tier=plan.tier, summary=plan.summary,

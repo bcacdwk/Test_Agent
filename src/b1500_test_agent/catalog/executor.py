@@ -805,6 +805,11 @@ class Executor(RunningRuns):
                        "at most 25 s, one monitor sample each); t_s is the cumulative hold time (the reads interrupt "
                        "it); the run stops after a hold block or read that reported compliance/overflow/oscillation "
                        "(see kind_result)")
+        if plan.kind == "pulse_read":
+            out.append("program/read: each pulse operation (HV-SPGU or SMU pulses) is followed by a read through the "
+                       "routes of its phases (selector PGU -> SMU, rest at the end; see kind_result.routes); phase of "
+                       "a read row = the operation it follows; the run stops after a read or SMU pulse that reported "
+                       "compliance/overflow/oscillation (see kind_result)")
         if plan.mode == "async":
             out.append("asynchronous run: progress.json and partial.csv written at the checkpoints; auto-calibration "
                        "off (CM 0) during the run and restored by the cleanup (R-CAL-02)")

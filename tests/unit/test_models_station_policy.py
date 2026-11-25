@@ -141,6 +141,7 @@ def test_station_example_is_the_lab_layout() -> None:
     assert_roundtrip(station)
 
 
+@pytest.mark.spgu
 def test_station_example_switches_are_lab_shaped_and_unverified() -> None:
     """Two 16440A selectors (ports 0/1 and 2/3, inputs null), RSU201/RSU202 (wgfmu 201/202), SCUU/ASU unknown; every
     switch carries ``certainty: unverified`` (no wiring is proven by the lab code)."""

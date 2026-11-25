@@ -47,6 +47,7 @@ def guard(*, switches: bool = True) -> OutputGuard:
 # -- check_pulse -----------------------------------------------------------------------------------------------------
 
 
+@pytest.mark.spgu
 def test_pulse_inside_the_envelope_passes() -> None:
     g = guard()
     g.check_pulse(101, 0.0, 4.0, 1e-6, 1e-4, 1000, 1e6)  # the compiled train itself
@@ -55,6 +56,7 @@ def test_pulse_inside_the_envelope_passes() -> None:
     g.check_pulse(5, 0.0, 2.0, 1e-3, 1e-2, 10, None)  # SMU pulse: set level, no SER
 
 
+@pytest.mark.spgu
 @pytest.mark.parametrize(
     ("args", "reason"),
     [
@@ -89,6 +91,7 @@ def test_pulse_refusals(args: tuple[Any, ...], reason: str) -> None:
     assert caught.value.reason == reason
 
 
+@pytest.mark.spgu
 def test_pulse_on_time_is_bounded_per_start() -> None:
     env = CompiledEnvelope(channels={101: ChannelEnvelope(
         role="gate", max_abs_v=5.0, max_abs_i=None, function="pgu",
@@ -100,6 +103,7 @@ def test_pulse_on_time_is_bounded_per_start() -> None:
     assert caught.value.reason == "on_time_exceeds_envelope" and caught.value.limit == 1e-2
 
 
+@pytest.mark.spgu
 def test_pulse_violation_reports_the_open_load_level() -> None:
     with pytest.raises(EnvelopeViolation) as caught:
         guard().check_pulse(101, 0.0, 4.0, 1e-6, 1e-4, 1, 50.0)
@@ -139,6 +143,7 @@ def test_ac_refusals(args: tuple[Any, ...], reason: str) -> None:
 # -- check_route -----------------------------------------------------------------------------------------------------
 
 
+@pytest.mark.spgu
 def test_routes_of_the_plan_and_rest_states_pass() -> None:
     g = guard()
     g.check_route(SEL1_PGU)
@@ -148,6 +153,7 @@ def test_routes_of_the_plan_and_rest_states_pass() -> None:
     guard(switches=False).check_route(SEL1_PGU)
 
 
+@pytest.mark.spgu
 @pytest.mark.parametrize(
     ("route", "switches"),
     [
@@ -165,6 +171,7 @@ def test_route_refusals(route: Route, switches: bool) -> None:
     assert caught.value.reason == "route_not_allowed"
 
 
+@pytest.mark.spgu
 def test_a_route_the_switch_cannot_take_is_refused_even_when_compiled() -> None:
     bad = Route(switch="SEL1", output="OUT2", state="pgu_open")
     env = ENV.model_copy(update={"routes": frozenset({bad})})

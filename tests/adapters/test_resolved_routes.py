@@ -17,6 +17,8 @@ from b1500_test_agent.service import RESPONSE_TOKEN_BUDGET, approx_tokens
 from tests.adapters.helpers import call_tool, mcp_server
 from tests.integration.helpers import IDVG, World
 
+pytestmark = pytest.mark.spgu
+
 WRITE_READ = {"recipe_id": "fefet.pulse_write_read", "pin_map": "fefet-sel", "dut_profile": "fefet-lab"}
 SELECTOR_CHECK = {"recipe_id": "system.selector_check", "pin_map": "open-smus"}
 

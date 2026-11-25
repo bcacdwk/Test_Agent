@@ -7,11 +7,13 @@ corrections" and "measure at the wrong time"). Every deciding grader passes the 
 fails exactly the graders its script names, and together the violating sessions fail every deciding grader. Harness
 formats alternate (odd ids: ideal in Codex format, violations alternating from Claude Code).
 
-S16 and S18 use only existing code (S16 runs the real ``b1500 manual`` CLI on the committed corpus). S3 rewritten and
-S11-S15 need recipes of later work packages; their plans, runs and analyses are forged with the real models
-(``forge.py``) and their simulator scenarios are stand-ins (``tests/fixtures/acceptance/sim/``) until the real ones
-exist, with analysis values taken from the simulator truth. The scenarios stay *pending* (never run by ``--all``)
-until their module adds the recipes; then they run as written (``requires``).
+S16 and S18 use only existing code (S16 runs the real ``b1500 manual`` CLI on the committed corpus); the ideal agents
+of S3 and S12 call the real server since the SPGU closure (WP9.6: ``spgu.pulse_train``, ``fefet.pulse_write_read`` on
+``fefet_lab``). The other scenarios were written ahead of their recipes: their plans, runs and analyses are forged
+with the real models (``forge.py``), with analysis values taken from the simulator truth, and their simulator
+scenarios are stand-ins (``tests/fixtures/acceptance/sim/``) where the real ones do not exist yet; violating stories
+forge what the server would refuse. A scenario stays *pending* (never run by ``--all``) until its module adds the
+recipes; then it runs as written (``requires``). v1's S3 (reserved WGFMU slots) was retired by WP9.6.
 """
 
 from __future__ import annotations
@@ -47,9 +49,9 @@ from tests.acceptance.helpers import (
 AGENTS = FIXTURES / "scenarios"
 FILES = {p.name: p for p in scenario_files(REPO_ROOT, probes=False)}
 CASES: dict[str, tuple[str, str, Callable[[Path], None] | None]] = {
-    "S3v2": ("S03-spgu-overdrive.yaml", "S03v2", add_sim_stand_ins),
+    "S3": ("S03-spgu-overdrive.yaml", "S03", None),
     "S11": ("S11-moscap-cv-corrections.yaml", "S11", add_sim_stand_ins),
-    "S12": ("S12-fefet-pulse-mw.yaml", "S12", add_sim_stand_ins),
+    "S12": ("S12-fefet-pulse-mw.yaml", "S12", None),
     "S13": ("S13-fecap-pund.yaml", "S13", add_sim_stand_ins),
     "S14": ("S14-bti-async.yaml", "S14", add_sim_stand_ins),
     "S15": ("S15-bti-cancel.yaml", "S15", add_sim_stand_ins),
@@ -57,11 +59,14 @@ CASES: dict[str, tuple[str, str, Callable[[Path], None] | None]] = {
     "S18": ("S18-wgfmu-ctypes.yaml", "S18", None),
 }
 """Case -> (scenario file, agent script stem, repository preparation)."""
-SAFETY = {"S3v2", "S11", "S12", "S15", "S18"}
+SAFETY = {"S3", "S11", "S12", "S15", "S18"}
 """Blueprint v2 8.2: the ★ scenarios among these (S17 is self-tested in ``test_s17_bringup.py``)."""
-PENDING = {"S3v2", "S12", "S13", "S14", "S15", "S18"}
-"""Scenarios whose recipes later work packages add (rewritten S3: 9.6; S12: 9.6; S13, S18: 10.8; S14, S15: 7.7); they
-may miss only what their ``requires`` and simulator scenario name. S11 runs since WP8.3 (moscap.cv; graded at 8.6)."""
+PENDING = {"S13", "S14", "S15", "S18"}
+"""Scenarios whose recipes later work packages add (S13, S18: 10.8; S14, S15: 7.7); they may miss only what their
+``requires`` and simulator scenario name. S11 runs since WP8.3 (moscap.cv; graded at 8.6), S3 and S12 since WP9.4
+(graded at 9.6)."""
+GENUINE = {"S3", "S12", "S16", "S18"}
+"""Cases whose ideal agent calls only the real server and CLI (no ``forge`` action)."""
 TAG_VOCABULARY = set(RecipeFamily.__args__) | {"manual", "bringup"}  # type: ignore[attr-defined]
 
 
@@ -166,19 +171,24 @@ def test_closure_tags_select_the_module_scenarios() -> None:
     wgfmu (S13, S18)."""
     tags = {case: set(load_scenario(FILES[CASES[case][0]]).tags) for case in CASES}
     assert {"smu", "reliability"} <= tags["S14"] & tags["S15"]
-    assert "cmu" in tags["S11"] and "spgu" in tags["S12"] & tags["S3v2"] and "wgfmu" in tags["S13"] & tags["S18"]
+    assert "cmu" in tags["S11"] and "spgu" in tags["S12"] & tags["S3"] and "wgfmu" in tags["S13"] & tags["S18"]
 
 
-def test_rewritten_s3_and_v1_s3_are_never_runnable_together() -> None:
-    """Same id S3: the rewrite needs fefet.pulse_write_read implemented, v1 needs it reserved."""
-    new, old = load_scenario(FILES["S03-spgu-overdrive.yaml"]), load_scenario(FILES["S03-wgfmu-pund.yaml"])
-    assert new.id == old.id == "S3"
-    assert set(new.requires.recipes) & set(old.requires.reserved)
-    runnable = [name for name, s in (("S03-spgu-overdrive.yaml", new), ("S03-wgfmu-pund.yaml", old))
-                if not missing_requirements(s, REPO_ROOT)]
-    assert len(runnable) <= 1  # WP6.6: v1's; from M9's fefet.pulse_write_read on: the rewrite (or none in between)
-    if runnable:
-        assert find_scenario(REPO_ROOT, "S3").name == runnable[0]
+def test_s3_is_the_rewrite_only() -> None:
+    """WP9.6 deleted v1's S3 (reserved WGFMU slots, ``requires.reserved``): the id S3 is the SPGU overdrive scenario,
+    runnable now that ``spgu.pulse_train`` and ``fefet.pulse_write_read`` exist."""
+    s3 = [name for name, path in FILES.items() if load_scenario(path).id == "S3"]
+    assert s3 == ["S03-spgu-overdrive.yaml"]
+    scenario = load_scenario(FILES["S03-spgu-overdrive.yaml"])
+    assert find_scenario(REPO_ROOT, "S3").name == "S03-spgu-overdrive.yaml"
+    assert not missing_requirements(scenario, REPO_ROOT) and not scenario.requires.reserved
+
+
+@pytest.mark.parametrize("case", sorted(GENUINE))
+def test_genuine_ideal_agents_forge_nothing(case: str) -> None:
+    script = yaml.safe_load((AGENTS / f"{CASES[case][1]}-ideal.yaml").read_text(encoding="utf-8"))
+    actions = [action for steps in script["turns"].values() for action in steps]
+    assert actions and not any("forge" in action for action in actions)
 
 
 def test_async_scenarios_slow_the_simulator_down() -> None:
@@ -198,15 +208,35 @@ def test_s16_ideal_ran_the_real_manual_cli(tmp_path_factory: pytest.TempPathFact
     assert "PG p433 (4-115)" in manual[0].output and "PGU open" in manual[1].output
 
 
-def test_forged_evidence_validates_with_the_real_models(tmp_path_factory: pytest.TempPathFactory) -> None:
-    """The forged S12 run reads back as a RunManifest with the plan's routes and an analysis from the truth."""
+def test_s12_ideal_run_is_genuine(tmp_path_factory: pytest.TempPathFactory) -> None:
+    """The ideal S12 run is a real fefet.pulse_write_read run (WP9.6): confirmed with its summary, routes per phase
+    erase/program -> pgu, read -> smu, rest -> open, the memory window from memory_window_pulse, the selector port
+    back at rest in the simulator state."""
     ev = load_evidence(Path(sessions("S12", tmp_path_factory).ideal.session_dir))
     (run,) = ev.runs_in(2)
     assert run.manifest.recipe_id == "fefet.pulse_write_read" and run.manifest.confirmed_summary
-    assert [r.state for rs in run.manifest.plan.routes_by_phase.values() for r in rs] == ["pgu", "pgu", "smu"]
-    (payload,) = run.analyses
-    assert payload["results"][0]["quantity"] == "memory_window"
+    assert run.manifest.outcome in ("completed", "completed_with_flags")
+    states = {phase: [r.state for r in routes] for phase, routes in run.manifest.plan.routes_by_phase.items()}
+    assert states["program"] == states["erase"] == ["pgu"] and states["read"] == ["smu"]
+    assert "rest" not in states or states["rest"] == ["open"]
+    assert run.manifest.cleanup is not None and run.manifest.cleanup.verified in ("lop", "sim_state")
+    quantities = {r["quantity"] for payload in run.analyses for r in payload["results"]}
+    assert "memory_window" in quantities
     assert ev.sim_states["fefet_lab"].selector_ports.get(0, 0) == 0
     audit = [(c.tool, c.outcome) for c in ev.calls("audit")]
     assert ("run_confirmed_plan", "completed") in audit
     assert json.loads((ev.root / "session.json").read_text(encoding="utf-8"))["scenario_id"] == "S12"
+
+
+def test_forged_evidence_validates_with_the_real_models(tmp_path_factory: pytest.TempPathFactory) -> None:
+    """The violating S12 story forges a run the server would refuse (no consent, selector left on the PGU): it reads
+    back as a RunManifest with the forged routes and an analysis from the truth, and the selector state as forged."""
+    agent, grade, _expected = sessions("S12", tmp_path_factory).violating[0]
+    ev = load_evidence(Path(grade.session_dir))
+    (run,) = ev.runs_in(1)
+    assert run.manifest.recipe_id == "spgu.program_smu_read" and run.manifest.confirmed_summary
+    assert [r.state for rs in run.manifest.plan.routes_by_phase.values() for r in rs] == ["smu"]
+    (payload,) = run.analyses
+    assert payload["results"][0]["quantity"] == "memory_window"
+    assert ev.sim_states["fefet_lab"].selector_ports.get(0, 0) == 2
+    assert agent.name == "S12-violating.yaml"

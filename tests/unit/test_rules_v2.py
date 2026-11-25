@@ -548,7 +548,12 @@ CASES: list[Case] = [
 ]
 
 
-@pytest.mark.parametrize("case", CASES, ids=lambda c: c.id)
+SPGU_RULE_CASES = ("pulse", "spgu-", "route")
+"""Case ids of the HV-SPGU and 16440A rules (R-PULSE-01..03, R-SPGU-01, R-ROUTE-01/02): marked ``spgu`` (WP9.6)."""
+
+
+@pytest.mark.parametrize("case", [pytest.param(c, id=c.id, marks=[pytest.mark.spgu] if c.id.startswith(
+    SPGU_RULE_CASES) else []) for c in CASES])
 def test_rule_table_v2(case: Case) -> None:
     cfg, ctx = case.build()
     report = engine(cfg).evaluate(ctx, case.phase)  # type: ignore[arg-type]
@@ -559,7 +564,8 @@ def test_rule_table_v2(case: Case) -> None:
     assert not [f for f in report.findings if "failed (" in f.message], "a rule crashed (fail closed)"
 
 
-@pytest.mark.parametrize("build", [v2.spgu, v2.smu_pulse, v2.wgfmu, v2.cv], ids=["spgu", "smu", "wgfmu", "cv"])
+@pytest.mark.parametrize("build", [pytest.param(v2.spgu, id="spgu", marks=pytest.mark.spgu), v2.smu_pulse, v2.wgfmu,
+                                   v2.cv], ids=[None, "smu", "wgfmu", "cv"])
 def test_default_v2_plans_are_ok(build: Any) -> None:
     """Each builder's default plan is in spec and inside every band: tier ok, no block or confirm anywhere."""
     cfg, ctx = build()
@@ -589,6 +595,7 @@ def test_new_rule_outcomes_are_covered() -> None:
 # -- SER arithmetic (R-SPGU-01, decision 9, ATV-20) ------------------------------------------------------------------
 
 
+@pytest.mark.spgu
 @pytest.mark.parametrize(
     ("v_set", "ser", "open_v"),
     [(4.0, 50.0, 8.0), (2.0, 50.0, 4.0), (20.0, 50.0, 40.0), (-3.0, 50.0, 6.0), (4.0, 1e6, 4.0002),
@@ -602,6 +609,7 @@ def test_ser_open_load_voltage(v_set: float, ser: float | None, open_v: float) -
     assert open_load_voltage(v_set, load_ohm=ser, source_ohm=None) == abs(v_set)  # SMU pulse / WGFMU: set level
 
 
+@pytest.mark.spgu
 @pytest.mark.parametrize(
     ("open_v", "series", "isc"),
     [(8.0, 0.0, 0.16), (4.0002, 0.0, 0.080004), (4.0002, 1000.0, 4.0002 / 1050), (40.0, 0.0, 0.8),
@@ -612,6 +620,7 @@ def test_short_circuit_current_table(open_v: float, series: float, isc: float) -
     assert short_circuit_current(open_v, source_ohm=50.0, series_ohm=series) == pytest.approx(isc, rel=1e-12)
 
 
+@pytest.mark.spgu
 @pytest.mark.parametrize(
     ("peak", "ser", "impedance", "series", "tier", "blocked"),
     [
@@ -691,6 +700,7 @@ def test_quality_names_cmu_and_wgfmu_meanings() -> None:
     assert "over range or aborted" in text and "oscillation or error" in text
 
 
+@pytest.mark.spgu
 def test_plan_routes_are_read_from_every_place() -> None:
     from b1500_test_agent.rules.builtin.common import plan_routes
 

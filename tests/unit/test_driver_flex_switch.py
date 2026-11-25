@@ -14,6 +14,8 @@ import yaml
 from b1500_test_agent.driver import flex
 from b1500_test_agent.models.routing import PGU_OPEN_PORTS, SWITCH_STATES
 
+pytestmark = pytest.mark.spgu
+
 GOLDEN = Path(__file__).resolve().parents[1] / "fixtures" / "flex" / "switch" / "builders.yaml"
 ENTRIES: list[dict[str, Any]] = [e for e in yaml.safe_load(GOLDEN.read_text(encoding="utf-8"))
                                  if e["builder"] in ("ermod", "erssp", "erssp_q")]

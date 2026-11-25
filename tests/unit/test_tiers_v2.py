@@ -51,6 +51,7 @@ def test_each_new_reason_needs_confirmation(build: Any, reasons: list[str], flag
     assert stored.tier == "needs_confirmation" and stored.summary.endswith(flag)
 
 
+@pytest.mark.spgu
 def test_the_lab_wiring_needs_both_wiring_confirmations() -> None:
     cfg, ctx = v2.spgu(pm_certainty="unverified", station_profile=v2.lab_station(sel1={"certainty": "unverified"}))
     report = engine(cfg).evaluate(ctx, "plan")
@@ -86,6 +87,7 @@ def test_run_time_reevaluation_reproduces_tier_and_summary(build: Any) -> None:
     assert plan_summary(stored, again.findings) == stored.summary
 
 
+@pytest.mark.spgu
 def test_pre_execute_rules_only_block_or_inform() -> None:
     cfg, ctx = v2.spgu(live=v2.live(switch_states=v2.at_rest(v2.lab_station(), SEL1_OUT1="pgu")))
     report = engine(cfg).evaluate(ctx, "pre_execute")

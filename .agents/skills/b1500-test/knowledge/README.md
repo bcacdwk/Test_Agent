@@ -19,9 +19,9 @@ skill's rules, a card, a recipe, the policy or a DUT profile, and it never autho
 | [07 compact models](07-compact-models.md) | level-1 and EKV model fits, model vs run comparison, SPICE `.model`/subcircuit and netlist export (ngspice, HSPICE), BSIM4/Verilog-A later | a model card, SPICE, netlist or simulation-comparison request; reading a model fit |
 | [08 capacitance and C-V](08-capacitance-cv.md) | MFCMU pairs Cp-G/Cs-Rs/Z-theta, corrections, MOS-C HF C-V, Cox/EOT, 1/C^2 doping, flatband, Vth, hysteresis, split C-V, SCUU same landing, AC level, pulsed, C-f, C-t, QSCV, Dit over the gap (high-low, conductance), FeCap butterfly | any capacitance, C-V, QSCV or Dit request; before `analyze_run` on a C-V run |
 | debug | skill `b1500-debug`: triage order, runbooks, cases | noisy, impossible, compliance-limited or drifting data; faults; VISA errors |
-| [09 pulses, HV-SPGU and selector](09-pulse-spgu-selector.md) | HV-SPGU output and SER (open-load doubling, high_z residual), PG and ALWG trains, count/duration bounds, running a train, readings during a train, R-PULSE/R-SPGU rules, program/read (pulse_read) and its schedules (cycles, endurance bursts, grid, retention), simulator | any SPGU pulse or waveform plan; program/erase then read; a gate pulse that did nothing or too much |
+| [09 pulses, HV-SPGU and selector](09-pulse-spgu-selector.md) | HV-SPGU output and SER (open-load doubling, high_z residual), PG and ALWG trains, count/duration bounds, running a train, readings during a train, R-PULSE/R-SPGU rules, program/read (pulse_read) and its schedules (cycles, endurance bursts, grid, retention), simulator, module coverage and bring-up L7 | any SPGU pulse or waveform plan; program/erase then read; a gate pulse that did nothing or too much |
 | [10 WGFMU fast I-V and noise](10-wgfmu-fast-iv-noise.md) | WGFMU/RSU facts (ranges, bandwidth, floor, sampling, memory), fast I-V timing, constant-bias sampling (`dc_sample`, lab LFN layout), RTN and 1/f physics, choosing range/interval/record, `rtn_levels`, `psd_welch`, `plot_psd`, `it_statistics`, simulator | any WGFMU fast I-V, RTN, 1/f or PSD request; reading a noise analysis |
-| [11 switching and routing](11-switching-routing.md) | switches in the station profile, routes per phase, 16440A selector (ERSSP, PGU open, Force only), SCUU/ASU paths, RSU, guard and R-ROUTE rules, cleanup to rest, selector check, simulator | any plan through a switch target; selector wiring (L7); a run blocked or failed on a route |
+| [11 switching and routing](11-switching-routing.md) | switches in the station profile, routes per phase, 16440A selector (ERSSP, PGU open, Force only), SCUU/ASU paths, RSU, guard and R-ROUTE rules, cleanup to rest, selector check and wiring record (L7), simulator | any plan through a switch target; selector wiring (L7); a run blocked or failed on a route |
 
 ## Sections by file
 
@@ -192,6 +192,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Guard and rules](09-pulse-spgu-selector.md#guard-and-rules)
 - [Program and read](09-pulse-spgu-selector.md#program-and-read)
 - [Simulator behaviour](09-pulse-spgu-selector.md#simulator-behaviour)
+- [Module coverage and bring-up L7](09-pulse-spgu-selector.md#module-coverage-and-bring-up-l7)
 - [Troubleshooting pulses](09-pulse-spgu-selector.md#troubleshooting-pulses)
 
 ### 10 WGFMU fast I-V and noise

@@ -7,6 +7,7 @@ sources:
   - "16440A SMU/Pulse Generator Selector User's Guide Ed. 6 (SEL), PDF pages cited inline"
   - lwp/matlab_B1500/lib/SPGU_pulse.m (ERMOD 1, ERSSP 0..3 to PGU and back to SMU)
   - src/b1500_test_agent/models/routing.py, session/routes.py, driver/ops/switch.py (v2 WP9.2)
+  - skill b1500-bringup stages/l7-spgu-selector.md (wiring record, WP9.6)
 last_reviewed: null
 ---
 
@@ -134,9 +135,15 @@ through declared outputs and never claims a wiring it cannot read back.
   to the relays and watches the front-panel LEDs (SEL p12 (6) "LEDs"). No output is on: `LOP?` and `SPST?` are
   checked first, the envelope has no channel.
 - It needs no recorded inputs, so it is how the human maps the wiring at L7: which SMU and SPGU channel feed each
-  selector input, which pad each output reaches. The human writes them into `config/local/station.yaml` and sets
-  `certainty: verified` only after checking (ATV-28). Until then plans through a selector input stay blocked on
-  hardware (R-PIN-01).
+  selector input, which pad each output reaches. Until they are recorded, plans through a selector input stay
+  blocked on hardware (R-PIN-01; ATV-28).
+- Recording (stage L7): the human gives the wiring in chat; the agent runs `uv run b1500 bringup propose-station`,
+  writes the inputs into `work/bringup/station.proposed.yaml` (`switches[].ports.OUTn.inputs: {smu: <ch>, pgu:
+  <ch>}`), shows the diff and stops; only the human adopts it into `config/local/station.yaml`. The selectors stay
+  `certainty: unverified` (every routed plan confirms `unverified_topology`) until the human has seen pulses on the
+  right pad at L7 and marks them `verified` in a second adoption. The agent never writes `config/local/`.
+- The 16440A is driven only by `ERMOD 1` + `ERSSP` and read by `ERSSP?`; the raw digital I/O commands (`ERM`, `ERC`,
+  `ERS?`) are out of scope (blueprint v2 1.2).
 
 ## Simulator behaviour
 

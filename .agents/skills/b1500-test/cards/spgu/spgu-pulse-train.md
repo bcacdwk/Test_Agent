@@ -95,6 +95,8 @@ sim_scenario: fefet_lab
 - Blocked: a `high_z` terminal with `load_ohm` below 1 kOhm (50 Ohm on a gate doubles the level), an open-load level
   above 40 V, the hard limit or the DUT's pulse `max_abs_v`, timing outside the module (R-PULSE-01), a terminal
   without a `pulse` envelope (R-PULSE-02), a short-circuit current above the hard limit on a non-`high_z` terminal.
+- A blocked request: name its rule ids, then `validate_plan` an in-envelope alternative (e.g. the asked width at
+  <= 4 V, <= 10,000 pulses, `load_ohm` 1 MOhm) and show that plan's summary; it runs only after the human's consent.
 - Confirm: `dut_envelope` (outside the DUT pulse envelope), `soft_pulse` (above 5 V at the pad, 10,000 pulses, 60 s
   at the pulse level or duty 0.5), `unverified_topology` / `unverified_pin_map`; on hardware `first_hw_run`.
 - The summary shows the pulse, `SER` and the accepted short-circuit residual of a `high_z` gate, e.g.

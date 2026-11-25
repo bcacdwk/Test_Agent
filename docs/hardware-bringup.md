@@ -19,8 +19,9 @@ Strictly in order; a stage starts only after the previous one is signed off. Not
 | L4 | known-good MOSFET against EasyEXPERT | [l4-mosfet](../.agents/skills/b1500-bringup/stages/l4-mosfet.md) | `mosfet.idvg`, `mosfet.idvd`, `mosfet.gate_leakage` |
 | L5 | SMU advanced: pulsed vs DC, sampling time grid, Vth by search | [l5-smu-advanced](../.agents/skills/b1500-bringup/stages/l5-smu-advanced.md) | `mosfet.idvg_pulsed`, `mosfet.idvd_pulsed`, `basic.pulsed_spot`, `generic.smu_multi_pulsed`, `mosfet.id_t_sampling`, `generic.smu_sampling`, `mosfet.vth_search` |
 | L6 | CMU: phase compensation and open/short (the human lifts and lands), known capacitor, MOS-C C-V and variants, QSCV and Dit (SCUU same landing), split C-V, FeCap butterfly | [l6-cmu](../.agents/skills/b1500-bringup/stages/l6-cmu.md) | `stage-l6`, `cmu.phase_compensation`, `cmu.correction_open`, `cmu.correction_short`, `cmu.correction_load`, `cmu.spot`, `moscap.cv`, `moscap.cv_ac_level`, `moscap.pulsed_cv`, `moscap.cf`, `moscap.ct`, `moscap.cv_multi_freq`, `moscap.qscv`, `mosfet.cgc_cv`, `mosfet.cgd_cv`, `fecap.cv_butterfly` |
-| L7-L8 | SPGU + selector, WGFMU | arrive with their module work packages | - |
-| L9 | long runs (SMU part): async BTI, cancel and kill-recovery drills, stress and breakdown recipes | [l9-long-runs](../.agents/skills/b1500-bringup/stages/l9-long-runs.md) | `stage-l9`, `reliability.bti_sms`, `igzo.bias_stress`, `reliability.hci`, `reliability.silc`, `reliability.tddb_cvs`, `dielectric.bdv`, `basic.breakdown_search` |
+| L7 | 16440A selector check and wiring record, SPGU pulses into 1 MOhm (scope), FeFET program/read against the dual sweep, switching kinetics, charge pumping | [l7-spgu-selector](../.agents/skills/b1500-bringup/stages/l7-spgu-selector.md) | `stage-l7`, `system.selector_check`, `spgu.pulse_train`, `spgu.alwg_sequence`, `fefet.dual_sweep_mw`, `fefet.pulse_write_read`, `spgu.program_smu_read`, `fefet.switching_kinetics`, `mosfet.charge_pumping` |
+| L8 | WGFMU | arrives with its module work package | - |
+| L9 | long runs (SMU and HV-SPGU parts): async BTI, cancel and kill-recovery drills, stress and breakdown recipes, FeFET endurance and retention | [l9-long-runs](../.agents/skills/b1500-bringup/stages/l9-long-runs.md) | `stage-l9`, `reliability.bti_sms`, `igzo.bias_stress`, `reliability.hci`, `reliability.silc`, `reliability.tddb_cvs`, `dielectric.bdv`, `basic.breakdown_search`, `fefet.endurance`, `fefet.retention` |
 | L10 | acceptance prompts on hardware, records reviewed and transferred | [l10-harness-handoff](../.agents/skills/b1500-bringup/stages/l10-harness-handoff.md) | `stage-l10` |
 
 Each stage file has the same six sections: Preconditions, Physical steps (human), Agent steps, Expected values
@@ -50,10 +51,9 @@ Each stage file has the same six sections: Preconditions, Physical steps (human)
 
 ## CLI and harness coexist
 
-Every `b1500` call opens the VISA session, takes its exclusive lock, and unlocks and closes it before it returns
-(blueprint v2 2.4): the MCP server of an idle Codex or Claude Code session holds nothing, so `uv run b1500 status`
-in another window works. Only a program that keeps the instrument (EasyEXPERT, another VISA tool) makes a call
-answer `busy` (nothing sent). L0 and L1 check this.
+Every `b1500` call opens the VISA session with its exclusive lock and closes it before it returns (blueprint v2 2.4),
+so an idle Codex or Claude Code session holds nothing and `uv run b1500 status` works in another window; a program that
+keeps the instrument (EasyEXPERT, another VISA tool) makes a call answer `busy`. L0 and L1 check this.
 
 ## If cleanup fails
 

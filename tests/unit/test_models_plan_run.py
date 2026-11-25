@@ -393,6 +393,7 @@ def test_routes_are_frozen_hashable_and_ordered() -> None:
     assert_roundtrip(a)
 
 
+@pytest.mark.spgu
 def test_switch_spec_states_inputs_and_pgu_open() -> None:
     spec = selector()
     assert spec.certainty == "unverified" and spec.rest == "open"

@@ -23,6 +23,8 @@ from tests.safety.helpers import CLEANUP_ORDER, Harness, make_harness
 from tests.sim.helpers import load_scenario, noiseless
 from tests.sim.selector_helpers import SEL1, SEL2, SELECTORS, at_rest, recorded_station, selector_states
 
+pytestmark = pytest.mark.spgu
+
 SWITCHES = {s.id: s for s in SELECTORS}
 TO_SMU = Route(switch="SEL1", output="OUT1", state="smu")
 TO_PGU = Route(switch="SEL1", output="OUT1", state="pgu")

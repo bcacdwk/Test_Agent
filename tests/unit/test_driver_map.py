@@ -191,6 +191,63 @@ def test_ledger_check_rejects_an_open_cmu_entry(doc: dict) -> None:
     problems = builder.check_ledger(broken["atoms"], broken["flows"], broken["commands"])
     assert any("command CORRDT?: cmu entry is neither mapped nor out_of_scope" in p for p in problems)
     assert any("flow C_flow_sweep_cmu_cf: cmu entry is neither mapped nor out_of_scope" in p for p in problems)
+# -- coverage ledger: the HV-SPGU and 16440A selector rows (WP9.6) ---------------------------------------------------
+
+
+@pytest.mark.spgu
+def test_every_spgu_entry_is_mapped_or_out_of_scope_with_a_reason(doc: dict) -> None:
+    """Blueprint v2 1.2 HV-SPGU and 16440A rows: the PG/ALWG settings, the run control, CORRSER? and ERMOD/ERSSP(?)
+    are mapped; setup read-backs, the SPGU as a sampling source and raw digital I/O are out of scope with a reason."""
+    assert {"smu", "cmu", "spgu"} <= set(builder.CLOSED_FAMILIES)
+    spgu = doc["counts"]["ledger"]["spgu"]
+    assert {kind: spgu[kind]["open"] for kind in ("atoms", "flows", "commands")} == {"atoms": 0, "flows": 0,
+                                                                                     "commands": 0}
+    by_command = {c["command"]: c for c in doc["commands"]}
+    in_scope = ("SIM", "SPRM", "SPPER", "SER", "SPM", "SPT", "SPV", "ODSW", "STGP", "ALW", "ALS", "SPUPD", "SRP",
+                "SPP", "SPST?", "CORRSER?", "ERMOD", "ERMOD?", "ERSSP", "ERSSP?")
+    for mnemonic in in_scope:
+        assert (by_command[mnemonic]["scope"], by_command[mnemonic]["family"]) == ("mapped", "spgu"), mnemonic
+    assert sum(c["family"] == "spgu" and c["scope"] == "mapped" for c in doc["commands"]) == len(in_scope)
+    for mnemonic in ("SIM?", "SPV?", "SER?", "ALW?", "MSP", "ERM", "ERC", "ERS?"):
+        assert by_command[mnemonic]["scope"] == "out_of_scope" and by_command[mnemonic]["reason"], mnemonic
+    assert "blueprint v2 1.2" in by_command["ERC"]["reason"] and "ERSSP?" in by_command["ERC"]["reason"]
+    for mnemonic in ("SOPC", "SOPC?", "SOVC", "SOVC?"):  # expander output comparison, not an SPGU function
+        assert (by_command[mnemonic]["family"], by_command[mnemonic]["scope"]) == ("smu", "out_of_scope")
+        assert "HVMCU" in by_command[mnemonic]["reason"]
+    flows = {f["id"]: f for f in doc["flows"]}
+    assert flows["C_flow_pulse_spgu_train"]["target"] == ["recipe:spgu.pulse_train", "kind:spgu_pulse"]
+    assert flows["C_flow_waveform_spgu_sequence"]["target"] == ["recipe:spgu.alwg_sequence", "kind:spgu_pulse"]
+    assert flows["C_flow_sampling_smu_spgu_bias"]["scope"] == "out_of_scope"
+
+
+@pytest.mark.spgu
+def test_spgu_atoms_whose_legacy_command_v2_replaces_map_to_their_successor(doc: dict) -> None:
+    """CNX (enable) and ERS? (raw digital I/O bits, read as "selector status" by v0.2) are served by CN and ERSSP?:
+    the atoms are mapped to those driver targets and keep the legacy command as ``unmapped_flex``."""
+    atoms = {a["id"]: a for a in doc["atoms"]}
+    enable, status = atoms["B_atom_output_spgu_enable_channels"], atoms["A_atom_flex_query_selector_status"]
+    assert (enable["target"], enable["unmapped_flex"]) == (["B1500Driver.enable"], ["CNX"])
+    assert (status["target"], status["unmapped_flex"]) == (["B1500Driver.selector_state"], ["ERS?"])
+    assert all(a["scope"] == "mapped" and a["note"].startswith("successor: ") for a in (enable, status))
+    assert set(builder.ATOM_SUCCESSORS) == {"B_atom_output_spgu_enable_channels", "A_atom_flex_query_selector_status"}
+    for atom_id in ("A_atom_flex_query_spgu_open_comp", "B_atom_correction_spgu_set_short_comp",
+                    "A_atom_flex_query_spgu_setup", "C_atom_spgu_configure_sampling_pulse",
+                    "B_atom_routing_dio_set_mode"):
+        assert atoms[atom_id]["scope"] == "out_of_scope" and atoms[atom_id]["family"] == "spgu", atom_id
+
+
+@pytest.mark.spgu
+def test_ledger_check_rejects_open_spgu_entries(doc: dict) -> None:
+    broken = copy.deepcopy(doc)
+    command = next(c for c in broken["commands"] if c["command"] == "SPV?")
+    command.update(scope="open")
+    del command["reason"]
+    flow = next(f for f in broken["flows"] if f["id"] == "C_flow_pulse_spgu_train")
+    flow.update(scope="open")
+    del flow["target"]
+    problems = builder.check_ledger(broken["atoms"], broken["flows"], broken["commands"])
+    assert any("command SPV?: spgu entry is neither mapped nor out_of_scope" in p for p in problems)
+    assert any("flow C_flow_pulse_spgu_train: spgu entry is neither mapped nor out_of_scope" in p for p in problems)
 
 
 @pytest.mark.parametrize(("entry_id", "family"), [

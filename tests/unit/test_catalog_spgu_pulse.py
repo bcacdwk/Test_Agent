@@ -20,6 +20,8 @@ from b1500_test_agent.models.station import StationProfile
 from tests.sim.helpers import REPO_ROOT
 from tests.sim.selector_helpers import SEL1, SEL2, recorded_station
 
+pytestmark = pytest.mark.spgu
+
 KIND = SpguPulseKind()
 REGISTRY = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)
 RECIPE = REGISTRY.get("system.selector_check")

@@ -32,7 +32,8 @@ FAKE_AGENT = Path(__file__).with_name("fake_agent.py")
 CODEX_DIR = FIXTURES / "codex-0.167.1"
 CLAUDE_DIR = FIXTURES / "claude-2.1.326"
 SIM_STAND_INS = REPO_ROOT / "tests" / "fixtures" / "acceptance" / "sim"
-"""Stand-in simulator scenarios for scenarios written ahead of their modules (S3 rewritten, S11-S15)."""
+"""Stand-in simulator scenarios for scenarios written ahead of their modules (S11, S13-S15; WP9.6 removed fefet_lab's:
+S3 and S12 use the real config/sim/scenarios/fefet_lab.yaml)."""
 
 
 def violating_vars() -> dict[str, str]:

@@ -116,10 +116,10 @@ sim_scenario: fefet_lab
 ## 7. Analysis method
 
 - Default `memory_window_pulse` (`fefet.pulse_write_read`: `{vth_method: constant_current, i_crit_a: 1e-7}`):
-  MW = mean Vth(erase) - mean Vth(program) of the Id-Vg reads; `vth_program`, `vth_erase`, `vth_initial`; per-cycle
-  spread in the MW `fit` ([06b](../../knowledge/06b-analysis-time-pulse.md#program-read-memory-window)); spot reads
-  (`spgu.program_smu_read` default): `i_program`, `i_erase`, `i_initial`, `current_ratio`.
-- Report: MW with sign and method, both state Vths, amplitude/width/count, cycles, status counts, SIMULATED flag.
+  MW = mean Vth(erase) - mean Vth(program) of the Id-Vg reads; `vth_program`, `vth_erase`; per-cycle spread in the
+  `fit` ([06b](../../knowledge/06b-analysis-time-pulse.md#program-read-memory-window)); spot reads: `current_ratio`.
+- Report: name the method id next to every derived value (`MW = 0.99 V; memory_window_pulse`), sign, both state
+  Vths, amplitude/width/count, cycles, status counts, routes and cleanup verified, SIMULATED flag.
 
 ## 8. Expected result shape
 

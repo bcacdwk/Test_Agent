@@ -21,9 +21,9 @@ from b1500_test_agent.models.validation import STAGE_FILES_DIR, STAGES, StageFro
 
 ROOT = Path(__file__).resolve().parents[2]
 STAGE_DIR = ROOT.joinpath(*STAGE_FILES_DIR)
-WRITTEN = ("S0", "L0", "L1", "L2", "L3", "L4", "L5", "L6", "L9", "L10")
-"""Stages of WP6.3, the SMU closure (WP7.7: L5, the SMU part of L9; WP9.5 adds L9's FeFET endurance and retention)
-and the CMU closure (WP8.6: L6); L7 and L8 arrive with their module work packages (L9's WGFMU part with WP10.8)."""
+WRITTEN = ("S0", "L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L9", "L10")
+"""Stages of WP6.3 and the module closures (WP7.7: L5, the SMU part of L9; WP9.5 adds L9's FeFET endurance and
+retention; WP8.6: L6; WP9.6: L7); L8 arrives with its module work package (L9's WGFMU part with WP10.8)."""
 HUMAN_ONLY = ("con" + "fig init", "con" + "fig adopt", "run " + "--confirm", "fa" + "ult clear")
 """Human-only CLI verbs, assembled at run time (the harness guard blocks shell commands that spell them)."""
 RECIPES = {
@@ -39,6 +39,9 @@ RECIPES = {
     "L6": ["cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short", "cmu.correction_load", "cmu.spot",
            "moscap.cv", "moscap.cv_ac_level", "moscap.pulsed_cv", "moscap.cf", "moscap.ct", "moscap.cv_multi_freq",
            "moscap.qscv", "mosfet.cgc_cv", "mosfet.cgd_cv", "fecap.cv_butterfly"],  # WP8.6: every 3.2 recipe
+    "L7": ["system.selector_check", "spgu.pulse_train", "spgu.alwg_sequence", "fefet.dual_sweep_mw",
+           "fefet.pulse_write_read", "spgu.program_smu_read", "fefet.switching_kinetics",
+           "mosfet.charge_pumping"],  # WP9.6: every HV-SPGU and 16440A recipe of blueprint v2 3.3 but L9's
     "L9": ["reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "reliability.silc", "reliability.tddb_cvs",
            "dielectric.bdv", "basic.breakdown_search",  # WP7.7: the SMU part
            "fefet.endurance", "fefet.retention",  # WP9.5: the HV-SPGU part
@@ -201,3 +204,32 @@ def test_l6_pass_criteria_follow_the_blueprint() -> None:
     agent = _section("L6", "Agent steps")
     assert "`moscap-scuu`" in agent and "`dit_high_low`" in agent and "`offset: measure`" in agent
     assert "TODO(verify)" in _section("L6", "Expected values")
+
+
+@pytest.mark.spgu
+def test_l7_pass_criteria_follow_the_blueprint() -> None:
+    """Blueprint v2 7.4 L7: `ERSSP?` verified per state, MW consistent with the dual sweep, wiring recorded (ATV-28);
+    pulses into 1 MOhm (ATV-20 levels, ATV-19 SPST?); every L7 recipe has a check and a cleanup check (WP9.6)."""
+    front = _front("L7")
+    states = _check("L7", "selector_states")
+    assert (states.recipe, states.quantity, states.method) == ("system.selector_check", "states_verified",
+                                                               "kind_result")
+    mw = _check("L7", "pulse_mw")
+    assert (mw.recipe, mw.quantity, mw.method) == ("fefet.pulse_write_read", "memory_window", "memory_window_pulse")
+    assert mw.tolerance is not None and mw.tolerance.check(0.95, 1.0) and not mw.tolerance.check(-0.95, 1.0)
+    assert _check("L7", "dual_sweep_mw").method == "memory_window"  # the DC reference of pulse_mw
+    for stage_check in ("wiring_recorded", "relays_observed", "pulse_level_1meg", "pulse_level_ser50"):
+        assert _check("L7", stage_check).recipe is None, stage_check  # the human's observations, stage record
+    assert "ATV-28" in _check("L7", "wiring_recorded").reference
+    spst = _check("L7", "train_spst")
+    assert spst.tolerance is not None and spst.tolerance.check(0, None) and not spst.tolerance.check(1, None)
+    for recipe in front.recipes:
+        checks = front.checks_for(recipe)
+        assert any(c.quantity == "cleanup" for c in checks), recipe
+        assert any(c.quantity != "cleanup" for c in checks), recipe
+    agent, physical = _section("L7", "Agent steps"), _section("L7", "Physical steps (human)")
+    assert "uv run b1500 bringup propose-station" in agent and "work/bringup/station.proposed.yaml" in agent
+    assert "con" + "fig adopt work/bringup/station.proposed.yaml --as station" in physical
+    assert "certainty: verified" in physical and "SEL1.OUT1" in physical
+    for runbook in ("spgu-pulse-no-effect", "spgu-selector-state", "spgu-load-mismatch"):
+        assert runbook in _section("L7", "Abort criteria"), runbook

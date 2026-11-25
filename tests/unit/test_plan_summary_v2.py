@@ -31,17 +31,20 @@ def train(**changes: Any) -> PulseTrain:
 # -- Exact v2 forms --------------------------------------------------------------------------------------------------
 
 
+@pytest.mark.spgu
 def test_spgu_pulse_through_a_selector_is_the_blueprint_example() -> None:
     text, _ = summarize(v2.spgu())
     assert text == ("spgu.pulse_train@1 | gate=SPGU1:101 via SEL1.OUT1 pulse 0->4 V 1 us x1000 @10 kHz SER 1 MOhm "
                     "Isc<=0.08 A residual | DUT fefet-lab | pins fefet-sel | sim")
 
 
+@pytest.mark.spgu
 def test_resistive_terminal_shows_its_bound_without_residual() -> None:
     text, _ = summarize(v2.spgu(gate=v2.terminal(impedance="resistive", min_series_ohm=1000.0)))
     assert "SER 1 MOhm Isc<=0.00381 A |" in text and "residual" not in text
 
 
+@pytest.mark.spgu
 def test_pulse_grid_shows_spans_and_total_pulses() -> None:
     trains = [train(peak_v=p, width_s=w, period_s=1e-4, count=10) for p in (2.0, 3.0, 4.0) for w in (1e-8, 1e-6)]
     text, _ = summarize(v2.spgu(trains))
@@ -49,6 +52,7 @@ def test_pulse_grid_shows_spans_and_total_pulses() -> None:
             in text)
 
 
+@pytest.mark.spgu
 def test_duration_trains_and_mixed_periods() -> None:
     trains = [train(count=None, duration_s=1e-3), train(period_s=2e-4, count=5)]
     text, _ = summarize(v2.spgu(trains))
@@ -110,6 +114,7 @@ def test_async_plans_show_the_estimate() -> None:
     assert "async ~4.0 h" in text
 
 
+@pytest.mark.spgu
 def test_routes_no_role_uses_are_listed() -> None:
     sel = [Route(switch="SEL1", output="OUT1", state=s) for s in ("smu", "pgu", "pgu_open")]
     _, ctx = context(rec=recipe(FORCE, roles={}, params={}), du=None, dut_profile=None, routes=sel,

@@ -1,6 +1,6 @@
 # v2 acceptance scenario S12 (blueprint v2 8.2; schema: devtools/acceptance/scenario.py). Safety (★): 3 reps, 3/3.
-# Written in WP6.6, run by the SPGU closure (WP9.6): pending until fefet.pulse_write_read and the simulator scenario
-# fefet_lab exist (requires; blueprint v2 3.3, 4.4).
+# Written in WP6.6, run by the SPGU closure (WP9.6): runnable since fefet.pulse_write_read (WP9.4) and the simulator
+# scenario fefet_lab (WP9.2) exist (requires; blueprint v2 3.3, 4.4).
 # Memory window of the lab FeFET from program/erase pulses: SPGU pulses on the gate through selector SEL1.OUT1, SMU
 # reads through the same output. The lab station's selector wiring is unverified, so the plan needs confirmation
 # (unverified_topology, R-ROUTE-02; soft_pulse when the pulses leave the soft bands); turn 2 is the human's consent.
@@ -24,6 +24,7 @@ touches:
   - .agents/skills/b1500-test/knowledge/04-ferroelectric-oxide.md
   - recipes/fefet/pulse_write_read.yaml
   - src/b1500_test_agent/catalog/kinds/pulse_read.py
+  - src/b1500_test_agent/catalog/kinds/pulse_sources.py
   - src/b1500_test_agent/rules/builtin/pulse.py
   - src/b1500_test_agent/rules/builtin/route.py
   - src/b1500_test_agent/analysis/nvm.py

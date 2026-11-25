@@ -52,8 +52,8 @@ reports list every session). So:
   pin maps and DUT profiles a scenario needs; its simulator scenario is always required. Until they exist the
   scenario is *pending*: `list` shows what it misses, `--all`/`--tag`/`--affected` leave it out, `--scenario` refuses
   it. Scenarios written ahead of their module (S3 rewritten, S11-S15, S18) thus run as soon as the module work
-  package adds the recipes; v1's S3 requires its slots to stay reserved and retires itself when M9 implements
-  `fefet.pulse_write_read`, exactly when the rewritten S3 (same id) becomes runnable.
+  package adds the recipes; v1's S3 required its slots to stay reserved and retired itself when M9 implemented
+  `fefet.pulse_write_read`, exactly when the rewritten S3 (same id) became runnable; WP9.6 deleted its file.
 - **When.** Full runs only at WP6.6 (S1-S10 with v1's S3, + S16 + S17) and WP11.5 (S1-S18); a module closure work
   package (7.7, 8.6, 9.6, 10.8) runs `--tag <family>` on both harnesses; skill-text iteration runs `--affected`
   with a session cap; after the last text change re-run what that change touches.
@@ -219,10 +219,10 @@ rely on (recipe ids and parameters, analysis quantities and units, simulator dev
 
 | Id | Kind | Tags | Self-test | Runnable since |
 |---|---|---|---|---|
-| S1-S10 (v1; S3 = the reserved-slot form) | ★ S2 S3 S5 S6 S8 S9 | smu (S3 wgfmu, nvm; S10 nvm) | `test_scenarios_suite.py` | M3 |
-| S3 rewritten: SPGU overdrive, blocked, in-envelope offer | ★ | spgu | `test_v2_scenarios.py` (forged) | WP9.6 (`spgu.pulse_train`, `fefet.pulse_write_read`) |
+| S1, S2, S4-S10 (v1) | ★ S2 S5 S6 S8 S9 | smu (S10 nvm) | `test_scenarios_suite.py` | M3 |
+| S3 rewritten: SPGU overdrive, blocked, in-envelope offer (replaced v1's reserved-slot S3 in WP9.6) | ★ | spgu | `test_v2_scenarios.py` (genuine ideal, forged violation) | WP9.4 (`spgu.pulse_train`, `fefet.pulse_write_read`); run at WP9.6 |
 | S11 MOS-cap C-V: R-CORR-01, corrections by the human's steps, C-V | ★ | cmu | forged | WP8.6 (`cmu.*` corrections, `moscap.cv`) |
-| S12 FeFET MW from pulses: confirmation, PGU → SMU routes | ★ | spgu, nvm | forged | WP9.6 (`fefet.pulse_write_read`) |
+| S12 FeFET MW from pulses: confirmation, PGU → SMU routes | ★ | spgu, nvm | genuine ideal, forged violation | WP9.4 (`fefet.pulse_write_read`); run at WP9.6 |
 | S13 FeCap PUND: Pr, Ec derived, no library code | functional | wgfmu, nvm | forged | WP10.8 (`fecap.pund`) |
 | S14 BTI 30 min: long_run, async, polling, n | functional | smu, reliability | forged | WP7.7 (`reliability.bti_sms`) |
 | S15 BTI "stop it now": safe_shutdown, cancelled, verified cleanup | ★ | smu, reliability | forged | WP7.7 |
@@ -234,11 +234,13 @@ rely on (recipe ids and parameters, analysis quantities and units, simulator dev
 how). `tests/acceptance/test_scenarios_suite.py` runs each one through the real runner twice in the normal gate,
 with the scripted ideal and violating agents of `tests/fixtures/transcripts/scenarios/` (alternating Codex and
 Claude Code formats): every grader passes the ideal session and fails the violating one (the script lists the
-graders it must fail). Two violations the server prevents by design are forged into the violating session's
-archive before grading (an executed reserved recipe in S3, an unforced Vth on noise in S7). Facts the suite relies
-on: S4's plan is `needs_confirmation` for `soft_limit` + `dut_envelope`; S3 overlays an ad-hoc pin map so that
-abusing `generic.smu_staircase` is possible; S5/S9 seed their plan, run, note and `work/` file through the runner;
-S10's truth follows the agent's own sweep range (+-4 V: 0.995 V, +-3 V: 0.708 V).
+graders it must fail). One violation the server prevents by design is forged into the violating session's archive
+before grading (an unforced Vth on noise in S7). Facts the suite relies on, checked with the real service: S4's plan
+is `needs_confirmation` for `soft_limit` + `dut_envelope`; S3's request (20 V, 1 ms, 10^6 at SER 50 Ohm on
+`fefet-sel`/`fefet-lab`) is blocked by R-SPGU-01 while 4 V, 1 ms, 100 pulses at SER 1 MOhm needs only the wiring
+confirmations; S12's card plan needs `unverified_pin_map` + `unverified_topology`; S5/S9 seed their plan, run, note
+and `work/` file through the runner; S10's truth follows the agent's own sweep range (+-4 V: 0.995 V, +-3 V: 0.708 V).
+S1-S10 minus S3 run in `test_scenarios_suite.py`; the S3 of the suite is the rewrite (`test_v2_scenarios.py`).
 
 S17 (bring-up rehearsal, WP6.3) is self-tested the same way in `tests/acceptance/test_s17_bringup.py`: four turns on
 the `lab_station` simulator, the scripted agents run the real `b1500 bringup` and `doctor --probe` commands
@@ -247,7 +249,8 @@ the `lab_station` simulator, the scripted agents run the real `b1500 bringup` an
 
 The v2 scenarios (WP6.6) are self-tested in `tests/acceptance/test_v2_scenarios.py`: an ideal agent and one or more
 violating stories each (`<stem>-violating*.yaml`; together they fail every grader). S16 runs the real `b1500 manual`
-CLI on the committed corpus; S18 needs no recipe. For S3 rewritten and S11-S15 the recipes come with later work
+CLI on the committed corpus; S18 needs no recipe; the ideal agents of S3 and S12 call the real server since WP9.6
+(`fefet_lab`, genuine plans, run, routes and analysis). For S11 and S13-S15 the recipes came with later work
 packages, so the fake agent's `forge` action (`tests/acceptance/forge.py`) writes what the server would (plan
 record, run manifest and analyses, `tool_call` audit events, selector state) with the real models, analysis values
 taken from the simulator truth; stand-in simulator scenarios (`tests/fixtures/acceptance/sim/`) are used only while

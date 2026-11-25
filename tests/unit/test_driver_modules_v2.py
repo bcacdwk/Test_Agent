@@ -51,6 +51,7 @@ def test_every_row_cites_the_manual() -> None:
         assert text.split()[0] in {"PG", "UG", "WG", "WG5"} and " p" in text
 
 
+@pytest.mark.spgu
 @pytest.mark.parametrize(
     ("changes", "fragment"),
     [

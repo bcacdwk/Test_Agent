@@ -72,7 +72,7 @@ markers = [
   "manuals: manual corpus, search and citation lint (blueprint 5; fixtures, no PDF needed)",
   "smu: SMU family (HRSMU/MPSMU + GNDU: kinds, recipes, analyses, compact models, cards, stages; blueprint v2 8.1 family marker)",
   "cmu: MFCMU family (+SCUU, QSCV and GNDU work of M8: builders, driver, simulator, corrections, kinds, recipes, analyses, safety, visa-loop; blueprint v2 8.1 family marker)",
-  "spgu: HV-SPGU family (builders, driver, simulator, cleanup step 2, safety, visa-loop; blueprint v2 8.1)",
+  "spgu: HV-SPGU + 16440A family (builders, driver, simulator, cleanup step 2, selector routes, pulse kinds, recipes, analyses, safety, visa-loop, stage L7, ledger; blueprint v2 8.1 family marker)",
   "wgfmu: WGFMU instrument library, simulator and recipes (blueprint v2 8.1 family marker)",
   "wall_clock: asserts a wall-clock bound of the plan (e.g. a 4 h instant run < 2 s); CI runs these alone",
 ]

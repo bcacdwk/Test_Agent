@@ -540,6 +540,20 @@ ATOM_OVERRIDES: dict[str, dict[str, str]] = {
     },
 }
 
+# A/B/C atoms whose legacy basis names a command v2 does not send for that function: the v2 driver target that serves
+# the atom's purpose (`target`), with the basis command kept as `unmapped_flex` and the reason as the note. Applied
+# only when the basis maps to nothing (WP9.6).
+ATOM_SUCCESSORS: dict[str, tuple[tuple[str, ...], str]] = {
+    "B_atom_output_spgu_enable_channels": (
+        ("B1500Driver.enable",),
+        ("successor: CN (enable; the SPGU kinds enable their channels with CN); CNX differs from CN only for a "
+         "module in the high-voltage state (PG p381 (4-63) Table 4-23), which the 42 V ceiling never produces")),
+    "A_atom_flex_query_selector_status": (
+        ("B1500Driver.selector_state",),
+        ("successor: ERSSP? per declared selector port after ERMOD 1 (PG p434 (4-116)); the legacy basis ERS? "
+         "reads the raw digital I/O port bits (PG p159 (2-71)), out of scope by blueprint v2 1.2")),
+}
+
 # D atoms are hardware-free analysis stubs: never mapped to the driver; successor in the new layers
 # (blueprint sections 2.6-2.8, 5.1) and the milestone that delivers it.
 D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
@@ -595,13 +609,14 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
 
 
 # --- Coverage ledger (blueprint v2 0 row 1, 9 "Driver map v2 = coverage ledger"; WP7.7 closes the SMU rows) ----------
-# Every atom, flow and command belongs to one family; an entry is `mapped` (a driver target, a D-atom successor or a
-# flow target), `out_of_scope` (a reason from OUT_OF_SCOPE) or `open`. `--check` fails on an `open` entry of a closed
-# family. The module closures add theirs (8.6 cmu: done, 9.6 spgu, 10.8 wgfmu); WP11.2 closes `system` and maps the
-# rest.
+# Every atom, flow and command belongs to one family; an entry is `mapped` (a driver target, a D-atom successor, an
+# ATOM_SUCCESSORS target or a flow target), `out_of_scope` (a reason from OUT_OF_SCOPE) or `open`. `--check` fails on
+# an `open` entry of a closed family. The module closures add theirs (8.6 cmu: done, 9.6 spgu: done, 10.8 wgfmu);
+# WP11.2 closes `system` and maps the rest.
 LEDGER_FAMILIES = ("smu", "cmu", "spgu", "wgfmu", "system")
-CLOSED_FAMILIES = ("smu", "cmu")
-"""Families whose every entry is mapped or out of scope (`--check` enforces it)."""
+CLOSED_FAMILIES = ("smu", "cmu", "spgu")
+"""Families whose every entry is mapped or out of scope (`--check` enforces it): smu (WP7.7), cmu (WP8.6), spgu with
+the 16440A selector (WP9.6)."""
 
 COMMAND_CATEGORY_FAMILY: dict[str, str] = {
     "ASU / SCUU / SMU Conditioning": "smu", "SMU Integration Time and Averaging": "smu",
@@ -613,10 +628,12 @@ COMMAND_CATEGORY_FAMILY: dict[str, str] = {
     "N1272A/B1506A/B1507A Selector and Adapter Control": "smu", "HVSMU Control and Variables": "smu",
     "MFCMU Data Correction": "cmu", "MFCMU Setup": "cmu", "Quasi-static CV": "cmu",
     "MFCMU Sweep and Pulsed Source": "cmu", "MFCMU Sampling": "cmu",
-    "SPGU Control": "spgu", "SPGU Pulse Setup": "spgu", "SPGU ALWG Setup": "spgu", "Output Comparison": "spgu",
+    "SPGU Control": "spgu", "SPGU Pulse Setup": "spgu", "SPGU ALWG Setup": "spgu", "Output Comparison": "smu",
     "Digital I/O and Selectors": "spgu",
 }  # fmt: skip
-"""Manual category (first group a mnemonic appears in) -> family; every other category is `system`."""
+"""Manual category (first group a mnemonic appears in) -> family; every other category is `system`. The output
+comparison commands SOPC/SOVC serve the HVMCU, UHCU and UHVU expanders (PG p508-510 (4-190 to 4-192)), so they are
+`smu` (WP9.6; listed next to the SPGU commands in the manual's summary)."""
 
 COMMAND_FAMILY: dict[str, str] = {
     "SSP": "cmu", "SSL": "cmu", "TC": "cmu", "TTC": "cmu", "TMACV": "cmu", "TMDCV": "cmu", "FC": "cmu", "ACV": "cmu",
@@ -642,6 +659,21 @@ _CMU_HIGH_SPEED_SPOT = ("MFCMU high-speed spot C (TC/TTC) and its AC level/DC bi
                         "list); the MM 17 spot C (cmu_measure, recipe cmu.spot) with LMN monitors covers single points")
 _CMU_TIMER_START = ("timer-start MFCMU AC/DC output (TACV/TDCV): the CMU counterpart of TDV/TDI, out of scope by "
                     "blueprint v2 1.2; ACV/DCV set the signal and the C-t sampling (MM 26) carries the time stamps")
+_OUTPUT_COMPARISON = ("output power/voltage comparison of the HVMCU, UHCU and UHVU expanders (SOPC/SOVC, PG p508-510 "
+                      "(4-190 to 4-192)), not an SPGU function despite the legacy atom names (the SPGU level is "
+                      "adjusted to the load by SER and measured by CORRSER?): " + _EXPANDER)
+_SPGU_SETUP_QUERY = ("read-back of the SPGU setup (SIM?, SPRM?, SPPER?, SER?, SPM?, SPT?, SPV?, ODSW?, STGP?, ALW?, "
+                     "ALS?; PG p360-524 (4-42 to 4-206), the query next to each setting): not in blueprint v2 1.2; "
+                     "the driver writes the complete setup of every output itself (built from a bounded program, "
+                     "guard-checked before the write), ERRX? after SPUPD reports a refused setting, and SPST? and "
+                     "CORRSER? are the read-backs the kinds use")
+_SPGU_SAMPLING = ("SPGU as the synchronous source of an MM 10 sampling measurement (MSP, PG p473 (4-155)): not in "
+                  "blueprint v2 1.2 (sampling sources are SMUs: MV/MI); SMU readings during an SPGU train come from "
+                  "the spgu_pulse spot reads (time averages; mosfet.charge_pumping), a time-resolved pulse response "
+                  "from the WGFMU (M10)")
+_RAW_DIO = ("raw digital I/O port control (ERM port assignment, ERC output bits, ERS? port status; PG p159 (2-71)): "
+            "out of scope by blueprint v2 1.2; the 16440A selectors are driven only by ERMOD 1 + ERSSP and read back "
+            "by ERSSP?")
 OUT_OF_SCOPE: dict[str, str] = {
     # commands of family smu
     **{c: _HIGH_SPEED_SPOT for c in ("TI", "TV", "TIV", "TTI", "TTV", "TTIV", "HSS")},
@@ -688,6 +720,28 @@ OUT_OF_SCOPE: dict[str, str] = {
     # flows of family smu
     "C_flow_spot_smu_high_speed": _HIGH_SPEED_SPOT,
     "C_flow_sampling_smu_signal_monitor": _SIGNAL_MONITOR,
+    # commands of family smu filed under "Output Comparison" (WP9.6)
+    **{c: _OUTPUT_COMPARISON for c in ("SOPC", "SOPC?", "SOVC", "SOVC?")},
+    # commands of family spgu (HV-SPGU and the 16440A selector, WP9.6)
+    **{c: _SPGU_SETUP_QUERY for c in ("SIM?", "SPRM?", "SPPER?", "SER?", "SPM?", "SPT?", "SPV?", "ODSW?", "STGP?",
+                                      "ALW?", "ALS?")},
+    "MSP": _SPGU_SAMPLING,
+    **{c: _RAW_DIO for c in ("ERM", "ERC", "ERS?")},
+    # atoms of family spgu
+    **{a: _SPGU_SETUP_QUERY for a in ("A_atom_flex_query_spgu_setup", "A_atom_flex_query_spgu_pulse_switch",
+                                      "A_atom_flex_query_spgu_load_impedance", "A_atom_flex_query_spgu_trigger_output",
+                                      "A_atom_flex_query_spgu_alwg_pattern", "A_atom_flex_query_spgu_alwg_sequence")},
+    **{a: _OUTPUT_COMPARISON for a in ("A_atom_flex_query_spgu_open_comp", "A_atom_flex_query_spgu_short_comp",
+                                       "B_atom_correction_spgu_set_open_comp",
+                                       "B_atom_correction_spgu_set_short_comp")},
+    "C_atom_spgu_configure_sampling_pulse": _SPGU_SAMPLING,
+    "B_atom_routing_dio_set_mode": _RAW_DIO,
+    "B_atom_output_dio_set_relay_bits": _RAW_DIO,
+    # flows of family spgu
+    "C_flow_sampling_smu_spgu_bias": _SPGU_SAMPLING,
+    # commands of family system that an spgu atom names (decided here; WP11.2 closes the system family)
+    "CNX": ("CN variant that also closes the output switch of a module in the high-voltage state without an error "
+            "(PG p381 (4-63) Table 4-23): the 42 V ceiling never produces that state, the kinds enable with CN"),
 }  # fmt: skip
 """Reasons for the entries that stay out of scope (blueprint v2 1.2 out-of-scope column, or the stated reason)."""
 
@@ -742,6 +796,8 @@ FLOW_TARGETS: dict[str, list[str]] = {
     "C_flow_sampling_cmu_ct": ["recipe:moscap.ct", "kind:cmu_measure", "analysis:ct_recovery"],
     "D_flow_qualify_cv_dataset": ["analysis:quality_report", "analysis:cv_cox", "analysis:cv_flatband"],
     "CD_flow_qualify_cv_dataset": ["recipe:moscap.cv", "analysis:quality_report", "analysis:cv_cox"],
+    "C_flow_pulse_spgu_train": ["recipe:spgu.pulse_train", "kind:spgu_pulse"],
+    "C_flow_waveform_spgu_sequence": ["recipe:spgu.alwg_sequence", "kind:spgu_pulse"],
 }
 """v2 successors of the legacy flows (recipes, kinds, analysis methods, driver methods): a flow is a recipe now."""
 
@@ -1060,7 +1116,12 @@ def map_atom(atom: dict[str, Any], summary: CommandSummary) -> dict[str, Any]:
     priority = _priority_max(priorities)
     if LATER_SCOPES.intersection(atom_id.split("_")):
         priority = "later"
-    override = ATOM_OVERRIDES.get(atom_id, {})
+    override = dict(ATOM_OVERRIDES.get(atom_id, {}))
+    if atom_id in ATOM_SUCCESSORS:
+        if targets:
+            raise DriverMapError(f"ATOM_SUCCESSORS names {atom_id}, whose basis already maps to {targets}")
+        successors, override["note"] = ATOM_SUCCESSORS[atom_id]
+        targets = list(successors)
     priority = override.get("priority", priority)
     entry.update(flex=flex, target=targets or UNMAPPED)
     if targets and unmapped_flex:
@@ -1128,9 +1189,9 @@ def build_map(
     d_ids = {a["id"] for a in raw_atoms if a["class"] == "D"}
     if set(D_SUCCESSORS) != d_ids:
         raise DriverMapError(f"D_SUCCESSORS keys differ from the D atoms: {sorted(set(D_SUCCESSORS) ^ d_ids)}")
-    stale = sorted((set(ATOM_OVERRIDES) | set(MM_MODE_HINTS)) - ids)
+    stale = sorted((set(ATOM_OVERRIDES) | set(MM_MODE_HINTS) | set(ATOM_SUCCESSORS)) - ids)
     if stale:
-        raise DriverMapError(f"ATOM_OVERRIDES/MM_MODE_HINTS name unknown atoms: {stale}")
+        raise DriverMapError(f"ATOM_OVERRIDES/MM_MODE_HINTS/ATOM_SUCCESSORS name unknown atoms: {stale}")
     summary = load_command_summary(summary_path)
     bad_pages = {m: pages for m, pages in GROUPED_PAGES.items() if _printed_to_pdf(pages[1]) != pages[0]}
     if bad_pages or not set(GROUPED_PAGES) <= set(summary.groups_flat) - set(summary.detailed):

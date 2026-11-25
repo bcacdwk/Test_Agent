@@ -7,6 +7,7 @@ sources:
   - lwp/matlab_B1500/lib/SPGU_pulse.m, test_SPGU.m (ERMOD 1, ERSSP p,2, SIM 0, SPRM, SPPER, SER, SPM, SPT, SPV, SPUPD, SRP, SPST? polling)
   - src/b1500_test_agent/models/spgu.py, driver/ops/spgu.py (WP9.1), catalog/kinds/spgu_train.py, catalog/blocks.py spgu_burst (WP9.3)
   - src/b1500_test_agent/catalog/kinds/pulse_read.py, pulse_sources.py, catalog/blocks.py smu_pulse_burst, analysis/nvm.py (WP9.4)
+  - blueprint v2 1.2 (HV-SPGU and 16440A coverage), skill b1500-bringup stages/l7-spgu-selector.md (WP9.6)
 last_reviewed: null
 ---
 
@@ -27,6 +28,7 @@ the pad depends on the declared load, and what bounds every output. Routing thro
 - [Guard and rules](#guard-and-rules)
 - [Program and read](#program-and-read)
 - [Simulator behaviour](#simulator-behaviour)
+- [Module coverage and bring-up L7](#module-coverage-and-bring-up-l7)
 - [Troubleshooting pulses](#troubleshooting-pulses)
 
 ## HV-SPGU output and the SER load
@@ -148,6 +150,25 @@ the recipe picks everything by parameters.
   with interface traps (scenario `nmos_cv`); `MM 10` sampling still sees the static levels.
 - On the simulator a selector input recorded `null` in the station profile takes the scenario's cabling (rehearsal);
   on hardware it blocks until a human records it at L7.
+
+## Module coverage and bring-up L7
+
+- Recipes (blueprint v2 3.3, all `sim_validated`): `system.selector_check` (card `selector-check`),
+  `spgu.pulse_train` and `spgu.alwg_sequence` (`spgu-pulse-train`), `mosfet.charge_pumping` (`charge-pumping`),
+  `fefet.pulse_write_read` and `spgu.program_smu_read` (`fefet-pulse-write-read`), `fefet.switching_kinetics`
+  (`fefet-switching-kinetics`), `fefet.endurance` and `fefet.retention` (`fefet-endurance-retention`, stage L9).
+- What the kernel sends: PG/ALWG setup (`SIM`, `SPRM` count or duration, `SPPER`, `SER`, `SPM`, `SPT`, `SPV`,
+  `ODSW`, `STGP`, `ALW`/`ALS`), `SPUPD`, `SRP`, `SPP`, `SPST?`, `CORRSER?` mode 0, and for the selector `ERMOD 1`,
+  `ERSSP`, `ERSSP?`. Never sent: free run (`SPRM 0`), the setup queries (`SPV?` etc.: the driver writes every
+  setting itself), the SPGU as a sampling source (`MSP`), raw digital I/O (`ERM`, `ERC`, `ERS?`), each out of
+  scope by blueprint v2 1.2. An SPGU DC output is not built: DC bias comes from an SMU.
+- Bring-up L7 (skill `b1500-bringup`, stage file `l7-spgu-selector.md`): the selector check with the human at the
+  relays, the human records the input wiring, pulses into a 1 MOhm load read on a scope (set level at SER 1 MOhm,
+  twice the level at SER 50 Ohm: ATV-20; `spp_fallbacks` 0: ATV-19), then the FeFET: the pulse memory window
+  within 20 % of the DC dual-sweep window of the same device, the switching kinetics, charge pumping.
+- `TODO(verify)` at L7: `SPST?` falls to 0 by itself at the end of a count (ATV-19); `DZ`/`AB` do not stop a running
+  output (PG p142 (2-54)); the `ALW`/`ALS` binary block over VISA; edges and overshoot at the shortest widths; the
+  10 ms selector settle time. Hardware records replace the simulator's assumptions only through a reviewed record.
 
 ## Troubleshooting pulses
 

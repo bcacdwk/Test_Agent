@@ -18,6 +18,8 @@ from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, Quantity
 from tests.unit.analysis_helpers import run_of, subthreshold_id
 
+pytestmark = pytest.mark.spgu
+
 VG = np.round(np.linspace(-0.5, 1.8, 47), 9)
 V0 = 0.3
 """``subthreshold_id`` reaches its i0 = 100 nA at v0: the constant-current Vth of an unshifted read."""

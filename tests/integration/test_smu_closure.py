@@ -64,7 +64,7 @@ def test_cards_sit_on_their_section_3_1_stage_and_the_stage_runs_them(registry: 
         front = yaml.safe_load(Path(REPO_ROOT / (recipe.card or "")).read_text(encoding="utf-8").split("---")[1])
         assert front["bringup_stage"] == stage, recipe_id
         _path, stage_front, problem = load_stage(REPO_ROOT, stage)
-        if stage in ("L5", "L9", "L1", "L2", "L3", "L4"):  # written stage files (L7: WP9.6)
+        if stage in ("L5", "L7", "L9", "L1", "L2", "L3", "L4"):  # written stage files (L7: WP9.6)
             assert stage_front is not None, problem
             assert recipe_id in stage_front.recipes, (recipe_id, stage)
 

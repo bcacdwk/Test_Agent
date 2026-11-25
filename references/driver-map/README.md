@@ -46,7 +46,7 @@ at the top of the script: `COMMAND_TARGETS`, `M2_COMMANDS`, `ATOM_OVERRIDES`, `D
 | `basis` | the legacy basis list, verbatim |
 | `flex` | normalized FLEX mnemonics from `basis`. `MM13` and `MM` with a known mode become `MM 13`. Prefix wildcards (`BD*`, `LS*`, `BS*`, `DSMPL*`) expand within their manual group. WGFMU library calls, EasyEXPERT SCPI and host operations are not FLEX and are left out. Always empty for D |
 | `target` | list of `B1500Driver.<method>`s (or a `flex.<builder>` when no method sends the command), or `unmapped` |
-| `unmapped_flex` | only on partially mapped atoms: the FLEX entries no driver target covers |
+| `unmapped_flex` | only on partially mapped atoms (and on atoms mapped through `ATOM_SUCCESSORS`): the FLEX entries no driver target covers |
 | `priority` | `m1`, `m2` or `later` (scale below) |
 | `note` | why a hand decision overrides the automatic rule, or where the capability went instead |
 | `legacy_priority`, `successor` | D only: the v0.2 `P0`/`P1`/`P2`, and the new analysis/archive/catalog element that replaces it (§2.6–2.8) |
@@ -60,15 +60,25 @@ entries, and grouped entries listed in `GROUPED_PAGES`; every mapped command has
 naming it), `note`.
 
 Coverage ledger (blueprint v2 §9, WP7.7): every atom, flow and command also carries `family` (`smu`, `cmu`, `spgu`,
-`wgfmu`, `system`) and `scope`: `mapped` (a driver target, a D-atom `successor`, or a flow `target` list of
-`recipe:<id>`, `kind:<id>`, `analysis:<method>` or `B1500Driver.<method>`), `out_of_scope` (with `reason`, from
-`OUT_OF_SCOPE`) or `open`. Families come from `entry_family` (id words) and, for commands, from the manual category
-(`COMMAND_CATEGORY_FAMILY`) with the `COMMAND_FAMILY` overrides. `counts.ledger` holds mapped/out_of_scope/open per
-family and entry type; `--check` fails on an `open` entry of a family in `CLOSED_FAMILIES` (`smu` since WP7.7, `cmu`
-since WP8.6; the module closures 9.6, 10.8 add theirs, WP11.2 the rest). The `cmu` family holds the MFCMU, SCUU and
-QSCV entries; the GNDU has no legacy atom, flow or command (its v2 parts are rule R-GNDU-01 and the simulator's
-return-current accounting, WP8.5). CMU out of scope: the high-speed spot C `TC`/`TTC` with its monitors
-`TMACV`/`TMDCV` and the timer-start outputs `TACV`/`TDCV` (the MM 17 spot and MM 26 time stamps serve the recipes).
+`wgfmu`, `system`) and `scope`: `mapped` (a driver target, a D-atom `successor`, an `ATOM_SUCCESSORS` target, or a
+flow `target` list of `recipe:<id>`, `kind:<id>`, `analysis:<method>` or `B1500Driver.<method>`), `out_of_scope`
+(with `reason`, from `OUT_OF_SCOPE`) or `open`. Families come from `entry_family` (id words) and, for commands, from
+the manual category (`COMMAND_CATEGORY_FAMILY`) with the `COMMAND_FAMILY` overrides. `counts.ledger` holds
+mapped/out_of_scope/open per family and entry type; `--check` fails on an `open` entry of a family in
+`CLOSED_FAMILIES` (`smu` since WP7.7, `cmu` since WP8.6, `spgu` with the 16440A selector since WP9.6; the module
+closure 10.8 adds `wgfmu`, WP11.2 the rest). The `cmu` family holds the MFCMU, SCUU and QSCV entries; the GNDU has no
+legacy atom, flow or command (its v2 parts are rule R-GNDU-01 and the simulator's return-current accounting, WP8.5).
+CMU out of scope: the high-speed spot C `TC`/`TTC` with its monitors `TMACV`/`TMDCV` and the timer-start outputs
+`TACV`/`TDCV` (the MM 17 spot and MM 26 time stamps serve the recipes).
+
+`ATOM_SUCCESSORS` (WP9.6) maps an A/B/C atom whose legacy basis names a command v2 does not send for that purpose
+to the driver target that serves it, with the legacy command left in `unmapped_flex` and the reason in `note`:
+`B_atom_output_spgu_enable_channels` (`CNX` -> `CN`, `enable`) and `A_atom_flex_query_selector_status` (`ERS?`, the
+raw digital I/O bits -> `ERSSP?`, `selector_state`). It applies only when the basis maps to nothing. The SPGU
+closure also files the output comparison commands `SOPC`/`SOVC` under `smu` (they serve the HVMCU/UHCU/UHVU
+expanders, PG p508-510), with the expander reason; the legacy atoms that named them SPGU open/short compensation
+stay `spgu`, out of scope with the same reason. SPGU out of scope: the setup read-back queries (`SIM?`, `SPV?`, ...),
+`MSP` (the SPGU as a sampling source) and raw digital I/O (`ERM`, `ERC`, `ERS?`).
 
 ## Target vocabulary (§2.3)
 

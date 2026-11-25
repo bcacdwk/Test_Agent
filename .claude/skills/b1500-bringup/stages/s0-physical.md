@@ -89,6 +89,9 @@ answer "done"). Never mark an item done yourself.
 
 - FLEX control after EasyEXPERT (ATV-3): the guide's "Before Starting" steps above; at L0 the FlexGUI window opens
   on the first GPIB command (PG p24 (1-4) "FlexGUI"). Fallback: follow the current guide's steps and record them.
+- TODO(verify) (blueprint v2 7.6 items 11, 14): the EasyEXPERT records and reference exports of this stage are
+  the golden data the later stages compare with (item 11). Item 14 needs nothing here: the owner allowed the push
+  (OD-4), so the Windows CI ran the whole simulator suite on `windows-latest`.
 
 ## 5. Abort criteria
 

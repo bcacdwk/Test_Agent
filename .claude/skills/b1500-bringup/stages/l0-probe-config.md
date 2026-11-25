@@ -103,6 +103,11 @@ one turn, give the human the adoption command in chat and stop (skill part 4).
   the line shows. Session (ATV-16): opening it, listing the channels and the status must change no output (`LOP?`
   of a second probe still all `00`). Fallback when only the session line fails: probe without `--wgfmu-session`
   and leave the session check to L8.
+- TODO(verify) (blueprint v2 7.6 items 1, 2, 3, 4, 5, 12): GPIB address, terminations, timeouts and the VISA
+  vendor (ATV-2), per-call open cost (ATV-13); the real `UNT?` (slots 8-10, B1511A or B) and firmware; the `ERRX?`
+  success text (`0,` or `+0,`) and every raw probe answer as a fixture; status byte bit 3 (v1 ATV-10); `wgfmu.dll`
+  install, version and load (ATV-15), the probe-safe session (ATV-16); the server opens VISA inside the harness
+  (v1 ATV-4, step 4).
 
 ## 5. Abort criteria
 

@@ -71,6 +71,8 @@ Vf at 1 mA. Every hardware plan needs consent (`first_hw_run`).
   `data.csv` with the export; record the three deviations).
 - Run `completed`, or `completed_with_flags` when the forward end reaches compliance; compliance flags (`C`)
   exactly where the current reaches 10 mA.
+- TODO(verify) (blueprint v2 7.6 item 3): the status letters of real FMT 1 blocks at compliance (`C`) and under
+  current forcing; capture one run of each recipe as a fixture.
 
 ## 5. Abort criteria
 

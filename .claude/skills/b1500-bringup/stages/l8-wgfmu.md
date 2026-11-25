@@ -103,12 +103,14 @@ before the library sees it (R-WG-02), the ranges only bound the reading. Enduran
 | `fast_mw` | fast program/read MW, same sign as L7 | recorded | `memory_window_pulse` |
 | `wgfmu_self_test_cleanup`, `wgfmu_self_cal_cleanup`, `dc_spot_cleanup`, `pulsed_cleanup`, `fast_iv_cleanup`, `train_cleanup`, `custom_cleanup`, `rtn_cleanup`, `lfn_cleanup`, `pund_cleanup`, `fast_pr_cleanup` | every run verified, every channel disconnected, session closed | pass/fail | manifests |
 
-- TODO(verify) at this stage: releasing the FLEX lock is enough for the library session and the relock is clean
+- TODO(verify) (blueprint v2 7.6 items 1, 5, 8, 9, 10, 13): releasing the FLEX lock is enough for the library
+  session and the relock is clean
   (ATV-14; else `settings.wgfmu.flex_during_phase: close`); `initialize` leaves an SMU bias alone (ATV-17); the RSU
   SMU path reaches the DUT (ATV-32); a `disconnect` the library accepts means the RSU relay opened; the library's
   error-string and warning-summary formats; 3307 vs 3304 above 2,048 vectors; readback time of 504,000 points; DC spot and
   self-test/cal durations; noise floors and bandwidth with the real cables; `wgfmu.pulse_train` with `gate_mode: pg`
-  (WP11.2): the PG level on the RSU V Monitor equals the set level on the open gate.
+  (WP11.2): the PG level on the RSU V Monitor equals the set level on the open gate; fast-IV timing; the real
+  device's RTN statistics behind the `wgfmu.rtn` defaults.
 
 ## 5. Abort criteria
 

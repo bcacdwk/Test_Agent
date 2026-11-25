@@ -11,15 +11,15 @@ the source of truth for status. This page is updated at milestone boundaries.
 | M1 Runnable skeleton | One vertical path on the simulator: status → validate → staircase Id-Vg → archive → Vth | **done** (2026-11-18) |
 | M2 Skill system | Six SMU test cards with recipes that run on the simulator; knowledge files; debug skill | **done** (2026-11-18) |
 | M3 Harness acceptance | Ten scenarios on Codex and Claude Code against the simulator | **done** (2026-11-18; [reports](acceptance/)) |
-| M4 Hardware bring-up | Checklists for the Windows lab PC and staged hardware validation | planned (docs only; execution later with the owner) |
+| M4 Hardware bring-up | Checklists for the Windows lab PC and staged hardware validation | **done as documents** (2026-11-18); v2 turned them into the bring-up stage files, executed in M12 |
 | M5 Foundations | v2 plan, package split, models/config v2, guard + rules v2, per-transaction VISA + visa-loop, async runs, archive v2, manual corpus, device models v2, skills v2 structure | **done** (2026-11-18) |
 | M6 Lab-ready core | Read-only probe, station proposal and config adoption, visa completeness, bring-up skill, hardware suite, Windows readiness, acceptance v2 | **done** (2026-11-19) |
 | M7 SMU complete | Spot/Kelvin/ASU, sweeps v2, pulsed, sampling + TDDB, search + BDV, stress-measure, compact models | **done** (2026-11-24) |
 | M8 MFCMU, SCUU, GNDU | CMU driver + simulator, corrections, C-V core and variants, QSCV, Dit, GNDU budget | **done** (2026-11-25) |
 | M9 HV-SPGU + 16440A | SPGU driver + simulator, selector routes, pulse kind, program/read, kinetics, endurance, retention | **done** (2026-11-25) |
 | M10 WGFMU | Library protocol + simulator, DLL binding, driver + phase, waveform kind, noise, FeCap PUND, fast BTI | **done** (2026-11-26) |
-| M11 Integration and closure | Async/debug completeness, coverage ledger closure, full safety + visa-loop, docs, final acceptance S1–S18 | planned |
-| M12 Hardware session | Owner at the lab PC: staged bring-up S0–L10, validation records, then per-module developer WPs | owner (outside the v2 goal) |
+| M11 Integration and closure | Async/debug completeness, coverage ledger closure, full safety + visa-loop, docs and plug-in-and-go closure, final acceptance S1–S18 | **11.1–11.4 done** (2026-11-26); 11.5 final acceptance next |
+| M12 Hardware session | Owner at the lab PC: staged bring-up S0–L10, validation records, then per-module developer WPs | owner (outside the v2 goal; section M12 below) |
 
 ## M0 — Re-baseline (done)
 
@@ -90,7 +90,7 @@ iteration until safety scenarios pass 3/3 and functional scenarios pass on both 
 v2 keeps v1's kernel shape (recipe → kind → guarded driver → transaction with verified cleanup → archive →
 analysis, behind the same 10 MCP tools) and fills it to the whole station: SMU, MFCMU (+SCUU), HV-SPGU with two
 16440A selectors, WGFMU (+RSU) and GNDU, each implemented, simulated, tested, carded and given a bring-up stage
-(68 recipes, 14 kinds, 33 cards). Order: M5 → M6 → (M7 ∥ M8 ∥ M9 ∥ WGFMU 10.1–10.5) → (10.6 ∥ 10.7) → 10.8 → M11;
+(68 recipes, 14 kinds, 34 cards: WP10.6 split one FeCap card in two). Order: M5 → M6 → (M7 ∥ M8 ∥ M9 ∥ WGFMU 10.1–10.5) → (10.6 ∥ 10.7) → 10.8 → M11;
 M12 is the owner's hardware session. Only the hardware-bound items of blueprint §7.6 wait for M12.
 
 ## M5 — Foundations (done)
@@ -208,5 +208,45 @@ runnable recipes, 14 kinds, 34 cards, every bring-up stage S0, L0-L10 written; n
 | 9.6 SPGU | S12 ★, S3 ★ | 3/3, 3/3 | 3/3, 3/3 | [Codex](acceptance/2026-11-25-codex-0.170.0-spgu.md), [Claude](acceptance/2026-11-25-claude-2.1.328-spgu.md) |
 | 10.8 WGFMU | S13, S18 ★ | S13 1/1, S18 3/3 | S13 1/1, S18 3/3 (after a `CLAUDE.md` text fix) | [Codex](acceptance/2026-11-25-codex-0.170.0-wgfmu.md), [Claude](acceptance/2026-11-25-claude-2.1.328-wgfmu.md) |
 
-Next: M11 (async and debug completeness, coverage closure of the `system` family, the full safety and visa-loop
-matrix, docs, final acceptance S1-S18).
+## M11 — Integration and closure (11.1–11.4 done; 11.5 next)
+
+| WP | Result | Status |
+|---|---|---|
+| 11.1 Async + debug completeness | runbook `async-run-interrupted`, the debug skill's symptom router over every family, stage L9 drills (cancel and kill-recovery per bus); a killed async run now gets its auto-calibration restored by the recovery | done (2026-11-26) |
+| 11.2 Coverage closure | the legacy ledger closed for every family (411 mapped, 248 out of scope with reasons, 0 open), `b1500 dev coverage` and the generated [coverage.md](coverage.md), the reserved slots and the declared-only kind deleted, WGFMU PG mode reachable | done (2026-11-26) |
+| 11.3 Full safety + visa-loop | the global fault matrix over every kind x fault x position (2,372 rows run), every recipe on the visa-loop and through the fake WGFMU library, refusals open no bus; suite about 5 min with `-n 4` | done (2026-11-26) |
+| 11.4 Docs + plug-in-and-go closure | README, `AGENTS.md` v2, [architecture](architecture.md) "Adding a module family", [safety model](safety-model.md) residual risks, this roadmap, [deployment](deployment-windows.md) (wheelhouse re-run), the twelve stage files final with their `TODO(verify)` lists, `b1500 doctor` complete (`local config` check; in CI on both OS), a doc-command test over every doc and skill | done (2026-11-26) |
+| 11.5 Final acceptance | S1–S18 on Codex and Claude Code (§8.2: safety ★ 3/3, functional 1/1), skill and card text iterations only; reports in [acceptance/](acceptance/) | next |
+
+## M12 — Hardware session (owner)
+
+Outside the v2 `/goal`: the owner at the lab PC with the instrument, then one developer work package per module on
+the Mac. Nothing below can be done or faked without the hardware (blueprint v2 §7.6, §10.0 guardrail 6).
+
+1. **First session** ([deployment-windows.md](deployment-windows.md) §"First session", blueprint v2 §7.5): install
+   the prerequisites (WGFMU library A.03.00 or later, x64), clone, `uv sync --frozen`, `uv run b1500 doctor`, hand
+   the instrument over from EasyEXPERT, create and adopt the local configuration, wire the harness.
+2. **Bring-up S0–L10** with the coding agent ("Use skill b1500-bringup and continue the hardware bring-up from the
+   current stage."; [hardware-bringup.md](hardware-bringup.md)): every stage signed off, draft records reviewed into
+   `validation/hw/`, fixtures into `tests/fixtures/hw/`, transferred (OD-7).
+3. **Developer work packages per module** on the Mac: fixture parser tests, simulator recalibration from the
+   measured floors and devices, the ATV outcomes, recipe promotions to `hw_validated` (blueprint v2 §7.2).
+
+What each stage settles (the `TODO(verify)` line of each stage file; blueprint v2 §7.6 items):
+
+| §7.6 item | Settled at |
+|---|---|
+| 1 GPIB address, terminations, timeouts, VISA vendor; exclusive lock vs library session (ATV-14); per-call open cost (ATV-13) | L0, L8 |
+| 2 real `UNT?` (slots 8–10, B1511A or B), firmware; `*RST` effect on ERMOD/ERSSP (ATV-18) | L0, L7 |
+| 3 real data blocks of every family as fixtures; the `ERRX?` success text | L0, L1, L2, L3, L5, L6, L7 |
+| 4 interlock bit (v1 ATV-10); `LOP?` as the verification (v1 ATV-1, ATV-23) | L0, L1 |
+| 5 `wgfmu.dll` install, version, load (ATV-15, ATV-16), error codes, readback timing, RSU switching, bandwidth (ATV-17) | L0, L8 |
+| 6 16440A wiring map, SCUU/ASU presence (ATV-28) | L4, L6, L7 |
+| 7 MFCMU correction values, phase compensation, drift (ATV-21) | L6 |
+| 8 noise floors per module, range and integration; settling; simulator noise calibration | L1, L2, L5, L8, L9 |
+| 9 SPGU pulse fidelity into real loads, overshoot, SER (ATV-20); WGFMU fast-IV timing | L7, L8 |
+| 10 self-test/calibration durations; auto-calibration over hours | L1, L8, L9 |
+| 11 EasyEXPERT golden comparisons; every `hw_validated` promotion | S0, L4, L10 |
+| 12 harness facts on the lab PC (v1 ATV-4, ATV-7, ATV-8, ATV-11; ATV-25) | L0, L4, L10 |
+| 13 real device physics behind defaults and tolerances (FeFET kinetics, IGZO drift, RTN statistics) | L7, L8, L9 |
+| 14 Windows CI (only without the push) | S0: nothing left; CI ran on `windows-latest` (OD-4) |

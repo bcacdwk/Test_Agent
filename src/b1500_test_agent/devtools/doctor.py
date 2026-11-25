@@ -3,7 +3,11 @@
 Each check is PASS, INFO, WARN or FAIL; the command exits non-zero when any check FAILs. Checks: Python version and
 architecture; ``uv.lock`` in sync with ``pyproject.toml`` (``uv lock --check --offline``); imports of the runtime
 dependencies (``pyvisa`` only located, never imported outside ``transport/visa.py``); configuration (rule R-CFG-01:
-schemas, active files example vs local, why the backend was chosen); ``data/`` writable and free space; clone path
+schemas, active files example vs local, why the backend was chosen); ``config/local`` completeness (``local config``,
+blueprint v2 7.1: switch wiring and presence the human has not recorded on a switch a pin map routes through, pulse
+and AC envelopes of the DUT terminals sources without compliance and the MFCMU can reach, local pin maps and DUT
+profiles on backend visa, the load standard when the policy requires it; ``check_local_config``); ``data/`` writable
+and free space; clone path
 length (WARN above 80 characters on Windows); stale inflight marker or latched fault; skills mirror
 (``.claude/skills/`` = the generated copy of ``.agents/skills/``: FAIL on drift, WARN when there is no skill); harness
 files (the committed ``.claude/settings.json``, Codex rules, guard hook and
@@ -35,8 +39,9 @@ import sys
 import uuid
 import warnings
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Final, Literal
 
 from pydantic import BaseModel
 
@@ -45,7 +50,8 @@ from b1500_test_agent.devtools import budget, harness, sync_harness
 from b1500_test_agent.errors import InvalidConfigError
 from b1500_test_agent.manuals import search as manual_search
 from b1500_test_agent.manuals.catalog import ManualError, ManualPaths
-from b1500_test_agent.models.station import Settings
+from b1500_test_agent.models.policy import DutProfile
+from b1500_test_agent.models.station import PinMap, Settings, StationProfile, cmu_side, switch_target
 from b1500_test_agent.paths import Paths
 from b1500_test_agent.service import TOOL_NAMES
 from b1500_test_agent.session import read_inflight
@@ -145,6 +151,159 @@ def check_config(loader: ConfigLoader) -> tuple[DoctorCheck, ConfigBundle | None
     if report.warnings:
         detail += "; warnings: " + "; ".join(report.warnings[:3])
     return _check("config", status, detail), loader.get()
+
+
+PULSE_MODULES: Final[dict[str, str]] = {"HVSPGU": "SPGU", "WGFMU": "WGFMU"}
+"""Module types that source without compliance; a DUT terminal they reach needs a ``pulse`` envelope (R-PULSE-02)."""
+INPUT_NEEDS: Final[dict[str, tuple[str, str]]] = {"pgu": ("pulse", "SPGU"), "wgfmu": ("pulse", "WGFMU"),
+                                                   "cmu": ("ac", "MFCMU")}
+"""Switch input side -> (envelope a terminal behind it needs, source): PGU and WGFMU pulses, the MFCMU's AC signal."""
+NEED_RULE: Final[dict[str, str]] = {"pulse": "R-PULSE-02", "ac": "R-CMU-01"}
+LIST_MAX = 4
+
+
+@dataclass(frozen=True)
+class TerminalNeed:
+    """A pin-map terminal that a source without compliance or the MFCMU can reach, and the envelope it needs."""
+
+    pin_map: str
+    terminal: str
+    envelope: Literal["pulse", "ac"]
+    via: str
+
+
+def terminal_needs(station: StationProfile, pin_map: PinMap) -> list[TerminalNeed]:
+    """The ``pulse``/``ac`` envelopes the DUT terminals of ``pin_map`` need: a terminal wired to an HV-SPGU or WGFMU
+    channel, or behind a switch output with a ``pgu``/``wgfmu`` input, needs ``pulse``; one on an MFCMU side or
+    channel, or behind an SCUU/ASU output with a ``cmu`` input, needs ``ac``. SMU pulse roles are judged per plan
+    (every SMU terminal could carry one)."""
+    needs: list[TerminalNeed] = []
+    for terminal, target in sorted(pin_map.terminals.items()):
+        found: dict[str, str] = {}
+        side, ref = cmu_side(target), switch_target(target)
+        if side is not None:
+            found["ac"] = f"MFCMU {target}"
+        elif isinstance(target, int):
+            module = station.module_for_channel(target)
+            if module is not None and module.type in PULSE_MODULES:
+                found["pulse"] = f"{PULSE_MODULES[module.type]} channel {target}"
+            elif module is not None and module.type == "MFCMU":
+                found["ac"] = f"MFCMU channel {target}"
+        elif ref is not None:
+            switch = station.switch(ref[0])
+            port = switch.ports.get(ref[1]) if switch is not None else None
+            for input_side in sorted(port.inputs) if port is not None else ():
+                if input_side in INPUT_NEEDS:
+                    envelope, source = INPUT_NEEDS[input_side]
+                    found.setdefault(envelope, f"{source} via {target}")
+        needs += [TerminalNeed(pin_map.name, terminal, envelope, via)  # type: ignore[arg-type]
+                  for envelope, via in sorted(found.items())]
+    return needs
+
+
+def fitting_duts(pin_map: PinMap, duts: Mapping[str, DutProfile]) -> list[DutProfile]:
+    """DUT profiles that fit the landing: they declare every pin-map terminal that is not on the GNDU."""
+    landed = {t for t, target in pin_map.terminals.items() if target not in ("GNDU", None)}
+    return [dut for _, dut in sorted(duts.items()) if landed <= set(dut.terminals)]
+
+
+def switch_gaps(station: StationProfile) -> dict[str, list[str]]:
+    """Per switch the facts a human has not recorded yet: ``present: null`` and every ``null`` input
+    (``SEL1.OUT1 smu``); a switch declared absent has none."""
+    gaps: dict[str, list[str]] = {}
+    for switch in station.switches:
+        if switch.present is False:
+            continue
+        items = [f"{switch.id} presence unknown"] if switch.present is None else []
+        items += [f"{switch.id}.{output} {side}" for output, port in sorted(switch.ports.items())
+                  for side, channel in sorted(port.inputs.items()) if channel is None]
+        if items:
+            gaps[switch.id] = items
+    return gaps
+
+
+def _listed(items: list[str]) -> str:
+    more = f" (+{len(items) - LIST_MAX} more)" if len(items) > LIST_MAX else ""
+    return ", ".join(items[:LIST_MAX]) + more
+
+
+def check_local_config(bundle: ConfigBundle | None) -> DoctorCheck:
+    """``config/local`` completeness (blueprint v2 7.1): the facts only the human can record, which the plans that
+    need them are blocked without. Read from the active configuration (``config/local/`` on the lab PC, the
+    committed examples on the simulator), never from the instrument.
+
+    - **Switch wiring**: a ``null`` input or ``present: null`` on a switch a pin map routes through blocks those
+      routes on hardware (R-PIN-01, R-ROUTE-01) until the human records it (stages L6-L8) or deletes a side that is
+      not cabled. On the simulator the scenario's cabling stands in for selector inputs (``planning_station``), so
+      there the gaps are listed, never warned about.
+    - **DUT envelopes**: every pin-map terminal a source without compliance (HV-SPGU, WGFMU) or the MFCMU can reach
+      needs a ``pulse``/``ac`` envelope in a DUT profile that fits the landing (declares every terminal not on the
+      GNDU); without one, pulses (R-PULSE-02) or C-V (R-CMU-01) there are blocked. A human declares them; the agent
+      never invents one (hard rule 6).
+    - **Files** (backend visa): pin maps and DUT profiles come from ``config/local/`` only; none at all blocks every
+      plan. ``corrections.<MFCMU>.load`` must be recorded when the policy requires a load correction.
+
+    WARN for any of these gaps, PASS otherwise; INFO when the configuration is invalid (the ``config`` check
+    FAILs)."""
+    if bundle is None:
+        return _check("local config", "INFO", "not checked: the configuration is invalid (see config)")
+    visa = bundle.backend == "visa"
+    sources = {f.source for f in bundle.files.values()}
+    where = "config/local" if sources == {"local"} else (
+        "config/local + examples" if "local" in sources else
+        "examples (no config/local/: the simulator runs them; b1500 config init creates it on the lab PC)"
+        if "override" not in sources else "B1500_CONFIG_DIR (tests)")
+    station, pin_maps, duts = bundle.station, bundle.pin_maps, bundle.dut_profiles
+    warnings: list[str] = []
+    notes: list[str] = [f"{len(pin_maps)} pin maps, {len(duts)} DUT profiles"]
+    if visa and not pin_maps:
+        warnings.append("no pin map in config/local/pinmaps: every plan with DUT roles is blocked (R-PIN-01); "
+                        "adopt the stage's pin maps (b1500 config adopt FILE --as pinmap)")
+    if visa and not duts:
+        warnings.append("no DUT profile in config/local/duts: every plan with DUT roles is blocked (R-DUT-01); "
+                        "adopt or write them (b1500 config adopt FILE --as dut)")
+    gaps = switch_gaps(station)
+    used: dict[str, set[str]] = {}
+    for name, pin_map in sorted(pin_maps.items()):
+        for switch_id, _output in pin_map.switch_targets().values():
+            used.setdefault(switch_id, set()).add(name)
+    blocking = [f"{'/'.join(gaps[sid])} (pin maps {', '.join(sorted(used[sid]))})" for sid in sorted(gaps)
+                if sid in used]
+    idle = [item for sid in sorted(gaps) if sid not in used for item in gaps[sid]]
+    unverified = [s.id for s in station.switches if s.present is not False and s.certainty == "unverified"]
+    if blocking and visa:
+        warnings.append(f"switch wiring not recorded: {_listed(blocking)}; routes through them stay blocked "
+                        "(R-PIN-01, R-ROUTE-01) until the human records each input or deletes a side that is not "
+                        "cabled (stages L6-L8)")
+    elif blocking:
+        notes.append(f"switch wiring not recorded: {_listed(blocking)} (simulator: the scenario's cabling stands "
+                     "in for selector inputs; on hardware these routes stay blocked until stages L6-L8 record them)")
+    if idle:
+        notes.append(f"unrecorded on switches no pin map uses: {_listed(idle)}")
+    if unverified:
+        notes.append(f"switches unverified (plans through them need confirmation, unverified_topology): "
+                     f"{', '.join(unverified)}")
+    needs = [need for name, pin_map in sorted(pin_maps.items()) for need in terminal_needs(station, pin_map)]
+    missing = []
+    for need in needs:
+        fits = fitting_duts(pin_maps[need.pin_map], duts)
+        if not any(getattr(dut.terminals[need.terminal], need.envelope) is not None for dut in fits):
+            missing.append(f"{need.pin_map}.{need.terminal} {need.envelope} ({need.via}; "
+                           f"{NEED_RULE[need.envelope]})")
+    if missing:
+        warnings.append(f"no fitting DUT profile declares the envelope for {_listed(missing)}: pulses or C-V there "
+                        "stay blocked until a human adds it to a DUT profile (never invented)")
+    elif needs:
+        notes.append(f"DUT envelopes: all {len(needs)} pulse/AC terminals of the pin maps covered by a fitting DUT "
+                     "profile")
+    if "load" in bundle.policy.corrections.require:
+        loads = [m.alias for m in station.modules if m.type == "MFCMU"
+                 and (station.corrections.get(m.alias) is None or station.corrections[m.alias].load is None)]
+        if loads:
+            warnings.append(f"policy requires a load correction but the load standard of {', '.join(loads)} is not "
+                            "recorded (station.yaml#corrections; R-CORR-01 blocks C-V)")
+    detail = f"{where}: " + "; ".join([*warnings, *notes])
+    return _check("local config", "WARN" if warnings else "PASS", detail)
 
 
 def check_data_dir(paths: Paths) -> DoctorCheck:
@@ -345,6 +504,7 @@ def run_doctor(*, environ: Mapping[str, str] | None = None, windows: bool | None
         check_uv_lock(paths.repo_root),
         check_imports(bundle.backend if bundle is not None else None),
         config_check,
+        check_local_config(bundle),
         check_data_dir(paths),
         check_path_length(paths, windows=on_windows),
         check_state(bundle, paths),

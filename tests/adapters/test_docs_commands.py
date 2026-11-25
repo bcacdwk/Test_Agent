@@ -1,6 +1,8 @@
-"""The lab docs (blueprint 9.5, WP4.1/4.2; v2 7.1: ``hardware-bringup.md`` is a one-page overview of the bring-up
-stage files since WP6.3) name only ``b1500`` commands and options that exist in the CLI ("every command named exists
-in `b1500 --help` output") and keep the structure their acceptance criteria require.
+"""The doc-command test (blueprint v2 6.2, 8.1 ``skills/``; WP11.4): every ``b1500`` command named in ``README.md``,
+``AGENTS.md``, ``CLAUDE.md``, the docs, the skills and the bring-up stage files exists in the CLI with the options it
+is given ("every command named exists in `b1500 --help` output"). The lab docs (blueprint 9.5, WP4.1/4.2; v2 7.1:
+``hardware-bringup.md`` is a one-page overview of the bring-up stage files since WP6.3) also keep the structure
+their acceptance criteria require.
 
 Commands are taken from fenced code blocks and inline code spans: every ``b1500`` token (also after ``uv run``) starts
 a command whose following words are walked down the Typer command tree; options must belong to the command reached.
@@ -16,7 +18,14 @@ from pathlib import Path
 
 import pytest
 
-from b1500_test_agent.devtools.skills.commands import help_problem, named_commands, resolve
+from b1500_test_agent.devtools.skills.commands import (
+    command_files,
+    command_problems,
+    help_problem,
+    named_commands,
+    named_commands_at,
+    resolve,
+)
 from b1500_test_agent.models.validation import STAGE_FILES_DIR, STAGES, stage_file_name
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -54,6 +63,17 @@ def test_extraction_reads_code_only_and_stops_at_placeholders() -> None:
                                     ["plan", "basic.contact_resistor", "-p", "v_start=0", "--pin-map", "x"]]
 
 
+def test_a_command_wrapped_inside_one_code_span_is_read_whole() -> None:
+    """Markdown turns a line end inside a code span into a space: a command wrapped across two lines of a paragraph
+    is one command (WP11.4: nine such commands of the stage files and skills were not checked before)."""
+    text = ("Run `uv run b1500 bringup record L7 --run H... --operator\n  NAME` first, then\n`b1500 status`.\n\n"
+            "| `b1500 doctor` | a table cell ends at its line `\n| `b1500 lock status` |\n\n"
+            "An odd `backtick\n\nnever pairs across a blank line: `b1500 shutdown`.\n")
+    assert named_commands_at(text) == [(1, ["bringup", "record", "L7", "--run", "H...", "--operator", "NAME"]),
+                                       (3, ["status"]), (5, ["doctor"]), (6, ["lock", "status"]),
+                                       (10, ["shutdown"])]
+
+
 def test_resolve_rejects_unknown_commands_and_options() -> None:
     assert resolve(["harness", "init", "--codex", "--check"])[3] is None
     assert resolve(["dev"])[3] is None
@@ -61,6 +81,43 @@ def test_resolve_rejects_unknown_commands_and_options() -> None:
     assert "no command `b1500 stauts`" in (resolve(["stauts"])[3] or "")
     assert "no option --yolo" in (resolve(["doctor", "--yolo"])[3] or "")
     assert "no command `b1500 harness setup`" in (resolve(["harness", "setup"])[3] or "")
+
+
+# -- every b1500 command of README, AGENTS, CLAUDE, docs, skills and stage files (WP11.4) ---------------------------
+
+SCOPE = command_files(REPO_ROOT)
+"""The files ``b1500 dev lint-skills`` checks too (``devtools/skills/commands.py``; the plan of record and the dated
+acceptance reports are history and excluded)."""
+
+
+def _rel(path: Path) -> str:
+    return path.relative_to(REPO_ROOT).as_posix()
+
+
+def test_the_command_scope_is_readme_agents_docs_skills_and_stages() -> None:
+    scope = {_rel(p) for p in SCOPE}
+    assert {"README.md", "AGENTS.md", "CLAUDE.md", "docs/acceptance/README.md"} <= scope
+    assert {_rel(p) for p in (REPO_ROOT / "docs").glob("*.md")} <= scope  # every doc (coverage.md included)
+    assert {_rel(p) for p in (REPO_ROOT / ".agents" / "skills").rglob("*.md")} <= scope  # skills, cards, stages
+    assert {_rel(p) for p in (REPO_ROOT / "src").rglob("*.md")} <= scope  # nested AGENTS.md
+    assert {f".agents/skills/b1500-bringup/stages/{stage_file_name(stage)}" for stage in STAGES} <= scope
+    assert not any(r.startswith("docs/design/") or re.match(r"docs/acceptance/\d{4}-", r) for r in scope)
+
+
+@pytest.mark.parametrize("path", SCOPE, ids=_rel)
+def test_every_named_command_of_the_file_exists(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    problems = [f"line {line}: {problem} (from: b1500 {' '.join(tokens)})"
+                for line, tokens in named_commands_at(text) for problem in command_problems(tokens)]
+    assert not problems, f"{_rel(path)}:\n" + "\n".join(problems)
+
+
+def test_the_instructions_and_docs_name_commands() -> None:
+    """The top-level instructions and every lab doc name their commands in code (so the checks above see them)."""
+    for rel, least in (("README.md", 8), ("AGENTS.md", 6), ("CLAUDE.md", 2), ("docs/deployment-windows.md", 30),
+                       ("docs/hardware-bringup.md", 10), ("docs/architecture.md", 5), ("docs/manuals.md", 5),
+                       ("docs/safety-model.md", 5), ("docs/roadmap.md", 3)):
+        assert len(named_commands((REPO_ROOT / rel).read_text(encoding="utf-8"))) >= least, rel
 
 
 # -- every doc ------------------------------------------------------------------------------------------------------

@@ -90,6 +90,10 @@ summary, stop, the human's own consent, one run per consent (skill `b1500-test`)
   (evidence: run manifest `cleanup.positive_control`, audit checkpoint `lop_positive_control`). Fallback when an
   idle slot reads non-`00` or the control fails: verification through `*LRN? 0` (a code change); stop here.
 - `*LRN? 31` raw text of the pre-execute snapshot recorded (async auto-calibration restore).
+- TODO(verify) (blueprint v2 7.6 items 3, 4, 8, 10): `LOP?` as the verification (v1 ATV-1) and the idle
+  SPGU/WGFMU/CMU codes (ATV-23); the real FMT 1 SMU blocks (`bringup capture`); the floor and offset per SMU range
+  at this integration (they replace the simulator's noise assumptions); `*TST?` and `*CAL?` durations against the
+  kind's 120 s / 60 s estimates.
 
 ## 5. Abort criteria
 

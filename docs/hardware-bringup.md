@@ -1,9 +1,9 @@
 # Hardware bring-up (overview)
 
-The staged first contact with the real B1500A on the lab PC (blueprint v2 7.4, 7.5). This page is the overview;
-the procedure itself lives in one place, the stage files of skill `b1500-bringup`
-(`.agents/skills/b1500-bringup/stages/`), which the coding agent follows with the owner and which the owner can
-read directly. The lab PC is prepared with [deployment-windows.md](deployment-windows.md) first.
+The staged first contact with the real B1500A on the lab PC (blueprint v2 7.4, 7.5), after
+[deployment-windows.md](deployment-windows.md). This page is the overview; the procedure itself lives in one place,
+the stage files of skill `b1500-bringup` (`.agents/skills/b1500-bringup/stages/`), which the agent follows with the
+owner and the owner can read directly.
 
 ## Stages
 
@@ -25,7 +25,8 @@ Strictly in order; a stage starts only after the previous one is signed off. Not
 | L10 | acceptance prompts on hardware, records reviewed and transferred | [l10-harness-handoff](../.agents/skills/b1500-bringup/stages/l10-harness-handoff.md) | `stage-l10` |
 
 Each stage file has the same six sections: Preconditions, Physical steps (human), Agent steps, Expected values
-(with machine-readable checks and tolerances), Abort criteria, Record.
+(machine-readable checks and tolerances, and one `TODO(verify)` line: the blueprint v2 §7.6 items the stage settles,
+collected in the [roadmap](roadmap.md)'s M12 table), Abort criteria, Record.
 
 ## Who does what
 
@@ -70,11 +71,10 @@ the physical steps may be answered with "done", and no record, fixture or `valid
 
 ## Hardware tests (end of day)
 
-`tests/hardware/` only reads (blueprint v2 decision 24): stage L0 re-runs the read-only probe (B1500A identity, `UNT?`
-= `config/local/station.yaml`, error queue drained, `LOP?` all off, selector outputs at rest, `SPST?` = 0, MFCMU
-corrections readable, queries only) and each stage checks its records in `validation/hw/` and `work/bringup/records/`
-(schema, `H...` runs present in `data/runs` on visa with unchanged files, current recipe digest, `LOP?`-verified
-cleanups and passing positive controls behind every passing record, a reviewer on every `validation/hw/` record).
-On the lab PC after the review (7.5 step 10): `$env:B1500_HW = "1"; uv run pytest -m hardware -rs`; one stage:
-`uv run pytest -m "hardware and hw_l1" -rs`. Without `B1500_HW=1` and backend visa every test skips and the summary
-says `HARDWARE SUITE NOT RUN`: nothing was checked, which is not a pass.
+`tests/hardware/` only reads (blueprint v2 decision 24): L0 re-runs the read-only probe (identity, `UNT?` =
+`config/local/station.yaml`, errors drained, `LOP?` all off, selectors at rest, `SPST?` = 0, MFCMU corrections
+readable); each stage checks its records in `validation/hw/` and `work/bringup/records/` (schema, `H...` runs in
+`data/runs` on visa, unchanged files, current recipe digest, `LOP?`-verified cleanups and positive controls, a
+reviewer on every `validation/hw/` record). After the review (7.5 step 10):
+`$env:B1500_HW = "1"; uv run pytest -m hardware -rs`; one stage: `uv run pytest -m "hardware and hw_l1" -rs`.
+Without `B1500_HW=1` and backend visa every test skips and the summary says `HARDWARE SUITE NOT RUN`: not a pass.

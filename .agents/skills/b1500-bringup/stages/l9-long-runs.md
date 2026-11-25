@@ -47,9 +47,9 @@ each bus family: SMU with `reliability.bti_sms` held for 10 min (card `bti-stres
 HV-SPGU part (L7 signed off): `fefet.endurance` (10^6 bipolar cycles, about 18 min) and `fefet.retention` (hours;
 card `fefet-endurance-retention`) on a spare FeFET through `SEL1.OUT1`. WGFMU part (L8 signed off): `wgfmu.fast_bti`
 on a sister MOSFET through the RSUs (cancel within one 1 s status poll) and `fecap.endurance_pund` on a spare FeCap
-(card `fecap-pund`; about 17 min). Each is destructive or long: `needs_confirmation` with the human's own consent
-per run, on sacrificial devices. The long plans of L5 (sampling), L6 (C-t), L7 (trains) and L8 (RTN/LFN) use the
-same asynchronous path; these drills cover it per bus (debug runbook `async-run-interrupted`).
+(card `fecap-pund`; about 17 min). Each is destructive or long: `needs_confirmation`, the human's own consent per
+run, sacrificial devices. The long plans of L5-L8 (sampling, C-t, trains, RTN/LFN) take the same asynchronous path,
+covered per bus by these drills (debug runbook `async-run-interrupted`).
 
 ## 1. Preconditions
 
@@ -128,15 +128,15 @@ same asynchronous path; these drills cover it per bus (debug runbook `async-run-
 | `fast_bti_cleanup`, `run_boundary` | WGFMU safe state verified; boundary time recorded | pass/fail; recorded | manifest, audit |
 | `pund_wake_fatigue`, `pund_endurance_cleanup` | Pr versus cycles (wake-up, fatigue); safe state verified | recorded; pass/fail | `pund_polarization` |
 
-- TODO(verify) here: timer runs on for hours without a reset (`time_source` stays `timestamp`), host overhead per
-  hold block, auto-calibration over hours with outputs off; WGFMU: the next execution leaves the output at the
-  stress level, the RSU SMU path reaches the DUT (ATV-32; fallback: separate SMU wiring in the pin map).
+- TODO(verify) (blueprint v2 7.6 items 8, 10, 13): timer runs on for hours without a reset (`time_source` stays
+  `timestamp`), host overhead per hold block, auto-calibration over hours with outputs off; WGFMU: the next
+  execution keeps the stress level, the RSU SMU path reaches the DUT (ATV-32; fallback: separate SMU wiring in the
+  pin map); IGZO drift, FeFET retention and endurance of the real devices behind the card defaults.
 
 ## 5. Abort criteria
 
-- A cancel that does not stop within two checkpoints; a recovery cleanup that is not verified (on any bus: SMU,
-  SPGU `SPST?`, selector, WGFMU channels/RSUs); a fault latched; the lock still held after a drill; `CM` not
-  restored.
+- A cancel that does not stop within two checkpoints; a recovery cleanup not verified (any bus: SMU, SPGU `SPST?`,
+  selector, WGFMU channels/RSUs); a fault latched; the lock still held after a drill; `CM` not restored.
 - Gate current at its compliance in a BTI read (premature breakdown: runbook `stress-degradation-unexpected`).
 - On any of them: `safe_shutdown(reason)`, report, skill `b1500-debug`, wait for the human; never clear a fault.
 

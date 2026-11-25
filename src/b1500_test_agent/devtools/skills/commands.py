@@ -30,6 +30,8 @@ from typing import Any
 from b1500_test_agent.devtools.skills.common import Lint
 
 CODE_SPAN = re.compile(r"`([^`\n]+)`")
+INLINE_SPAN = re.compile(r"`([^`]+)`")
+"""A code span inside a paragraph: it may contain the paragraph's line ends (``_inline_spans``)."""
 COMMAND_START = re.compile(r"(?:^|(?<=[\s(]))b1500(?=\s|$)")
 COMMAND_WORD = re.compile(r"^[a-z][a-z0-9-]*$")
 NUMBER = re.compile(r"^-\d")
@@ -39,15 +41,49 @@ DATED_REPORT = re.compile(r"^acceptance/\d{4}-\d{2}-\d{2}-[^/]+\.md$")
 
 
 def code_snippets(text: str) -> list[tuple[int, str]]:
-    """``(line, snippet)``: every line of a fenced code block and every inline code span outside the fences."""
+    """``(line, snippet)``: every line of a fenced code block and every inline code span outside the fences.
+
+    An inline code span may continue on the next line of its paragraph (Markdown turns the line end into a space), so
+    a command wrapped inside one span is still read whole; a span never crosses a blank line, a fence or a table
+    row (a table cell ends at its line). ``line`` is the line the span starts on."""
     snippets: list[tuple[int, str]] = []
     in_fence = False
+    block: list[tuple[int, str]] = []
+
+    def flush() -> None:
+        if block:
+            snippets.extend(_inline_spans(block))
+            block.clear()
+
     for number, line in enumerate(text.splitlines(), 1):
         if line.lstrip().startswith(("```", "~~~")):
+            flush()
             in_fence = not in_fence
             continue
-        snippets.extend([(number, line)] if in_fence else [(number, span) for span in CODE_SPAN.findall(line)])
+        if in_fence:
+            snippets.append((number, line))
+        elif not line.strip() or line.lstrip().startswith("|"):
+            flush()
+            if line.strip():
+                snippets.extend((number, span) for span in CODE_SPAN.findall(line))
+        else:
+            block.append((number, line))
+    flush()
     return snippets
+
+
+def _inline_spans(block: list[tuple[int, str]]) -> list[tuple[int, str]]:
+    """The inline code spans of one paragraph (consecutive lines), each with the line it starts on."""
+    starts = []
+    joined = ""
+    for number, line in block:
+        starts.append((len(joined), number))
+        joined += line.strip() + "\n"
+    spans = []
+    for match in INLINE_SPAN.finditer(joined):
+        line = next(number for offset, number in reversed(starts) if offset <= match.start())
+        spans.append((line, match.group(1).replace("\n", " ")))
+    return spans
 
 
 def named_commands_at(text: str) -> list[tuple[int, list[str]]]:

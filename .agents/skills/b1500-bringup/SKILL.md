@@ -51,7 +51,7 @@ reviewed record or an explicit "go on" in chat). Read the stage file before acti
 | L2 | DC accuracy on known resistors (100 kOhm, 1 MOhm; 1 Ohm Kelvin) | `stages/l2-resistors.md` |
 | L3 | diode: voltage and current forcing, compliance flags | `stages/l3-diode.md` |
 | L4 | MOSFET DC set against EasyEXPERT on the same die | `stages/l4-mosfet.md` |
-| L5 | SMU pulsed, sampling, search, QSCV leakage | `stages/l5-smu-advanced.md` |
+| L5 | SMU pulsed against DC, sampling time grid, Vth by search (QSCV leakage: L6) | `stages/l5-smu-advanced.md` |
 | L6 | CMU phase compensation, open/short (the human lifts and lands), known C, MOS-C | `stages/l6-cmu.md` |
 | L7 | 16440A selector map, SPGU pulses into 1 MOhm, FeFET program/read | `stages/l7-spgu-selector.md` |
 | L8 | WGFMU library session, self-test/cal, DC through the RSU, fast vs DC Id-Vg, lab waveform, noise, PUND | `stages/l8-wgfmu.md` |
@@ -91,7 +91,8 @@ say which records the stage would draft on hardware.
 
 Each `stages/<id>-<name>.md` (names in part 2) follows the [stage template](stages/_TEMPLATE.md): frontmatter
 `stage`, `title`, `recipes`, `checks` (the rows of Expected values that `bringup record` copies), `version`;
-sections Preconditions, Physical steps (human), Agent steps, Expected values, Abort criteria, Record.
+sections Preconditions, Physical steps (human), Agent steps, Expected values (ending with one `TODO(verify)` line:
+the hardware facts the stage settles, blueprint v2 7.6), Abort criteria, Record.
 `uv run b1500 dev lint-skills` checks names, sections, recipes, checks and that a stage runs the recipes of the
 cards that name it.
 

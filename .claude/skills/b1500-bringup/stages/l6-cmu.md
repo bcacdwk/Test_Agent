@@ -111,7 +111,8 @@ short. Every hardware plan needs consent (`first_hw_run`); each correction also 
 | `cgc_plateau` | Cgc plateau vs Cox per area x W x L | +-5 % | MOS-C |
 | `phase_cleanup`, `open_cleanup`, `short_cleanup`, `load_cleanup`, `spot_cleanup`, `mosc_cleanup`, `ac_level_cleanup`, `pulsed_cleanup`, `cf_cleanup`, `ct_cleanup`, `multi_freq_cleanup`, `qscv_cleanup`, `cgc_cleanup`, `cgd_cleanup`, `butterfly_cleanup` | every run `verified: lop` | pass/fail | manifests |
 
-- TODO(verify) here (simulator conventions; ATV-21, ATV-22, ATV-27, ATV-31): `ACT` auto time per N; fixed `RC` range
+- TODO(verify) (blueprint v2 7.6 items 3, 6, 7; ATV-21, ATV-22, ATV-27, ATV-28, ATV-31): SCUU present or not
+  (recorded before `moscap-scuu`); `ADJ?` duration (35 s estimate); `ACT` auto time per N; fixed `RC` range
   saturation; `CORR?` time per frequency and timeout; the largest list (64); `DCORR?`/`CORRDT?` answers of unmeasured
   data; `*LRN? 81/90` text; `CL` leaves the SCUU path; SSP resets the SMUs; MFCMU DC current limit; pulsed C read at
   the pulse end; AC-level response; `WFC` rounding against the `CORRL` list; QSCV 50 Hz line (`line_hz`); corrections

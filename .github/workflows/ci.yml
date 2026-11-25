@@ -64,3 +64,8 @@ jobs:
       - name: Manual corpus (no PDFs in CI; manual build --check runs where they are)
         if: ${{ !cancelled() }}
         run: uv run b1500 manual status
+      # The lab PC's first check after uv sync (blueprint v2 7.5 line 4): installation and config/local completeness
+      # on backend sim, no FAIL (WARN for the generated harness files and the WGFMU library a runner does not have)
+      - name: Doctor (backend sim)
+        if: ${{ !cancelled() }}
+        run: uv run b1500 doctor

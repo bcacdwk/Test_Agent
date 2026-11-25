@@ -44,6 +44,9 @@ and confirm reasons), the quality gate and the `analyze_run` method. Consent per
 |---|---|---|---|
 | `<check id>` | <value and unit> | <+- tolerance (owner may tighten)> | <reference: DMM, certificate, EasyEXPERT, manual citation> |
 
+- TODO(verify) (blueprint v2 7.6 items <n, ...>): <the hardware facts this stage settles; the only TODO(verify) of
+  the file; the roadmap's M12 table lists the items per stage>
+
 ## 5. Abort criteria
 
 - <observation> → `safe_shutdown(reason)`, report, wait for the human. <Never relax the criterion.>

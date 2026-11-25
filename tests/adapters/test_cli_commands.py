@@ -218,10 +218,13 @@ def test_doctor(cli_world: World) -> None:
     result = invoke("doctor", "--json")
     report = as_json(result)
     checks = {c["name"]: c for c in report["checks"]}
-    assert set(checks) == {"python", "uv.lock", "imports", "config", "data dir", "path length", "state",
-                           "skills mirror", "harness files", "mcp server", "manual corpus", "manual PDFs",
+    assert set(checks) == {"python", "uv.lock", "imports", "config", "local config", "data dir", "path length",
+                           "state", "skills mirror", "harness files", "mcp server", "manual corpus", "manual PDFs",
                            "wgfmu library", "PYTHONUTF8", "LongPathsEnabled"}
     assert checks["config"]["status"] == "PASS" and "sim" in checks["config"]["detail"]
+    # WP11.4: config/local completeness; the simulator's configuration has every DUT envelope its pin maps need
+    assert checks["local config"]["status"] == "PASS" and "covered by a fitting DUT profile" in \
+        checks["local config"]["detail"]
     assert checks["mcp server"]["status"] == "PASS" and checks["mcp server"]["detail"].startswith("10 tools")
     assert checks["skills mirror"]["status"] == "PASS" and "in sync" in checks["skills mirror"]["detail"]
     assert checks["harness files"]["status"] == "WARN" and "harness init" in checks["harness files"]["detail"]

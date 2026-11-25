@@ -19,6 +19,7 @@ GATE = [  # blueprint v2 10 "Definition of done", in the workflow's order
     "uv run b1500 dev sync-harness --check",
     "uv run b1500 dev tool-budget",
     "uv run b1500 manual status",  # manual build --check needs the PDFs, which CI does not have
+    "uv run b1500 doctor",  # WP11.4: installation + config/local checks on backend sim (exit 1 on any FAIL)
 ]
 
 

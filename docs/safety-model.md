@@ -1,16 +1,16 @@
 # Safety model
 
 How the B1500A test agent decides what may run, who must confirm it, and what happens when something goes wrong.
-Source: blueprint §4 (rules, tiers, confirmation, residual risks), §2.4 (transaction and fault latch), §2.5 (rules
-API) and §3 (the simulator invariant). **Status:** the rules engine, the built-in rules, tiers and the plan summary
-are implemented (WP1.4, `src/b1500_test_agent/rules/`), and so are the session and fault latch (WP1.6), the
-executor (WP1.7), the service, MCP tools and CLI that call them (WP1.8) and the harness wiring (WP1.9: Codex
-`forbidden` rules, Claude Code permission rules and the `PreToolUse` guard hook). v2 (blueprint v2 §2.5, §2.8, §2.9;
-WP5.4): the guard's pulse, AC, route and waveform checks, the v2 rules, the confirm reasons `soft_pulse`, `soft_cmu`,
-`long_run`, `physical_setup`, `unverified_topology` and the v2 plan summary are implemented and tested on synthetic
-plans; the module work packages (M7–M10) make them live by compiling such plans and filling the live fields.
-Asynchronous runs (blueprint v2 §2.6; WP5.6): R-RUN-02 and R-CAL-02 are live, runs report progress and stop at a
-checkpoint when any process calls `safe_shutdown` (section "Async runs and their residuals").
+Source: blueprint v2 §2.5 (guard), §2.6 (transaction, cleanup order, async runs), §2.8 (rules), §2.9 (tools and
+summary), §0 decisions 7–11 and §12 owner decisions OD-3, OD-5; v1 §4 for the tiers and the harness residuals.
+**Status (v2, WP11.4):** everything below is implemented and live for the whole station: the rules engine, the
+built-in v1 and v2 rules, tiers, confirm reasons and the plan summary (`src/b1500_test_agent/rules/`); the guard's DC,
+pulse, AC, route and waveform checks (`driver/guard.py`); the session with its per-transaction bus, the cleanup and
+the fault latch (`session/`); asynchronous runs with checkpoints and the cross-process abort file; the harness wiring
+(Codex `forbidden` rules, Claude Code permission rules and the `PreToolUse` guard hook). The simulator test suite
+checks the global invariant over every kind, fault and position (section "Cleanup and fault latch", end). Nothing
+has run on hardware yet: the items marked `TODO(verify)` are settled at the bring-up stages of M12, and the residual
+risks of this design are collected in section "Residual risks (v2)".
 
 ## Principles
 
@@ -511,6 +511,85 @@ is set with `cleanup_unverified`; faults the cleanup can recover from must not l
 state or a fault that keeps the cleanup from verifying. `tests/safety/test_refusals_open_no_bus.py` shows for every
 recipe of the registry that unconfirmed and blocked plans (including a consented plan once the latch is set) open
 neither the VISA session nor the WGFMU library.
+
+## Residual risks (v2)
+
+What the kernel does not prevent, in one place; each is accepted by the owner (D3, OD-3) or settled on hardware at
+the named bring-up stage (`TODO(verify)` lines of the stage files, blueprint v2 §7.6). The sections above give the
+mechanism; this list gives the limit.
+
+**Routes.**
+- `ERSSP?` reports the commanded selector state: a relay welded without the B1500A noticing is found only by the
+  human at the selector check (L7, LEDs and relay clicks). The 10 ms settle time is an estimate (L7).
+- The RSU relays have no read-back: the library's acceptance of `disconnect` and `close_session` is the evidence
+  (L8). An SCUU or ASU that does not answer is treated as not installed: nothing to restore, plans through it blocked.
+- Unknown wiring (`null` inputs) and presence (`present: null`) block on hardware; on the simulator the scenario's
+  cabling stands in for selector inputs. Wiring the human records wrongly is not detectable before the L7 scope check
+  (`unverified_topology` keeps every routed plan confirmed until `certainty: verified`).
+
+**Sources without compliance.**
+- HV-SPGU (decision 9): its envelope bounds the open-load level at the DUT, `|V|·(SER+50)/SER`, twice the set level
+  at the initial 50 Ω (ATV-20, L7). A short behind a terminal would draw `V_open/(50 Ω + min_series_ohm)`; it must
+  stay ≤ 100 mA for `unknown` and `resistive` terminals.
+- **SPGU `high_z` residual (OD-3):** on a terminal the human declares `high_z` that short-circuit bound is not
+  enforced; every summary shows it as `Isc<=X A residual`, so it is approved knowingly. A `high_z` declaration that
+  is wrong (a leaky or broken gate) is the accepted risk; `SER` below 1 kΩ on a `high_z` terminal is blocked.
+- **WGFMU (no compliance):** its current is bounded only by the measurement range it uses (about 10 mA in the 10 mA
+  range; in PG mode about 100 mA into a short, 50 Ω) and the DUT profile's levels; R-GNDU-01 budgets the return
+  current; an over-range reading saturates and is flagged `V`, never trusted (the stress and program/read paths
+  start no further execution after one).
+- SMU pulses keep their compliance; in pulsed mode auto ranging measures on the compliance range (small currents
+  hide in the noise of a generous compliance).
+
+**Stress phases.** Between two instrument-timed hold blocks, between a hold and the next read's trigger and between
+two WGFMU executions the output stays at the stress level for the host's round trip (milliseconds, unrecorded in
+`t_s`); after an automatic abort inside a hold block the DC stress stays on, current-limited, until the cleanup's `DZ`.
+
+**Cancel latency.** A cancel (`safe_shutdown` from any process, Ctrl-C, the MCP shutdown hook) lands at the next
+checkpoint: at most one segment (`run_limits.segment_max_s`, 30 s; WGFMU readback within one 1 s status poll; a
+sampling block ≤ 25 s). Five kinds run as **one segment without a cancel point**; they are synchronous only (R-RUN-02
+blocks an asynchronous plan without checkpoints, so a plan longer than `max_sync_run_s`, 300 s, cannot be built), and
+a cancel waits for the segment to end:
+
+| Kind | One segment is | Bound of the wait |
+|---|---|---|
+| `smu_staircase` | one staircase sweep (`XE`; `WM 2,1` aborts it at compliance, overflow or oscillation) | the plan's estimate, ≤ 300 s; read timeout 2 × estimate + 10 s |
+| `smu_search` | one linear/binary search or quasi-pulsed spot (`XE`, interrupted only by `AB`) | the estimate (= `max_segment_s`), ≤ 300 s; read timeout 2 × estimate + 10 s |
+| `smu_qscv` | one quasi-static C-V sweep (`XE`; `QSM 2` aborts at compliance) | the estimate, ≤ 300 s; read timeout 2 × estimate + 10 s |
+| `cmu_correction` | one open/short/load measurement over its frequency list (`CORR?`), or the phase compensation (`ADJ?`) | `CORR?`: 2 s + 0.5 s per frequency (≤ 34 s for the 64-frequency maximum), read timeout 10 s + 2 s per frequency; `ADJ?`: about 35 s, read timeout 90 s (`TODO(verify)` at L6) |
+| `system` | one `*TST?`/`*CAL?` or the library's self-test/self-calibration call | `*TST?` 120 s, `*CAL?` 60 s (estimates, `TODO(verify)` at L1/L8); read timeout 250 s / 130 s; the library's own call timeout 600 s |
+
+`safe_shutdown` from another process writes the abort request and waits up to `segment_max_s` + 35 s (65 s with the
+defaults) for the instrument lock; a one-segment run that lasts longer makes it answer `busy` while the run finishes
+with its own verified cleanup (call `safe_shutdown` again afterwards). While it waits, the run sources nothing beyond
+its approved envelope: the guard checked every level before the segment started.
+
+**Ended processes.**
+- A hard kill (SIGKILL, Task Manager, power loss) of the server or CLI during a run leaves the outputs, the routes and
+  `CM 0` as they were until the next transaction: every new run is refused (R-FAULT-01, unrecovered in-flight
+  marker) until `safe_shutdown` runs the recovery cleanup over every installed family and archives the dead run as
+  `aborted` with its rows and consent record. Runbook `async-run-interrupted`; drills at L9.
+- **Codex headless turn end (WP7.7):** codex-cli 0.170.0 in `codex exec` ends the MCP server at the end of every
+  turn without its shutdown hook, which is a hard kill for a running asynchronous run: the run is recovered and
+  archived `aborted` by the next turn's `safe_shutdown`, and the outputs stay on in between. In an interactive
+  session the server stays up between turns; how each harness ends it when the session closes is a lab-PC harness
+  fact (blueprint v2 §7.6 item 12, checked at L10). Claude Code ends its server with SIGTERM: the hook cancels the
+  run at its next checkpoint (`cancelled`, cleanup verified). For long runs use the interactive harness and end
+  every session with `safe_shutdown` ([deployment-windows.md](deployment-windows.md), step 10).
+
+**Bus and library.**
+- **Locked bus:** when another VISA client holds the instrument's exclusive lock (EasyEXPERT, another program),
+  `safe_shutdown` cannot reach the instrument; it reports `unverified`, latches the fault and the outputs stay as the
+  other client left them. Only the human can close that client, check the station and clear the fault.
+- During a WGFMU phase the FLEX exclusive lock is released (the library opens its own VISA session, ATV-14): another
+  VISA client could send commands meanwhile (EasyEXPERT must be closed). Without a loadable library `safe_shutdown`
+  cannot reach a WGFMU another program left connected. `initialize` resetting the WGFMU only (ATV-17) holds in the
+  simulator and is `TODO(verify)` at L8.
+- `LOP?` reading `00` proves the outputs off only with its positive control (v1 ATV-1, ATV-23: L1); `ADJ? ch,0` in
+  the read-only probe re-applies the last phase compensation (L0 checks that no output changes).
+
+**Harness and configuration** (D3): bypass modes, the agent's own code and edits of `config/local/` or `data/` are
+outside the kernel's reach; the next section lists them with their mitigations.
 
 ## What is protected and what is not (owner decision D3)
 

@@ -314,3 +314,50 @@ def test_l9_drills_cover_every_bus_family_of_the_long_runs() -> None:
     expected = _section("L9", "Expected values")
     assert "`recovery_drill`, `recovery_drill_spgu`, `recovery_drill_wgfmu`" in expected
     assert "async-run-interrupted" in (STAGE_DIR / stage_file_name("L9")).read_text(encoding="utf-8")
+
+
+# -- WP11.4: every stage final: its TODO(verify) list = the blueprint v2 7.6 items it settles -------------------------
+
+DEFERRED_ITEMS = {  # blueprint v2 7.6 "What cannot be done without the hardware (the only deferrals)" -> its ATVs
+    1: ("ATV-13", "ATV-14"), 2: ("ATV-18",), 3: (), 4: ("ATV-10", "ATV-1", "ATV-23"), 5: ("ATV-15", "ATV-16", "ATV-17"),
+    6: ("ATV-28",), 7: ("ATV-21",), 8: (), 9: ("ATV-20",), 10: (), 11: (), 12: ("ATV-4", "ATV-7", "ATV-8", "ATV-11",
+                                                                                   "ATV-25"), 13: (), 14: (),
+}
+STAGE_DEFERRED = {
+    "S0": {11, 14}, "L0": {1, 2, 3, 4, 5, 12}, "L1": {3, 4, 8, 10}, "L2": {3, 8}, "L3": {3}, "L4": {6, 11, 12},
+    "L5": {3, 8}, "L6": {3, 6, 7}, "L7": {2, 3, 6, 9, 13}, "L8": {1, 5, 8, 9, 10, 13}, "L9": {8, 10, 13},
+    "L10": {11, 12},
+}
+"""Which 7.6 items each stage verifies on hardware (its ``TODO(verify)`` line; the roadmap's M12 table repeats it)."""
+TODO_LINE = re.compile(r"^- TODO\(verify\) \(blueprint v2 7\.6 items? (?P<items>\d+(?:, \d+)*)[;)]", re.MULTILINE)
+
+
+def stage_deferred_items(stage: str) -> set[int]:
+    """The 7.6 items named by the stage file's single ``TODO(verify)`` line of section 4."""
+    (match,) = TODO_LINE.finditer(_section(stage, "Expected values"))
+    return {int(n) for n in match.group("items").split(", ")}
+
+
+@pytest.mark.parametrize("stage", WRITTEN)
+def test_each_stage_lists_its_hardware_deferrals_once(stage: str) -> None:
+    """One ``TODO(verify) (blueprint v2 7.6 items …)`` line in Expected values and no other ``TODO(verify)`` in the
+    file, so the list a reviewer reads is the whole list."""
+    text = (STAGE_DIR / stage_file_name(stage)).read_text(encoding="utf-8")
+    assert text.count("TODO(verify)") == 1, stage
+    assert stage_deferred_items(stage) == STAGE_DEFERRED[stage]
+
+
+def test_the_stage_lists_cover_every_deferral_with_its_atvs() -> None:
+    assert set().union(*STAGE_DEFERRED.values()) == set(DEFERRED_ITEMS)
+    for item, atvs in DEFERRED_ITEMS.items():
+        stages = [s for s in WRITTEN if item in STAGE_DEFERRED[s]]
+        texts = " ".join((STAGE_DIR / stage_file_name(s)).read_text(encoding="utf-8") for s in stages)
+        for atv in atvs:
+            assert re.search(rf"{atv}(?!\d)", texts), f"7.6 item {item}: {atv} named in none of {stages}"
+
+
+@pytest.mark.parametrize("stage", WRITTEN)
+def test_every_stage_starts_from_bringup_status(stage: str) -> None:
+    """Consistent commands: each stage's preconditions or first agent step read the bring-up status."""
+    start = _section(stage, "Preconditions") + _section(stage, "Agent steps")
+    assert "`uv run b1500 bringup status`" in start, stage

@@ -1,10 +1,12 @@
 # Windows lab PC deployment (v2)
 
-Status: **checklist, not yet run on the lab PC**; the owner executes it with the instrument at hand (M12). What
-could be checked without the lab PC is checked: the whole simulator gate runs on `windows-latest` in CI
-(`.github/workflows/ci.yml`: tests, lint, recipe check, skill lint, card index, skill mirror, tool budget, manual
-corpus), Windows paths, encodings and the Windows-only code paths are tested on every OS by platform injection
-(`tests/adapters/test_windows_readiness.py`), and the offline wheelhouse below was built and installed on the Mac.
+Status: **final for v2 (WP11.4), not yet run on the lab PC**; the owner executes it with the instrument at hand
+(M12). What could be checked without the lab PC is checked: the whole simulator gate runs on `windows-latest` in CI
+(`.github/workflows/ci.yml`: tests, lint, recipe check, skill lint, card index, coverage page, skill mirror, tool
+budget, manual corpus and `b1500 doctor` on backend sim), Windows paths, encodings and the Windows-only code paths
+(the WGFMU DLL probe, the registry, the console code page) are tested on every OS by platform injection
+(`tests/adapters/test_windows_readiness.py`, `tests/wgfmu_abi/`), and the offline wheelhouse below was built and
+installed on the Mac (WP6.5, re-run at the WP11.4 release commit).
 Plan of record: blueprint v2 §7 (7.1 kit, 7.4 stages, 7.5 first-session script = §"First session" below), §12
 owner decisions OD-4, OD-5, OD-7. After the installation the bring-up follows the stage files of skill
 `b1500-bringup`; [hardware-bringup.md](hardware-bringup.md) is their one-page overview.
@@ -130,8 +132,10 @@ uv run b1500 doctor
 
 `uv sync --frozen` creates `.venv\` inside the clone exactly as `uv.lock` says. `manual status` must say
 `corpus current: 16 docs, 2315 pages`; PDFs found or not is only information. `doctor` runs on backend `sim`
-(no instrument yet): no FAIL line; until step 7 "harness files" is a WARN; `LongPathsEnabled` may WARN (keep the
-clone path short instead of changing the registry); `PYTHONUTF8` WARNs in a window opened before step 1.7.
+(no instrument yet): no FAIL line; until step 7 "harness files" is a WARN; `wgfmu library` PASSes once the x64 DLL
+is installed (step 1.5), WARNs while it is missing; `local config` PASSes on the committed examples;
+`LongPathsEnabled` may WARN (keep the clone path short instead of changing the registry); `PYTHONUTF8` WARNs in a
+window opened before step 1.7.
 
 **PyPI blocked:** install from a wheelhouse instead (§"Offline wheelhouse"), then continue with `manual status`.
 
@@ -170,6 +174,11 @@ allowed to edit `config\local\`):
   never used with `backend: visa`. Never name a local file `*.example.yaml`.
 
 `uv run b1500 config check` must say `config: valid` with backend `visa` because of `config\local\settings.yaml`.
+From now on `doctor`'s `local config` line lists what only you can record and WARNs while a plan would stay blocked
+without it: no pin map or DUT profile in `config\local\` yet; a `null` input or unknown presence on a switch a local
+pin map routes through (record the cabling at L6–L8, or delete an input side that is not cabled); a pin-map terminal
+the SPGU, the WGFMU or the MFCMU can reach without a `pulse` or `ac` envelope in a DUT profile that fits the
+landing. It is the checklist of the configuration work of the bring-up; at the end of L8 it should PASS.
 
 ### Step 6 — Probe the instrument and adopt the station
 
@@ -287,6 +296,16 @@ steps, probes and proposes, and runs validated plans only after your consent in 
 consent in your own words and approve the harness prompt after comparing its summary with the chat. The stages and
 who does what: [hardware-bringup.md](hardware-bringup.md).
 
+**Long runs and the harness.** A plan longer than 5 min runs asynchronously in the b1500 server; the agent polls
+`get_run` and stops it with `safe_shutdown`. The server lives as long as the harness keeps it: in the interactive
+`codex` (and `claude`) session it stays up between turns. Headless `codex exec` (codex-cli 0.170.0) ends the server
+at every turn end without its shutdown hook, which kills a running run: the outputs stay on until the next call's
+`safe_shutdown` recovers it as `aborted` (WP7.7). Claude Code ends its server with SIGTERM, which cancels the run at
+its next checkpoint (`cancelled`, cleanup verified). So run long plans from the interactive harness, keep it open
+until the run has ended, and end every session with `safe_shutdown` (or `uv run b1500 shutdown --reason "end of
+session"` in your own window); bring-up L9 drills both a cancel and a kill per bus, and L10 records how the lab's
+harness versions end the server ([safety-model.md](safety-model.md), "Residual risks (v2)").
+
 ### Step 11 — End of the measurement day
 
 ```powershell
@@ -367,12 +386,13 @@ UV_CACHE_DIR=empty-cache uv pip install --offline --no-index --find-links wheelh
 - The last command is the check: it installs the whole list for Windows x64 from the wheelhouse alone, with an empty
   cache and no network. Delete `wheelhouse-check\` afterwards; never commit wheels.
 
-Checked on the Mac (WP6.5, commit of this document): 98 wheels (96 packages + `setuptools` + `wheel`), 81 MB, the
-largest `numpy` (12.6 MB), each `cp312-win_amd64` or pure Python; the check above installed all 96 packages for
-`x86_64-pc-windows-msvc`, and the clone itself built from the wheelhouse alone. The lab-PC sequence below was
-rehearsed on macOS with a macOS wheelhouse: after the two `uv pip install` commands, `uv sync --frozen` with
-`UV_OFFLINE=1` and an empty uv cache reported all 95 packages present and installed nothing, and `uv run` worked
-offline (`doctor`, `manual status`, `pytest`).
+Checked on the Mac (WP6.5; re-run at the WP11.4 release commit, `uv.lock` unchanged since WP9.6): 98 wheels (96
+packages + `setuptools` + `wheel`), 81 MB (85.1 million bytes), the largest `numpy` (12.6 MB), 21 `win_amd64` and 77
+pure-Python wheels; the check above installed all 96 packages for `x86_64-pc-windows-msvc`, and the clone itself
+built from the wheelhouse alone. The lab-PC sequence below was rehearsed on macOS with a macOS wheelhouse (WP11.4:
+96 wheels, 66 MB): after the two `uv pip install` commands, `uv sync --frozen` with `UV_OFFLINE=1` and an empty uv
+cache reported all 95 packages present and installed nothing, and `uv run` worked offline (`doctor` without FAIL,
+`manual status` current, `pytest`). Downloads of the re-run: 147 MB, no file above 13 MB.
 
 **On the lab PC** (PowerShell; `wheelhouse\` and `requirements-win.txt` copied next to the clone, `uv.exe` from
 the uv release zip on `PATH`, Python 3.12 x64 from step 1 or the python.org installer):
@@ -494,3 +514,5 @@ current harness documentation before adopting it.
 | ATV-7: Claude Code prompts in default mode | | |
 | ATV-8: Claude Code `/hooks` lists the guard hook | | |
 | One-process check (bring-up L0) | | |
+| `doctor` `local config` PASS (end of L8) | | |
+| How Codex / Claude Code end the server when a session closes during a long run (L10) | | |

@@ -61,9 +61,14 @@ stage file; prompts of modules that are not brought up yet are skipped and said 
 | `hardware_tests` | `$env:B1500_HW = "1"; uv run pytest -m hardware` passes, nothing skipped by the gate | pass/fail | lab PC |
 | `transfer` | records and fixtures reached the developer | pass/fail | OD-7 |
 
-- Harness facts on the lab PC (v1 ATV-4, -7, -8, -11; ATV-25): the server opens VISA from inside the harness, the
-  approval prompt appears and shows the summary, `uv run b1500 bringup status` runs without a permission prompt
-  under the project rules. Fallback for ATV-25: the human runs the bring-up CLI commands themselves.
+- Harness facts on the lab PC (v1 ATV-4, ATV-7, ATV-8, ATV-11; ATV-25): the server opens VISA from inside the
+  harness, the approval prompt appears and shows the summary, the guard hook is listed (Claude Code `/hooks`),
+  `uv run b1500 bringup status` runs without a permission prompt under the project rules. Fallback for ATV-25: the
+  human runs the bring-up CLI commands themselves.
+- TODO(verify) (blueprint v2 7.6 items 11, 12): the harness facts above, and how each harness ends the MCP server
+  when its session closes during an asynchronous run (codex-cli `exec` ends it at every turn end: the run recovers
+  as `aborted`; Claude Code sends SIGTERM: `cancelled`); every `hw_validated` promotion comes from the records
+  reviewed here, as a developer change after the session (blueprint v2 7.2).
 
 ## 5. Abort criteria
 

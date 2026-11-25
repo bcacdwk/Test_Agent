@@ -105,8 +105,11 @@ retention are L9.
 | `cp_qcp` | Qcp (Icp linear in f), Nit | recorded | `charge_pumping` |
 | `selector_cleanup`, `train_cleanup`, `alwg_cleanup`, `dual_sweep_cleanup`, `pulse_rw_cleanup`, `spot_cleanup`, `kinetics_cleanup`, `cp_cleanup` | every run `verified: lop`, every selector output open | pass/fail | manifests |
 
-- TODO(verify) at this stage: `ERSSP?` reports the relay state, not only the command (ATV-18); the 10 ms selector
-  settle time; `SPST?` 0 at the end of a count (ATV-19); `DZ`/`AB` do not stop a running SPGU (PG p142 (2-54)).
+- TODO(verify) (blueprint v2 7.6 items 2, 3, 6, 9, 13): `*RST` and power-on leave ERSSP open and need `ERMOD 1`
+  (ATV-18); `ERSSP?` reports the relay state, not only the command; the 10 ms selector settle time; `SPST?` 0 at
+  the end of a count (ATV-19); `DZ`/`AB` do not stop a running SPGU (PG p142 (2-54)); the 16440A wiring map
+  (ATV-28); pulse fidelity into the real load, overshoot and the SER levels (ATV-20); the FeFET's switching
+  kinetics behind the card defaults; `SPST?`/`ERSSP?` answers as fixtures.
 
 ## 5. Abort criteria
 

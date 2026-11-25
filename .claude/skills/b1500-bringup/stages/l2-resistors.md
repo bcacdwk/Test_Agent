@@ -31,7 +31,7 @@ Every hardware plan needs the human's consent (`first_hw_run`; generic recipes a
 ## 1. Preconditions
 
 - L1 signed off for every SMU used here (at least those L3 and L4 use); `uv run b1500 bringup status` names L2.
-- Instrument warmed up (the data sheet's warm-up time; TODO(verify) the time at the station).
+- Instrument warmed up (the data sheet's warm-up time; the time at the station is recorded, section 4).
 - The S0 resistors with fresh DMM readings (model, range, 2- or 4-wire, reading, temperature); the 1 Ohm standard
   with its certificate or a 4-wire DMM reading; Kelvin probes (Force and Sense) for SMU3 and the GNDU.
 
@@ -89,6 +89,9 @@ Every hardware plan needs the human's consent (`first_hw_run`; generic recipes a
   for the generic recipes).
 - Runs: outcome `completed`, every status `N`, quality `ok`. A four-wire R near 1 Ohm plus a few ohms means Sense is
   not landed (a two-wire reading): not passed.
+- TODO(verify) (blueprint v2 7.6 items 3, 8): the real FMT 1 blocks of a sweep and a spot measurement; DC
+  accuracy, settling and integration noise on known resistors (they set the tolerances the simulator assumes); the
+  warm-up time the station needs.
 
 ## 5. Abort criteria
 

@@ -87,6 +87,10 @@ approval prompt.
   agent printed in chat; record it in `docs/deployment-windows.md`. ATV-7 (Claude Code): the prompt appears in the
   default permission mode. Fallback: the policy flag `confirmation.claude_require_user_interaction: true`; with no
   prompt at all, do not use that harness for hardware runs.
+- TODO(verify) (blueprint v2 7.6 items 6, 11, 12): Vth, SS and Id against EasyEXPERT on the same die (the golden
+  comparison, item 11); the approval-prompt facts above (ATV-7, ATV-11); ASU presence (ATV-28 for the switches):
+  the `asu` option of `mosfet.gate_leakage` runs only after the human records `ASU3`/`ASU4` `present` (else
+  blocked).
 
 ## 5. Abort criteria
 

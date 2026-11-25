@@ -2,9 +2,9 @@
 
 Safety-gated measurement kernel for a Keysight B1500A: typed Python core (`src/b1500_test_agent/`) behind a
 10-tool MCP server and the `b1500` CLI. Backend `sim` by default; `visa` only on the lab PC. Deck layers:
-L1 physical safety (interlock, shield box) · L2 GPIB → `transport/` · L3 driver → `driver/` · L4 transaction →
-`session/`, `catalog/`, `recipes/`, `archive/` · L5 analysis → `analysis/` · L6 MCP → `service/`, `adapters/` ·
-L7 skills + rules → `.agents/skills/`, `rules/`, `config/` · L8 agent → you.
+L1 physical safety (interlock, shield box) · L2 GPIB + WGFMU library → `transport/` · L3 driver → `driver/` ·
+L4 transaction → `session/`, `catalog/`, `recipes/`, `archive/` · L5 analysis → `analysis/` · L6 MCP + CLI →
+`service/`, `adapters/` · L7 skills + rules → `.agents/skills/`, `rules/`, `config/` · L8 agent → you.
 
 ## Hard rules (measurement and analysis work)
 
@@ -36,23 +36,21 @@ L7 skills + rules → `.agents/skills/`, `rules/`, `config/` · L8 agent → you
 
 ## Developer section (code changes, only when asked)
 
-- Plan of record: `docs/design/blueprint.md` (WP log `docs/design/progress.md`).
-- Layering (import test): `adapters → service → {catalog, rules, archive, analysis} → session → driver →
-  transport`; `models` is a leaf. Only `adapters/mcp_server.py` imports `fastmcp`, only `transport/visa.py`
-  imports `pyvisa`, only `driver/flex/` contains FLEX mnemonics, only kind `system` calls `*RST`; no source
-  file over 1,000 lines. Driver or FLEX work: read `src/b1500_test_agent/driver/AGENTS.md` first; analysis work:
-  `src/b1500_test_agent/analysis/AGENTS.md`.
+- Plan of record: `docs/design/blueprint.md` (log `docs/design/progress.md`); a new module family:
+  `docs/architecture.md`.
+- Layering (import test): `adapters → {bringup →} service → {catalog, rules, archive, analysis, manuals} →
+  session → driver → transport`; `models` is a leaf. Only `adapters/mcp_server.py` imports `fastmcp`,
+  `transport/visa.py` `pyvisa`, `transport/wgfmu/dll.py` `ctypes`; FLEX mnemonics only in `driver/flex/`, `WGFMU_`
+  names only in `transport/wgfmu/` and the simulator; only kind `system` calls `*RST`; no file over 1,000 lines.
+  Work in `driver/`, `analysis/`, `transport/wgfmu/`: read its nested `AGENTS.md` first.
 - Safety lives in the core (rules, tiers, `OutputGuard`, verified cleanup, audit), never only in skills or
-  adapters. No raw FLEX tool or command (`b1500 dev sim-console` is sim-only). Never weaken rules, limits, tiers,
+  adapters. No raw FLEX or library tool (`b1500 dev sim-console` is sim-only). Never weaken rules, limits, tiers,
   tests or graders to make something pass.
-- Shared data objects are Pydantic models in `models/`; `references/manuals/` is read-only.
-- English comments and docstrings. Windows-safe code (blueprint §7): `pathlib`, `encoding="utf-8"` on every
-  open, no `:` in file names, no POSIX-only modules.
-- Tests use the simulator only; `hardware` tests need the owner at the lab PC (M4). Recipes stay `draft` until
-  their simulator test passes; `hw_validated` needs an M4 validation record.
-- Commit only `*.example.yaml` config (never private station details), and measurement data only as small
-  anonymized fixtures.
-- Skills: edit `.agents/skills/**` only (`.claude/skills/` and `cards/README.md` are generated). No `.cursor/`.
-- Small commits; the message says why.
-- Commands: `uv sync` · `uv run pytest -m "not hardware and not acceptance"` · `uv run ruff check` ·
-  `uv run b1500 dev sync-harness --check`. Launch Codex or Claude Code from the repo root.
+- Data objects are Pydantic models in `models/`; `references/manuals/` is read-only. English comments;
+  Windows-safe code: `pathlib`, `encoding="utf-8"` on every open, no `:` in file names, no POSIX-only modules.
+- Tests: simulator, visa-loop and fake ABI only; `hardware` tests need the owner at the lab PC (M12);
+  `hw_validated` needs a reviewed record in `validation/hw/`.
+- Commit only `*.example.yaml` config and small anonymized fixtures. Edit skills in `.agents/skills/**` only
+  (`.claude/skills/`, `cards/README.md`, `docs/coverage.md` are generated). Small commits; the message says why.
+- Gate: `uv run pytest -m "not hardware and not acceptance" -n auto` · `uv run ruff check` ·
+  `uv run b1500 dev recipe-check|lint-skills|tool-budget` · `uv run b1500 dev gen-index|coverage|sync-harness --check`.

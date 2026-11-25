@@ -113,3 +113,22 @@ def test_always_loaded_token_budget() -> None:
     if counter.warning and budget.total > MAX_ALWAYS_LOADED_TOKENS:
         pytest.skip(f"only the chars/3.5 estimate is available ({budget.total} tokens): {counter.warning}")
     assert budget.total <= MAX_ALWAYS_LOADED_TOKENS, f"always-loaded text has {budget.total} tokens: {budget.parts}"
+
+
+def test_developer_section_names_the_v2_layering_and_the_full_gate() -> None:
+    """WP11.4 (AGENTS.md v2): the layering names the bring-up helpers, the manual corpus and the WGFMU library binding
+    (blueprint v2 2.1), the hardware evidence rule (7.2), and the gate is the whole Definition of done (blueprint v2
+    10), every command of it named in code (the doc-command test checks they exist)."""
+    from b1500_test_agent.devtools.skills.commands import alternatives, named_commands
+
+    text = _read(ROOT / "AGENTS.md")
+    dev = text[text.index("## Developer"):]
+    for needle in ("`adapters → {bringup →} service → {catalog, rules, archive, analysis, manuals} →",
+                   "`transport/wgfmu/dll.py` `ctypes`", "`WGFMU_`", "`transport/wgfmu/`", "`validation/hw/`",
+                   "(M12)", "`docs/coverage.md`"):
+        assert needle in dev, needle
+    named = {" ".join(variant) for tokens in named_commands(dev) for variant in alternatives(tokens)}
+    for gate in ("dev recipe-check", "dev lint-skills", "dev tool-budget", "dev gen-index --check",
+                 "dev coverage --check", "dev sync-harness --check"):
+        assert gate in named, gate
+    assert '`uv run pytest -m "not hardware and not acceptance" -n auto`' in dev and "`uv run ruff check`" in dev

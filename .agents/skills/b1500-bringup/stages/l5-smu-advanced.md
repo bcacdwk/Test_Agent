@@ -76,7 +76,10 @@ hardware plan needs consent (`first_hw_run`).
 
 - Pulsed at higher duty or longer width may read below DC (self-heating) or above (trapping): that is physics, not a
   failure of the stage, as long as the low-duty point agrees.
-- Sampling: `time_source: timestamp` expected (TSC 1); the timer over long chains is a TODO(verify) item of L9.
+- Sampling: `time_source: timestamp` expected (TSC 1); the timer over long chains is checked at L9.
+- TODO(verify) (blueprint v2 7.6 items 3, 8): sampling time stamps from the real blocks (ATV-22) and `MM 10` blocks
+  read while the instrument samples (ATV-30; fallback: progress per block only); pulsed against DC settling and
+  noise at low duty.
 
 ## 5. Abort criteria
 

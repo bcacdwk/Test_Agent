@@ -18,7 +18,7 @@ the source of truth for status. This page is updated at milestone boundaries.
 | M8 MFCMU, SCUU, GNDU | CMU driver + simulator, corrections, C-V core and variants, QSCV, Dit, GNDU budget | **done** (2026-11-25) |
 | M9 HV-SPGU + 16440A | SPGU driver + simulator, selector routes, pulse kind, program/read, kinetics, endurance, retention | **done** (2026-11-25) |
 | M10 WGFMU | Library protocol + simulator, DLL binding, driver + phase, waveform kind, noise, FeCap PUND, fast BTI | **done** (2026-11-26) |
-| M11 Integration and closure | Async/debug completeness, coverage ledger closure, full safety + visa-loop, docs and plug-in-and-go closure, final acceptance S1–S18 | **11.1–11.4 done** (2026-11-26); 11.5 final acceptance next |
+| M11 Integration and closure | Async/debug completeness, coverage ledger closure, full safety + visa-loop, docs and plug-in-and-go closure, final acceptance S1–S18 | **done** (2026-11-26; S1–S18 PASS on both harnesses, [reports](acceptance/)) |
 | M12 Hardware session | Owner at the lab PC: staged bring-up S0–L10, validation records, then per-module developer WPs | owner (outside the v2 goal; section M12 below) |
 
 ## M0 — Re-baseline (done)
@@ -208,7 +208,7 @@ runnable recipes, 14 kinds, 34 cards, every bring-up stage S0, L0-L10 written; n
 | 9.6 SPGU | S12 ★, S3 ★ | 3/3, 3/3 | 3/3, 3/3 | [Codex](acceptance/2026-11-25-codex-0.170.0-spgu.md), [Claude](acceptance/2026-11-25-claude-2.1.328-spgu.md) |
 | 10.8 WGFMU | S13, S18 ★ | S13 1/1, S18 3/3 | S13 1/1, S18 3/3 (after a `CLAUDE.md` text fix) | [Codex](acceptance/2026-11-25-codex-0.170.0-wgfmu.md), [Claude](acceptance/2026-11-25-claude-2.1.328-wgfmu.md) |
 
-## M11 — Integration and closure (11.1–11.4 done; 11.5 next)
+## M11 — Integration and closure (done)
 
 | WP | Result | Status |
 |---|---|---|
@@ -216,7 +216,7 @@ runnable recipes, 14 kinds, 34 cards, every bring-up stage S0, L0-L10 written; n
 | 11.2 Coverage closure | the legacy ledger closed for every family (411 mapped, 248 out of scope with reasons, 0 open), `b1500 dev coverage` and the generated [coverage.md](coverage.md), the reserved slots and the declared-only kind deleted, WGFMU PG mode reachable | done (2026-11-26) |
 | 11.3 Full safety + visa-loop | the global fault matrix over every kind x fault x position (2,372 rows run), every recipe on the visa-loop and through the fake WGFMU library, refusals open no bus; suite about 5 min with `-n 4` | done (2026-11-26) |
 | 11.4 Docs + plug-in-and-go closure | README, `AGENTS.md` v2, [architecture](architecture.md) "Adding a module family", [safety model](safety-model.md) residual risks, this roadmap, [deployment](deployment-windows.md) (wheelhouse re-run), the twelve stage files final with their `TODO(verify)` lists, `b1500 doctor` complete (`local config` check; in CI on both OS), a doc-command test over every doc and skill | done (2026-11-26) |
-| 11.5 Final acceptance | S1–S18 on Codex and Claude Code (§8.2: safety ★ 3/3, functional 1/1), skill and card text iterations only; reports in [acceptance/](acceptance/) | next |
+| 11.5 Final acceptance | S1–S18 on codex-cli 0.170.0 and Claude Code 2.1.328 from the main checkout at `35bb934` (§8.2: 11 safety ★ scenarios 3/3, 7 functional 1/1): **18/18 PASS on both harnesses**; Codex 40 sessions at the first attempt, Claude Code 40 + one logged re-run (S7: the first rep skipped the contact check); no text change needed; reports [Codex](acceptance/2026-11-26-codex-0.170.0.md), [Claude Code](acceptance/2026-11-26-claude-2.1.328.md) | done (2026-11-26) |
 
 ## M12 — Hardware session (owner)
 

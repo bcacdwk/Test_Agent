@@ -9,8 +9,8 @@ through `validate_plan → run_plan` or, when a human must confirm, `run_confirm
 limits, tiers, per-command output guards and a verified safe shutdown. A simulator of the whole station stands in
 for the instrument, so everything is developed and tested without hardware.
 
-> **Status (2026-11-26): v2 built and closed on the simulator (M5–M11.4); final harness acceptance S1–S18 is
-> WP11.5; the hardware session M12 is the owner's.** The whole station is covered: SMUs with the GNDU, the MFCMU
+> **Status (2026-11-26): v2 built and closed on the simulator (M5–M11); the final harness acceptance S1–S18
+> (WP11.5) passed on Codex and Claude Code; the hardware session M12 is the owner's.** The whole station is covered: SMUs with the GNDU, the MFCMU
 > (+SCUU, QSCV), the HV-SPGU with two 16440A selectors and the WGFMU with its RSUs, in 68 recipes, 14 measurement
 > kinds and 34 test cards, every recipe `sim_validated` against the simulator's device models and run through the
 > real VISA transport against the simulator (visa-loop) and through a fake of the WGFMU library's C interface. The

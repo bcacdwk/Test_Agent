@@ -1,4 +1,4 @@
-"""The test cards of skill ``b1500-test`` (blueprint v1 6.3-6.4, 8.2; v2 6.1, 6.3) and the reserved slots.
+"""The test cards of skill ``b1500-test`` (blueprint v1 6.3-6.4, 8.2; v2 6.1, 6.3).
 
 ``b1500 dev lint-skills`` (``test_lint_skills.py``) checks frontmatter, family folders, sections, budgets, links,
 the card-recipe graph, modules/routes/stage, parameter tables, the generated index and that each example plan
@@ -6,7 +6,7 @@ validates on its simulator scenario. These tests pin what the acceptance scenari
 that: the cards' family paths and v2 frontmatter (family, stage, manual citations), the example plans of S1 (Vth on
 ``nmos_basic``) and S10 (memory window on ``fefet_basic``), the generated index rows, debug ids from the eight
 runbooks, a simulator validation record per card plus the hardware record path and stage, no simulator scenario
-named in the expected-result section, and one reserved-slot entry per ``not_implemented`` recipe.
+named in the expected-result section, and no reserved-slot folder or row (WP11.2 deleted them).
 """
 
 from __future__ import annotations
@@ -134,8 +134,8 @@ def _example(doc: MarkdownDoc) -> dict:
 
 def test_cards_are_exactly_the_planned_ones() -> None:
     found = sorted(p.relative_to(SKILL_DIR / "cards").with_suffix("").as_posix()
-                   for p in (SKILL_DIR / "cards").glob("*/*.md") if p.parent.name != "reserved")
-    assert found == sorted(CARDS)
+                   for p in (SKILL_DIR / "cards").glob("*/*.md"))
+    assert found == sorted(CARDS) and not (SKILL_DIR / "cards" / "reserved").exists()
     assert sorted(p.name for p in (SKILL_DIR / "cards").glob("*.md")) == ["README.md", "_TEMPLATE.md"]
 
 
@@ -196,17 +196,5 @@ def test_generated_index_has_a_row_per_card_and_recipe(registry: RecipeRegistry)
         assert f"| {_card(card).front['status']} |" in row and row.endswith(f"| {stage} |")
     for recipe in CARDLESS_RECIPES:
         assert f"| `{recipe}` |" in text and "no card by design" in text
-    for recipe in registry.ids():
-        if registry.get(recipe).status == "not_implemented":
-            assert f"| `{recipe}` | not_implemented |" in text, recipe
-
-
-def test_reserved_readme_lists_every_reserved_recipe_with_preconditions(registry: RecipeRegistry) -> None:
-    text = (SKILL_DIR / "cards" / "reserved" / "README.md").read_text(encoding="utf-8")
-    reserved = sorted(p.stem for p in (ROOT / "recipes" / "reserved").glob("*.yaml"))
-    assert all(registry.get(r).status == "not_implemented" for r in reserved)
-    if not reserved:  # WP10.6 implemented the last slot (fecap.pund): the README says so until WP11.2 deletes it
-        assert "No reserved slot is left" in text and "`fecap.pund` (WP10.6" in text
-    for recipe in reserved:
-        assert f"| `{recipe}` |" in text, recipe
-        assert f"- `{recipe}`:" in text, recipe  # its preconditions bullet
+    assert "reserved" not in text  # WP11.2: no reserved row or link is left
+    assert {registry.get(r).status for r in registry.ids()} <= {"draft", "sim_validated", "hw_validated"}

@@ -52,8 +52,8 @@ Seeded from deck slide 10 (Ohm's law, temperature coefficient, contact vs bulk).
 
 ## Capacitor models Cs-Rs and Cp-G
 
-Seeded from deck slide 10. Background only: C-V and C-f kinds are reserved in v1 (MFCMU needs correction, SCUU and
-leakage flows first).
+Seeded from deck slide 10. Background for the MFCMU cards (C-V, C-f, C-t; corrections first): knowledge
+[08](08-capacitance-cv.md).
 
 - Parallel plate: C = eps0 epsr A / d (eps0 = 8.854e-14 F/cm). Impedance |Z| = 1 / (2 pi f C).
 - Charging time constant tau = R C. A swept voltage drives a displacement current I = C dV/dt through any
@@ -128,7 +128,7 @@ Seeded from deck slides 6, 10 and 15 ("three common extraction methods").
 - Saturation: gm = mu Cox (W/L) (Vg - Vth); gm/Id is the transconductance efficiency (maximum in subthreshold).
 - gm peaks and then falls because of mobility degradation at high vertical field and source/drain series
   resistance. A gm peak at the end of the sweep means the sweep stopped too early.
-- Effective mobility needs the inversion charge from split C-V (reserved, CMU).
+- Effective mobility needs the inversion charge from split C-V (MFCMU card `mosfet-split-cv`).
 
 ## MOSFET subthreshold swing
 

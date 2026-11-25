@@ -1,5 +1,5 @@
-"""``RecipeRegistry`` (blueprint 2.6): the committed tree is clean; every problem class is reported; effective
-status and listing."""
+"""``RecipeRegistry`` (blueprint 2.6): the committed tree is clean; every problem class is reported; status, the
+backends a recipe runs on (``runnable``) and listing."""
 
 from __future__ import annotations
 
@@ -10,20 +10,22 @@ from typing import Any
 import pytest
 import yaml
 
-from b1500_test_agent.catalog.kinds import UNIMPLEMENTED_KINDS, default_kinds
+from b1500_test_agent.catalog.kinds import default_kinds
 from b1500_test_agent.catalog.registry import RecipeRegistry, UnknownRecipeError
 from tests.unit.helpers import REPO_ROOT
 
 RECIPES = REPO_ROOT / "recipes"
 CORRECTION_RECIPES = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short", "cmu.correction_load")
-RESERVED_SLOTS: set[str] = set()  # WP8.5: moscap.qscv; WP10.7: wgfmu.fast_bti; WP10.6: fecap.pund implemented
-"""Reserved ids still waiting for their kinds (WP7.6 implemented reliability.bti_sms and reliability.hci; WP8.2 retired
-cmu.correction for the four cmu.* correction recipes; WP8.3 implemented moscap.cv and mosfet.cgd_cv; WP9.4
-implemented fefet.pulse_write_read and spgu.program_smu_read with kind pulse_read; WP7.7 retired hspice.compare:
-compact models are the analysis methods compact_model_fit, model_compare and export_spice_netlist, card
-smu/compact-model-spice; WP10.4 implemented wgfmu.pulsed_iv; WP8.5 implemented moscap.qscv with kind
-smu_qscv; WP10.7 implemented wgfmu.fast_bti, WP10.6 fecap.pund: no committed reserved slot is left, the refusal tests
-bring their own, tests/integration/helpers.with_reserved_slot)."""
+RETIRED_IDS = ("cmu.correction", "hspice.compare")
+"""The two v1 reserved ids blueprint v2 3 retires (WP8.2: the four cmu.* correction recipes; WP7.7: compact models are
+the analysis methods compact_model_fit, model_compare and export_spice_netlist). Every other v1 reserved id is a
+recipe now (WP7.6 bti_sms, hci; WP8.3 moscap.cv, mosfet.cgd_cv; WP9.4 fefet.pulse_write_read, spgu.program_smu_read;
+WP10.4 wgfmu.pulsed_iv; WP8.5 moscap.qscv; WP10.7 wgfmu.fast_bti; WP10.6 fecap.pund), and WP11.2 deleted the reserved
+folder, the status and the declared-only kind."""
+V1_RESERVED_IDS = ("reliability.bti_sms", "reliability.hci", "reliability.tddb_cvs", "moscap.cv", "mosfet.cgd_cv",
+                   "fefet.pulse_write_read", "spgu.program_smu_read", "wgfmu.pulsed_iv", "moscap.qscv",
+                   "wgfmu.fast_bti", "fecap.pund")
+"""The v1 reserved ids blueprint v2 3 marks ``*`` (implemented under that id)."""
 WGFMU_RECIPES = ("wgfmu.pulsed_iv", "wgfmu.fast_iv", "wgfmu.pulse_train", "wgfmu.custom_waveform", "wgfmu.dc_spot",
                  "wgfmu.rtn", "wgfmu.lfn")
 """Kind wgfmu_waveform (WP10.4; tests/integration/test_recipes_wgfmu.py; WP10.5 rtn, lfn:
@@ -58,17 +60,15 @@ def test_committed_tree_is_clean() -> None:
     assert registry.problems() == []
     assert {"mosfet.idvg", "mosfet.idvd", "generic.smu_staircase", "system.self_test", "system.self_cal"} \
         <= set(registry.ids())
-    reserved = {r for r in registry.ids() if registry.entry(r).source.startswith("recipes/reserved/")}
-    assert reserved == RESERVED_SLOTS
-    for recipe_id in reserved:
-        recipe = registry.get(recipe_id)
-        assert recipe.status == "not_implemented" and recipe.preconditions
-        assert registry.kinds[recipe.kind].implemented_on == frozenset()
+    assert not (RECIPES / "reserved").exists() and not set(RETIRED_IDS) & set(registry.ids())
+    assert set(V1_RESERVED_IDS) <= set(registry.ids())
+    assert {registry.get(r).status for r in V1_RESERVED_IDS} == {"sim_validated"}
 
 
 def test_committed_statuses() -> None:
     registry = RecipeRegistry.load(RECIPES, repo_root=REPO_ROOT)
-    status = {r: (registry.effective_status(r, "sim"), registry.effective_status(r, "visa")) for r in registry.ids()}
+    status = {r: tuple(registry.get(r).status if registry.runnable(r, b) else "not runnable" for b in ("sim", "visa"))
+              for r in registry.ids()}
     assert status["mosfet.idvg"] == ("sim_validated", "sim_validated")
     assert status["generic.smu_staircase"] == ("sim_validated", "sim_validated")
     assert status["system.self_test"] == status["system.self_cal"] == ("sim_validated", "sim_validated")  # WP6.2
@@ -207,23 +207,22 @@ def test_committed_statuses() -> None:
 def test_kinds() -> None:
     kinds = default_kinds()
     assert kinds["smu_staircase"].implemented_on == {"sim", "visa"}
-    assert kinds["smu_stepped"].implemented_on == {"sim", "visa"} and "smu_stepped" not in UNIMPLEMENTED_KINDS
+    assert kinds["smu_stepped"].implemented_on == {"sim", "visa"}
     assert kinds["system"].implemented_on == {"sim", "visa"}  # WP6.2: self-test/cal on hardware
-    assert kinds["smu_sampling"].implemented_on == {"sim", "visa"} and "smu_sampling" not in UNIMPLEMENTED_KINDS
-    assert kinds["smu_spot"].implemented_on == {"sim", "visa"} and "smu_spot" not in UNIMPLEMENTED_KINDS  # WP7.1
-    assert kinds["cmu_correction"].implemented_on == {"sim", "visa"} and "cmu_correction" not in UNIMPLEMENTED_KINDS
-    assert kinds["stress_measure"].implemented_on == {"sim", "visa"}  # WP7.6
-    assert "stress_measure" not in UNIMPLEMENTED_KINDS and "smu_stress_measure" not in kinds
-    assert kinds["smu_pulsed"].implemented_on == {"sim", "visa"} and "smu_pulsed" not in UNIMPLEMENTED_KINDS  # WP7.3
+    assert kinds["smu_sampling"].implemented_on == {"sim", "visa"}
+    assert kinds["smu_spot"].implemented_on == {"sim", "visa"}  # WP7.1
+    assert kinds["cmu_correction"].implemented_on == {"sim", "visa"}
+    assert kinds["stress_measure"].implemented_on == {"sim", "visa"} and "smu_stress_measure" not in kinds  # WP7.6
+    assert kinds["smu_pulsed"].implemented_on == {"sim", "visa"}  # WP7.3
     assert kinds["cmu_measure"].implemented_on == {"sim", "visa"} and "cmu_cv" not in kinds  # WP8.3 replaced cmu_cv
-    assert kinds["pulse_read"].implemented_on == {"sim", "visa"}  # WP9.4
-    assert "pulse_read" not in UNIMPLEMENTED_KINDS and "spgu_program_read" not in kinds
-    assert kinds["smu_qscv"].implemented_on == {"sim", "visa"} and "smu_qscv" not in UNIMPLEMENTED_KINDS  # WP8.5
-    assert kinds["wgfmu_waveform"].implemented_on == {"sim", "visa"}  # WP10.4
-    assert "wgfmu_waveform" not in UNIMPLEMENTED_KINDS and "wgfmu_pulsed_iv" not in kinds
+    assert kinds["pulse_read"].implemented_on == {"sim", "visa"} and "spgu_program_read" not in kinds  # WP9.4
+    assert kinds["smu_qscv"].implemented_on == {"sim", "visa"}  # WP8.5
+    assert kinds["wgfmu_waveform"].implemented_on == {"sim", "visa"} and "wgfmu_pulsed_iv" not in kinds  # WP10.4
     assert "wgfmu_fast_bti" not in kinds  # WP10.7: wgfmu.fast_bti runs in stress_measure (WGFMU path)
-    for kind_id in ("wgfmu_pulse_sequence",):
-        assert kind_id in UNIMPLEMENTED_KINDS and kinds[kind_id].implemented_on == frozenset()
+    # WP11.2: the 14 kinds of blueprint v2 2.7, each with both code paths; the declared-only wgfmu_pulse_sequence is
+    # retired (no blueprint v2 3 recipe names it: PUND runs in wgfmu_waveform, WGFMU program/read in pulse_read)
+    assert len(kinds) == 14 and "wgfmu_pulse_sequence" not in kinds
+    assert all(kind.implemented_on == {"sim", "visa"} for kind in kinds.values())
 
 
 @pytest.mark.parametrize(("files", "expected"), [
@@ -241,11 +240,9 @@ def test_kinds() -> None:
     ({"basic/thing.yaml": minimal(params={})}, "reference undeclared parameters ['a']"),
     ({"basic/thing.yaml": minimal("basic.other")}, "does not match its file name (expected basic.thing)"),
     ({"basic/thing.yaml": minimal(), "basic/thing2.yaml": minimal()}, "duplicate recipe id basic.thing"),
-    ({"reserved/x.y.yaml": minimal("x.y", kind="wgfmu_pulse_sequence")}, "must be not_implemented"),
-    ({"reserved/x.y.yaml": minimal("x.y", kind="wgfmu_pulse_sequence", status="not_implemented")}, "preconditions"),
-    ({"reserved/x.z.yaml": minimal("x.y", kind="wgfmu_pulse_sequence", status="not_implemented", preconditions=["a"])},
-     "reserved/x.y.yaml"),
-    ({"basic/thing.yaml": minimal(kind="wgfmu_pulse_sequence", status="sim_validated")}, "no simulator code path"),
+    ({"reserved/x.y.yaml": minimal("x.y")}, "does not match its file name (expected reserved.x.y)"),
+    ({"basic/thing.yaml": minimal(status="not" + "_implemented")}, "status"),  # the retired status (WP11.2)
+    ({"basic/thing.yaml": minimal(preconditions=["a"])}, "preconditions"),  # the reserved slots' field is gone
 ])
 def test_problems_are_reported(tmp_path: Path, files: dict[str, Any], expected: str) -> None:
     problems = tree(tmp_path, files).problems()
@@ -260,21 +257,44 @@ def test_a_bad_file_does_not_hide_the_good_ones(tmp_path: Path) -> None:
         registry.get("basic.broken")
 
 
+class SimOnlyKind:
+    """A registered kind with a simulator code path only (a kind under development; R-REC-01 blocks it on visa)."""
+
+    kind_id = "sim_only"
+    implemented_on = frozenset({"sim"})
+
+    def compile(self, *args: Any, **kwargs: Any) -> Any:  # pragma: no cover - never compiled here
+        raise AssertionError("not compiled in these tests")
+
+    def acquire(self, *args: Any) -> Any:  # pragma: no cover
+        raise AssertionError("not run in these tests")
+
+    def to_table(self, *args: Any) -> None:  # pragma: no cover
+        return None
+
+
 def test_existing_card_and_listing(tmp_path: Path) -> None:
     (tmp_path / "cards").mkdir()
     (tmp_path / "cards" / "c.md").write_text("card", encoding="utf-8")
-    registry = tree(tmp_path, {
+    files = {
         "basic/thing.yaml": minimal(card="cards/c.md", device_types=["nmos"]),
         "basic/other.yaml": minimal("basic.other", device_types=["diode"]),
         "generic/any.yaml": minimal("generic.any"),
-        "basic/later.yaml": minimal("basic.later", kind="wgfmu_pulse_sequence"),
-    })
+        "basic/later.yaml": minimal("basic.later", kind="sim_only"),
+    }
+    tree(tmp_path, files)
+    registry = RecipeRegistry.load(tmp_path / "recipes", {**default_kinds(), "sim_only": SimOnlyKind()},
+                                   repo_root=tmp_path)
     assert registry.problems() == []
     # recipes without device types (basic.later, generic.any) match every device type
     assert [s.id for s in registry.list(device_type="nmos")] == ["basic.later", "basic.thing", "generic.any"]
-    listing = {s.id: s for s in registry.list(backend="visa")}
-    assert listing["basic.thing"].card == "cards/c.md" and listing["basic.later"].status == "not_implemented"
+    listing = {s.id: s for s in registry.list()}
+    assert listing["basic.thing"].card == "cards/c.md" and listing["basic.later"].status == "draft"
+    assert registry.runnable("basic.later", "sim") and not registry.runnable("basic.later", "visa")
+    assert registry.runnable("basic.thing", "visa")
     assert registry.source("basic.thing") == "recipes/basic/thing.yaml"
+    unknown = tree(tmp_path / "other", {"basic/thing.yaml": minimal(kind="warp_drive")})
+    assert not unknown.runnable("basic.thing", "sim") and unknown.problems()  # an unknown kind runs nowhere
 
 
 def test_reload_if_changed(tmp_path: Path) -> None:

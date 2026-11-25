@@ -20,7 +20,7 @@ from b1500_test_agent.catalog.blocks import (
     hold_chunks,
     route_steps,
 )
-from b1500_test_agent.catalog.kinds import UNIMPLEMENTED_KINDS, StressMeasureKind, StressProgram, default_kinds
+from b1500_test_agent.catalog.kinds import StressMeasureKind, StressProgram, default_kinds
 from b1500_test_agent.catalog.kinds.smu_staircase import INTEGRATION_PRESETS, MeasureColumn
 from b1500_test_agent.catalog.kinds.stress_measure import MAX_READS, log_times
 from b1500_test_agent.catalog.planner import bind_roles, resolve_params
@@ -70,12 +70,12 @@ def role_settings(recipe_id: str, role: str, **changes: Any) -> Recipe:
 def test_registered_for_sim_and_visa_and_the_placeholder_is_gone() -> None:
     kind = default_kinds()["stress_measure"]
     assert isinstance(kind, StressMeasureKind) and kind.implemented_on == {"sim", "visa"}
-    assert "smu_stress_measure" not in UNIMPLEMENTED_KINDS and "smu_stress_measure" not in default_kinds()
+    assert "smu_stress_measure" not in default_kinds()
     for recipe_id in ("reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "reliability.silc"):
         recipe = REGISTRY.get(recipe_id)
         assert recipe.kind == "stress_measure" and recipe.family == "reliability"
         assert recipe.always_confirm == ["destructive"]
-        assert REGISTRY.effective_status(recipe_id, "sim") == "sim_validated"
+        assert REGISTRY.get(recipe_id).status == "sim_validated" and REGISTRY.runnable(recipe_id, "sim")
 
 
 # -- compile ---------------------------------------------------------------------------------------------------------

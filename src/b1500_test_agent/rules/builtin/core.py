@@ -113,18 +113,13 @@ def no_fault(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
 
 @rule("R-REC-01", {"plan"})
 def recipe_status(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
-    """Effective recipe status: ``not_implemented`` blocks; on visa ``draft``/``sim_validated``/``generic.*``
-    need confirmation; on sim ``draft`` warns."""
-    recipe, status = ctx.recipe, ctx.effective_status
-    if status == "not_implemented":
-        if recipe.status != "not_implemented":
-            message = (f"recipe {recipe.id}: kind {recipe.kind} is not implemented on backend {ctx.backend} "
-                       f"(recipe status {recipe.status})")
-            source = env.recipe(recipe, "kind")
-        else:
-            message = f"recipe {recipe.id} is not_implemented"
-            source = env.recipe(recipe, "status")
-        yield block(message, source=source, observed=status, limit="draft or better")
+    """Recipe status for the backend: a recipe whose kind has no code path on the backend blocks; on visa
+    ``draft``/``sim_validated``/``generic.*`` need confirmation; on sim ``draft`` warns."""
+    recipe, status = ctx.recipe, ctx.recipe.status
+    if not ctx.runnable:
+        yield block(f"recipe {recipe.id}: kind {recipe.kind} has no code path on backend {ctx.backend} (recipe "
+                    f"status {status}); it cannot run here", source=env.recipe(recipe, "kind"), observed=recipe.kind,
+                    limit=f"a kind implemented on {ctx.backend}")
         return
     status_source = env.recipe(recipe, "status")
     if ctx.backend == "visa":

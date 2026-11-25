@@ -61,11 +61,11 @@ def test_status(cli_world: World) -> None:
 
 def test_recipes(cli_world: World) -> None:
     index = invoke("recipes")
-    assert index.exit_code == 0 and "mosfet.idvg" in index.stdout  # WP10.6: no reserved (not_implemented) slot left
+    assert index.exit_code == 0 and "mosfet.idvg" in index.stdout  # WP11.2: no reserved slot or status is left
     assert "\nsmu: " in index.stdout and " runnable: " in index.stdout  # one line per family (WP7.3)
     one = invoke("recipes", "mosfet.idvg")
-    assert one.exit_code == 0 and "vg_start" in one.stdout and "analysis defaults: vth_linear_extrapolation" in \
-        one.stdout
+    assert one.exit_code == 0 and "not runnable" not in one.stdout and "vg_start" in one.stdout
+    assert "analysis defaults: vth_linear_extrapolation" in one.stdout
     overview = as_json(invoke("recipes", "--device", "nmos", "--json"))
     assert overview["recipes"] == [] and "mosfet.idvg" in overview["families"]["smu"]["runnable"]
     filtered = as_json(invoke("recipes", "--device", "nmos", "--family", "smu", "--json"))

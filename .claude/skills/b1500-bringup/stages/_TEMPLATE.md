@@ -1,7 +1,7 @@
 ---
 stage: <S0|L0..L10>                # lint: the stage of this file name (s0-physical.md = S0, l4-mosfet.md = L4 ...)
 title: <stage goal>
-recipes: [<recipe ids the stage runs>]   # lint: registered, not reserved; includes every recipe of the cards
+recipes: [<recipe ids the stage runs>]   # lint: registered; includes every recipe of the cards
                                          # whose bringup_stage is this stage
 checks:                                  # the machine-readable rows of section 4 (b1500 bringup record copies them)
   - id: <check id>                       # lint: named as `<check id>` in section 4

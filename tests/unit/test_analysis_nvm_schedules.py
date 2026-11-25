@@ -334,5 +334,5 @@ def test_retention_needs_a_retention_run() -> None:
                                                 ("retention_fit", "fefet.retention")])
 def test_the_methods_are_registered_for_their_recipes(method: str, recipe: str) -> None:
     entry = ANALYSIS_METHODS[method]
-    assert entry.status == "implemented" and entry.families == ("nvm",) and entry.kinds == ("pulse_read",)
+    assert entry.families == ("nvm",) and entry.kinds == ("pulse_read",)
     assert recipe in entry.recipes and entry.milestone == "M9"

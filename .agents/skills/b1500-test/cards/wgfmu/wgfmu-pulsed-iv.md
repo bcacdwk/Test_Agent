@@ -28,7 +28,8 @@ RSUs (Fast IV mode, current measured on the drain):
   the isothermal / trap-free transfer curve. Compare with a DC Id-Vg at the same `vd` (`pulsed_vs_dc`).
 - `wgfmu.fast_iv`: the gate ramps up and down in microseconds; Id sampled on both ramps (segments fwd/rev): fast
   hysteresis and a quick Id-Vg.
-- `wgfmu.pulse_train`: `count` identical pulses with `samples` points on every plateau: drift of Id over a train.
+- `wgfmu.pulse_train`: `count` identical pulses with `samples` points on every plateau: drift of Id over a train;
+  `gate_mode: pg` pulses the gate in PG mode (50 Ohm output, set level = open-load level, at most 5 V).
 - Not for: SMU pulses of 0.5 ms and longer (card `smu-pulsed-iv`); RTN or 1/f noise (card `wgfmu-rtn-noise`);
   arbitrary lab waveforms or WGFMU DC checks (card `wgfmu-custom-waveform`); PUND (card `fecap-pund`).
 
@@ -79,6 +80,7 @@ RSUs (Fast IV mode, current measured on the drain):
 | `cycles` | 1 | 1..10 | 1..1000 | up/down pairs | - |
 | `count` | 100 | 1..10000 | 1..1000000 | pulses | soft band 10,000 |
 | `samples` | 10 | 1..100 | 1..2000 | points per plateau | contiguous averages |
+| `gate_mode` | fastiv | fastiv, pg | fastiv, pg | gate channel mode | pg: 50 Ohm output, no gate current |
 
 Example plan (validated on the simulator by `b1500 dev lint-skills`):
 

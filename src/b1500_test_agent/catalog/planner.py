@@ -315,7 +315,7 @@ class Planner:
         recipe = self.registry.get(plan.recipe_id)
         pin_map, dut = lookup(bundle, plan.request)
         return RuleContext(
-            plan=plan, recipe=recipe, effective_status=self.registry.effective_status(recipe.id, bundle.backend),
+            plan=plan, recipe=recipe, runnable=self.registry.runnable(recipe.id, bundle.backend),
             station=planning_station(bundle), policy=bundle.policy, pin_map=pin_map, dut=dut, live=live,
             backend=bundle.backend, fault=fault, inflight_unrecovered=inflight_unrecovered,
             calibration=calibration, recipe_source=self.registry.source(recipe.id),
@@ -371,8 +371,8 @@ class Planner:
             param_blocks = [f for f in report.findings if f.rule_id == "R-PARAM-01" and f.severity == "block"]
             if not param_blocks:
                 raise InvalidInputError(str(error))
-        if not draft.program and report.tier != "blocked" and self.registry.effective_status(
-                draft.recipe_id, bundle.backend) != "not_implemented":
-            # Fail closed: an implemented kind without a program must never reach a runnable tier.
+        if not draft.program and report.tier != "blocked":
+            # Fail closed: a kind without a program must never reach a runnable tier (a recipe whose kind has no
+            # code path on the backend is blocked by R-REC-01 before this).
             raise InvalidInputError(f"recipe {draft.recipe_id} could not be compiled for this request")
         return with_rules(draft, report)

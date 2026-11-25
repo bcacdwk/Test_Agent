@@ -11,10 +11,11 @@ from pathlib import Path
 import pytest
 
 from b1500_test_agent.analysis import load_run
+from b1500_test_agent.catalog.kinds import SmuStaircaseKind
 from b1500_test_agent.models.run import LockHolder
 from b1500_test_agent.session import FaultLatch, InstrumentLock
 from b1500_test_agent.transport.audit import NullAuditSink
-from tests.integration.helpers import CLI, MCP, REPO_ROOT, World, plan, run, with_reserved_slot
+from tests.integration.helpers import CLI, MCP, REPO_ROOT, World, plan, run, with_unrunnable_recipe
 
 CONFIRM = {"vg_stop": 3.5}
 """Above the nmos-generic gate envelope (3 V): needs_confirmation (dut_envelope), within every hard limit."""
@@ -27,25 +28,22 @@ def assert_refused(world: World, before: tuple[int, int, int, bool], result, *, 
     assert world.io_marker() == before, "a refusal before the transaction must do zero instrument I/O"
 
 
-def test_not_implemented_recipes_never_touch_the_instrument(world: World, tmp_path: Path) -> None:
-    # A draft recipe outside reserved/ whose kind has no implementation (wgfmu_pulse_sequence), next to a reserved
-    # slot (WP10.7 implemented wgfmu.fast_bti, WP10.6 fecap.pund: the test brings its own slot).
-    reserved = with_reserved_slot(world, tmp_path)
-    recipes = tmp_path / "recipes"
-    spot = (recipes / "mosfet" / "idvg.yaml").read_text(encoding="utf-8").replace("id: mosfet.idvg", "id: mosfet.spot")
-    spot = spot.replace("kind: smu_staircase", "kind: wgfmu_pulse_sequence").replace("status: sim_validated",
-                                                                                   "status: draft")
-    (recipes / "mosfet" / "spot.yaml").write_text(spot, encoding="utf-8")
-    world.recipes = recipes
+def test_recipes_not_runnable_on_the_backend_never_touch_the_instrument(world: World, tmp_path: Path,
+                                                                        monkeypatch: pytest.MonkeyPatch) -> None:
+    """R-REC-01 (WP11.2): a recipe whose kind no registry knows, and a registered kind without a code path on this
+    backend, are blocked at validation and refused at run time (with or without a summary) with zero I/O."""
+    unknown = with_unrunnable_recipe(world, tmp_path)
     executor = world.executor()
-    for recipe_id, dut in ((reserved, "nmos-generic"), ("mosfet.spot", "nmos-generic"), (reserved, None)):
+    monkeypatch.setattr(SmuStaircaseKind, "implemented_on", frozenset({"visa"}))  # mosfet.idvg: no sim path
+    for recipe_id, dut in ((unknown, "nmos-generic"), ("mosfet.idvg", "nmos-generic"), (unknown, None)):
         record = plan(executor, recipe_id=recipe_id, dut_profile=dut)
         assert record.tier == "blocked"
-        assert any(f.rule_id == "R-REC-01" and f.severity == "block" for f in record.rules.findings)
+        rec01 = [f for f in record.rules.findings if f.rule_id == "R-REC-01" and f.severity == "block"]
+        assert rec01 and "has no code path on backend sim" in rec01[0].message
         before = world.io_marker()
         for summary in (None, record.summary):
-            assert_refused(world, before, run(executor, record.plan_id, summary), status="not_implemented",
-                           code="not_implemented", outcome="not_implemented")
+            assert_refused(world, before, run(executor, record.plan_id, summary), status="blocked",
+                           code="blocked_by_rules")
     assert world.io_marker() == (0, 0, 0, False)
 
 

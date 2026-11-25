@@ -127,7 +127,7 @@ def limits_status(bundle: ConfigBundle) -> LimitsStatus:
     tiers = (f"ok: |V| <= {soft.voltage_v:g} V and |Icomp| <= {soft.compliance_a:g} A, inside the DUT profile, "
              f"validated recipe, verified pin map; needs_confirmation: above soft up to hard limits or another "
              f"confirm reason; blocked: above {hard.max_abs_voltage_v:g} V / {hard.max_abs_compliance_a:g} A, "
-             "missing DUT profile or pin map, not_implemented")
+             "missing DUT profile or pin map, a recipe not runnable on this backend")
     return LimitsStatus(
         hard_max_abs_voltage_v=hard.max_abs_voltage_v, hard_max_abs_compliance_a=hard.max_abs_compliance_a,
         soft_voltage_v=soft.voltage_v, soft_compliance_a=soft.compliance_a,

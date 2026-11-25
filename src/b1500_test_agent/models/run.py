@@ -32,8 +32,8 @@ from b1500_test_agent.models.station import Identity, InstrumentError, ModuleInv
 
 Adapter = Literal["mcp", "cli"]
 RunOutcome = Literal[
-    "completed", "completed_with_flags", "failed", "aborted", "refused", "confirmation_required", "not_implemented",
-    "running", "cancelled",
+    "completed", "completed_with_flags", "failed", "aborted", "refused", "confirmation_required", "running",
+    "cancelled",
 ]  # fmt: skip
 """Outcome of a run request (blueprint 5.1; ``aborted`` for runs interrupted by a fault or interrupt, 8.1). v2 2.6:
 ``running`` = an asynchronous run started and is still going (``run_plan`` returns at once; ``get_run`` follows it);

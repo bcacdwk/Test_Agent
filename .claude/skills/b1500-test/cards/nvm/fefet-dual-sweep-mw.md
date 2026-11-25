@@ -29,8 +29,9 @@ MW = Vth_fwd - Vth_rev, and Ion/Ioff per branch. This is the card for "memory wi
 - The sweep itself programs and erases the ferroelectric: the device keeps the state the last branch left. That is
   the measurement, not a fault; record it.
 - Not for: the memory window from program/erase pulses ([fefet-pulse-write-read](fefet-pulse-write-read.md));
-  endurance, retention, PUND or fast WGFMU sweeps ([reserved](../reserved/README.md)); never emulate pulses with
-  repeated sweeps. Plain transistor Vth: [mosfet-idvg](../smu/mosfet-idvg.md).
+  endurance and retention ([fefet-endurance-retention](fefet-endurance-retention.md)), PUND
+  ([fecap-pund](fecap-pund.md)) or fast WGFMU sweeps ([wgfmu-pulsed-iv](../wgfmu/wgfmu-pulsed-iv.md)); never emulate
+  pulses with repeated sweeps. Plain transistor Vth: [mosfet-idvg](../smu/mosfet-idvg.md).
 
 ## 2. Wiring, pin map, modules
 

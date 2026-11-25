@@ -265,10 +265,12 @@ def test_context_rejects_a_recipe_that_is_not_the_plans() -> None:
         RuleContext.model_validate({**ctx.model_dump(), "recipe": other.model_dump()})
 
 
-def test_context_rejects_an_effective_status_better_than_the_recipe() -> None:
+def test_context_needs_to_know_whether_the_recipe_runs_on_the_backend() -> None:
     _, ctx = context(rec=recipe(status="draft"))
-    with pytest.raises(ValidationError, match="effective_status"):
-        RuleContext.model_validate({**ctx.model_dump(), "effective_status": "hw_validated"})
+    data = ctx.model_dump()
+    del data["runnable"]
+    with pytest.raises(ValidationError, match="runnable"):
+        RuleContext.model_validate(data)
 
 
 def test_context_rejects_foreign_pin_map_and_dut() -> None:

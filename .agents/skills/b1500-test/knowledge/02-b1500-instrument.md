@@ -262,7 +262,7 @@ Structured extracts (read-only, outside this skill; open them by path):
 - `references/manuals/structured/b1500a-command-summary.yaml`: command lookup with PDF pages.
 - `references/manuals/structured/b1500a-error-codes.yaml`: error codes (partial, sampled).
 - `references/manuals/structured/b1500a-initial-settings.md`: reset defaults (Table 2-13).
-- `references/manuals/structured/b1530a-*`: WGFMU library, timing and errors (reserved pulse work).
+- `references/manuals/structured/b1530a-*`: WGFMU library, timing and errors (knowledge 10).
 
 "PDF N" is the physical 1-based page of the PDF; printed pages look like `4-62`. For PG chapter 4,
 PDF = printed + 318 (see `references/manuals/b1500a-programming-guide-index.md`).

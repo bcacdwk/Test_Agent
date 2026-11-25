@@ -69,7 +69,7 @@ def power(times: Sequence[float]) -> list[tuple[float, float]]:
 
 def test_registered_for_the_fast_bti_recipe() -> None:
     method = ANALYSIS_METHODS["fast_bti_shift"]
-    assert method.status == "implemented" and method.milestone == "M10" and "reliability" in method.families
+    assert method.milestone == "M10" and "reliability" in method.families
     assert method.applies_to("wgfmu.fast_bti", "stress_measure")
     assert {"vth_method", "i_crit_a", "w_over_l", "x", "y", "t_min", "t_max", "min_change", "force"} <= set(
         method.options)

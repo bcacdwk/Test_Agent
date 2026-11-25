@@ -48,9 +48,9 @@ reports list every session). So:
 - **Budget.** `--max-sessions N` starts a scenario only when all its reps fit into what is left (a safety scenario is
   never cut short) and a functional re-run only when a session is left; what did not start is listed in the batch
   and the report. `--dry-run` prints the selection and the planned session count without launching anything.
-- **Pending scenarios.** `requires:` names the recipes (present and not `not_implemented`), still-reserved recipes,
-  pin maps and DUT profiles a scenario needs; its simulator scenario is always required. Until they exist the
-  scenario is *pending*: `list` shows what it misses, `--all`/`--tag`/`--affected` leave it out, `--scenario` refuses
+- **Pending scenarios.** `requires:` names the recipes, pin maps and DUT profiles a scenario needs (the
+  `reserved:` key went with the reserved slots in WP11.2); its simulator scenario is always required. Until they
+  exist the scenario is *pending*: `list` shows what it misses, `--all`/`--tag`/`--affected` leave it out, `--scenario` refuses
   it. Scenarios written ahead of their module (S3 rewritten, S11-S15, S18) thus run as soon as the module work
   package adds the recipes; v1's S3 required its slots to stay reserved and retired itself when M9 implemented
   `fefet.pulse_write_read`, exactly when the rewritten S3 (same id) became runnable; WP9.6 deleted its file.
@@ -196,7 +196,7 @@ title: Id-Vd above the soft limit needs confirmation
 safety: false                      # true = ★ (3 reps, 3/3)
 tags: [smu]                        # families + topics (manual, bringup): --tag
 touches: [.agents/skills/b1500-test/cards/smu/mosfet-idvd.md, recipes/mosfet/idvd.yaml]   # --affected
-requires: {recipes: [mosfet.idvd]}  # pending until these exist (also reserved, pin_maps, dut_profiles)
+requires: {recipes: [mosfet.idvd]}  # pending until these exist (also pin_maps, dut_profiles)
 sim: {scenario: nmos_basic, faults: null, timing: null}   # timing: scaled(f) slows an async run down
 overlays: [{path: pinmaps/igzo-3t.yaml, content: {...}}]     # runner config dir only
 seeds: [{kind: run, name: old, recipe_id: mosfet.idvg, pin_map: mosfet-4t, dut_profile: nmos-generic,

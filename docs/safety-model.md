@@ -82,7 +82,7 @@ plan (`plan:...`) or a state file (`data/state/fault.json`). "pre" = `pre_execut
 |---|---|---|---|---|
 | R-CFG-01 | plan, pre | Policy hard limits within the code ceiling; backend `visa` only with `config/local/{settings,station,policy}.yaml` and no `B1500_CONFIG_DIR`; the plan's backend is the configured one; the policy, station, pin map and DUT profile in the rule context are the loaded ones. Files that do not parse or validate never reach the engine: the loader reports `invalid_config`, and `config_findings()` turns each problem into an R-CFG-01 block | block | `policy.yaml#hard_limits.*`, `settings.yaml#backend`, the config file |
 | R-FAULT-01 | plan, pre | No latched fault; no unrecovered in-flight marker | block | `data/state/fault.json`, `data/state/inflight.json` |
-| R-REC-01 | plan | Effective recipe status for the backend: `not_implemented` (including a kind missing on this backend) → block; on visa `draft` → `draft_recipe`, `sim_validated` → `first_hw_run`, `generic.*` → `adhoc_recipe`; on sim `draft` → warn | block / confirm / warn | recipe `#status`, `#kind`, `#id` |
+| R-REC-01 | plan | Recipe status for the backend: a recipe whose kind has no code path on this backend → block (every shipped kind runs on sim and visa; the v1 reserved status went with WP11.2); on visa `draft` → `draft_recipe`, `sim_validated` → `first_hw_run`, `generic.*` → `adhoc_recipe`; on sim `draft` → warn | block / confirm / warn | recipe `#status`, `#kind`, `#id` |
 | R-PARAM-01 | plan | Every requested parameter is declared, every declared one has a value, and type, choices, range and unit match the recipe's `ParamSpec`; resolved values equal the requested ones; a `file` parameter is a `recipes/waveforms/` or `work/waveforms/` CSV path the planner read (exists, inside its folder after links, at most 1 MiB; its sha256 is in the plan) | block | recipe `#params.<name>.{range,type,choices,unit}`, `plan:resolved_params.<name>`, `plan:files.<name>` |
 | R-PIN-01 | plan | Pin map exists; every non-optional role is mapped to a channel, the GNDU, an MFCMU side (`7H`/`7L`, only for `cmu_high`/`cmu_low` roles, which need one; a role with `bind: cmu_side`, the correction recipes' `high`/`low`, uses the pin map's terminal on its side, whatever its name) or a switch output (`SEL1.OUT1`; an MFCMU role through an SCUU output takes that output's side: output 1 CMUH, output 2 CMUL, WP8.3); the plan binding agrees with the pin map and the station profile; channels exist and are used once; module type allowed by the role (default: the types of its function); `low_current` needs an HRSMU; the GNDU only for `ground` roles with `allow_gndu`; through a switch: the switch is declared and not absent, can connect the role's resource to that output, the channel on that input is recorded (not `null`) and the plan sets that route (`envelope.routes`; kinds without routing cannot use such a terminal); every envelope channel belongs to its bound role | block | `pinmaps/<name>.yaml#terminals.<role>`, `station.yaml#modules`, `station.yaml#switches[i].*`, recipe `#roles.<role>.*`, `plan:envelope.{channels.<ch>,routes}` |
 | R-PIN-02 | plan | Pin map `certainty: unverified` | confirm `unverified_pin_map` | `pinmaps/<name>.yaml#certainty` |
@@ -497,8 +497,8 @@ the station and run `b1500 fault clear`.
 
 The simulator test suite checks one global invariant across every injected fault and position: if any source
 command reached the transport, zero and disconnect follow the last one and the simulated instrument is safe, or the
-fault latch is set. No source command outside the compiled envelope ever reaches the transport, and `blocked`,
-`not_implemented` and unconfirmed plans never open it.
+fault latch is set. No source command outside the compiled envelope ever reaches the transport, and `blocked`
+(including a recipe not runnable on the backend) and unconfirmed plans never open it.
 
 ## What is protected and what is not (owner decision D3)
 

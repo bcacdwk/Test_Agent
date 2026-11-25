@@ -107,7 +107,8 @@ before the library sees it (R-WG-02), the ranges only bound the reading. Enduran
   (ATV-14; else `settings.wgfmu.flex_during_phase: close`); `initialize` leaves an SMU bias alone (ATV-17); the RSU
   SMU path reaches the DUT (ATV-32); a `disconnect` the library accepts means the RSU relay opened; the library's
   error-string and warning-summary formats; 3307 vs 3304 above 2,048 vectors; readback time of 504,000 points; DC spot and
-  self-test/cal durations; noise floors and bandwidth with the real cables.
+  self-test/cal durations; noise floors and bandwidth with the real cables; `wgfmu.pulse_train` with `gate_mode: pg`
+  (WP11.2): the PG level on the RSU V Monitor equals the set level on the open gate.
 
 ## 5. Abort criteria
 

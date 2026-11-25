@@ -3,8 +3,8 @@
 ``run_method(name, data, options, criteria=...)`` returns ``list[ExtractionResult]`` (extraction methods), a
 ``QualityReport`` (``quality_report``) or a ``PlotSet`` (``plot_iv``: PNG bytes the caller stores through the archive
 as ``plots/<name>-<n>.png``). It raises ``InvalidInputError`` for an unknown method, an unknown or invalid
-option, or a method that does not apply to the run's recipe/kind, and ``MethodNotImplementedError`` (code
-``not_implemented``) for a method that is only declared. Refusals on untrusted data are results (``outcome``
+option, or a method that does not apply to the run's recipe/kind; every registered method is implemented (the v1
+"declared only" state went with WP11.2). Refusals on untrusted data are results (``outcome``
 ``refused``), not exceptions. ``options`` come from JSON (``analyze_run`` ``options{}`` or a recipe's
 ``analysis_defaults``); the trust policy is not an option: the caller passes the recipe's ``QualityCriteria`` as
 ``criteria``, so only ``force`` (flagged) can override a refusal.
@@ -56,7 +56,6 @@ from b1500_test_agent.analysis.cv_variants import (
 from b1500_test_agent.analysis.dataset import RunData, load_run
 from b1500_test_agent.analysis.diode import diode_fit, forward_voltage
 from b1500_test_agent.analysis.dit import dit_conductance, dit_high_low
-from b1500_test_agent.analysis.errors import MethodNotImplementedError
 from b1500_test_agent.analysis.fefet import memory_window
 from b1500_test_agent.analysis.floor import zero_floor
 from b1500_test_agent.analysis.leakage import leakage_at
@@ -85,7 +84,6 @@ from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport, TrustPolicy
 from b1500_test_agent.models.recipe import RecipeFamily
 
-MethodStatus = Literal["implemented", "declared"]
 Milestone = Literal["M1", "M2", "M5", "M6", "M7", "M8", "M9", "M10", "M11"]
 FAMILIES: tuple[RecipeFamily, ...] = get_args(RecipeFamily)
 MethodOutput = Literal["quality_report", "extraction", "plots", "files"]
@@ -150,7 +148,6 @@ class AnalysisMethod:
     recipe families whose runs it serves (at least one)."""
 
     name: str
-    status: MethodStatus
     output: MethodOutput
     summary: str
     fn: Callable[..., Any]
@@ -168,14 +165,12 @@ class AnalysisMethod:
     @property
     def two_run(self) -> bool:
         """True for a two-run method (its function takes ``reference``; option ``reference_run``)."""
-        return self.status != "declared" and "reference" in inspect.signature(self.fn).parameters
+        return "reference" in inspect.signature(self.fn).parameters
 
     @property
     def options(self) -> tuple[str, ...]:
         """Option names ``run`` accepts (keyword parameters of ``fn`` except ``criteria``; ``reference_run`` for a
-        two-run method); empty when declared."""
-        if self.status == "declared":
-            return ()
+        two-run method)."""
         parameters = inspect.signature(self.fn).parameters.values()
         names = tuple(p.name for p in parameters if p.kind is p.KEYWORD_ONLY and p.name not in _RESERVED_ARGS)
         return (REFERENCE_OPTION, *names) if self.two_run else names
@@ -189,8 +184,6 @@ class AnalysisMethod:
         load_reference: ReferenceLoader | None = None,
     ) -> MethodResult:
         """Run the method on ``data`` (see the module docstring for errors, refusals and two-run methods)."""
-        if self.status == "declared":
-            raise MethodNotImplementedError(_not_implemented_message(self.name, self.milestone))
         opts = dict(options or {})
         unknown = sorted(set(opts) - set(self.options))
         if unknown:
@@ -223,21 +216,6 @@ def _reference(method: str, data: RunData, run_id: Any, load_reference: Referenc
     return load_run(run_id, data_root=root)
 
 
-def _not_implemented_message(name: str, milestone: str) -> str:
-    implemented = sorted(n for n, m in ANALYSIS_METHODS.items() if m.status == "implemented")
-    return f"Analysis method {name} is declared but not implemented yet (planned for {milestone}); implemented: " \
-        f"{implemented}."
-
-
-def _declared(name: str, milestone: str) -> Callable[..., Any]:
-    def stub(d: RunData, **options: Any) -> MethodResult:
-        raise MethodNotImplementedError(_not_implemented_message(name, milestone))
-
-    stub.__name__ = stub.__qualname__ = name
-    stub.__doc__ = f"Declared only: raises MethodNotImplementedError (code not_implemented) until {milestone}."
-    return stub
-
-
 def _quality_report(d: RunData, *, criteria: TrustPolicy | None = None) -> QualityReport:
     return assess_quality(d, criteria)
 
@@ -245,18 +223,18 @@ def _quality_report(d: RunData, *, criteria: TrustPolicy | None = None) -> Quali
 def _method(name: str, output: MethodOutput, fn: Callable[..., Any], summary: str, recipes: tuple[str, ...],
             kinds: tuple[str, ...] = _STAIRCASE, *, families: tuple[RecipeFamily, ...],
             milestone: Milestone = "M2") -> AnalysisMethod:
-    return AnalysisMethod(name=name, status="implemented", output=output, summary=summary, fn=fn,
+    return AnalysisMethod(name=name, output=output, summary=summary, fn=fn,
                           families=families, recipes=recipes, kinds=kinds, milestone=milestone)
 
 
 _METHODS = [
     AnalysisMethod(
-        name="quality_report", status="implemented", output="quality_report", fn=_quality_report, families=_TABLES,
+        name="quality_report", output="quality_report", fn=_quality_report, families=_TABLES,
         summary="Status-letter counts, trust fractions, noise and SNR per measured column; verdict ok|limited|"
                 "untrusted.",
     ),
     AnalysisMethod(
-        name="vth_linear_extrapolation", status="implemented", output="extraction", fn=vth_linear_extrapolation,
+        name="vth_linear_extrapolation", output="extraction", fn=vth_linear_extrapolation,
         families=_TRANSFER_FAMILIES, recipes=_TRANSFER, kinds=_TRANSFER_KINDS,
         summary="Vth = Vg-axis intercept of the tangent at max gm (or a given window) minus Vd/2.",
     ),

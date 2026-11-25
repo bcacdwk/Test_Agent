@@ -2,7 +2,8 @@
 and enforce the promotion rule of blueprint v2 7.2 against ``validation/hw/``.
 
 Clean (exit 0) iff ``RecipeRegistry.problems()`` and the promotion problems are empty; the report also lists each
-recipe with its own status and its effective status on both backends, and every record found.
+recipe with its status and whether it is runnable on each backend (its kind has a code path there), and every
+record found.
 
 **Promotion rule.** ``hw_validated`` ⇔ a reviewed hardware record: a recipe with ``status: hw_validated`` needs
 ``validation/hw/<recipe_id>.yaml`` that validates as ``ValidationRecord``, is reviewed (``reviewer`` and
@@ -39,7 +40,7 @@ class RecipeRow(StrictModel):
     id: str
     kind: str
     status: ValidationStatus
-    effective: dict[str, ValidationStatus]
+    runnable: dict[str, bool]
     source: str
     card: str | None
     record: str | None = None
@@ -145,8 +146,8 @@ def check_recipes(root: Path | None = None, *, repo_root: Path | None = None,
         rows.append(RecipeRow(id=recipe.id, kind=recipe.kind, status=recipe.status, source=registry.source(recipe_id),
                               card=recipe.card, record=f"validation/hw/{recipe_id}.yaml" if recipe_id in records
                               else None,
-                              effective={backend: registry.effective_status(recipe_id, backend)
-                                         for backend in ("sim", "visa")}))
+                              runnable={backend: registry.runnable(recipe_id, backend)
+                                        for backend in ("sim", "visa")}))
     promotion, notes = promotion_problems(registry, records, record_rows)
     problems = registry.problems() + promotion
     return RecipeCheckReport(ok=not problems, root=Path(root).as_posix(), validation_dir=_display(folder, repo),
@@ -162,7 +163,7 @@ def format_report(report: RecipeCheckReport) -> str:
         kind_width = max(len(r.kind) for r in report.recipes)
         for row in report.recipes:
             lines.append(f"  {row.id:<{width}}  {row.kind:<{kind_width}}  {row.status:<15}  "
-                         f"sim:{row.effective['sim']}  visa:{row.effective['visa']}"
+                         + "  ".join(f"{b}:{'runnable' if ok else 'NOT runnable'}" for b, ok in row.runnable.items())
                          + (f"  record:{row.record}" if row.record else ""))
     lines += [f"  note: {note}" for note in report.notes]
     if report.problems:

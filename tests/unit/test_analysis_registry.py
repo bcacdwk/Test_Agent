@@ -13,12 +13,11 @@ import pytest
 
 from b1500_test_agent.analysis import (
     ANALYSIS_METHODS,
-    MethodNotImplementedError,
     RunData,
     run_method,
 )
 from b1500_test_agent.analysis.plots import PlotSet, new_figure, plot_iv, save_figure
-from b1500_test_agent.analysis.registry import AnalysisMethod, _declared, methods_for
+from b1500_test_agent.analysis.registry import AnalysisMethod, methods_for
 from b1500_test_agent.catalog.registry import RecipeRegistry
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport
@@ -56,7 +55,6 @@ def test_registry_lists_every_method_as_implemented() -> None:
     assert set(ANALYSIS_METHODS) == M1 | M2 | M5 | M7 | M8 | M9 | M10
     for name, method in ANALYSIS_METHODS.items():
         assert method.name == name and callable(method.fn) and method.summary
-        assert method.status == "implemented"
         assert method.milestone == ("M1" if name in M1 else "M2" if name in M2 else "M5" if name in M5 else
                                     "M8" if name in M8 else "M9" if name in M9 else "M10" if name in M10 else
                                     "M7")
@@ -69,16 +67,14 @@ def test_registry_lists_every_method_as_implemented() -> None:
         ANALYSIS_METHODS["x"] = ANALYSIS_METHODS["gm_max"]  # type: ignore[index]
 
 
-def test_a_declared_method_reports_not_implemented() -> None:
-    data = idvg_run("generic.smu_staircase")
-    declared = AnalysisMethod(name="cv_fit", status="declared", output="extraction", summary="later",
-                              fn=_declared("cv_fit", "M2"), families=("cmu",), milestone="M2")
-    with pytest.raises(MethodNotImplementedError, match="declared but not implemented") as info:
-        declared.run(data)
-    assert info.value.code == "not_implemented" and "M2" in str(info.value)
-    with pytest.raises(MethodNotImplementedError):
-        declared.fn(data)
-    assert declared.options == ()
+def test_no_method_is_only_declared() -> None:
+    """WP11.2 (blueprint v2 9 "Delete when done"): the v1 "declared" state of a method is gone; a method is
+    registered with its implementation or not at all."""
+    import b1500_test_agent.analysis.registry as registry_module
+
+    assert not hasattr(registry_module, "_declared") and "status" not in AnalysisMethod.__dataclass_fields__
+    assert all(callable(m.fn) and m.fn.__module__.startswith("b1500_test_agent.analysis")
+               for m in ANALYSIS_METHODS.values())
 
 
 @pytest.mark.parametrize(("name", "quantities"), [
@@ -201,10 +197,9 @@ def test_every_method_carries_valid_family_tags() -> None:
     assert {m.name for m in ANALYSIS_METHODS.values() if "system" in m.families} == {
         "quality_report", "plot_iv", "plot_timeseries", "zero_floor"}
     with pytest.raises(ValueError, match="families"):
-        AnalysisMethod(name="x", status="declared", output="extraction", summary="x", fn=_declared("x", "M7"),
-                       families=())
+        AnalysisMethod(name="x", output="extraction", summary="x", fn=plot_iv, families=())
     with pytest.raises(ValueError, match="families"):
-        AnalysisMethod(name="x", status="declared", output="extraction", summary="x", fn=_declared("x", "M7"),
+        AnalysisMethod(name="x", output="extraction", summary="x", fn=plot_iv,
                        families=("smu", "optics"))  # type: ignore[arg-type]
 
 
@@ -226,8 +221,7 @@ def test_applicable_methods_list_the_family_of_every_runnable_recipe() -> None:
     checked = 0
     for recipe_id in registry.ids():
         recipe = registry.get(recipe_id)
-        if recipe.kind in ("system", "cmu_correction") or registry.effective_status(recipe_id, "sim") == \
-                "not_implemented":
+        if recipe.kind in ("system", "cmu_correction"):
             continue  # kinds without a run table (no data to analyse)
         for method in ANALYSIS_METHODS.values():
             if method.applies_to(recipe_id, recipe.kind):

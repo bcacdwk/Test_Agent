@@ -37,7 +37,8 @@ def params(**values: Any) -> dict[str, Quantity]:
 def test_the_kind_is_registered_on_both_backends() -> None:
     assert isinstance(default_kinds()["spgu_pulse"], SpguPulseKind)
     assert KIND.implemented_on == frozenset({"sim", "visa"})
-    assert REGISTRY.effective_status("system.selector_check", "sim") == "sim_validated"
+    assert REGISTRY.get("system.selector_check").status == "sim_validated"
+    assert REGISTRY.runnable("system.selector_check", "visa")
 
 
 def test_each_output_steps_through_its_states_one_phase_each() -> None:

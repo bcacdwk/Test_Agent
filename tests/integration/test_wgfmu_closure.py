@@ -82,7 +82,8 @@ def _listing(world: World, monkeypatch: pytest.MonkeyPatch, family: str) -> dict
 
 def test_every_section_3_4_recipe_is_sim_validated_with_its_family_kind_and_card(registry: RecipeRegistry) -> None:
     assert len(SECTION_3_4) == 13
-    assert {r: registry.effective_status(r, "sim") for r in SECTION_3_4} == {r: "sim_validated" for r in SECTION_3_4}
+    assert {r: registry.get(r).status for r in SECTION_3_4} == {r: "sim_validated" for r in SECTION_3_4}
+    assert all(registry.runnable(r, backend) for r in SECTION_3_4 for backend in ("sim", "visa"))
     for recipe_id, (family, kind, card, _stage) in SECTION_3_4.items():
         recipe = registry.get(recipe_id)
         assert (recipe.family, recipe.kind) == (family, kind), recipe_id
@@ -139,7 +140,7 @@ def test_stage_l8_runs_every_recipe_the_cards_put_on_it() -> None:
 
 def test_wgfmu_analysis_methods_are_implemented() -> None:
     for name in WGFMU_METHODS:
-        assert ANALYSIS_METHODS[name].status == "implemented", name
+        assert callable(ANALYSIS_METHODS[name].fn), name
 
 
 def test_the_wgfmu_runbooks_exist_and_the_cards_point_to_them() -> None:

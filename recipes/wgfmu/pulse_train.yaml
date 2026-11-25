@@ -5,7 +5,9 @@
 # and takes `samples` contiguous averaged points on each flat top (minus `settle` at both ends). The table's cycle
 # column is the pulse number: pulse_plateau gives each pulse's plateau current (drift over the train). The gate
 # terminal needs a pulse envelope (R-PULSE-02); above the policy's soft bands (count, on-time, duty) it confirms
-# (soft_pulse).
+# (soft_pulse). gate_mode pg (WP11.2) pulses the gate in the WGFMU's PG mode instead (ALWG voltage output through the
+# internal 50 Ohm, -5..5 V open load, no current measurement on the gate; WG p16 (1-4)): the set level is the open-load
+# level, so the insulated gate sees it, a resistive load less.
 # status: sim_validated by tests/integration/test_recipes_wgfmu.py (nmos_wgfmu: every pulse's plateau current = the
 # model's Id at the peak +-2 %, count and timing exact on the 10 ns grid).
 id: wgfmu.pulse_train
@@ -20,7 +22,7 @@ roles:
   gate:
     function: wgfmu
     module_types: [WGFMU]
-    settings: {base: $vg_base, peak: $vg_peak}
+    settings: {base: $vg_base, peak: $vg_peak, mode: $gate_mode}
   drain:
     function: wgfmu
     measure: [I]
@@ -39,6 +41,8 @@ params:
   settle: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-5], range: [0.0, 1.0e-3], doc: Time from each edge to the sampled window.}
   count: {type: int, default: 100, recommended: [1, 10000], range: [1, 1000000], doc: Pulses of the train (sequence count).}
   samples: {type: int, default: 10, recommended: [1, 100], range: [1, 2000], doc: Contiguous averaged points on each flat top.}
+  gate_mode: {type: enum, choices: [fastiv, pg], default: fastiv,
+              doc: "Gate channel operation mode: fastiv (Fast IV) or pg (PG mode, 50 Ohm output, open-load level, 5 V ranges)."}
 quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
 analysis_defaults:
   - {method: pulse_plateau, options: {x: gate_V, y: drain_I}}

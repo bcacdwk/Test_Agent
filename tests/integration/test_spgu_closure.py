@@ -49,7 +49,8 @@ def registry() -> RecipeRegistry:
 
 def test_every_section_3_3_recipe_is_sim_validated_with_its_kind_and_card(registry: RecipeRegistry) -> None:
     assert len(SECTION_3_3) == 9
-    assert {r: registry.effective_status(r, "sim") for r in SECTION_3_3} == {r: "sim_validated" for r in SECTION_3_3}
+    assert {r: registry.get(r).status for r in SECTION_3_3} == {r: "sim_validated" for r in SECTION_3_3}
+    assert all(registry.runnable(r, backend) for r in SECTION_3_3 for backend in ("sim", "visa"))
     for recipe_id, (kind, card, _stage) in SECTION_3_3.items():
         recipe = registry.get(recipe_id)
         assert recipe.kind == kind, recipe_id
@@ -109,7 +110,7 @@ def test_stage_l7_runs_every_recipe_of_the_cards_that_name_it() -> None:
 
 def test_spgu_analysis_methods_are_implemented() -> None:
     for name in SPGU_METHODS:
-        assert ANALYSIS_METHODS[name].status == "implemented", name
+        assert callable(ANALYSIS_METHODS[name].fn), name
 
 
 def test_s12_and_the_rewritten_s3_are_runnable_and_v1_s3_is_retired() -> None:

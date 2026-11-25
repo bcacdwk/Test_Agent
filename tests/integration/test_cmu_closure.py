@@ -53,7 +53,8 @@ def _front(path: Path) -> dict:
 
 def test_every_section_3_2_recipe_is_sim_validated(registry: RecipeRegistry) -> None:
     assert len(SECTION_3_2) == 15 and len(set(SECTION_3_2)) == 15
-    assert {r: registry.effective_status(r, "sim") for r in SECTION_3_2} == {r: "sim_validated" for r in SECTION_3_2}
+    assert {r: registry.get(r).status for r in SECTION_3_2} == {r: "sim_validated" for r in SECTION_3_2}
+    assert all(registry.runnable(r, backend) for r in SECTION_3_2 for backend in ("sim", "visa"))
     assert "cmu.correction" not in registry.ids()  # the v1 reserved id, retired by WP8.2
 
 
@@ -100,7 +101,7 @@ def test_cmu_analysis_methods_are_implemented() -> None:
     assert {"cv_cox", "cv_flatband", "cv_doping_profile", "cv_vth", "cv_hysteresis", "impedance_convert", "plot_cv",
             "cf_dispersion", "ct_recovery", "cv_ac_dependence", "cv_pulsed_vs_dc", "dit_high_low",
             "dit_conductance"} <= names
-    assert all(m.status == "implemented" for m in methods_for("cmu"))
+    assert all(callable(m.fn) for m in methods_for("cmu"))  # every registered method is implemented (WP11.2)
 
 
 def test_the_s11_flow_runs_on_the_real_recipes(svc: B1500Service) -> None:

@@ -181,6 +181,25 @@ def test_pulse_train_reads_every_pulse_plateau(world: World) -> None:
     service.close()
 
 
+def test_pulse_train_in_pg_mode_reads_the_same_plateaus(world: World) -> None:
+    """``gate_mode: pg`` (WP11.2, blueprint v2 1.2 WGFMU "PG mode"): the gate channel runs in PG mode (50 Ohm output,
+    no measurement, a 5 V range at most); on the insulated gate the open-load level reaches the DUT, so every plateau
+    current is the model's Id at the peak as in Fast IV mode."""
+    world.use_scenario("nmos_wgfmu")
+    service = world.service()
+    validation, result = run_confirmed(service, "wgfmu.pulse_train", MOSFET, count=20, samples=5, gate_mode="pg")
+    assert result.ok and result.status_counts == {"N": 100} and "pulse 0->2 V" in (validation.summary or "")
+    program = read_program(run_dir(world, result.run_id))
+    assert program is not None
+    channels = program.programs["waveform"].spec["channels"]
+    assert isinstance(channels, dict)
+    assert {ch: setup["mode"] for ch, setup in channels.items()} == {"201": "pg", "202": "fastiv"}  # type: ignore[index]
+    assert channels["201"]["force_range"] == "3v" and not channels["201"]["measure_enabled"]  # type: ignore[index]
+    plateau = by_quantity(result.analyses)["plateau_current"]
+    assert plateau.value == pytest.approx(model_id(device(world), 2.0, 1.0), rel=0.01)
+    service.close()
+
+
 def test_pulse_train_long_confirms_soft_pulse(world: World) -> None:
     world.use_scenario("nmos_wgfmu")
     service = world.service()

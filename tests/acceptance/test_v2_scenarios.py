@@ -176,13 +176,13 @@ def test_closure_tags_select_the_module_scenarios() -> None:
 
 
 def test_s3_is_the_rewrite_only() -> None:
-    """WP9.6 deleted v1's S3 (reserved WGFMU slots, ``requires.reserved``): the id S3 is the SPGU overdrive scenario,
-    runnable now that ``spgu.pulse_train`` and ``fefet.pulse_write_read`` exist."""
+    """WP9.6 deleted v1's S3 (reserved WGFMU slots); WP11.2 the ``requires.reserved`` key: the id S3 is the SPGU
+    overdrive scenario, runnable now that ``spgu.pulse_train`` and ``fefet.pulse_write_read`` exist."""
     s3 = [name for name, path in FILES.items() if load_scenario(path).id == "S3"]
     assert s3 == ["S03-spgu-overdrive.yaml"]
     scenario = load_scenario(FILES["S03-spgu-overdrive.yaml"])
     assert find_scenario(REPO_ROOT, "S3").name == "S03-spgu-overdrive.yaml"
-    assert not missing_requirements(scenario, REPO_ROOT) and not scenario.requires.reserved
+    assert not missing_requirements(scenario, REPO_ROOT) and "reserved" not in type(scenario.requires).model_fields
 
 
 @pytest.mark.parametrize("case", sorted(GENUINE))

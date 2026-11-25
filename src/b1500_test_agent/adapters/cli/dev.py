@@ -1,6 +1,7 @@
 """Developer commands under ``b1500 dev`` (never needed for lab operation): ``tool-budget``, ``recipe-check``,
 ``mcp-smoke [--config F] [--async]`` (start the server as a harness config says and check it; ``--async`` also
-runs an asynchronous simulator run through it), ``sync-harness [--check]``
+runs an asynchronous simulator run through it), ``coverage [--write|--check]`` (generated ``docs/coverage.md``,
+``devtools/coverage.py``), ``sync-harness [--check]``
 (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``lint-skills`` (skill schema, budgets, links; package
 ``devtools/skills/``), ``gen-index [--check]`` (generated card index ``cards/README.md``), ``sim-console`` (raw FLEX,
 simulator only) and ``acceptance`` (M3 harness acceptance runner, ``devtools/acceptance/cli.py``).
@@ -18,7 +19,7 @@ import typer
 
 from b1500_test_agent.adapters.cli import core
 from b1500_test_agent.adapters.cli.core import DEFAULT_MCP_APP_SPEC, JsonOption
-from b1500_test_agent.devtools import budget, harness, mcp_smoke, recipe_check, sim_console, sync_harness
+from b1500_test_agent.devtools import budget, coverage, harness, mcp_smoke, recipe_check, sim_console, sync_harness
 from b1500_test_agent.devtools.acceptance.cli import acceptance_app
 from b1500_test_agent.devtools.skills import index as card_index
 from b1500_test_agent.devtools.skills import lint as lint_skills
@@ -55,7 +56,7 @@ def tool_budget(
 @dev_app.command("recipe-check")
 def recipe_check_command(as_json: JsonOption = False) -> None:
     """Load recipes/ against the measurement kinds and list every problem (schema, kind, card, analysis method,
-    $param references, reserved slots). Exit code 0 iff there are none."""
+    $param references, waveform files, hardware promotion). Exit code 0 iff there are none."""
     report = recipe_check.check_recipes()
     typer.echo(report.model_dump_json(indent=2) if as_json else recipe_check.format_report(report))
     if not report.ok:
@@ -143,6 +144,26 @@ def gen_index_command(
     recipe registry; --check only compares. Exit 1 on drift or invalid card frontmatter."""
     report = card_index.gen_index(root, check=check)
     typer.echo(report.model_dump_json(indent=2) if as_json else card_index.format_report(report))
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@dev_app.command("coverage")
+def coverage_command(
+    write: Annotated[bool, typer.Option("--write", help="Write docs/coverage.md (the default).")] = False,
+    check: Annotated[bool, typer.Option("--check", help="Write nothing; exit 1 when docs/coverage.md differs from "
+                                                        "the generated page or the coverage has a gap.")] = False,
+    root: Annotated[Path | None, typer.Option("--root", help="Repository root (default: this clone).")] = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Generate docs/coverage.md: per module the kinds, recipes, cards, rules, simulator model, bring-up stages and
+    ledger counts, the in-scope modes and the recipes; --check only compares. Exit 1 on drift or any coverage gap
+    (module without recipe, unused kind, rule in no table, open ledger entry, recipe without card or stage)."""
+    if write and check:
+        typer.echo("error: --write and --check exclude each other", err=True)
+        raise typer.Exit(code=2)
+    report = coverage.coverage(root, check=check)
+    typer.echo(report.model_dump_json(indent=2) if as_json else coverage.format_report(report))
     if not report.ok:
         raise typer.Exit(code=1)
 

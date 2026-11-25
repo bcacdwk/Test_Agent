@@ -18,7 +18,7 @@ from b1500_test_agent.models.recipe import RecipeSummary
 from b1500_test_agent.service import TOOL_NAMES, B1500Admin, approx_tokens, args_digest
 from b1500_test_agent.service.common import TRIM_TARGET
 from b1500_test_agent.service.core import RECIPE_FAMILIES
-from tests.integration.helpers import IDVG, World, with_reserved_slot
+from tests.integration.helpers import IDVG, World, with_unrunnable_recipe
 
 VTH0 = 0.42
 """Truth of config/sim/scenarios/nmos_basic.yaml."""
@@ -106,14 +106,18 @@ def test_needs_confirmation_flow_and_summary_echo(world: World) -> None:
     assert manifest.confirmed_via == "run_confirmed_plan" and manifest.confirmed_summary == plan.summary
 
 
-def test_blocked_and_not_implemented_plans(world: World, tmp_path: Path) -> None:
-    reserved_id = with_reserved_slot(world, tmp_path)  # WP10.7: wgfmu.fast_bti is implemented now
+def test_blocked_and_unrunnable_plans(world: World, tmp_path: Path) -> None:
+    unrunnable_id = with_unrunnable_recipe(world, tmp_path)  # WP11.2: no reserved slot is left
     service = world.service()
     blocked = service.validate_plan(**IDVG, params={"vg_stop": 60.0})
     assert not blocked.ok and (blocked.status, blocked.error_code) == ("blocked", "blocked_by_rules")
     assert {f.rule_id for f in blocked.findings if f.severity == "block"} >= {"R-PARAM-01", "R-LIM-02"}
-    reserved = service.validate_plan(recipe_id=reserved_id, pin_map="mosfet-4t", dut_profile="nmos-generic")
-    assert (reserved.status, reserved.error_code, reserved.tier) == ("not_implemented", "not_implemented", "blocked")
+    unrunnable = service.validate_plan(recipe_id=unrunnable_id, pin_map="mosfet-4t", dut_profile="nmos-generic")
+    assert (unrunnable.status, unrunnable.error_code, unrunnable.tier) == ("blocked", "blocked_by_rules", "blocked")
+    assert "R-REC-01" in unrunnable.message and "has no code path on backend sim" in unrunnable.message
+    detail = service.list_recipes(recipe_id=unrunnable_id)
+    assert detail.recipe is not None and not detail.recipe.runnable and "not runnable on sim" in detail.message
+    assert detail.next_steps[0].startswith("not runnable here")
     both = service.validate_plan(recipe_id="mosfet.idvg", plan_id=blocked.plan_id)
     assert (both.status, both.error_code) == ("refused", "invalid_input")
     unknown = service.validate_plan(recipe_id="mosfet.nope", pin_map="mosfet-4t")
@@ -216,19 +220,18 @@ def test_admin_lock_status(world: World) -> None:
 
 
 def test_recipe_overview_lists_every_family_within_the_budget(world: World) -> None:
-    """The default index (blueprint v2 2.9, WP7.3): every family with its runnable and not_implemented ids, within
-    the response budget; ``family`` lists that family's entries (card ids), ``device_type`` filters both; an unknown
-    family is invalid input."""
+    """The default index (blueprint v2 2.9, WP7.3): every family with its runnable ids, within the response budget;
+    ``family`` lists that family's entries (card ids), ``device_type`` filters both; an unknown family is invalid
+    input."""
     service = world.service()
     index = service.list_recipes()
     assert index.ok and index.recipes == [] and approx_tokens(index.model_dump_json()) <= TRIM_TARGET
-    every = service.executor.registry().list(backend="sim")
+    every = service.executor.registry().list()
     assert list(index.families) == [f for f in RECIPE_FAMILIES if any(r.family == f for r in every)]
     for name, family in index.families.items():
         members = [r for r in every if r.family == name]
         assert family.recipes == len(members)
-        assert family.runnable == [r.id for r in members if r.status != "not_implemented"]
-        assert family.not_implemented == [r.id for r in members if r.status == "not_implemented"]
+        assert family.runnable == [r.id for r in members]  # every shipped kind runs on sim (WP11.2)
     assert index.message.startswith(f"{len(every)} recipes in {len(index.families)} families, ")
     assert index.next_steps[0].startswith("list_recipes(family=")
     smu = service.list_recipes(family="smu")
@@ -247,9 +250,9 @@ def test_recipe_overview_lists_every_family_within_the_budget(world: World) -> N
 
 
 def test_recipe_index_fallbacks_stay_within_the_budget(world: World) -> None:
-    """Large catalogues: the overview drops the not_implemented id lists, then the runnable ids of the largest
-    families (named in the message); a family listing drops the device types, then names the reserved ids, then
-    trims like ``list_runs`` (``showing N of M``) and names the rest, always within the budget."""
+    """Large catalogues: the overview drops the runnable ids of the largest families (named in the message); a family
+    listing names the recipes not runnable on the backend, drops the device types, then trims like ``list_runs``
+    (``showing N of M``) and names the rest, always within the budget."""
     service = world.service()
 
     def entry(n: int, status: str, family: str = "smu") -> RecipeSummary:
@@ -257,32 +260,35 @@ def test_recipe_index_fallbacks_stay_within_the_budget(world: World) -> None:
                              family=family, kind="smu_staircase", status=status, card="smu/diode-iv",
                              device_types=["nmos", "pmos"])
 
-    small = [entry(1, "sim_validated"), entry(2, "not_implemented")]
-    result = service._recipe_index(small, "sim", "", family="smu")
-    assert [r.id for r in result.recipes] == ["generic.r001", "generic.r002"] and "not listed" not in result.message
+    small = [entry(1, "sim_validated"), entry(2, "draft")]
+    result = service._recipe_index(small, {"generic.r001"}, "sim", "", family="smu")
+    assert [r.id for r in result.recipes] == ["generic.r001", "generic.r002"]
+    assert result.message == "2 recipes in family smu, 1 runnable on sim; not runnable on sim: generic.r002"
     assert result.next_steps == ["list_recipes(recipe_id) for params, roles and the test card"]
     families = ("smu", "cmu", "spgu", "wgfmu", "nvm", "reliability", "system")
-    big = [entry(n, "sim_validated" if n % 3 else "not_implemented", families[n % 7]) for n in range(900)]
-    overview = service._family_overview(big, "sim", "")
+    big = [entry(n, "sim_validated", families[n % 7]) for n in range(900)]
+    overview = service._family_overview(big, {r.id for r in big if int(r.id[-3:]) % 3}, "sim", "")
     assert approx_tokens(overview.model_dump_json()) <= TRIM_TARGET and list(overview.families) == list(families)
     assert sum(f.recipes for f in overview.families.values()) == 900
-    assert "not_implemented ids not listed" in overview.message and "runnable ids omitted for " in overview.message
-    assert all(not f.not_implemented for f in overview.families.values())
+    assert overview.message.startswith("900 recipes in 7 families, 600 runnable on sim; runnable ids omitted for ")
     medium = [entry(n, "sim_validated") for n in range(26)]
-    result = service._recipe_index(medium, "sim", "", family="smu")
+    result = service._recipe_index(medium, {r.id for r in medium}, "sim", "", family="smu")
     assert len(result.recipes) == 26 and "device types omitted" in result.message
     assert all(r.device_types == [] for r in result.recipes)
     assert approx_tokens(result.model_dump_json()) <= TRIM_TARGET
     runnable = [entry(n, "sim_validated") for n in range(40)]
-    reserved = [entry(n, "not_implemented") for n in range(100, 130)]
-    result = service._recipe_index(runnable + reserved, "sim", "", family="smu")
+    blocked = [entry(n, "draft") for n in range(100, 130)]
+    ids = {r.id for r in runnable}
+    result = service._recipe_index(runnable + blocked, ids, "sim", "", family="smu")
     shown = len(result.recipes)
-    assert 1 <= shown < 40 and [r.id for r in result.recipes] == [r.id for r in runnable[:shown]]
-    assert f"showing {shown} of 40 (not shown: generic.r{shown:03d}, " in result.message
-    assert all(r.id in result.message for r in runnable[shown:] + reserved)  # every id stays visible
+    assert 1 <= shown < 70 and [r.id for r in result.recipes] == [r.id for r in (runnable + blocked)[:shown]]
+    assert f"showing {shown} of 70 (not shown: generic.r{shown:03d}, " in result.message
+    assert all(r.id in result.message for r in runnable[shown:] + blocked)  # every id stays visible
+    assert "not runnable on sim: generic.r100, " in result.message
     assert approx_tokens(result.model_dump_json()) <= TRIM_TARGET
     many = [entry(n, "sim_validated") for n in range(200)]
-    result = service._recipe_index(many + reserved, "sim", "", family="smu")
-    assert 1 <= len(result.recipes) < 200 and f"showing {len(result.recipes)} of 200" in result.message
+    others = [entry(n, "draft") for n in range(300, 330)]
+    result = service._recipe_index(many + others, {r.id for r in many}, "sim", "", family="smu")
+    assert 1 <= len(result.recipes) < 200 and f"showing {len(result.recipes)} of 230" in result.message
     assert result.message.startswith("230 recipes in family smu, 200 runnable on sim")
     assert approx_tokens(result.model_dump_json()) <= TRIM_TARGET

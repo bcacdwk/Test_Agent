@@ -38,8 +38,8 @@ library helpers: ``weibull_fit`` (over a run list), ``endurance_curve`` (MW per 
 The run-table contract (``data.csv`` or ``data.npz`` +
 ``preview.csv``, columns) is defined in ``dataset.py``.
 
-Errors: exceptions mean the call cannot be served (``RunNotFoundError``, ``RunFormatError``, ``InvalidInputError``,
-``MethodNotImplementedError``); data that do not allow a trustworthy value give an ``ExtractionResult`` with
+Errors: exceptions mean the call cannot be served (``RunNotFoundError``, ``RunFormatError``,
+``InvalidInputError``); data that do not allow a trustworthy value give an ``ExtractionResult`` with
 ``outcome`` ``refused`` (untrusted data without ``force``) or ``failed``.
 """
 
@@ -95,7 +95,7 @@ from b1500_test_agent.analysis.dataset import (
 )
 from b1500_test_agent.analysis.diode import diode_fit, forward_voltage
 from b1500_test_agent.analysis.dit import dit_conductance, dit_high_low, high_low_profile
-from b1500_test_agent.analysis.errors import MethodNotImplementedError, RunFormatError, RunNotFoundError
+from b1500_test_agent.analysis.errors import RunFormatError, RunNotFoundError
 from b1500_test_agent.analysis.fefet import memory_window
 from b1500_test_agent.analysis.leakage import leakage_at
 from b1500_test_agent.analysis.model import CompactModel, compact_model_fit, export_spice_netlist, model_compare
@@ -155,7 +155,6 @@ __all__ = [
     "TRUST_LEVELS",
     "AnalysisMethod",
     "CompactModel",
-    "MethodNotImplementedError",
     "PlotSet",
     "RunData",
     "RunFormatError",

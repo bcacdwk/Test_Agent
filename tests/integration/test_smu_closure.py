@@ -1,6 +1,6 @@
 """SMU module closure (WP7.7, blueprint v2 10 intro "Per-module closure AC", 3.1, 7.4): every recipe of the §3.1
 catalogue is registered and ``sim_validated`` (its integration test against model truth passed in its WP), the
-``smu`` family listing has no ``not_implemented`` entry left (``hspice.compare`` retired), every carded recipe sits on
+``smu`` family listing has no reserved entry left (``hspice.compare`` retired), every carded recipe sits on
 the bring-up stage §3.1 names and that stage file runs it, and the SMU analysis methods are all implemented."""
 
 from __future__ import annotations
@@ -40,7 +40,8 @@ def registry() -> RecipeRegistry:
 
 def test_every_section_3_1_recipe_is_sim_validated(registry: RecipeRegistry) -> None:
     assert len(SECTION_3_1) == 31
-    assert {r: registry.effective_status(r, "sim") for r in SECTION_3_1} == {r: "sim_validated" for r in SECTION_3_1}
+    assert {r: registry.get(r).status for r in SECTION_3_1} == {r: "sim_validated" for r in SECTION_3_1}
+    assert all(registry.runnable(r, backend) for r in SECTION_3_1 for backend in ("sim", "visa"))
     assert "hspice.compare" not in registry.ids()  # retired by WP7.7 (compact models are analysis methods)
 
 
@@ -73,4 +74,4 @@ def test_smu_analysis_methods_are_implemented() -> None:
     names = {m.name for m in methods_for("smu")}
     assert {"compact_model_fit", "model_compare", "export_spice_netlist", "vth_search_value", "pulsed_vs_dc",
             "kelvin_resistance", "zero_floor", "dibl", "sampling_summary"} <= names
-    assert all(m.status == "implemented" for m in methods_for("smu"))
+    assert all(callable(m.fn) for m in methods_for("smu"))  # every registered method is implemented (WP11.2)

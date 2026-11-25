@@ -28,8 +28,8 @@ once per step (MM 5), one curve per level of `vg_levels`; `basic.pulsed_spot` pu
 in parallel (MM 28 sweep, MM 27 with `points` 1). Each reading ends with its pulse.
 
 - Uses: isothermal I-V of power, SOI or thin-film transistors; trap-free transfer curves (high-k, IGZO); pulsed
-  resistance without DC stress; compare with DC (`pulsed_vs_dc`). Not for: pulses below 500 us (SMU limit: WGFMU `wgfmu-pulsed-iv`, reserved), program/erase pulses (SPGU), DC curves
-  ([mosfet-idvg](mosfet-idvg.md), [mosfet-idvd](mosfet-idvd.md)), transients I(t) ([smu-sampling](smu-sampling.md)).
+  resistance without DC stress; compare with DC (`pulsed_vs_dc`). Not for: pulses below 500 us ([wgfmu-pulsed-iv](../wgfmu/wgfmu-pulsed-iv.md)),
+  program/erase pulses (SPGU), DC curves ([mosfet-idvg](mosfet-idvg.md), [mosfet-idvd](mosfet-idvd.md)), I(t) ([smu-sampling](smu-sampling.md)).
 
 ## 2. Wiring, pin map, modules
 

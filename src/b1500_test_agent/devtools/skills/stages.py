@@ -91,8 +91,6 @@ def check_stage_file(lint: Lint, path: Path, registry: RecipeRegistry) -> StageF
     for recipe_id in front.recipes:
         if recipe_id not in known:
             lint.add("stage", path, f"recipes lists {recipe_id}, which is not a registered recipe", 1)
-        elif registry.get(recipe_id).status == "not_implemented":
-            lint.add("stage", path, f"recipes lists {recipe_id}, which is reserved (not_implemented)", 1)
     expected = section_text(doc, STAGE_SECTIONS.index("Expected values") + 1, STAGE_SECTIONS)
     for check in front.checks if expected is not None else []:  # a missing section is reported by check_sections
         if f"`{check.id}`" not in expected:

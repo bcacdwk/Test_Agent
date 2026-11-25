@@ -84,8 +84,6 @@ def status_for(code: ErrorCode) -> ResultStatus:
     """The result status that goes with an error code."""
     if code in _REFUSED_CODES:
         return "refused"
-    if code == "not_implemented":
-        return "not_implemented"
     if code == "instrument_busy":
         return "busy"
     if code in ("fault_latched", "cleanup_unverified"):

@@ -15,6 +15,7 @@ GATE = [  # blueprint v2 10 "Definition of done", in the workflow's order
     "uv run b1500 dev recipe-check",
     "uv run b1500 dev lint-skills",
     "uv run b1500 dev gen-index --check",
+    "uv run b1500 dev coverage --check",  # WP11.2: docs/coverage.md current, no coverage gap
     "uv run b1500 dev sync-harness --check",
     "uv run b1500 dev tool-budget",
     "uv run b1500 manual status",  # manual build --check needs the PDFs, which CI does not have

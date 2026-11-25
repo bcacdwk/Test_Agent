@@ -56,7 +56,7 @@ def test_registered_for_sim_and_visa() -> None:
     kind = default_kinds()["smu_sampling"]
     assert isinstance(kind, SmuSamplingKind) and kind.implemented_on == {"sim", "visa"}
     for recipe_id in ("generic.smu_sampling", "mosfet.id_t_sampling", "reliability.tddb_cvs"):
-        assert REGISTRY.effective_status(recipe_id, "sim") == "sim_validated"
+        assert REGISTRY.get(recipe_id).status == "sim_validated" and REGISTRY.runnable(recipe_id, "sim")
 
 
 def test_id_t_sampling_defaults_compile_to_one_block_like_the_lab_script() -> None:

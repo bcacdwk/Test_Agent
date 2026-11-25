@@ -6,7 +6,7 @@ blueprint 2.6 docstring:
 
 1. load the plan (unknown, or content not hashing to its id → ``unknown_plan``; past its TTL → ``plan_expired``;
    recipe, config hashes, a ``file`` parameter's CSV or backend changed → ``plan_stale``);
-2. effective status ``not_implemented`` → refuse;
+2. (merged into 3 since WP11.2: a recipe whose kind has no code path on the backend is blocked by R-REC-01);
 3. re-run the plan-phase rules, never trusting the stored tier: ``blocked`` → ``blocked_by_rules``;
    ``needs_confirmation`` without a summary → ``confirmation_required``; a summary that differs from the fresh
    ``plan_summary`` → ``summary_mismatch`` (the fresh summary is returned). Steps 1-3 do ZERO transport I/O (they
@@ -364,12 +364,8 @@ class Executor(RunningRuns):
         except PlanError as exc:
             next_steps = ["validate the request again with validate_plan"]
             raise _Refusal("refused", exc.code, "refused", str(exc), next_steps) from None
-        if kind is None or registry.effective_status(recipe.id, bundle.backend) == "not_implemented":
-            raise _Refusal("not_implemented", "not_implemented", "not_implemented",
-                           f"recipe {recipe.id} (kind {recipe.kind}) is not implemented on backend {bundle.backend}",
-                           ["list validated alternatives with list_recipes; never improvise instrument code"])
         fresh, report = self._fresh(plan, bundle, registry)
-        if report.tier == "blocked":
+        if report.tier == "blocked" or kind is None:  # R-REC-01 blocks a kind with no code path on the backend
             raise _Refusal("blocked", "blocked_by_rules", "refused",
                            f"plan {plan_id} is blocked: {_flags(report.findings, 'block')}",
                            [("explain the blocking rules and offer an in-envelope alternative; only a human edits "
@@ -392,7 +388,7 @@ class Executor(RunningRuns):
             client: ClientInfo) -> RunSummary:
         """confirmed_summary: None from run_plan, the echoed argument from run_confirmed_plan.
         1 load plan (unknown/hash ≠ plan_id → unknown_plan; expired → plan_expired; config hashes changed → plan_stale)
-        2 not_implemented → refuse  3 re-run plan-phase rules, never trusting the stored tier: blocked →
+        2-3 re-run plan-phase rules, never trusting the stored tier (R-REC-01: kind runnable on the backend): blocked →
           blocked_by_rules; needs_confirmation without summary → confirmation_required; summary ≠ fresh plan_summary →
           summary_mismatch (returns it). Steps 1–3: ZERO transport I/O  4 Session.transaction: pre_execute rules with
           live state (block → refuse, zero source commands)  5 archive.create; kind.acquire  6 raw saved even on
@@ -616,7 +612,7 @@ class Executor(RunningRuns):
         manifest = RunManifest(
             run_id=folder.run_id, plan=plan, plan_hash=plan.plan_hash, recipe_id=recipe.id,
             recipe_version=recipe.version, recipe_sha=recipe.sha256,
-            recipe_status=registry.effective_status(recipe.id, backend), backend=backend,
+            recipe_status=recipe.status, backend=backend,
             simulated=backend == "sim",
             identity=state.live.identity if state.live else None,
             inventory=state.live.inventory if state.live else None,

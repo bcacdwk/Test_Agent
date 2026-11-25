@@ -98,22 +98,14 @@ class SimSelection(_Model):
 
 
 class Requirements(_Model):
-    """What must exist in the repository before the scenario can run: ``recipes`` present and runnable (status other
-    than ``not_implemented``), ``reserved`` present and still ``not_implemented`` (a scenario about reserved slots
-    retires itself when its module implements them), committed example ``pin_maps`` and ``dut_profiles``. The
-    simulator scenario of ``sim`` is always required. Until then the scenario is *pending*: listed, never run."""
+    """What must exist in the repository before the scenario can run: ``recipes`` present (every recipe status is
+    runnable on the simulator since WP11.2 retired the v1 reserved slots and the ``requires.reserved`` key with
+    them), committed example ``pin_maps`` and ``dut_profiles``. The simulator scenario of ``sim`` is always
+    required. Until then the scenario is *pending*: listed, never run."""
 
     recipes: list[Annotated[str, Field(pattern=_RECIPE_ID)]] = Field(default_factory=list)
-    reserved: list[Annotated[str, Field(pattern=_RECIPE_ID)]] = Field(default_factory=list)
     pin_maps: list[Annotated[str, Field(pattern=_CONFIG_NAME)]] = Field(default_factory=list)
     dut_profiles: list[Annotated[str, Field(pattern=_CONFIG_NAME)]] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def _disjoint(self) -> Requirements:
-        both = sorted(set(self.recipes) & set(self.reserved))
-        if both:
-            raise ValueError(f"a recipe cannot be required runnable and reserved at once: {both}")
-        return self
 
 
 class ConfigOverlay(_Model):
@@ -319,20 +311,13 @@ def recipe_statuses(repo_root: Path) -> dict[str, str]:
 
 def missing_requirements(scenario: Scenario, repo_root: Path, statuses: dict[str, str] | None = None) -> list[str]:
     """Why ``scenario`` cannot run in ``repo_root`` yet (empty: it can): its simulator scenario, ``requires.recipes``
-    (present and runnable), ``requires.reserved`` (still ``not_implemented``), example pin maps and DUT profiles."""
+    (present), example pin maps and DUT profiles."""
     known = recipe_statuses(repo_root) if statuses is None else statuses
     need = scenario.requires
     missing = []
     if not (repo_root / "config" / "sim" / "scenarios" / f"{scenario.sim.scenario}.yaml").is_file():
         missing.append(f"sim scenario {scenario.sim.scenario}")
-    for recipe in need.recipes:
-        if recipe not in known:
-            missing.append(f"recipe {recipe}")
-        elif known[recipe] == "not_implemented":
-            missing.append(f"recipe {recipe} (not_implemented)")
-    for recipe in need.reserved:
-        if known.get(recipe) != "not_implemented":
-            missing.append(f"reserved recipe {recipe} (now {known.get(recipe, 'absent')})")
+    missing += [f"recipe {recipe}" for recipe in need.recipes if recipe not in known]
     for folder, names in (("pinmaps", need.pin_maps), ("duts", need.dut_profiles)):
         missing += [f"{folder[:-1]} {name}" for name in names
                     if not (repo_root / "config" / folder / f"{name}.example.yaml").is_file()]

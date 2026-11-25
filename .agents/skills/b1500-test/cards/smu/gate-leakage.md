@@ -27,8 +27,9 @@ gate compliance, automatic abort on compliance, gate range inside the DUT profil
 
 - Applies to MOSFETs, oxide TFTs and FeFETs on the same landing as Id-Vg. On a FeFET a sweep beyond the coercive
   voltage also programs the device: run it after the dual sweep or keep `vg_stop` low.
-- Not for: breakdown voltage, TDDB or any stress (destructive, [reserved](../reserved/README.md)); C-V; channel
-  currents ([mosfet-idvg](mosfet-idvg.md)). "Find the breakdown" requests get this card inside the envelope only.
+- Not for: breakdown voltage, TDDB or any stress (destructive, always confirmed:
+  [tddb-bdv](../reliability/tddb-bdv.md), [bti-stress-measure](../reliability/bti-stress-measure.md)); C-V; channel
+  currents ([mosfet-idvg](mosfet-idvg.md)). This card measures leakage inside the envelope only.
 
 ## 2. Wiring, pin map, modules
 

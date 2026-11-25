@@ -3,10 +3,9 @@
 
 One section per family (``## smu`` ... ``## system``, in ``Recipe.family`` order; the entry skill's family router
 links ``cards/README.md#<family>``), each with one table ``family | intent keywords | card | recipes | status |
-modules | stage``: a row per card (from its frontmatter; status = the recipes' effective status on the simulator from
-the registry; an analysis-only card lists its analysis methods and its own status), then a row per runnable recipe
-without a card (``CARDLESS_RECIPES``) and per reserved
-(``not_implemented``) recipe of the family, which point at ``reserved/README.md`` until WP11.2.
+modules | stage``: a row per card (from its frontmatter; status = the recipes' status from the registry; an
+analysis-only card lists its analysis methods and its own status), then a row per recipe without a card
+(``CARDLESS_RECIPES``).
 
 The text is a pure function of the card frontmatter and the registry: UTF-8, LF line endings, no timestamps, so
 ``--check`` (and the ``card_index`` problem of ``lint-skills``) compares bytes. ``gen-index`` refuses to write while
@@ -29,7 +28,6 @@ from b1500_test_agent.devtools.skills.common import (
     ENTRY_SKILL,
     FAMILIES,
     README,
-    RESERVED_DIR,
     CardFrontmatter,
     Lint,
     validation_messages,
@@ -80,10 +78,10 @@ def render_index(cards: list[tuple[str, CardFrontmatter]], registry: RecipeRegis
         INDEX_MARKER,
         "# Test-card index",
         "",
-        "Pick the family, then the card by its intent keywords; read the card before planning. Status = effective",
-        "status on the simulator (`list_recipes` on the current backend wins; on hardware a recipe needs",
-        "`first_hw_run` confirmation until `hw_validated`). Stage = bring-up stage (skill `b1500-bringup`). A",
-        "`not_implemented` recipe is reserved: say so, offer the card the reserved list names, never emulate it.",
+        "Pick the family, then the card by its intent keywords; read the card before planning. Status = recipe",
+        "status (`draft`, `sim_validated`, `hw_validated`; on hardware a recipe needs `first_hw_run` confirmation",
+        "until `hw_validated`). Stage = bring-up stage (skill `b1500-bringup`). No card fits: ask the human; never",
+        "emulate a measurement with another family's recipe.",
         "",
         "Families: " + " · ".join(f"[{family}](#{family})" for family in FAMILIES),
     ]
@@ -92,20 +90,16 @@ def render_index(cards: list[tuple[str, CardFrontmatter]], registry: RecipeRegis
         lines += ["", f"## {family}", "", FAMILY_SCOPE[family], ""]
         rows: list[str] = []
         for rel, front in sorted((c for c in cards if c[1].family == family), key=lambda c: c[1].id):
-            statuses = list(dict.fromkeys(registry.effective_status(r, "sim") if r in registry.ids() else "unknown"
+            statuses = list(dict.fromkeys(registry.get(r).status if r in registry.ids() else "unknown"
                                           for r in front.recipes)) or [front.status]
             recipes = _codes(front.recipes) if front.recipes else f"analysis only: {_codes(front.analysis)}"
             rows.append(f"| {family} | {_cell(', '.join(front.intent))} | [{front.id}]({rel}) | "
                         f"{recipes} | {', '.join(statuses)} | "
                         f"{', '.join(front.modules) or 'all installed'} | {_stages(front)} |")
         others = [registry.get(r) for r in registry.ids() if r not in carded and registry.get(r).family == family]
-        for recipe in sorted((r for r in others if r.status != "not_implemented"), key=lambda r: r.id):
+        for recipe in sorted(others, key=lambda r: r.id):
             reason = "no card by design: ask the human first" if recipe.id in CARDLESS_RECIPES else "no card yet"
-            rows.append(f"| {family} | {_cell(recipe.title)} | {reason} | `{recipe.id}` | "
-                        f"{registry.effective_status(recipe.id, 'sim')} | - | - |")
-        for recipe in sorted((r for r in others if r.status == "not_implemented"), key=lambda r: r.id):
-            rows.append(f"| {family} | reserved: {_cell(recipe.title)} | [reserved]({RESERVED_DIR}/{README}) | "
-                        f"`{recipe.id}` | not_implemented | - | - |")
+            rows.append(f"| {family} | {_cell(recipe.title)} | {reason} | `{recipe.id}` | {recipe.status} | - | - |")
         if rows:
             lines += [*HEADER, *rows]
         else:

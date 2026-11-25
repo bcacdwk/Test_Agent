@@ -16,8 +16,6 @@ from typing import Any, TypeVar, get_args
 
 from pydantic import ValidationError
 
-from b1500_test_agent.analysis.errors import MethodNotImplementedError
-from b1500_test_agent.analysis.registry import ANALYSIS_METHODS
 from b1500_test_agent.catalog.executor import BusFactory, Executor
 from b1500_test_agent.catalog.registry import RecipeRegistry
 from b1500_test_agent.config import ConfigBundle, ConfigLoader
@@ -252,9 +250,6 @@ class B1500Service:
         elif isinstance(exc, B1500Error):
             code = exc.code
             message = str(exc)
-            if isinstance(exc, MethodNotImplementedError):
-                implemented = sorted(n for n, m in ANALYSIS_METHODS.items() if m.status == "implemented")
-                next_steps = [f"use an implemented method ({', '.join(implemented)}); never improvise"]
         else:
             code = "internal"
             message = f"internal error: {type(exc).__name__}: {exc}"
@@ -316,44 +311,45 @@ class B1500Service:
         if recipe_id is not None:
             entry = registry.entry(recipe_id)
             recipe = entry.recipe
-            effective = registry.effective_status(recipe.id, backend)
+            runnable = registry.runnable(recipe.id, backend)
             detail = RecipeDetail(
                 id=recipe.id, version=recipe.version, title=recipe.title, family=recipe.family, kind=recipe.kind,
-                status=effective,
+                status=recipe.status,
                 card=recipe.card, device_types=list(recipe.device_types), params=dict(recipe.params),
                 roles=dict(recipe.roles), analysis_defaults=list(recipe.analysis_defaults),
-                always_confirm=list(recipe.always_confirm), preconditions=list(recipe.preconditions),
-                source=entry.source,
+                always_confirm=list(recipe.always_confirm), runnable=runnable, source=entry.source,
             )
-            if effective == "not_implemented":
-                next_steps = [("not runnable: say so and offer a validated alternative; never improvise instrument "
-                              "code")]
-            else:
+            if runnable:
+                state = f"{recipe.status} on {backend}"
                 next_steps = [("validate_plan with params inside 'range' (omitted params take 'default'), a pin map "
                               "and a DUT profile")]
+            else:
+                state = f"{recipe.status}, not runnable on {backend} (kind {recipe.kind} has no {backend} code path)"
+                next_steps = [("not runnable here: say so and offer a runnable alternative; never improvise "
+                              "instrument code")]
             return RecipeList(ok=True, status="ok", **self._envelope(backend), recipe=detail,
-                              message=f"{recipe.id}@{recipe.version}: {effective} on {backend}{warning}",
-                              next_steps=next_steps)
+                              message=f"{recipe.id}@{recipe.version}: {state}{warning}", next_steps=next_steps)
         if family is not None and family not in RECIPE_FAMILIES:
             raise InvalidInputError(f"unknown recipe family {family!r}; families: {', '.join(RECIPE_FAMILIES)}")
-        recipes = registry.list(device_type=device_type, backend=backend)
+        recipes = registry.list(device_type=device_type)
+        runnable = {r.id for r in recipes if registry.runnable(r.id, backend)}
         if family is None:
-            return self._family_overview(recipes, backend, warning)
+            return self._family_overview(recipes, runnable, backend, warning)
         listed = [r.model_copy(update={"card": card_id(r.card)}) for r in recipes if r.family == family]
-        return self._recipe_index(listed, backend, warning, family=family)
+        return self._recipe_index(listed, runnable, backend, warning, family=family)
 
-    def _family_overview(self, recipes: list[RecipeSummary], backend: Backend, warning: str) -> RecipeList:
-        """The default index (blueprint v2 2.9): per family the number of recipes and the ids of the runnable and the
-        ``not_implemented`` ones, within the response budget: over it, the ``not_implemented`` id lists go first
-        (their count stays in the message), then the runnable ids of the largest families (named in the message:
-        ``list_recipes(family=...)`` lists them), so the call always answers within the budget."""
+    def _family_overview(self, recipes: list[RecipeSummary], runnable_ids: set[str], backend: Backend,
+                         warning: str) -> RecipeList:
+        """The default index (blueprint v2 2.9): per family the number of recipes and the ids of those runnable on
+        the backend, within the response budget: over it, the runnable id lists of the largest families are dropped
+        first (named in the message: ``list_recipes(family=...)`` lists them), so the call always answers within the
+        budget."""
         families: dict[str, FamilyIndex] = {}
         for name in RECIPE_FAMILIES:
             members = [r for r in recipes if r.family == name]
             if members:
-                families[name] = FamilyIndex(
-                    recipes=len(members), runnable=[r.id for r in members if r.status != "not_implemented"],
-                    not_implemented=[r.id for r in members if r.status == "not_implemented"])
+                families[name] = FamilyIndex(recipes=len(members),
+                                             runnable=[r.id for r in members if r.id in runnable_ids])
         runnable = sum(len(f.runnable) for f in families.values())
 
         def build(index: dict[str, FamilyIndex], note: str) -> RecipeList:
@@ -367,32 +363,27 @@ class B1500Service:
         def fits(result: RecipeList) -> bool:
             return approx_tokens(result.model_dump_json()) <= TRIM_TARGET
 
-        result = build(families, "")
-        if fits(result):
-            return result
-        reserved = sum(len(f.not_implemented) for f in families.values())
-        index = {k: f.model_copy(update={"not_implemented": []}) for k, f in families.items()}
-        note = f"; {reserved} not_implemented ids not listed"
-        result = build(index, note)
+        index = dict(families)
+        result = build(index, "")
         omitted: list[str] = []
         for name in sorted(index, key=lambda k: -len(index[k].runnable)):
             if fits(result):
                 break
             index[name] = index[name].model_copy(update={"runnable": []})
             omitted.append(name)
-            result = build(index, f"{note}; runnable ids omitted for {', '.join(omitted)} (list_recipes(family=...) "
-                                  "lists them)")
+            result = build(index, f"; runnable ids omitted for {', '.join(omitted)} (list_recipes(family=...) lists "
+                                  "them)")
         return result
 
-    def _recipe_index(self, recipes: list[RecipeSummary], backend: Backend, warning: str, *,
+    def _recipe_index(self, recipes: list[RecipeSummary], runnable_ids: set[str], backend: Backend, warning: str, *,
                       family: str | None = None) -> RecipeList:
         """The entries of one family within the response budget: every entry while it fits; else every entry without
-        its ``device_types`` (``device_type`` filters them); else the ``not_implemented`` ones are named in the
-        message instead of listed, then the runnable ones are trimmed from the end (``showing N of M``, like
-        ``list_runs``) and named in the message (``not shown: ...``) while the names fit, so every recipe id stays
-        visible."""
-        runnable = [r for r in recipes if r.status != "not_implemented"]
-        reserved = [r.id for r in recipes if r.status == "not_implemented"]
+        its ``device_types`` (``device_type`` filters them); else the entries are trimmed from the end (``showing N
+        of M``, like ``list_runs``) and named in the message (``not shown: ...``) while the names fit, so every recipe
+        id stays visible. The message counts the recipes runnable on the backend and names those that are not."""
+        runnable = [r for r in recipes if r.id in runnable_ids]
+        blocked = [r.id for r in recipes if r.id not in runnable_ids]
+        hidden = f"; not runnable on {backend}: {', '.join(blocked)}" if blocked else ""
         scope = f" in family {family}" if family is not None else ""
 
         def build(shown: list[RecipeSummary], note: str) -> RecipeList:
@@ -401,7 +392,7 @@ class B1500Service:
                 steps.append("list_recipes(family, device_type) for a shorter list")
             return RecipeList(ok=True, status="ok", **self._envelope(backend), recipes=shown,
                               message=(f"{len(recipes)} recipes{scope}, {len(runnable)} runnable on {backend}{note}"
-                                       f"{warning}"),
+                                       f"{hidden}{warning}"),
                               next_steps=steps)
 
         def fits(result: RecipeList) -> bool:
@@ -410,21 +401,15 @@ class B1500Service:
         result = build(recipes, "")
         if fits(result):
             return result
-        recipes = [r.model_copy(update={"device_types": []}) for r in recipes]
-        runnable = [r for r in recipes if r.status != "not_implemented"]
-        result = build(recipes, "; device types omitted (device_type filters)")
-        if fits(result):
-            return result
-        listed, hidden = (runnable, f"; not_implemented (not listed): {', '.join(reserved)}") if reserved else (
-            recipes, "")
-        result = build(listed, hidden)
+        listed = [r.model_copy(update={"device_types": []}) for r in recipes]
+        result = build(listed, "; device types omitted (device_type filters)")
         if fits(result):
             return result
 
         def trimmed(count: int, named: bool) -> RecipeList:
             rest = [r.id for r in listed[count:]]
             names = f" (not shown: {', '.join(rest)})" if named and rest else ""
-            return build(listed[:count], f"; showing {count} of {len(listed)}{names}{hidden}")
+            return build(listed[:count], f"; showing {count} of {len(listed)}{names}")
 
         for named in (True, False):
             count = len(listed)
@@ -459,22 +444,15 @@ class B1500Service:
 
     def _plan_result(self, plan: PlanRecord, bundle: ConfigBundle) -> PlanValidation:
         backend = bundle.backend
-        effective = self.executor.registry(bundle).effective_status(plan.recipe_id, backend)
         blocks = "; ".join(f"{f.rule_id} {f.message}" for f in plan.rules.findings if f.severity == "block")
         code: ErrorCode | None = None
         asynchronous = (" It runs asynchronously: run_plan returns outcome running; follow it with get_run "
                         "include=[progress]") if plan.mode == "async" else ""
         if plan.tier == "blocked":
             ok = False
-            if effective == "not_implemented":
-                result_status = "not_implemented"
-                code = "not_implemented"
-                next_steps = [("say it is not implemented and offer a validated alternative (list_recipes); never "
-                              "improvise instrument code")]
-            else:
-                result_status, code = "blocked", "blocked_by_rules"
-                next_steps = [("explain the blocking findings and offer an in-envelope alternative; only a human "
-                              "edits config/local/"), *correction_next_steps(plan.rules.findings)]
+            result_status, code = "blocked", "blocked_by_rules"
+            next_steps = [("explain the blocking findings and offer an in-envelope alternative; only a human "
+                          "edits config/local/"), *correction_next_steps(plan.rules.findings)]
             message = f"plan {plan.plan_id} is blocked: {blocks}"
         elif plan.tier == "needs_confirmation":
             ok, result_status = True, "needs_confirmation"

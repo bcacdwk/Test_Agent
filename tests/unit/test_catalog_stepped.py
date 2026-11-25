@@ -127,7 +127,7 @@ def test_values_and_range_are_exclusive() -> None:
 def test_registered_for_sim_and_visa() -> None:
     kind = default_kinds()["smu_stepped"]
     assert isinstance(kind, SmuSteppedKind) and kind.implemented_on == {"sim", "visa"}
-    assert REGISTRY.effective_status("mosfet.idvd", "sim") == "sim_validated"  # WP2.2
+    assert REGISTRY.get("mosfet.idvd").status == "sim_validated" and REGISTRY.runnable("mosfet.idvd", "sim")  # WP2.2
     assert REGISTRY.problems() == []
 
 

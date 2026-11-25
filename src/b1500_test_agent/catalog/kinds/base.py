@@ -8,8 +8,9 @@ A kind turns a recipe into instrument work in three steps:
 - ``to_table(raw, plan)`` turns the raw blocks into the tidy ``data.csv`` table (``None`` for kinds that measure
   no data, such as self-test).
 
-``implemented_on`` lists the backends the kind has a validated code path for; on any other backend the registry
-reports the recipe's effective status as ``not_implemented`` and the executor refuses with zero I/O.
+``implemented_on`` lists the backends the kind has a code path for (every shipped kind: sim and visa); on any other
+backend the registry reports its recipes as not runnable (``RecipeRegistry.runnable``), rule R-REC-01 blocks their
+plans and the executor refuses them with zero I/O.
 
 A kind that builds its program from the content of ``file`` parameters sets ``reads_files = True``; the planner then
 calls ``compile(..., files=ParamFiles)`` (``catalog/files.py``: the verified bytes of the plan's files; WP10.4).

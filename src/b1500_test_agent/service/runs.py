@@ -174,8 +174,7 @@ def running_brief(svc: B1500Service, bundle: ConfigBundle, active: ActiveRun) ->
     if plan is None:
         return None
     registry = svc.executor.registry(bundle)
-    status = registry.effective_status(plan.recipe_id, bundle.backend) if plan.recipe_id in registry.ids() \
-        else "draft"
+    status = registry.get(plan.recipe_id).status if plan.recipe_id in registry.ids() else "draft"
     progress = active.progress
     at = f" ({progress.done}/{progress.total}, phase {progress.phase})" if progress is not None else ""
     return RunBrief(recipe_id=plan.recipe_id, recipe_version=plan.recipe_version, recipe_status=status,

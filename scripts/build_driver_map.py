@@ -6,7 +6,9 @@ The legacy package `src/b1500_test_agent/mcp/` (282 atoms, 97 flows) is read fro
 its `_fake_response` call (C atoms pass it through `_c_response`, whose third argument is forwarded as that
 second argument); D atoms take theirs from the `_SPECS` catalog. Each atom is mapped onto the new
 `B1500Driver` methods / `driver/flex/` builders of blueprint §2.3 (its WGFMU library calls onto `WgfmuDriver`, the
-transaction's WGFMU phase and `WgfmuApi`, WP10.8), or marked `unmapped`. Manual pages of
+transaction's WGFMU phase and `WgfmuApi`, WP10.8; its bus lifecycle onto `Session`, WP11.2), or marked `unmapped`.
+The coverage ledger (`family`, `scope`) closes every entry: mapped (a target, a successor, a flow's v2 elements) or
+`out_of_scope` with a written reason; `--check` fails on an `open` entry (WP11.2: every family). Manual pages of
 commands that the summary lists only in its grouped index come from `GROUPED_PAGES` (read from the Programming
 Guide by WP1.3; the same pages are cited in the builder docstrings of `driver/flex/`).
 
@@ -59,8 +61,9 @@ PRIORITY_SCALE = {
     "offset QSZ by WP8.5)",
     "m2": "M2 SMU recipe pack (six cards, stepped and double sweeps, M2 analysis methods) and the rest of the "
     "simulator's FLEX subset v1 (AV, BC, NUB?, TSC)",
-    "later": "reserved: not_implemented recipes and M4+ (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, HV/HC "
-    "units and expanders, ASU/SCUU, selectors, EasyEXPERT, timestamps, program memory, ...)",
+    "later": "the v1 plan's later work: M4+ and the v2 modules (pulse, sampling, search, CMU/QSCV, WGFMU, SPGU, "
+    "HV/HC units and expanders, ASU/SCUU, selectors, EasyEXPERT, timestamps, program memory, ...); the coverage "
+    "ledger (family, scope) says what v2 maps and what stays out of scope with its reason",
 }
 
 # --- Target vocabulary (blueprint section 2.3) -------------------------------------------------------------
@@ -116,11 +119,21 @@ WGFMU_TARGETS = (tuple(f"WgfmuDriver.{m}" for m in WGFMU_DRIVER_METHODS) + WGFMU
 transaction's WGFMU phase, pre-execute read and cleanup step 3 (``session/wgfmu_phase.py``), and the library protocol
 methods (``transport/wgfmu/api.py``, bound 1:1 by ``WgfmuDll``) that no driver method calls: the WGFMU counterparts of
 the ``B1500Driver`` methods and ``flex.`` builders."""
+SESSION_TARGETS = ("Session.snapshot", "Session.read_only", "Session.transaction", "Session.safe_shutdown",
+                   "Session.close")
+"""FLEX bus lifecycle targets (blueprint v2 2.4 decision 7, 2.6; WP11.2): the read-only snapshot (``*IDN?``,
+``UNT?``, ``ERRX?`` drain, ``*STB?``, ``LOP?``, switch states), a read-only driver for probes, the measurement
+transaction (open -> lock -> drain -> pre-execute rules -> work -> verified cleanup -> unlock -> close), the
+``safe_shutdown`` cleanup and the release of a bus an interrupted call left open (``session/session.py``)."""
 DRIVER_TARGETS = (tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
-                  + WGFMU_TARGETS)
+                  + WGFMU_TARGETS + SESSION_TARGETS)
 TARGET_OWNERS = frozenset(target.split(".", 1)[0] for target in DRIVER_TARGETS)
-"""``B1500Driver``, ``flex``, ``WgfmuDriver``, ``Transaction``, ``WgfmuLink``, ``WgfmuApi``: a flow target with one of
-these owners must be one of ``DRIVER_TARGETS``."""
+"""``B1500Driver``, ``flex``, ``WgfmuDriver``, ``Transaction``, ``WgfmuLink``, ``WgfmuApi``, ``Session``: a flow target
+with one of these owners must be one of ``DRIVER_TARGETS``."""
+MCP_TOOLS = ("station_status", "list_recipes", "validate_plan", "run_plan", "run_confirmed_plan", "list_runs",
+             "get_run", "analyze_run", "annotate_run", "safe_shutdown")
+"""The ten MCP tools (``service.common.TOOL_NAMES``, test-checked): a flow target ``tool:<name>`` names one."""
+FLOW_TARGET_PREFIXES = ("recipe", "kind", "analysis", "tool")
 
 
 @dataclass(frozen=True)
@@ -536,7 +549,7 @@ def _printed_to_pdf(printed: list[str]) -> list[int]:
 # Non-FLEX basis tokens of the legacy atoms (host-side operations and placeholders).
 HOST_TOKENS: dict[str, str | None] = {
     "output data buffer read": "B1500Driver.execute_and_read",
-    "session.close": None,
+    "session.close": "Session.close",
     "SMU IV wrapper": None,
     "HCSMU IV wrapper": None,
     "UHC expander IV wrapper": None,
@@ -571,7 +584,9 @@ LATER_SCOPES = frozenset({
 ATOM_OVERRIDES: dict[str, dict[str, str]] = {
     "A_atom_flex_disconnect": {
         "priority": "m1",
-        "note": "successor: Transport.close via Session (sections 2.2, 2.4); B1500Driver.disconnect is CL",
+        "note": "successor: per-transaction VISA (blueprint v2 decision 7): every transaction and snapshot opens, "
+        "locks, unlocks and closes the resource itself (Session.transaction, Session.read_only); Session.close "
+        "releases a bus an interrupted call left open; B1500Driver.disconnect is CL",
     },
     "A_atom_flex_get_status": {
         "priority": "m1",
@@ -588,8 +603,6 @@ ATOM_OVERRIDES: dict[str, dict[str, str]] = {
         "priority": "m1",
         "note": "successor: rules pre_execute phase + Session.snapshot; interlock from STB bit 3 (ATV-10)",
     },
-    "B_atom_safety_b1500_check_interlock": {"note": "interlock state is read from STB bit 3 (status_byte, ATV-10)"},
-    "B_atom_output_b1500_confirm_zero": {"note": "output-off verification uses LOP? (output_state, ATV-1)"},
     "B_atom_output_b1500_zero_all": {
         "note": "successor: Transaction cleanup AB -> DZ -> CL -> verify and the safe_shutdown tool"
     },
@@ -637,6 +650,24 @@ ATOM_SUCCESSORS: dict[str, tuple[tuple[str, ...], str]] = {
         ("WgfmuDriver.measure_dc",),
         ("successor: wgfmu.dc_spot takes `samples` readings per level with WGFMU_dcmeasureValue (one row each); the "
          "analysis averages them")),
+    # family system (WP11.2)
+    "A_atom_flex_lookup_error": (
+        ("B1500Driver.errors",),
+        ("successor: ERRX? returns every error code with its message (PG p431 (4-113)), so no message lookup by code "
+         "(EMG?, PG p398 (4-80), codes 0-999 only) is needed")),
+    "A_atom_flex_read_timestamp": (
+        ("B1500Driver.set_time_stamp", "B1500Driver.reset_timer"),
+        ("successor: with TSC 1 every datum carries the time since TSR (PG p538-539 (4-220 to 4-221)); the kinds "
+         "never read the timer alone (TSQ, PG p539 (4-221))")),
+    "B_atom_output_b1500_confirm_zero": (
+        ("B1500Driver.output_state",),
+        ("successor: the cleanup verifies every output switch off with LOP? per slot (PG p446-447 (4-128 to 4-129), "
+         "ATV-1) and SPST? for the SPGU; WZ? (PG p570 (4-252)) only tells whether every output is within 2 V of 0 V")),
+    "B_atom_safety_b1500_check_interlock": (
+        ("B1500Driver.status_byte",),
+        ("successor: the interlock state is bit 3 of *STB? (PG p523 (4-205); Table 4-29, PG p518 (4-200); ATV-10); "
+         "INTLKVTH? (PG p443 (4-125)) reads the allowed voltage for the interlock-open condition, a non-volatile "
+         "setting the agent never changes")),
 }
 
 # D atoms are hardware-free analysis stubs: never mapped to the driver; successor in the new layers
@@ -668,7 +699,9 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
     "D_atom_derive_curve_interpolate": ("analysis.common.interpolate (ion_ioff, leakage_at, forward_voltage)",
                                         "m2"),
     "D_atom_derive_curve_fit_linear": ("inside analysis.vth_linear_extrapolation", "m1"),
-    "D_atom_derive_dataset_summarize_columns": (None, "later"),
+    "D_atom_derive_dataset_summarize_columns": (
+        ("analysis.quality_report (points, per-column status counts, noise, SNR) and analysis.sampling_summary "
+         "(mean, std, drift of a sampled column; WP7.4)"), "later"),
     "D_atom_derive_timeseries_summarize_windows": ("analysis.sampling_summary (WP7.4)", "later"),
     "D_atom_extract_leakage_current": ("analysis.leakage_at", "m2"),
     "D_atom_extract_transfer_vth": ("analysis.vth_linear_extrapolation (M2: vth_constant_current, vth_max_gm)", "m1"),
@@ -680,8 +713,12 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
     "D_atom_extract_leakage_breakdown_voltage": ("analysis.breakdown_voltage (WP7.5)", "m1"),
     "D_atom_extract_cv_cox": ("analysis.cv_cox (accumulation extrapolation; WP8.3)", "later"),
     "D_atom_extract_cv_vfb": ("analysis.cv_flatband (flatband capacitance; WP8.3)", "later"),
-    "D_atom_assess_value_check_limits": (None, "later"),
-    "D_atom_assess_dataset_check_envelope": (None, "later"),
+    "D_atom_assess_value_check_limits": (
+        ("bring-up stage checks: b1500 bringup record compares each measured value with the stage's expected value "
+         "and tolerance (bringup.py, WP6.3); the recipe quality criteria through analysis.assess_quality"), "later"),
+    "D_atom_assess_dataset_check_envelope": (
+        ("OutputGuard (the compiled envelope, checked before every output command, never after the fact) and "
+         "analysis.assess_quality (C/T codes: a source that reached its compliance)"), "later"),
     "D_atom_assess_dataset_compare_reference": (
         "analysis.pulsed_vs_dc (reference_run), analysis.model_compare (WP7.3, WP7.7)", "later"),
     "D_atom_archive_run_build_manifest": ("archive.store (manifest.json)", "m1"),
@@ -689,19 +726,21 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
     "D_atom_archive_run_load_bundle": ("analysis.load_run", "m1"),
     "D_atom_render_dataset_build_plot_spec": ("analysis.plot_iv", "m2"),
     "D_atom_render_dataset_build_table": ("data.csv + get_run rows", "m1"),
-    "D_atom_render_run_build_report": (None, "later"),
+    "D_atom_render_run_build_report": (
+        ("the report template of skill b1500-test (SKILL.md part 8) filled from get_run and analyze_run: measured vs "
+         "derived with method and window, status-code counts, backend"), "later"),
 }
 
 
 # --- Coverage ledger (blueprint v2 0 row 1, 9 "Driver map v2 = coverage ledger"; WP7.7 closes the SMU rows) ----------
 # Every atom, flow and command belongs to one family; an entry is `mapped` (a driver target, a D-atom successor, an
 # ATOM_SUCCESSORS target or a flow target), `out_of_scope` (a reason from OUT_OF_SCOPE) or `open`. `--check` fails on
-# an `open` entry of a closed family. The module closures add theirs (8.6 cmu, 9.6 spgu, 10.8 wgfmu: done); WP11.2
-# closes `system` and maps the rest.
+# an `open` entry of a closed family. The module closures closed theirs (7.7 smu, 8.6 cmu, 9.6 spgu, 10.8 wgfmu);
+# WP11.2 closed `system`: every family is closed, so the ledger has no open entry (blueprint v2 0 row 1, 3, 9).
 LEDGER_FAMILIES = ("smu", "cmu", "spgu", "wgfmu", "system")
-CLOSED_FAMILIES = ("smu", "cmu", "spgu", "wgfmu")
+CLOSED_FAMILIES = LEDGER_FAMILIES
 """Families whose every entry is mapped or out of scope (`--check` enforces it): smu (WP7.7), cmu (WP8.6), spgu with
-the 16440A selector (WP9.6), wgfmu with the RSU (WP10.8)."""
+the 16440A selector (WP9.6), wgfmu with the RSU (WP10.8), system (WP11.2): all of them."""
 
 COMMAND_CATEGORY_FAMILY: dict[str, str] = {
     "ASU / SCUU / SMU Conditioning": "smu", "SMU Integration Time and Averaging": "smu",
@@ -777,6 +816,57 @@ _WGFMU_TRIGGER = ("WGFMU trigger output to external instruments (setTriggerOutMo
 _WGFMU_DELAY = ("per-channel force/measure delay trims (setForceDelay, setMeasureDelay: cable skew between channels): "
                 "not in blueprint v2 1.2; the library's initial 0 s delays are kept and the timing lives on the 10 ns "
                 "pattern grid; real cable skew is a hardware fact (blueprint v2 7.6 item 9)")
+_EASYEXPERT = ("EasyEXPERT remote control (SCPI to the EasyEXPERT software: workspaces, application tests, presets, "
+               "results, standby, zero cancel): out of scope by blueprint v2 1.2; the agent drives the B1500A by FLEX "
+               "with EasyEXPERT exited (stage S0, WG p39 (2-17)), and EasyEXPERT golden comparisons stay with the "
+               "owner (blueprint v2 7.6 item 11)")
+"""Reason of every atom and flow whose id names EasyEXPERT (``OUT_OF_SCOPE_TOKENS``)."""
+_TRIGGER_FLEX = ("trigger ports, trigger outputs and waits for an external trigger (TGP, TGPC, TGSI, TGSO, TGXO, TGMO, "
+                 "OS, OSX, WS, WSX; PG p529-534 (4-211 to 4-216), p480 (4-162), p559 (4-241), p563 (4-245)): "
+                 + _TRIGGER)
+_PAUSE = ("pause of command or program-memory execution until a wait time or a TM event (PA, PAX; PG p481-482 (4-163 "
+          "to 4-164)): the host times every hold, delay and checkpoint, and the kinds trigger with XE; external "
+          "triggers are out of scope (blueprint v2 1.2)")
+_TRIGGER_MODE = ("trigger event mode (TM, PG p536 (4-218)): the initial TM 1 (XE or GPIB GET) is kept; the kinds start "
+                 "every measurement with XE and external triggers are out of scope (blueprint v2 1.2)")
+_PROGRAM_MEMORY = ("internal program memory (ST/END store, DO/RU run, SCR scratch, LST? list, VAR/VAR? variables; PG "
+                   "p522 (4-204), p393 (4-75), p503 (4-185), p506 (4-188), p457 (4-139), p546 (4-228)): out of scope "
+                   "by blueprint v2 1.2; every command goes through the guarded driver one at a time (a stored program "
+                   "would run outside the OutputGuard)")
+_SRQ = ("service requests (*SRE, *SRE?; PG p517-518 (4-199 to 4-200)): out of scope by blueprint v2 1.2; the kernel "
+        "polls (*OPC?, *STB?, SPST?) and reads the interlock bit 3 with *STB?")
+_ERR = ("ERR? (PG p430 (4-112)) returns codes 0-999 only: out of scope by blueprint v2 1.2; ERRX? (every code with its "
+        "message, PG p431 (4-113)) drains the queue at every snapshot and cleanup")
+_EMG = ("message lookup by error code (EMG?, PG p398 (4-80)): ERRX? already returns each message with its code (PG "
+        "p431 (4-113))")
+_TSQ = ("timer read without a measurement (TSQ, PG p539 (4-221)): with TSC 1 every datum carries the time since TSR "
+        "(smu_sampling, cmu C-t), so the kinds never read the timer alone")
+_BUFFER = ("output data buffer housekeeping (BC clears it, PG p364 (4-46); NUB? counts its data, PG p478 (4-160)): "
+           "execute_and_read reads each block after XE to its terminator and every query is read at once, so no data "
+           "is left to count or clear; a timeout ends in the cleanup's device clear and retry")
+_WNU = ("number of sweep steps (WNU?, PG p556 (4-238)): the planner computes every step count from the recipe's own "
+        "sweep parameters (Estimate.points)")
+_IN = ("channel initialization (IN, PG p441-442 (4-123 to 4-124)): 0 V with an output-range change and the initial "
+       "settings; the cleanup zeroes with DZ and opens the outputs with CL (verified by LOP?), the kinds write their "
+       "complete setup, and *RST stays inside kind system")
+_CA = ("self-calibration without a returned result (CA [slot], PG p375-376 (4-57 to 4-58)): system.self_cal sends "
+       "*CAL? (the mainframe and every module, result returned, PG p376 (4-58)) inside its confirmed transaction")
+_RCV = ("re-enabling a module that failed self-test or self-calibration (RCV, PG p500-501 (4-182 to 4-183): \"should "
+        "only be used for servicing the B1500\"): a failed module is a hardware fault for the human and service; the "
+        "agent never re-enables it")
+_DIAG = ("diagnostics of the trigger, high-voltage LED, digital I/O and interlock circuits (DIAG?, PG p392-393 (4-74 "
+         "to 4-75)): each item needs a BNC loop, a cable removed, the interlock opened or closed or an LED watched, "
+         "so it is service work with the human; the module self-test *TST? (system.self_test) checks the modules")
+_INTLKVTH = ("allowed voltage for the interlock-open condition (INTLKVTH 0 or 42, PG p442 (4-124); INTLKVTH?, PG p443 "
+             "(4-125)): a non-volatile station setting the agent never changes or relies on (standing decision: "
+             "interlock never used, 42 V / 100 mA code ceiling); the interlock state is *STB? bit 3")
+_RZ = ("re-applying the outputs that DZ stored (RZ, PG p504 (4-186)): the cleanup never sources again after a safety "
+       "zero; a new output comes only from a validated plan")
+_WZ = ("WZ? (PG p570 (4-252)) only tells whether every output is within 2 V of 0 V: the cleanup verifies every output "
+       "switch off with LOP? per slot (ATV-1) and SPST? for the SPGU")
+_ACH = ("channel-number translation for programs written for another module layout (ACH, PG p353 (4-35)): the station "
+        "profile and the pin maps resolve every role to its real channel on the host, so the driver always sends real "
+        "channel numbers")
 _RAW_DIO = ("raw digital I/O port control (ERM port assignment, ERC output bits, ERS? port status; PG p159 (2-71)): "
             "out of scope by blueprint v2 1.2; the 16440A selectors are driven only by ERMOD 1 + ERSSP and read back "
             "by ERSSP?")
@@ -856,11 +946,25 @@ OUT_OF_SCOPE: dict[str, str] = {
     "C_atom_wgfmu_set_vectors": _WGFMU_PATTERN_EDIT, "C_atom_wgfmu_transform_pattern": _WGFMU_PATTERN_EDIT,
     "C_atom_wgfmu_set_trigger_out_mode": _WGFMU_TRIGGER, "C_atom_wgfmu_set_trigger_event": _WGFMU_TRIGGER,
     "C_atom_wgfmu_configure_force_measure_delay": _WGFMU_DELAY,
-    # commands of family system that an spgu atom names (decided here; WP11.2 closes the system family)
+    # commands of family system that an spgu atom names (decided by WP9.6)
     "CNX": ("CN variant that also closes the output switch of a module in the high-voltage state without an error "
             "(PG p381 (4-63) Table 4-23): the 42 V ceiling never produces that state, the kinds enable with CN"),
+    # commands of family system (WP11.2; blueprint v2 1.2 system row)
+    "IN": _IN, "CA": _CA, "RCV": _RCV, "DIAG?": _DIAG, "ERR?": _ERR, "EMG?": _EMG, "TSQ": _TSQ, "BC": _BUFFER,
+    "NUB?": _BUFFER, "WNU?": _WNU, "RZ": _RZ, "WZ?": _WZ, "*SRE": _SRQ, "*SRE?": _SRQ, "INTLKVTH": _INTLKVTH,
+    "INTLKVTH?": _INTLKVTH, "ACH": _ACH, "PA": _PAUSE, "PAX": _PAUSE, "TM": _TRIGGER_MODE,
+    **{c: _TRIGGER_FLEX for c in ("TGP", "TGPC", "TGSI", "TGSO", "TGXO", "TGMO", "OS", "OSX", "WS", "WSX")},
+    **{c: _PROGRAM_MEMORY for c in ("ST", "END", "DO", "RU", "SCR", "LST?", "VAR", "VAR?")},
+    # atoms of family system (WP11.2)
+    "A_atom_flex_clear_output_buffer": _BUFFER, "A_atom_flex_query_buffer_count": _BUFFER,
+    "A_atom_flex_configure_srq": _SRQ, "B_atom_lifecycle_b1500_initialize": _IN,
+    "B_atom_diagnostic_b1500_diagnostics": _DIAG, "B_atom_safety_b1500_set_interlock_threshold": _INTLKVTH,
+    "B_atom_output_b1500_recover_zeroed": _RZ,
 }  # fmt: skip
 """Reasons for the entries that stay out of scope (blueprint v2 1.2 out-of-scope column, or the stated reason)."""
+OUT_OF_SCOPE_TOKENS: dict[str, str] = {"easyexpert": _EASYEXPERT}
+"""Id word -> reason for every atom and flow whose id names it and that nothing maps (WP11.2: the 38 EasyEXPERT atoms
+and 18 EasyEXPERT flows of v0.2's remote-control layer)."""
 
 FLOW_TARGETS: dict[str, list[str]] = {
     "B_flow_baseline_smu_housekeeping": ["B1500Driver.set_auto_calibration", "B1500Driver.set_adc_zero",
@@ -935,8 +1039,42 @@ FLOW_TARGETS: dict[str, list[str]] = {
     "AB_flow_maintenance_wgfmu_self_test_calibration": ["recipe:system.wgfmu_self_test",
                                                         "recipe:system.wgfmu_self_cal", "kind:system",
                                                         "WgfmuDriver.maintenance"],
+    # family system (WP11.2): the FLEX session, its safety brackets and maintenance (EasyEXPERT: OUT_OF_SCOPE_TOKENS)
+    "A_flow_discover_flex_session": ["tool:station_status", "Session.snapshot", "B1500Driver.identify",
+                                     "B1500Driver.modules", "B1500Driver.status_byte", "B1500Driver.errors"],
+    "A_flow_snapshot_flex_status": ["tool:station_status", "Session.snapshot", "B1500Driver.status_byte",
+                                    "B1500Driver.errors", "B1500Driver.output_state", "B1500Driver.auto_calibration"],
+    "A_flow_drain_flex_errors": ["Session.snapshot", "B1500Driver.errors"],
+    "A_flow_collect_flex_output_buffer": ["B1500Driver.execute_and_read", "B1500Driver.wait_complete"],
+    "A_flow_prepare_flex_output_buffer": ["B1500Driver.set_format", "B1500Driver.set_time_stamp",
+                                          "B1500Driver.reset_timer"],
+    "A_flow_teardown_flex_session": ["Session.transaction", "Session.close"],
+    "B_flow_emergency_b1500_abort_zero": ["tool:safe_shutdown", "Session.safe_shutdown", "B1500Driver.abort",
+                                          "B1500Driver.zero", "B1500Driver.disconnect", "B1500Driver.output_state"],
+    "B_flow_safe_state_b1500_zero_disable": ["Session.transaction", "B1500Driver.zero", "B1500Driver.disconnect",
+                                             "B1500Driver.output_state"],
+    "B_flow_preflight_b1500_gate": ["tool:validate_plan", "Session.transaction"],
+    "B_flow_baseline_b1500_known_state": ["Session.transaction", "B1500Driver.set_auto_calibration"],
+    "B_flow_maintenance_b1500_self_test_calibration": ["recipe:system.self_test", "recipe:system.self_cal",
+                                                       "kind:system", "B1500Driver.self_test",
+                                                       "B1500Driver.self_calibrate"],
+    "AB_flow_startup_flex_safe_session": ["tool:station_status", "Session.transaction"],
+    "AB_flow_shutdown_flex_safe_session": ["tool:safe_shutdown", "Session.safe_shutdown", "Session.close"],
+    "AB_flow_recovery_flex_emergency_zero": ["tool:safe_shutdown", "Session.safe_shutdown"],
+    "AB_flow_recovery_flex_reset_rediscover": ["tool:safe_shutdown", "tool:station_status", "Session.snapshot"],
+    "AB_flow_maintenance_flex_self_test_calibration": ["recipe:system.self_test", "recipe:system.self_cal",
+                                                       "kind:system", "B1500Driver.self_test",
+                                                       "B1500Driver.self_calibrate"],
+    "AB_flow_preparation_flex_nonmeasurement_baseline": ["Session.transaction", "B1500Driver.set_format",
+                                                         "B1500Driver.set_auto_calibration", "B1500Driver.set_adc_zero",
+                                                         "B1500Driver.set_filter"],
+    "D_flow_archive_run_bundle": ["tool:get_run", "tool:list_runs", "tool:annotate_run"],
+    "D_flow_qualify_timeseries_dataset": ["kind:wgfmu_waveform", "analysis:quality_report", "analysis:it_statistics",
+                                          "analysis:plot_timeseries"],
 }
-"""v2 successors of the legacy flows (recipes, kinds, analysis methods, driver methods): a flow is a recipe now."""
+"""v2 successors of the legacy flows (recipes, kinds, analysis methods, MCP tools, driver and session targets): a flow
+is a recipe now. The baseline flows never reset: ``*RST`` would drop the MFCMU corrections and set the SPGU to free run
+(PG p179-180 (2-91)); every transaction starts from the verified cleanup state and the kind writes its whole setup."""
 
 _ATOM_FAMILY_TOKENS: tuple[tuple[str, frozenset[str]], ...] = (
     ("cmu", frozenset({"qscv", "cmu", "scuu", "cv"})),
@@ -968,12 +1106,24 @@ def command_family(mnemonic: str, categories: dict[str, str]) -> str:
     return COMMAND_CATEGORY_FAMILY.get(categories.get(mnemonic, ""), "system")
 
 
+def out_of_scope_reason(entry_id: str) -> str | None:
+    """The written reason an entry stays out of scope: ``OUT_OF_SCOPE``, else an ``OUT_OF_SCOPE_TOKENS`` word of an
+    atom or flow id; ``None`` when there is none."""
+    if entry_id in OUT_OF_SCOPE:
+        return OUT_OF_SCOPE[entry_id]
+    if "_atom_" in entry_id or "_flow_" in entry_id:
+        words = set(entry_id.split("_"))
+        return next((reason for token, reason in OUT_OF_SCOPE_TOKENS.items() if token in words), None)
+    return None
+
+
 def scope_of(entry_id: str, mapped: bool) -> dict[str, str]:
     """``scope`` (mapped | out_of_scope | open) and the reason of an out-of-scope entry."""
     if mapped:
         return {"scope": "mapped"}
-    if entry_id in OUT_OF_SCOPE:
-        return {"scope": "out_of_scope", "reason": OUT_OF_SCOPE[entry_id]}
+    reason = out_of_scope_reason(entry_id)
+    if reason is not None:
+        return {"scope": "out_of_scope", "reason": reason}
     return {"scope": "open"}
 
 
@@ -1449,7 +1599,7 @@ def check_ledger(atoms: list[dict[str, Any]], flows: list[dict[str, Any]],
     """Ledger rules: known family and scope on every entry, a reason on every out-of-scope entry, valid flow targets,
     no out-of-scope decision on a mapped entry, and no `open` entry in a closed family."""
     problems: list[str] = []
-    known_recipes = _recipe_ids()
+    known_recipes, known_kinds = _recipe_ids(), _recipe_kinds()
     for kind, entries, key in (("atom", atoms, "id"), ("flow", flows, "id"), ("command", commands, "command")):
         for entry in entries:
             name = entry[key]
@@ -1470,26 +1620,37 @@ def check_ledger(atoms: list[dict[str, Any]], flows: list[dict[str, Any]],
     for flow in flows:
         for target in flow.get("target", []):
             prefix, sep, value = target.partition(":")
-            if sep and prefix in ("recipe", "kind", "analysis"):
+            if sep and prefix in FLOW_TARGET_PREFIXES:
                 if prefix == "recipe" and known_recipes and value not in known_recipes:
                     problems.append(f"flow {flow['id']}: recipe {value} does not exist")
+                if prefix == "kind" and known_kinds and value not in known_kinds:
+                    problems.append(f"flow {flow['id']}: kind {value} is no recipe's kind")
+                if prefix == "tool" and value not in MCP_TOOLS:
+                    problems.append(f"flow {flow['id']}: {value} is not one of the ten MCP tools")
             elif target.split(".", 1)[0] in TARGET_OWNERS:
                 if target not in DRIVER_TARGETS:
                     problems.append(f"flow {flow['id']}: target {target} is not a driver target")
             else:
-                problems.append(f"flow {flow['id']}: target {target!r} is not recipe:/kind:/analysis: or a driver "
-                                "target")
+                problems.append(f"flow {flow['id']}: target {target!r} is not recipe:/kind:/analysis:/tool: or a "
+                                "driver target")
     return problems
+
+
+def _recipe_files() -> list[dict[str, Any]]:
+    """The mappings of ``recipes/**/*.yaml`` (empty when the folder is missing)."""
+    paths = sorted((REPO_ROOT / "recipes").rglob("*.yaml"))
+    docs = [yaml.safe_load(path.read_text(encoding="utf-8")) for path in paths]
+    return [doc for doc in docs if isinstance(doc, dict)]
 
 
 def _recipe_ids() -> set[str]:
     """Recipe ids of ``recipes/**/*.yaml`` (empty when the folder is missing)."""
-    ids: set[str] = set()
-    for path in (REPO_ROOT / "recipes").rglob("*.yaml"):
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        if isinstance(data, dict) and isinstance(data.get("id"), str) and "reserved" not in path.parts:
-            ids.add(data["id"])
-    return ids
+    return {doc["id"] for doc in _recipe_files() if isinstance(doc.get("id"), str)}
+
+
+def _recipe_kinds() -> set[str]:
+    """The measurement kinds the recipes use (empty when the folder is missing)."""
+    return {doc["kind"] for doc in _recipe_files() if isinstance(doc.get("kind"), str)}
 
 
 # --- Rendering ---------------------------------------------------------------------------------------------
@@ -1549,6 +1710,12 @@ def main(argv: list[str] | None = None) -> int:
         f"atoms {counts['atoms']}; flows {counts['flows']['total']}; commands {counts['commands']} "
         f"({counts['commands_mapped']} mapped); atoms by priority {counts['atoms_by_priority']}"
     )
+    totals = Counter()
+    for family in counts["ledger"].values():
+        for scopes in family.values():
+            totals.update(scopes)
+    print(f"ledger ({len(CLOSED_FAMILIES)}/{len(LEDGER_FAMILIES)} families closed): {totals['mapped']} mapped, "
+          f"{totals['out_of_scope']} out_of_scope, {totals['open']} unmapped (open)")
     if args.check:
         current = args.output.read_text(encoding="utf-8") if args.output.is_file() else None
         if current != text:

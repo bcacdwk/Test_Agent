@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import re
 import shutil
 import subprocess
 import sys
@@ -260,7 +261,7 @@ def test_every_wgfmu_entry_is_mapped_or_out_of_scope_with_a_reason(doc: dict) ->
     sequences, execute/wait/abort, chunked readback, DC force/measure, connect/disconnect and the error and warning
     queues are mapped onto the WGFMU targets; log file, ASCII export, realtime event reads, setup read-backs, pattern
     edits, trigger output and delay trims are out of scope with a reason (WP10.8 handoff of 10.3)."""
-    assert set(builder.CLOSED_FAMILIES) == {"smu", "cmu", "spgu", "wgfmu"}
+    assert {"smu", "cmu", "spgu", "wgfmu"} <= set(builder.CLOSED_FAMILIES)
     wgfmu = doc["counts"]["ledger"]["wgfmu"]
     assert {kind: wgfmu[kind]["open"] for kind in ("atoms", "flows", "commands")} == {"atoms": 0, "flows": 0,
                                                                                        "commands": 0}
@@ -342,6 +343,121 @@ def test_ledger_check_rejects_open_wgfmu_entries_and_unknown_wgfmu_targets(doc: 
     problems = builder.check_ledger(broken["atoms"], broken["flows"], broken["commands"])
     assert any("atom A_atom_wgfmu_export_ascii: wgfmu entry is neither mapped nor out_of_scope" in p for p in problems)
     assert any("WgfmuDriver.no_such_method is not a driver target" in p for p in problems)
+
+
+# -- coverage ledger: the system rows and the closure of every family (WP11.2) -----------------------------------------
+
+
+def test_every_family_is_closed_and_no_entry_is_open(doc: dict) -> None:
+    """Blueprint v2 0 row 1, 3, 9: after M11 every atom, flow and command is mapped or out of scope with a reason."""
+    assert builder.CLOSED_FAMILIES == builder.LEDGER_FAMILIES == ("smu", "cmu", "spgu", "wgfmu", "system")
+    ledger = doc["counts"]["ledger"]
+    assert {family: sum(ledger[family][kind]["open"] for kind in ("atoms", "flows", "commands"))
+            for family in builder.LEDGER_FAMILIES} == dict.fromkeys(builder.LEDGER_FAMILIES, 0)
+    entries = [*doc["atoms"], *doc["flows"], *doc["commands"]]
+    assert [e.get("id", e.get("command")) for e in entries if e["scope"] == "open"] == []
+    assert all(e["reason"] for e in entries if e["scope"] == "out_of_scope")
+    assert sum(e["scope"] == "mapped" for e in entries) + sum(e["scope"] == "out_of_scope" for e in entries) == (
+        282 + 97 + 280)
+
+
+def test_check_mode_reports_zero_unmapped_entries(capsys: pytest.CaptureFixture[str]) -> None:
+    """AC ``build_driver_map.py --check`` -> 0 unmapped: the ledger line of the check output (no git needed: the
+    committed YAML is checked through ``check_map`` and the line comes from its counts)."""
+    if not _archive_tag_available():
+        pytest.skip("git tag archive/v0.2-fake-mcp not available")
+    assert builder.main(["--check"]) == 0
+    out = capsys.readouterr().out
+    assert "ledger (5/5 families closed): " in out and " 0 unmapped (open)" in out
+
+
+def test_an_open_system_entry_fails_the_check(doc: dict) -> None:
+    broken = copy.deepcopy(doc)
+    command = next(c for c in broken["commands"] if c["command"] == "ST")
+    command.update(scope="open")
+    del command["reason"]
+    flow = next(f for f in broken["flows"] if f["id"] == "A_flow_discover_flex_session")
+    flow["target"] = ["tool:no_such_tool", "Session.no_such_method", "kind:no_such_kind"]
+    problems = builder.check_ledger(broken["atoms"], broken["flows"], broken["commands"])
+    assert any("command ST: system entry is neither mapped nor out_of_scope" in p for p in problems)
+    assert any("no_such_tool is not one of the ten MCP tools" in p for p in problems)
+    assert any("Session.no_such_method is not a driver target" in p for p in problems)
+    assert any("kind no_such_kind is no recipe's kind" in p for p in problems)
+
+
+def test_system_entries_follow_blueprint_section_1_2(doc: dict) -> None:
+    """System row of blueprint v2 1.2: the in-scope commands are mapped; program memory, *SRE, ERR? and EasyEXPERT
+    remote control are out of scope, and every other system command has a written reason (WP11.2)."""
+    by_command = {c["command"]: c for c in doc["commands"]}
+    in_scope = ("*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "LOP?", "*LRN?", "*TST?", "*CAL?", "CM", "AB", "DZ", "CL",
+                "FMT", "TSC", "TSR")
+    for mnemonic in in_scope:
+        assert (by_command[mnemonic]["family"], by_command[mnemonic]["scope"]) == ("system", "mapped"), mnemonic
+    assert by_command["*RST"]["scope"] == "mapped"  # only kind system may call it (lint)
+    for mnemonic in ("ST", "END", "DO", "RU", "SCR", "LST?", "VAR", "VAR?"):
+        assert "program memory" in by_command[mnemonic]["reason"] and "blueprint v2 1.2" in by_command[mnemonic][
+            "reason"], mnemonic
+    assert "blueprint v2 1.2" in by_command["*SRE"]["reason"] and "blueprint v2 1.2" in by_command["ERR?"]["reason"]
+    assert "servicing" in by_command["RCV"]["reason"] and "*CAL?" in by_command["CA"]["reason"]
+    system = [c for c in doc["commands"] if c["family"] == "system"]
+    assert {c["scope"] for c in system} == {"mapped", "out_of_scope"} and len(system) == 59
+    atoms = {a["id"]: a for a in doc["atoms"]}
+    easyexpert = [a for a in doc["atoms"] if "easyexpert" in a["id"].split("_")]
+    assert easyexpert and all(a["scope"] == "out_of_scope" and "EasyEXPERT" in a["reason"] for a in easyexpert)
+    flows = {f["id"]: f for f in doc["flows"]}
+    assert all(f["scope"] == "out_of_scope" for f in doc["flows"] if "easyexpert" in f["id"].split("_"))
+    assert flows["A_flow_discover_flex_session"]["target"][0] == "tool:station_status"
+    assert "tool:safe_shutdown" in flows["B_flow_emergency_b1500_abort_zero"]["target"]
+    assert "recipe:system.self_cal" in flows["AB_flow_maintenance_flex_self_test_calibration"]["target"]
+    successors = {"A_atom_flex_lookup_error": ["B1500Driver.errors"],
+                  "B_atom_output_b1500_confirm_zero": ["B1500Driver.output_state"],
+                  "B_atom_safety_b1500_check_interlock": ["B1500Driver.status_byte"],
+                  "A_atom_flex_read_timestamp": ["B1500Driver.set_time_stamp", "B1500Driver.reset_timer"],
+                  "A_atom_flex_disconnect": ["Session.close"]}
+    for atom_id, target in successors.items():
+        assert (atoms[atom_id]["target"], atoms[atom_id]["scope"]) == (target, "mapped"), atom_id
+    for atom_id in ("D_atom_derive_dataset_summarize_columns", "D_atom_assess_value_check_limits",
+                    "D_atom_assess_dataset_check_envelope", "D_atom_render_run_build_report"):
+        assert atoms[atom_id]["successor"] and atoms[atom_id]["scope"] == "mapped", atom_id
+
+
+def test_session_targets_and_tools_name_real_methods_and_the_ten_tools() -> None:
+    from b1500_test_agent.analysis.registry import ANALYSIS_METHODS
+    from b1500_test_agent.catalog.kinds import default_kinds
+    from b1500_test_agent.service.common import TOOL_NAMES
+    from b1500_test_agent.session.session import Session
+
+    assert builder.MCP_TOOLS == TOOL_NAMES
+    for target in builder.SESSION_TARGETS:
+        owner, method = target.split(".", 1)
+        assert owner == "Session" and callable(getattr(Session, method, None)), target
+    kinds = set(default_kinds())
+    for flow, targets in builder.FLOW_TARGETS.items():
+        for target in targets:
+            prefix, _, value = target.partition(":")
+            if prefix == "kind":
+                assert value in kinds, (flow, target)
+            elif prefix == "analysis":
+                assert value in ANALYSIS_METHODS, (flow, target)
+
+
+def test_readme_counts_match_the_map(doc: dict) -> None:
+    """The count table and the priority table of references/driver-map/README.md say what the YAML says."""
+    text = (MAP.parent / "README.md").read_text(encoding="utf-8")
+    ledger = doc["counts"]["ledger"]
+    total = {kind: [0, 0] for kind in ("atoms", "flows", "commands")}
+    for family in builder.LEDGER_FAMILIES:
+        cells = []
+        for kind in ("atoms", "flows", "commands"):
+            mapped, out = ledger[family][kind]["mapped"], ledger[family][kind]["out_of_scope"]
+            total[kind][0] += mapped
+            total[kind][1] += out
+            cells.append(f"{mapped} / {out}")
+        assert f"| {family} | {' | '.join(cells)} |" in text, family
+    assert "| total | " + " | ".join(f"{m} / {o}" for m, o in total.values()) + " |" in text
+    for priority, count in doc["counts"]["atoms_by_priority"].items():
+        assert re.search(rf"^\| `{priority}` \|.*\| {count} \|$", text, re.MULTILINE), priority
+    assert f"stays `unmapped` on {doc['counts']['atoms_unmapped']} atoms" in text
 
 
 @pytest.mark.parametrize(("entry_id", "family"), [

@@ -18,7 +18,7 @@ Owns run loading, the run-table contract, quality, extraction, plots and the met
   limited, excluded from fits; `V X F D G S U` and unknown letters untrusted: extraction refused unless forced (sets
   `forced_on_untrusted`, warns); `V` (incl. `199.999E+99`) never limited. `assess_quality` first; report the counts.
 - A refusal or failure is a result (`outcome` `refused`/`failed`, `value=None`, `error`), never an exception;
-  exceptions only for unusable calls (unknown run/column/option, declared method → `not_implemented`).
+  exceptions only for unusable calls (unknown run/column/option, a method that does not apply to the run).
 - Definitions live in the module docstrings (shared `common.py`) and match skill `b1500-test` knowledge `06-...`
   (`06b-...`: time series, pulses, `nvm.py`; `05-...`: `stress.py`; `08-...`: `cv*.py`, `qscv.py`, `dit.py`; `07-...`:
   `model.py`, `spice.py`; `10-...`: `noise.py`, `spectrum.py`); change both together. Two-run: option `reference_run`.
@@ -26,5 +26,5 @@ Owns run loading, the run-table contract, quality, extraction, plots and the met
   are pandas DataFrames. Plot raw data before extraction; semilog axes for currents over decades.
 - Run folders are written only by the server (`analyze_run`); ad-hoc results go to `work/<run_id>/` with the
   script path recorded. Register every method in `ANALYSIS_METHODS` (name, function, `families` tags, recipes,
-  kinds, `implemented` or `declared`; declared → `not_implemented`). Tests use analytic curves with known truth
+  kinds; only implemented methods, no declared stubs). Tests use analytic curves with known truth
   (e.g. Vth error < 5 mV), C/T exclusion and untrusted refusal.

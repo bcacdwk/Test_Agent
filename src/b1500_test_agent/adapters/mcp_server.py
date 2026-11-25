@@ -79,8 +79,8 @@ DESCRIPTIONS: Final[dict[str, str]] = {
     "list_recipes": (
         "Without arguments: recipe families (smu cmu spgu wgfmu nvm reliability system) with their runnable recipe "
         "ids; family: that family's entries {id, title, kind, status, card}; recipe_id: one recipe's params (type, "
-        "unit, default, recommended, range), roles, analysis defaults, preconditions. device_type filters. Use after "
-        "station_status, before validate_plan; not_implemented recipes cannot run."
+        "unit, default, recommended, range), roles, analysis defaults, runnable on this backend. device_type "
+        "filters. Use after station_status, before validate_plan."
     ),
     "validate_plan": (
         "Check a request (recipe_id, params, pin_map, dut_profile, label) or re-check plan_id; never sources. "

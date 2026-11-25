@@ -141,7 +141,7 @@ def test_tables_that_are_not_program_read_runs_are_unusable_calls() -> None:
 
 def test_registry_entry_and_applicability() -> None:
     method = ANALYSIS_METHODS["memory_window_pulse"]
-    assert method.status == "implemented" and method.families == ("nvm",)
+    assert method.families == ("nvm",)
     assert method.kinds == ("pulse_read", "wgfmu_waveform")  # WP10.6: fefet.fast_program_read (builder program_read)
     assert method.applies_to("fefet.pulse_write_read", "pulse_read")
     assert method.applies_to("spgu.program_smu_read", "pulse_read")

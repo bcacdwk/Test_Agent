@@ -52,7 +52,6 @@ L7 skills + rules → `.agents/skills/`, `rules/`, `config/` · L8 agent → you
   their simulator test passes; `hw_validated` needs an M4 validation record.
 - Commit only `*.example.yaml` config (never private station details), and measurement data only as small
   anonymized fixtures.
-- v1 is SMU I-V only; WGFMU, SPGU and CMU recipes stay `not_implemented` until their modules land.
 - Skills: edit `.agents/skills/**` only (`.claude/skills/` and `cards/README.md` are generated). No `.cursor/`.
 - Small commits; the message says why.
 - Commands: `uv sync` · `uv run pytest -m "not hardware and not acceptance"` · `uv run ruff check` ·

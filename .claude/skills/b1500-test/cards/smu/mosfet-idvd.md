@@ -26,8 +26,9 @@ The output family of an nMOS, pMOS or oxide TFT: one drain staircase per gate st
 one transaction). Gives the on-resistance Ron at the lowest |Vd|, the saturation output conductance gds and the
 saturation onset Vd_sat per curve.
 
-- Not for: Vth, SS, Ion/Ioff ([mosfet-idvg](mosfet-idvg.md)); breakdown or hot-carrier stress (destructive,
-  [reserved](../reserved/README.md)); high-current power devices beyond the DUT profile.
+- Not for: Vth, SS, Ion/Ioff ([mosfet-idvg](mosfet-idvg.md)); breakdown or hot-carrier stress (destructive:
+  [tddb-bdv](../reliability/tddb-bdv.md), [hci-silc](../reliability/hci-silc.md)); high-current power devices
+  beyond the DUT profile.
 
 ## 2. Wiring, pin map, modules
 

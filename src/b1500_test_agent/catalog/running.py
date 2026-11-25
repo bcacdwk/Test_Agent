@@ -189,8 +189,7 @@ class RunningRuns:
         except PlanError:
             return
         registry = self.registry(bundle)
-        status = registry.effective_status(plan.recipe_id, bundle.backend) if plan.recipe_id in registry.ids() \
-            else "draft"
+        status = registry.get(plan.recipe_id).status if plan.recipe_id in registry.ids() else "draft"
         progress = None
         try:
             progress = read_progress(folder.path)

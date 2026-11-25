@@ -40,8 +40,9 @@ PARTS = (
     "Re-measure policy",
     "Knowledge and ad-hoc analysis",
 )
-RESULTS = ("ok", "needs_confirmation", "blocked", "summary_mismatch", "not_implemented", "busy", "fault",
-           "invalid_config", "invalid_input", "error", "plan_stale")
+RESULTS = ("ok", "needs_confirmation", "blocked", "summary_mismatch", "busy", "fault", "invalid_config",
+           "invalid_input", "error", "plan_stale")
+"""The results part 5 names (WP11.2: no retired reserved status, ``models.common.ResultStatus``)."""
 NEW_CONFIRM_REASONS = ("soft_pulse", "soft_cmu", "long_run", "physical_setup", "unverified_topology")
 MAX_ROUTER_ROWS = 8
 MANUAL_LOOKUP_LINES = 4
@@ -91,7 +92,8 @@ def test_family_router_links_every_family_index(skill: MarkdownDoc) -> None:
     assert 1 <= len(rows) <= MAX_ROUTER_ROWS
     linked = [m.group(1) for row in rows for m in re.finditer(r"\(cards/README\.md#([a-z]+)\)", row)]
     assert linked == list(FAMILIES)
-    assert "`not_implemented`" in text and "`generic.smu_staircase`" in text
+    assert "not runnable" in text and "never emulate" in text and "`generic.smu_staircase`" in text
+    assert "not_" + "implemented" not in text and "Reserved" not in text  # WP11.2
     assert "cards/smu/" not in text  # cards are reached through the generated index, one hop from here
 
 

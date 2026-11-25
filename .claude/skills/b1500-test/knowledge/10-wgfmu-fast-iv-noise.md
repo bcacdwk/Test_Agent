@@ -58,7 +58,9 @@ the code wins on any difference and a change to either must change both.
 - `wgfmu.pulsed_iv`: one gate pulse per level, Id averaged over the flat top minus `settle` at both ends: the
   isothermal, trap-free transfer curve; compare with DC Id-Vg (`pulsed_vs_dc`, knowledge 06b).
 - `wgfmu.fast_iv`: microsecond up/down ramps, one point per interval: fast hysteresis; `wgfmu.pulse_train`: many
-  identical pulses with several points per plateau: drift over a train.
+  identical pulses with several points per plateau: drift over a train. Its `gate_mode: pg` runs the gate channel in
+  PG mode (WG p16 (1-4)): the set level is the open-load level behind 50 Ohm (an insulated gate sees all of it, a
+  50 Ohm load half), 5 V ranges only (R-WG-02), no measurement on that channel; the drain stays in Fast IV.
 - A shorter window is faster but noisier: averaging n samples (5 ns each) lowers white noise as 1/sqrt(n)
   (AN-RTN p7 (7) figure 6). Keep the window on the flat top: edges and cable ringing bias the average.
 

@@ -164,6 +164,11 @@ class WgRole(StrictModel):
     current_range: WgfmuCurrentRange = "1ma"
     force_range: WgfmuForceRange | None = None
     """Force range the role asks for (``None``: the finest range that holds its levels)."""
+    mode: Literal["fastiv", "pg"] | None = None
+    """Sequencer operation mode the role asks for (``None``: Fast IV). PG mode (WP11.2): ALWG voltage output through
+    the internal 50 Ohm (set level = open-load level, -5..5 V), voltage measurement only (VFVM), force ranges
+    ``3v``/``5v``/``auto`` (WG p16 (1-4), WG p139 (4-69); R-WG-02 checks the range). The DC builders run in DC mode
+    and refuse a role that asks for another."""
 
 
 class BuiltWaveform(StrictModel):
@@ -191,11 +196,18 @@ def _force_range(role: WgRole, levels: Sequence[float]) -> WgfmuForceRange:
     return role.force_range
 
 
-def _setup(role: WgRole, levels: Sequence[float], mode: WgfmuMode = "fastiv",
+def _setup(role: WgRole, levels: Sequence[float], mode: WgfmuMode | None = None,
            current_range: WgfmuCurrentRange | None = None) -> ChannelSetup:
+    """The channel setup of ``role``: ``mode`` when the builder fixes one (DC), else the role's own sequencer mode
+    (default Fast IV); PG mode measures voltage only (WG p16 (1-4))."""
+    if mode is not None and role.mode is not None and role.mode != mode:
+        raise CompileError(f"role {role.role}: this builder runs in {mode} mode, not {role.mode} (drop setting mode)")
+    chosen: WgfmuMode = mode or role.mode or "fastiv"
+    if chosen == "pg" and role.measure == "I":
+        raise CompileError(f"role {role.role}: PG mode measures voltage only; a current needs Fast IV mode")
     measure = "current" if role.measure == "I" else "voltage"
     return ChannelSetup(
-        mode=mode, force_range=_force_range(role, levels), measure=measure,
+        mode=chosen, force_range=_force_range(role, levels), measure=measure,
         current_range=(current_range or role.current_range) if measure == "current" else None,
         voltage_range=voltage_range_for(levels) if measure == "voltage" else None,
         measure_enabled=role.measure is not None)

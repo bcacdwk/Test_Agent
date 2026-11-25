@@ -57,7 +57,7 @@ def test_schema_constants_follow_the_models() -> None:
 def test_cardless_recipes_are_runnable_and_cardless(registry: RecipeRegistry) -> None:
     for recipe_id in CARDLESS_RECIPES:
         recipe = registry.get(recipe_id)
-        assert recipe.card is None and recipe.status != "not_implemented"
+        assert recipe.card is None and registry.runnable(recipe_id, "sim") and registry.runnable(recipe_id, "visa")
 
 
 def test_recipe_modules_and_routes(registry: RecipeRegistry) -> None:

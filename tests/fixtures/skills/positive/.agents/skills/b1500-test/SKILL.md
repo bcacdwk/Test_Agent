@@ -16,8 +16,7 @@ Pick a card from the [card index](#card-index), read it, then validate its
 
 Look things up with `uv run b1500 manual search "FIXCMD" --doc FX` and cite `FX p1 (9-1)`.
 
-New cards start from the [template][template]; reserved measurements are listed in
-[reserved cards](cards/reserved/README.md).
+New cards start from the [template][template]; the generated [card index](cards/README.md) lists every card.
 
 ## Knowledge map
 

@@ -35,8 +35,6 @@ RECORDS_DIR = "records"
 README = "README.md"
 TEMPLATE = "_TEMPLATE.md"
 RECORD_TEMPLATE = "_TEMPLATE.yaml"
-RESERVED_DIR = "reserved"
-"""``cards/reserved/README.md``: the v1 reserved-slot list (no card), kept until WP11.2 deletes it."""
 
 MAX_NAME_CHARS = 64
 MAX_DESCRIPTION_CHARS = 300
@@ -49,7 +47,7 @@ CARDLESS_RECIPES: Final[dict[str, str]] = {
                              "for it (blueprint v2 6.3 gives it no card)",
 }
 """Runnable recipes that deliberately have no card, with the reason (shown in the generated index and as a lint
-note). Every other runnable recipe needs a card; reserved (``not_implemented``) recipes are exempt until WP11.2."""
+note). Every other recipe needs a card (the v1 reserved slots and their exemption went with WP11.2)."""
 
 GNDU = "GNDU"
 CardModule = Literal["HPSMU", "MPSMU", "HRSMU", "MCSMU", "HCSMU", "HVSMU", "MFCMU", "HVSPGU", "WGFMU", "GNDU"]

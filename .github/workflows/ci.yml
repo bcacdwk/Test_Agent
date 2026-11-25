@@ -50,6 +50,11 @@ jobs:
       - name: Card index up to date
         if: ${{ !cancelled() }}
         run: uv run b1500 dev gen-index --check
+      # docs/coverage.md current and no coverage gap (WP11.2); the ledger it reads is checked against the legacy
+      # sources by tests/unit/test_driver_map.py (the rebuild from the archive tag is skipped in a tagless checkout)
+      - name: Coverage page and gaps
+        if: ${{ !cancelled() }}
+        run: uv run b1500 dev coverage --check
       - name: Claude Code skill mirror in sync
         if: ${{ !cancelled() }}
         run: uv run b1500 dev sync-harness --check

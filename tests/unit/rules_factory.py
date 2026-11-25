@@ -18,7 +18,7 @@ from typing import Any
 from b1500_test_agent.catalog.planner import bind_roles
 from b1500_test_agent.config import ConfigBundle, load_yaml
 from b1500_test_agent.models.analysis import Quantity
-from b1500_test_agent.models.common import Backend, ConfigFile, ConfigSource, ValidationStatus
+from b1500_test_agent.models.common import Backend, ConfigFile, ConfigSource
 from b1500_test_agent.models.plan import (
     BoundChannel,
     ChannelBinding,
@@ -200,10 +200,10 @@ SYSTEM: dict[str, Any] = {
 CMU: dict[str, Any] = {
     **copy.deepcopy(IDVG),
     "id": "mosfet.cgg_cv",
-    "title": "Gate capacitance (declared)",
+    "title": "Gate capacitance",
     "family": "cmu",
-    "kind": "cmu_cv",
-    "status": "not_implemented",
+    "kind": "cmu_measure",
+    "status": "sim_validated",
     "roles": {"gate": {"function": "cmu_high", "measure": [], "module_types": ["MFCMU"],
                        "settings": {"start": "$vg_start", "stop": "$vg_stop", "icomp": "$icomp_gate"}}},
     "params": {
@@ -434,7 +434,7 @@ def context(
     backend: Backend = "sim",
     cfg_backend: Backend | None = None,
     source: ConfigSource = "local",
-    effective_status: ValidationStatus | None = None,
+    runnable: bool = True,
     live: LiveState | None = None,
     fault: FaultRecord | None = None,
     inflight_unrecovered: bool = False,
@@ -444,7 +444,7 @@ def context(
     **plan_kwargs: Any,
 ) -> tuple[ConfigBundle, RuleContext]:
     """A bundle and rule context for one plan. Defaults: ``mosfet.idvg`` on pin map ``mosfet-4t`` (verified) with
-    DUT ``nmos-generic`` on the example station, sim backend, effective status = recipe status: tier ``ok``.
+    DUT ``nmos-generic`` on the example station, sim backend, the recipe's kind runnable there: tier ``ok``.
 
     ``pm``/``du``: ``"default"`` = the standard object, ``None`` = the request names one that does not exist.
     ``plan_pin_map`` compiles the plan from a different pin map than the one in the config (binding mismatch).
@@ -464,7 +464,7 @@ def context(
     ctx = RuleContext(
         plan=plan,
         recipe=rec,
-        effective_status=effective_status or rec.status,
+        runnable=runnable,
         station=station_profile,
         policy=ctx_policy if ctx_policy is not None else cfg.policy,
         pin_map=pin,

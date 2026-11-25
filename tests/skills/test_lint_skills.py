@@ -85,7 +85,7 @@ def test_positive_fixture_passes() -> None:
     report = _lint(POSITIVE)
     assert report.ok, lint_skills.format_report(report)
     assert report.skills == ["b1500-bringup", "b1500-debug", "b1500-test"]
-    assert report.cards == [CARD]  # _TEMPLATE.md, the index README.md and cards/reserved/README.md are not cards
+    assert report.cards == [CARD]  # _TEMPLATE.md and the index README.md are not cards
     assert report.stages == [STAGE]
     assert "citations: 2 checked (ids, pages, printed labels and keywords)" in report.notes
     assert any(note.startswith("b1500 commands: ") for note in report.notes)

@@ -14,18 +14,20 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 Backend = Literal["sim", "visa"]
 """Instrument backend: the in-process simulator or a real B1500A over VISA. Nothing ever selects visa implicitly."""
 
-ValidationStatus = Literal["not_implemented", "draft", "sim_validated", "hw_validated"]
-"""Recipe validation status (blueprint 2.6, decision 7)."""
+ValidationStatus = Literal["draft", "sim_validated", "hw_validated"]
+"""Recipe validation status (blueprint 2.6, decision 7; v2 7.2: the set shrank to these three at WP11.2, when the
+last reserved slot was implemented or retired). Whether a recipe can run on a backend is a separate question: its
+kind must have a code path there (``RecipeRegistry.runnable``, rule R-REC-01)."""
 
 Tier = Literal["ok", "needs_confirmation", "blocked"]
 """Plan tier (blueprint 4.3): ``ok`` runs via ``run_plan``; ``needs_confirmation`` only via ``run_confirmed_plan``."""
 
-ResultStatus = Literal["ok", "refused", "needs_confirmation", "blocked", "not_implemented", "busy", "fault", "error"]
+ResultStatus = Literal["ok", "refused", "needs_confirmation", "blocked", "busy", "fault", "error"]
 """``ResultEnvelope.status`` of every service and tool result."""
 
 ErrorCode = Literal[
     "invalid_input", "invalid_config", "unknown_plan", "plan_expired", "plan_stale",
-    "blocked_by_rules", "confirmation_required", "summary_mismatch", "not_implemented", "instrument_busy",
+    "blocked_by_rules", "confirmation_required", "summary_mismatch", "instrument_busy",
     "fault_latched", "transport_error", "instrument_error", "cleanup_unverified", "internal", "run_cancelled",
 ]  # fmt: skip
 """Machine-readable error codes of ``ResultEnvelope.error_code`` (``run_cancelled``: a run stopped at a checkpoint

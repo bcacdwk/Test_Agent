@@ -36,7 +36,9 @@ parameters read by name, never from a step language:
 Every other WGFMU role of a pulse/ramp builder holds setting ``v`` (default 0 V). A WGFMU role measures what its
 ``measure`` lists (``[I]`` or ``[V]``, one quantity per channel; ``[]`` = measurement off); a current-measuring role
 sets its range with setting ``range`` (``1ua`` .. ``10ma``, default ``1ma``); setting ``force_range`` (``3v``, ``5v``,
-``-10v``, ``10v``, ``auto``) fixes a role's force range (default: the finest that holds its levels). SMU roles:
+``-10v``, ``10v``, ``auto``) fixes a role's force range (default: the finest that holds its levels); setting
+``mode`` (``fastiv``, ``pg``; WP11.2) its sequencer operation mode (default Fast IV; PG: the 50 Ohm pulse output,
+voltage only, R-WG-02 checks the PG ranges; ``wgfmu.pulse_train`` exposes it as ``gate_mode``). SMU roles:
 ``bias_v`` (``DV`` at setting ``v`` with compliance ``icomp``) and ``ground`` (the GNDU, or an SMU at 0 V with setting
 ``icomp``); they are switched on and set before the WGFMU phase and held through it (WG Ex. 10); the transaction's
 cleanup turns them off.
@@ -135,6 +137,9 @@ SMU_ROLE_FUNCTIONS: Final = frozenset({"bias_v", "ground"})
 RANGE_SETTING: Final = "range"
 DEFAULT_RANGE: Final[WgfmuCurrentRange] = "1ma"
 FORCE_RANGE_SETTING: Final = "force_range"
+MODE_SETTING: Final = "mode"
+SEQUENCER_MODES: Final = ("fastiv", "pg")
+"""Values of a WGFMU role's setting ``mode`` (WP11.2; the DC builders run in DC mode)."""
 
 CHECKPOINT_S: Final = 10.0
 """Sequencer time between two ``waveform`` checkpoints (cancel latency is the 1 s poll; R-RUN-02 segment)."""
@@ -263,7 +268,10 @@ def _wg_role(name: str, spec: RoleSpec, params: Mapping[str, Quantity], channel:
     if force is not None and force not in WGFMU_SPEC.force_ranges:
         raise CompileError(f"role {name}: {FORCE_RANGE_SETTING} must be one of {sorted(WGFMU_SPEC.force_ranges)}, "
                            f"got {force!r}")
-    return wf.WgRole(role=name, channel=channel, measure=measure, current_range=rng, force_range=force)
+    mode = _setting(name, spec, params, MODE_SETTING)
+    if mode is not None and mode not in SEQUENCER_MODES:
+        raise CompileError(f"role {name}: {MODE_SETTING} must be one of {list(SEQUENCER_MODES)}, got {mode!r}")
+    return wf.WgRole(role=name, channel=channel, measure=measure, current_range=rng, force_range=force, mode=mode)
 
 
 def _one(roles: Mapping[str, tuple[wf.WgRole, RoleSpec]], key: str, builder: str) -> str:

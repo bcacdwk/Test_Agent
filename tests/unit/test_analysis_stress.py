@@ -230,7 +230,7 @@ def test_silc_ratio_exponent_and_injected_charge() -> None:
 def test_registry_entries() -> None:
     for name in ("bti_power_law", "degradation_vs_time", "silc"):
         method = ANALYSIS_METHODS[name]
-        assert method.status == "implemented" and method.families == ("reliability",) and method.kinds == (
+        assert method.families == ("reliability",) and method.kinds == (
             "stress_measure",) and method.milestone == "M7"
     assert ANALYSIS_METHODS["bti_power_law"].applies_to("reliability.bti_sms", "stress_measure")
     assert ANALYSIS_METHODS["degradation_vs_time"].applies_to("igzo.bias_stress", "stress_measure")

@@ -38,7 +38,6 @@ from b1500_test_agent.models.common import (
     ConfirmReason,
     JsonScalar,
     StrictModel,
-    ValidationStatus,
 )
 from b1500_test_agent.models.plan import PlanRecord, RuleFinding, RulesReport
 from b1500_test_agent.models.policy import DutProfile, Policy
@@ -53,9 +52,6 @@ I/O at the start of every run; ``pre_execute`` under the instrument lock with fr
 PHASES: Final[frozenset[str]] = frozenset({"plan", "pre_execute"})
 
 Severity = Literal["info", "warn", "confirm", "block"]
-
-STATUS_RANK: Final[dict[str, int]] = {"not_implemented": 0, "draft": 1, "sim_validated": 2, "hw_validated": 3}
-"""Recipe validation statuses from least to most validated."""
 
 _RULE_ID = re.compile(r"^R-[A-Z]+-\d{2}$")
 BUILTIN_MODULE: Final = "b1500_test_agent.rules.builtin"
@@ -98,8 +94,8 @@ def correction_records(station: StationProfile,
 class RuleContext(StrictModel):
     """Everything a rule may look at (blueprint 2.5), assembled by the executor.
 
-    Additions to the blueprint signature: ``effective_status`` (the registry's status of the recipe for this
-    backend, so a kind missing on the backend makes it ``not_implemented``; R-REC-01), ``fault`` and
+    Additions to the blueprint signature: ``runnable`` (the recipe's kind has a code path on this backend,
+    ``RecipeRegistry.runnable``; R-REC-01 blocks when it does not), ``fault`` and
     ``inflight_unrecovered`` (fault latch and in-flight marker; R-FAULT-01), ``calibration`` (R-CAL-01),
     ``recipe_source`` (the recipe file path, used in finding sources) and ``corrections`` (MFCMU correction records
     by MFCMU alias, from the server-written correction store through ``correction_records``; R-CORR-01). ``pin_map``
@@ -110,7 +106,7 @@ class RuleContext(StrictModel):
 
     plan: PlanRecord
     recipe: Recipe
-    effective_status: ValidationStatus
+    runnable: bool
     station: StationProfile
     policy: Policy
     pin_map: PinMap | None
@@ -134,8 +130,6 @@ class RuleContext(StrictModel):
             raise ValueError("pin_map is not the plan's pin map.")
         if self.dut is not None and self.dut.name != plan.request.dut_profile:
             raise ValueError("dut is not the plan's DUT profile.")
-        if STATUS_RANK[self.effective_status] > STATUS_RANK[recipe.status]:
-            raise ValueError("effective_status cannot be more validated than the recipe's own status.")
         return self
 
 

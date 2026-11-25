@@ -27,9 +27,9 @@ at `v_rev` against a limit (pass/fail), from one staircase on the anode: `v_rev`
 voltage Vf at `i_vf` (default 1 mA) and n, Is, Rs over many decades, without a reverse branch. Applies to pn and
 Schottky diodes and to junctions with their own two-terminal pin map and diode DUT profile from the human.
 
-- Not for: breakdown voltage (destructive; excluded here by the DUT envelope and compliance abort, and not offered in
-  v1), C-V or doping profiles ([reserved](../reserved/README.md)), resistors or landing checks
-  ([contact-resistor-check](contact-resistor-check.md)).
+- Not for: breakdown voltage (destructive, always confirmed: [tddb-bdv](../reliability/tddb-bdv.md); excluded here
+  by the DUT envelope and compliance abort), C-V or doping profiles ([moscap-cv](../cmu/moscap-cv.md)), resistors or
+  landing checks ([contact-resistor-check](contact-resistor-check.md)).
 
 ## 2. Wiring, pin map, modules
 

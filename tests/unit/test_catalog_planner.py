@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 import yaml
 
-from b1500_test_agent.catalog.kinds import SmuStaircaseKind, StaircaseProgram, SystemKind, UnimplementedKind
+from b1500_test_agent.catalog.kinds import SmuStaircaseKind, StaircaseProgram, SystemKind
 from b1500_test_agent.catalog.kinds.smu_staircase import INTEGRATION_PRESETS, measurement_time_s
 from b1500_test_agent.catalog.planner import (
     Planner,
@@ -172,7 +172,7 @@ def _block(n: int) -> RawBlock:
 # -- other kinds -----------------------------------------------------------------------------------------------------
 
 
-def test_system_and_unimplemented_kinds() -> None:
+def test_system_kind() -> None:
     rec = recipe(SYSTEM, params={"operation": {"type": "enum", "choices": ["self_test"], "default": "self_test"}})
     compiled = SystemKind().compile(rec, params_of(rec), bind_roles(rec, None, STATION, "x"), STATION)
     assert compiled.flex_preview == ["*TST?"] and compiled.program == {"operation": "self_test"}
@@ -181,8 +181,6 @@ def test_system_and_unimplemented_kinds() -> None:
         SystemKind().compile(recipe(SYSTEM), {}, bind_roles(rec, None, STATION, "x"), STATION)
     with pytest.raises(CompileError, match="no DUT roles"):
         SystemKind().compile(recipe(), params_of(recipe()), bind_roles(recipe(), pin_map(), STATION, "x"), STATION)
-    empty = UnimplementedKind("cmu_cv").compile(recipe(), {}, bind_roles(recipe(), pin_map(), STATION, "x"), STATION)
-    assert empty.envelope.channels == {} and empty.program == {}
 
 
 # -- planner and identity --------------------------------------------------------------------------------------------

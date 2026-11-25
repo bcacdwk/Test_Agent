@@ -35,7 +35,6 @@ from b1500_test_agent.devtools.skills.common import (
     GNDU,
     KNOWLEDGE_DIR,
     README,
-    RESERVED_DIR,
     RUNBOOKS_DIR,
     Card,
     CardFrontmatter,
@@ -191,10 +190,9 @@ def check_card(lint: Lint, path: Path, registry: RecipeRegistry, entry_dir: Path
         if recipe.family != front.family:
             lint.add("card_recipe", path, f"recipe {recipe_id} has family {recipe.family}, the card {front.family} "
                                           "(a card holds recipes of its own family)", 1)
-        effective = registry.effective_status(recipe_id, "sim")
-        if effective != front.status:
-            lint.add("card_status", path, f"status {front.status} differs from recipe {recipe_id}'s effective "
-                                          f"status on the simulator ({effective})", 1)
+        if recipe.status != front.status:
+            lint.add("card_status", path, f"status {front.status} differs from recipe {recipe_id}'s status "
+                                          f"({recipe.status})", 1)
     check_analysis(lint, path, front, registry)
     check_device_types(lint, path, front, recipes)
     check_modules_and_routes(lint, path, front, recipes, registry)
@@ -261,13 +259,11 @@ def check_card(lint: Lint, path: Path, registry: RecipeRegistry, entry_dir: Path
 
 
 def check_analysis(lint: Lint, path: Path, front: CardFrontmatter, registry: RecipeRegistry) -> None:
-    """``analysis`` names implemented methods of ``ANALYSIS_METHODS`` that serve the card's family."""
+    """``analysis`` names methods of ``ANALYSIS_METHODS`` that serve the card's family."""
     for name in front.analysis:
         method = ANALYSIS_METHODS.get(name)
         if method is None:
             lint.add("analysis_method", path, f"analysis lists {name!r}, which is not in ANALYSIS_METHODS", 1)
-        elif method.status != "implemented":
-            lint.add("analysis_method", path, f"analysis method {name} is only declared (not implemented)", 1)
         elif front.family not in method.families:
             lint.add("analysis_method", path, f"analysis method {name} serves {list(method.families)}, not the "
                                               f"card family {front.family}", 1)
@@ -278,9 +274,9 @@ def analysis_example_problem(recipe_id: str, front: CardFrontmatter, registry: R
     runnable recipe that every listed method applies to."""
     if recipe_id not in registry.ids():
         return f"example plan recipe_id {recipe_id} is not a registered recipe"
+    if not registry.runnable(recipe_id, "sim"):
+        return f"example plan recipe_id {recipe_id} has no simulator code path (kind {registry.get(recipe_id).kind})"
     recipe = registry.get(recipe_id)
-    if recipe.status == "not_implemented":
-        return f"example plan recipe_id {recipe_id} is reserved (not_implemented)"
     misfits = [m for m in front.analysis if m in ANALYSIS_METHODS
                and not ANALYSIS_METHODS[m].applies_to(recipe_id, recipe.kind)]
     if misfits:
@@ -478,19 +474,18 @@ def judge_example(lint: Lint, card: Card, result: PlanValidation) -> None:
 
 
 def find_card_paths(entry_dir: Path) -> list[Path]:
-    """Every card file under ``cards/`` (any depth): Markdown files except ``_*.md`` (template), ``README.md``
-    (generated index) and the v1 ``reserved/`` folder; misplaced cards are found too (``card_layout``)."""
+    """Every card file under ``cards/`` (any depth): Markdown files except ``_*.md`` (template) and ``README.md``
+    (generated index); misplaced cards are found too (``card_layout``)."""
     folder = entry_dir / CARDS_DIR
     if not folder.is_dir():
         return []
     return [p for p in sorted(folder.rglob("*.md"))
-            if not p.name.startswith("_") and p.name != README and not p.is_symlink()
-            and p.relative_to(folder).parts[0] != RESERVED_DIR]
+            if not p.name.startswith("_") and p.name != README and not p.is_symlink()]
 
 
 def check_recipes(lint: Lint, registry: RecipeRegistry, entry_dir: Path) -> None:
-    """Recipe side of the graph: analysis methods exist; every runnable recipe has a card (reserved ones exempt
-    until WP11.2, ``CARDLESS_RECIPES`` by design); a recipe ``card`` is a card in a family folder that lists it."""
+    """Recipe side of the graph: analysis methods exist; every recipe has a card (``CARDLESS_RECIPES`` by design);
+    a recipe ``card`` is a card in a family folder that lists it."""
     cards_dir = entry_dir / CARDS_DIR
     for recipe_id in registry.ids():
         entry = registry.entry(recipe_id)
@@ -500,8 +495,8 @@ def check_recipes(lint: Lint, registry: RecipeRegistry, entry_dir: Path) -> None
                 lint.add("analysis_method", entry.source, f"analysis_defaults[{index}]: method {spec.method!r} is "
                                                           "not in ANALYSIS_METHODS")
         if recipe.card is None:
-            if recipe.status != "not_implemented" and recipe_id not in CARDLESS_RECIPES:
-                lint.add("recipe_card", entry.source, f"runnable recipe {recipe_id} has no card: write "
+            if recipe_id not in CARDLESS_RECIPES:
+                lint.add("recipe_card", entry.source, f"recipe {recipe_id} has no card: write "
                                                       f"{lint.rel(cards_dir)}/{recipe.family}/<card>.md from the "
                                                       "template and set the recipe's card")
             continue

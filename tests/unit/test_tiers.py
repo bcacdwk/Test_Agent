@@ -140,15 +140,11 @@ def test_unverified_pin_map_needs_confirmation() -> None:
         ("visa", "draft", "needs_confirmation", ["draft_recipe"]),
         ("visa", "sim_validated", "needs_confirmation", ["first_hw_run"]),
         ("visa", "hw_validated", "ok", []),
-        ("sim", "not_implemented", "blocked", []),
-        ("visa", "not_implemented", "blocked", []),
     ],
 )
 def test_recipe_status_tiers(backend: str, status: str, tier: str, reasons: list[str]) -> None:
     report = plan_report(context(backend=backend, rec=recipe(status=status)))  # type: ignore[arg-type]
     assert (report.tier, report.confirm_reasons) == (tier, reasons)
-    if status == "not_implemented":
-        assert blocking(report) == ["R-REC-01"]
 
 
 def test_draft_on_sim_is_recorded_as_a_warning() -> None:
@@ -156,9 +152,11 @@ def test_draft_on_sim_is_recorded_as_a_warning() -> None:
     assert [(f.rule_id, f.severity) for f in report.findings] == [("R-REC-01", "warn")]
 
 
-def test_kind_missing_on_the_backend_blocks() -> None:
-    report = plan_report(context(rec=recipe(status="sim_validated"), effective_status="not_implemented"))
-    assert blocking(report) == ["R-REC-01"]
+@pytest.mark.parametrize("backend", ["sim", "visa"])
+@pytest.mark.parametrize("status", ["draft", "sim_validated", "hw_validated"])
+def test_kind_missing_on_the_backend_blocks(backend: str, status: str) -> None:
+    report = plan_report(context(backend=backend, rec=recipe(status=status), runnable=False))  # type: ignore[arg-type]
+    assert (report.tier, blocking(report)) == ("blocked", ["R-REC-01"])
 
 
 def test_generic_recipe_on_visa_is_adhoc() -> None:

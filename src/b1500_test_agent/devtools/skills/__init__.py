@@ -27,33 +27,32 @@ Checks (problem ``code`` in brackets)
   become ``-``, repeats get ``-1``, ``-2``; ``<a id="x">`` anchors count too.
 - Knowledge files (``b1500-test/knowledge/**/*.md`` except ``README.md``) [``frontmatter``]: ``domain``,
   ``maturity`` (``seed|draft|reviewed``), ``sources`` (≥1), ``last_reviewed`` (date or null; set when reviewed).
-- Test cards (``b1500-test/cards/<family>/<id>.md``; ``_*.md``, ``README.md`` and the v1 ``cards/reserved/`` folder
-  are not cards) [``card_layout``]: family = folder (one of ``FAMILIES``); a card elsewhere under ``cards/`` is a
-  problem. Frontmatter [``frontmatter``] = ``CardFrontmatter`` v2 (``id`` = file stem, ``title``, ``family``,
-  ``intent``, ``recipes``, ``device_types``, ``modules``, ``routes``, ``bringup_stage``, ``status``,
-  ``confirmation``, ``knowledge``, ``manual``, ``debug``, ``sources``, ``version``); the body has exactly the ten
+- Test cards (``b1500-test/cards/<family>/<id>.md``; ``_*.md`` and ``README.md`` are not cards) [``card_layout``]:
+  family = folder (one of ``FAMILIES``); a card elsewhere under ``cards/`` is a problem. Frontmatter
+  [``frontmatter``] = ``CardFrontmatter`` v2 (``id`` = file stem, ``title``, ``family``, ``intent``, ``recipes``,
+  ``device_types``, ``modules``, ``routes``, ``bringup_stage``, ``status``, ``confirmation``, ``knowledge``,
+  ``manual``, ``debug``, ``sources``, ``version``); the body has exactly the ten
   numbered H2 sections of ``CARD_SECTIONS`` in order (``## 1. Purpose and applicable devices`` ...
   ``## 10. Validation record``; ``->`` may stand for ``→``; H3 inside a section is free) [``card_sections``];
   section 2 states the routes ("Routes: none ..."), section 10 names ``validation/hw/<recipe>.yaml`` of every card
   recipe [``card_sections``]; see the section-4 contract below. ``cards/_TEMPLATE.md`` has the same ten sections.
 - Card graph: card ``recipes`` exist, share the card's family, and each recipe's ``card`` points back
   [``card_recipe``]; every recipe ``card`` is an existing card in a family folder that lists the recipe, and every
-  runnable recipe has a card (reserved ``not_implemented`` recipes exempt until WP11.2; ``CARDLESS_RECIPES`` by
-  design) [``recipe_card``]; card ``device_types`` appear in the recipes' ``device_types`` [``card_recipe``]; card
-  ``modules`` ⊆ the module types the recipes' roles may use (each role's ``module_types``, or every type that fits
-  its function; ``GNDU`` when a role allows it; empty only for roleless system recipes) [``card_modules``]; card
-  ``routes`` (``<switch kind>:<state>``) ⊆ the non-rest switch states whose input is a role's resource
-  [``card_routes``]; ``bringup_stage`` is a blueprint 7.4 stage id, and once that stage's file exists it lists every
-  card recipe [``card_stage``] (a stage without a file is a note); ``manual`` entries are canonical citations of
-  catalog documents [``frontmatter``, ``citation``]; card ``knowledge`` entries ``knowledge/<file>.md#<heading-id>``
-  exist [``card_knowledge``]; card ``debug`` ids are ``b1500-debug/runbooks/<id>.md`` files [``card_debug``]; every
-  recipe ``analysis_defaults`` method exists in ``ANALYSIS_METHODS`` [``analysis_method``]; card ``status`` equals
-  each recipe's effective status on the simulator [``card_status``].
+  recipe has a card (``CARDLESS_RECIPES`` by design) [``recipe_card``]; card ``device_types`` appear in the recipes'
+  ``device_types`` [``card_recipe``]; card ``modules`` ⊆ the module types the recipes' roles may use (each role's
+  ``module_types``, or every type that fits its function; ``GNDU`` when a role allows it; empty only for roleless
+  system recipes) [``card_modules``]; card ``routes`` (``<switch kind>:<state>``) ⊆ the non-rest switch states whose
+  input is a role's resource [``card_routes``]; ``bringup_stage`` is a blueprint 7.4 stage id, and once that stage's
+  file exists it lists every card recipe [``card_stage``] (a stage without a file is a note); ``manual`` entries are
+  canonical citations of catalog documents [``frontmatter``, ``citation``]; card ``knowledge`` entries
+  ``knowledge/<file>.md#<heading-id>`` exist [``card_knowledge``]; card ``debug`` ids are
+  ``b1500-debug/runbooks/<id>.md`` files [``card_debug``]; every recipe ``analysis_defaults`` method exists in
+  ``ANALYSIS_METHODS`` [``analysis_method``]; card ``status`` equals each recipe's status [``card_status``].
 - Card index [``card_index``] (``index``): ``cards/README.md`` equals the text ``b1500 dev gen-index`` generates from
   the card frontmatter and the registry (skipped with a note while a card's frontmatter is invalid).
 - Bring-up skill [``stage``] (``stages``): ``stages/_TEMPLATE.md`` has the six numbered sections of
   ``STAGE_SECTIONS``; every other ``stages/*.md`` is named after a ``STAGES`` entry, has ``StageFrontmatter``
-  (``stage`` = the file's stage, ``title``, registered non-reserved ``recipes``, ``version``) and the six sections;
+  (``stage`` = the file's stage, ``title``, registered ``recipes``, ``version``) and the six sections;
   ``records/`` holds only ``_TEMPLATE.yaml``, a mapping with ``RECORD_KEYS``, empty ``reviewer`` and ``H...`` runs.
 - Citations [``citation``] (``citations``): every manual citation (``PG p433 (4-115)``, legacy ``PG PDF 433``) in
   the skills, recipes, source docstrings and docs names a catalog document and a page inside it; with the committed

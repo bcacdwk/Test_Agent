@@ -62,9 +62,8 @@ params, roles, analyses; defaults fill gaps);
 | [reliability](cards/README.md#reliability) | BTI, HCI, SILC, TDDB, breakdown, IGZO stress |
 | [system](cards/README.md#system) | self-test, self-calibration, zero check |
 
-Open the family index, pick the card by intent keywords, read it; `list_recipes` status (current backend) wins.
-Reserved (`not_implemented`): say so, offer the named alternative, never emulate it. No card fits: ask before
-`generic.smu_staircase`.
+Open the family index, pick the card by intent keywords, read it; `list_recipes` (current backend) wins: a recipe
+it marks not runnable is blocked; never emulate it. No card fits: ask before `generic.smu_staircase`.
 
 ## 5. Tiers and errors
 
@@ -75,7 +74,6 @@ Reserved (`not_implemented`): say so, offer the named alternative, never emulate
 | `blocked` | Never run. Name blocking rule ids, observed vs limit; offer an in-envelope alternative. Only a human edits `config/local/`. |
 | `summary_mismatch` | Show the returned summary verbatim; ask again. |
 | `plan_stale`, `plan_expired`, `unknown_plan` | `validate_plan` again; new tier, new consent if needed. |
-| `not_implemented` | As reserved in part 4. |
 | `busy` | Report the holder (run id, progress); retry later. |
 | `fault`, `cleanup_unverified`, `error` | `safe_shutdown`, then `b1500-debug`; only the human clears the latch. |
 | `invalid_config` | Report the problems `station_status` lists; stop for the human. |

@@ -248,14 +248,14 @@ def recipes_lines(result: RecipeList) -> list[str]:
             lines.append("analysis defaults: " + ", ".join(a.method for a in r.analysis_defaults))
         if r.always_confirm:
             lines.append("always confirm: " + ", ".join(r.always_confirm))
-        lines += [f"precondition: {p}" for p in r.preconditions]
+        if not r.runnable:
+            lines.append(f"not runnable on this backend: kind {r.kind} has no code path here")
         return lines
     if result.families:
         lines = []
         for name, family in result.families.items():
             ids = ", ".join(family.runnable) or "-"
-            reserved = f"; not_implemented: {', '.join(family.not_implemented)}" if family.not_implemented else ""
-            lines.append(f"{name}: {family.recipes} recipes, {len(family.runnable)} runnable: {ids}{reserved}")
+            lines.append(f"{name}: {family.recipes} recipes, {len(family.runnable)} runnable: {ids}")
         return lines
     return _table(["id", "status", "kind", "title"], [[r.id, r.status, r.kind, r.title] for r in result.recipes])
 

@@ -1,19 +1,19 @@
 """``RecipeRegistry``: the recipes under ``recipes/`` checked against the measurement kinds (blueprint 2.6).
 
 Layout: ``recipes/<group>/<name>.yaml`` holds recipe ``<group>.<name>`` (``mosfet/idvg.yaml`` = ``mosfet.idvg``);
-``recipes/reserved/<id>.yaml`` holds reserved slots (blueprint 6.4), which must be ``not_implemented`` and say
-what has to exist before they may be un-reserved (``preconditions``).
+``recipes/waveforms/`` is the waveform library of ``file`` parameters. The v1 reserved slots (``recipes/reserved/``)
+are gone since WP11.2: every slot was implemented or retired (blueprint v2 3, 9).
 
 ``problems()`` lists everything wrong with the tree, one line each (``b1500 dev recipe-check`` exits 0 iff it is
 empty): schema errors (including ``$param`` references that do not resolve), file name ≠ recipe id, duplicate ids,
 unknown kinds, dangling card paths, unknown analysis methods (or methods/options that do not apply to the recipe),
-reserved slots that are not ``not_implemented`` or lack preconditions, a validated status on a kind that has
-no simulator code path, and ``file`` parameter defaults that do not name a readable CSV of at most
-``FILE_PARAM_MAX_BYTES`` in the waveform library (``recipes/waveforms/``). Recipes with schema errors are left out
-of the registry; the others load even when the tree has other problems.
+a validated status on a kind that has no simulator code path, and ``file`` parameter defaults that do not name a
+readable CSV of at most ``FILE_PARAM_MAX_BYTES`` in the waveform library (``recipes/waveforms/``). Recipes with
+schema errors are left out of the registry; the others load even when the tree has other problems.
 
-``effective_status(recipe_id, backend)``: ``not_implemented`` when the recipe's kind is unknown or has no code path
-for ``backend``, else the recipe's own status.
+``runnable(recipe_id, backend)``: the recipe's kind is registered and has a code path for ``backend``. The status
+(``draft · sim_validated · hw_validated``, blueprint v2 7.2) is always the recipe's own; R-REC-01 blocks a plan whose
+recipe is not runnable on the backend.
 """
 
 from __future__ import annotations
@@ -26,10 +26,9 @@ from b1500_test_agent.analysis.registry import ANALYSIS_METHODS
 from b1500_test_agent.catalog.kinds import MeasurementKind, default_kinds, implemented_on
 from b1500_test_agent.catalog.schema import RECIPE_SUFFIX, RecipeFileError, parse_recipe, recipe_sha256
 from b1500_test_agent.errors import InvalidInputError
-from b1500_test_agent.models.common import Backend, ValidationStatus
+from b1500_test_agent.models.common import Backend
 from b1500_test_agent.models.recipe import FILE_PARAM_MAX_BYTES, Recipe, RecipeSummary
 
-RESERVED_DIR = "reserved"
 WAVEFORMS_DIR = "waveforms"
 """The committed waveform library ``recipes/waveforms/`` (``file`` parameters ``recipes/waveforms/<name>.csv``)."""
 
@@ -136,23 +135,21 @@ class RecipeRegistry:
         """The measurement kind of the recipe (``None`` when the kind id is unknown)."""
         return self.kinds.get(self.get(recipe_id).kind)
 
-    def effective_status(self, recipe_id: str, backend: Backend) -> ValidationStatus:
-        """``not_implemented`` when the kind is unknown or lacks ``backend``; else the recipe's own status."""
-        recipe = self.get(recipe_id)
-        if not implemented_on(self.kinds.get(recipe.kind), backend):
-            return "not_implemented"
-        return recipe.status
+    def runnable(self, recipe_id: str, backend: Backend) -> bool:
+        """True when the recipe's kind is registered and has a code path for ``backend`` (R-REC-01 blocks the plans
+        of a recipe that is not)."""
+        return implemented_on(self.kinds.get(self.get(recipe_id).kind), backend)
 
-    def list(self, *, device_type: str | None = None, backend: Backend = "sim") -> list[RecipeSummary]:
-        """Index entries sorted by id, ``status`` = effective status on ``backend``; ``device_type`` filters
-        recipes that name it (recipes without device types, e.g. ``generic.*`` and ``system.*``, always match)."""
+    def list(self, *, device_type: str | None = None) -> list[RecipeSummary]:
+        """Index entries sorted by id; ``device_type`` filters recipes that name it (recipes without device types,
+        e.g. ``generic.*`` and ``system.*``, always match)."""
         out = []
         for recipe_id in self.ids():
             recipe = self.get(recipe_id)
             if device_type is not None and recipe.device_types and device_type not in recipe.device_types:
                 continue
             out.append(RecipeSummary(id=recipe.id, title=recipe.title, family=recipe.family, kind=recipe.kind,
-                                     status=self.effective_status(recipe.id, backend), card=recipe.card,
+                                     status=recipe.status, card=recipe.card,
                                      device_types=list(recipe.device_types)))
         return out
 
@@ -162,19 +159,9 @@ def _check(recipe: Recipe, path: Path, root: Path, repo_root: Path,
     """Problems of one schema-valid recipe (see the module docstring)."""
     problems: list[str] = []
     rel = path.relative_to(root)
-    reserved = rel.parts[0] == RESERVED_DIR
-    if reserved:
-        if len(rel.parts) != 2 or path.stem != recipe.id:
-            problems.append(f"a reserved recipe lives at {RESERVED_DIR}/<id>.yaml; expected "
-                            f"{RESERVED_DIR}/{recipe.id}{RECIPE_SUFFIX}")
-        if recipe.status != "not_implemented":
-            problems.append(f"reserved recipe {recipe.id} must be not_implemented, not {recipe.status}")
-        if not recipe.preconditions:
-            problems.append(f"reserved recipe {recipe.id} must list its preconditions to un-reserve")
-    else:
-        expected = ".".join([*rel.parent.parts, path.stem])
-        if recipe.id != expected:
-            problems.append(f"recipe id {recipe.id} does not match its file name (expected {expected})")
+    expected = ".".join([*rel.parent.parts, path.stem])
+    if recipe.id != expected:
+        problems.append(f"recipe id {recipe.id} does not match its file name (expected {expected})")
     kind = kinds.get(recipe.kind)
     if kind is None:
         problems.append(f"unknown kind {recipe.kind!r}; known: {', '.join(sorted(kinds))}")
@@ -201,8 +188,7 @@ def _check(recipe: Recipe, path: Path, root: Path, repo_root: Path,
             continue
         if not method.applies_to(recipe.id, recipe.kind):
             problems.append(f"{where}: {spec.method} does not apply to recipe {recipe.id} (kind {recipe.kind})")
-        if method.status == "implemented":
-            unknown = sorted(set(spec.options) - set(method.options))
-            if unknown:
-                problems.append(f"{where}: {spec.method} has no option(s) {unknown}")
+        unknown = sorted(set(spec.options) - set(method.options))
+        if unknown:
+            problems.append(f"{where}: {spec.method} has no option(s) {unknown}")
     return problems

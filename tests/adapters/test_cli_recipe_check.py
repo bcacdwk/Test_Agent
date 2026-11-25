@@ -49,7 +49,8 @@ def test_committed_recipes_are_clean(clone: Path) -> None:
 # + WP10.5: wgfmu.rtn, wgfmu.lfn
 # + WP10.7: system.wgfmu_self_test, system.wgfmu_self_cal; wgfmu.fast_bti leaves recipes/reserved
 # + WP10.6: fecap.endurance_pund, fefet.fast_program_read; fecap.pund leaves recipes/reserved
-    assert "mosfet.idvg" in result.output and "sim:sim_validated" in result.output
+# WP11.2: recipes/reserved/ is gone; each row shows whether the recipe runs on sim and visa
+    assert "mosfet.idvg" in result.output and "sim:runnable  visa:runnable" in result.output
 
 
 def test_problems_exit_non_zero_with_json(clone: Path) -> None:

@@ -267,7 +267,7 @@ def test_sweep_plan_reproduces_grids_and_refuses_synchronous_or_log_sweeps() -> 
 @pytest.mark.parametrize("name", ["compact_model_fit", "model_compare", "export_spice_netlist"])
 def test_registry_entries(name: str) -> None:
     method = ANALYSIS_METHODS[name]
-    assert method.status == "implemented" and method.families == ("smu",) and method.milestone == "M7"
+    assert method.families == ("smu",) and method.milestone == "M7"
     for recipe, kind in (("mosfet.idvg", "smu_staircase"), ("mosfet.idvd", "smu_stepped"),
                          ("mosfet.idvg_pulsed", "smu_pulsed"), ("mosfet.body_effect", "smu_stepped")):
         assert method.applies_to(recipe, kind), (recipe, kind)

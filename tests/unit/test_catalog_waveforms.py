@@ -286,3 +286,23 @@ def test_builders_never_produce_a_time_off_the_grid() -> None:
         assert all_on_grid(built.program)
         assert all(on_grid(e.t, wf.TICK_S) for e in built.program.events)
         assert math.isfinite(built.program.total_time_s())
+
+
+# -- operation mode of a role (WP11.2: the WGFMU PG mode, blueprint v2 1.2) --------------------------------------------
+
+
+def test_a_role_in_pg_mode_gets_a_pg_setup_and_the_others_stay_fast_iv() -> None:
+    gate = GATE.model_copy(update={"mode": "pg"})
+    built = wf.pulse_train(gate, [(DRAIN, 1.0)], base=0.0, peak=2.0, width=1e-5, period=1e-4, edge=1e-7, count=3,
+                           settle=1e-6, samples=2)
+    setups = built.program.channels
+    assert (setups[201].mode, setups[202].mode) == ("pg", "fastiv")
+    assert setups[201].force_range == "3v" and not setups[201].measure_enabled
+
+
+def test_pg_mode_refuses_a_current_measurement_and_dc_builders_refuse_a_sequencer_mode() -> None:
+    with pytest.raises(CompileError, match="PG mode measures voltage only"):
+        wf.pulse_train(GATE, [(DRAIN.model_copy(update={"mode": "pg"}), 1.0)], base=0.0, peak=2.0, width=1e-5,
+                       period=1e-4, edge=1e-7, count=3, settle=1e-6, samples=2)
+    with pytest.raises(CompileError, match="runs in dc mode, not pg"):
+        wf.dc_spot([(DRAIN.model_copy(update={"mode": "pg", "measure": "V"}), [0.1])])

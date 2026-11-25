@@ -163,7 +163,8 @@ class StationStatus(ResultEnvelope):
 
 
 class RecipeDetail(StrictModel):
-    """One recipe as ``list_recipes(recipe_id)`` shows it; ``status`` is the effective status on the backend."""
+    """One recipe as ``list_recipes(recipe_id)`` shows it; ``runnable`` is false when the recipe's kind has no code
+    path on the current backend (R-REC-01 then blocks every plan of it)."""
 
     id: str
     version: int
@@ -177,17 +178,16 @@ class RecipeDetail(StrictModel):
     roles: dict[str, RoleSpec] = Field(default_factory=dict)
     analysis_defaults: list[AnalysisSpec] = Field(default_factory=list)
     always_confirm: list[ConfirmReason] = Field(default_factory=list)
-    preconditions: list[str] = Field(default_factory=list)
+    runnable: bool = True
     source: str = ""
 
 
 class FamilyIndex(StrictModel):
-    """One family of the default ``list_recipes`` overview (blueprint v2 2.9): how many recipes it has and their ids,
-    runnable (effective status not ``not_implemented`` on the backend) and not."""
+    """One family of the default ``list_recipes`` overview (blueprint v2 2.9): how many recipes it has and the ids of
+    those runnable on the backend (their kind has a code path there; every shipped kind runs on sim and visa)."""
 
     recipes: int = Field(ge=0)
     runnable: list[str] = Field(default_factory=list)
-    not_implemented: list[str] = Field(default_factory=list)
 
 
 class RecipeList(ResultEnvelope):

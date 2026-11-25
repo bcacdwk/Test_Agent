@@ -33,6 +33,8 @@ WAVEFORM_CASES: list[dict[str, Any]] = [
     {"recipe_id": "wgfmu.fast_iv", "scenario": "nmos_wgfmu", "request": {"params": {}, **MOSFET}, "rows": 200},
     {"recipe_id": "wgfmu.pulse_train", "scenario": "nmos_wgfmu",
      "request": {"params": {"count": 20, "samples": 3}, **MOSFET}, "rows": 60},
+    {"recipe_id": "wgfmu.pulse_train", "scenario": "nmos_wgfmu",  # the gate in PG mode (WP11.2)
+     "request": {"params": {"count": 20, "samples": 3, "gate_mode": "pg"}, **MOSFET}, "rows": 60},
     {"recipe_id": "wgfmu.custom_waveform", "scenario": "nmos_rtn", "request": {"params": {}, **MOSFET},
      "rows": 55200},
     {"recipe_id": "wgfmu.dc_spot", "scenario": "resistor_100k",
@@ -104,7 +106,8 @@ def run_on_visa(world: VisaWorld, case: dict[str, Any], lock_state: list[tuple[s
     return bus, result
 
 
-@pytest.mark.parametrize("case", WAVEFORM_CASES, ids=[c["recipe_id"] for c in WAVEFORM_CASES])
+@pytest.mark.parametrize("case", WAVEFORM_CASES, ids=[c["recipe_id"] + ("-pg" if "gate_mode" in c["request"]["params"]
+                                                                          else "") for c in WAVEFORM_CASES])
 def test_waveform_recipe_runs_on_backend_visa_with_cleanup_verified(case: dict[str, Any], world: VisaWorld,
                                                                     tmp_path: Path,
                                                                     lock_state: list[tuple[str, bool]]) -> None:

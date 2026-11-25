@@ -33,6 +33,7 @@ the code wins on any difference and a change to either must change both.
 - [RTN analysis rtn_levels](#rtn-analysis-rtn_levels)
 - [PSD analysis psd_welch and plot_psd](#psd-analysis-psd_welch-and-plot_psd)
 - [Record statistics it_statistics](#record-statistics-it_statistics)
+- [Module coverage and bring-up L8](#module-coverage-and-bring-up-l8)
 - [Simulator behaviour](#simulator-behaviour)
 - [Troubleshooting noise records](#troubleshooting-noise-records)
 
@@ -171,6 +172,30 @@ Record: one measured column `y` (default the only measured current) against `t_s
 `skewness`, `excess_kurtosis`, Sarle's `bimodality` = (skew^2 + 1)/(excess kurtosis + 3): above 5/9 warned as a
 likely two-level RTN), `noise_rel` = std/|mean|, `drift_rel` = linear slope x duration / |mean|, `sample_interval`
 (fit `jitter_rel`). Also works on SMU sampling runs (`generic.smu_sampling`, `mosfet.id_t_sampling`).
+
+## Module coverage and bring-up L8
+
+- Recipes (blueprint v2 3.4, all `sim_validated`): `wgfmu.pulsed_iv`, `wgfmu.fast_iv`, `wgfmu.pulse_train` (card
+  `wgfmu-pulsed-iv`), `wgfmu.rtn`, `wgfmu.lfn` (`wgfmu-rtn-noise`), `wgfmu.custom_waveform`, `wgfmu.dc_spot`
+  (`wgfmu-custom-waveform`), `fecap.pund` (`fecap-pund`; `fecap.endurance_pund` at L9), `fefet.fast_program_read`
+  (`fefet-pulse-write-read`), `wgfmu.fast_bti` (`bti-stress-measure`, L9), `system.wgfmu_self_test` and
+  `system.wgfmu_self_cal` (`self-test-cal`).
+- What the kernel calls (`WgfmuApi`, bound 1:1 by `WgfmuDll`): session open/close, `initialize`, `clear`, channel
+  ids, modes, ranges, measure enable, patterns (`createPattern`, one `addVectors` per pattern), measure and range
+  events, sequences, `update`, `connect`/`disconnect` (RSU), `execute`, status polls at most 1 s apart, chunked
+  readback, DC force/measure, self-test/cal, error strings, and the warning summary after every run (library
+  defaults kept: warnings are reported in `kind_result.wgfmu_warnings`/`wgfmu_warning_text` and the audit, never
+  turned into errors; WG p138 (4-68) Table 4-4). Never: the library log file (the audit log has every call), the
+  ASCII export (`program.json`), reads while the sequencer runs, pattern edits or transforms (host builders),
+  trigger output, delay trims (coverage ledger, WP10.8).
+- Bring-up L8 (skill `b1500-bringup`, `l8-wgfmu.md`): the library session probe, the library self-test and
+  self-calibration, DC into the 100 kOhm standard through the RSU (I(R) +-3 %), pulsed vs DC Id-Vg through the RSU
+  SMU inputs (explained), the fast ramp and a pulse train, the lab's own waveform files, RTN and LFN records, a
+  FeCap PUND, the fast FeFET program/read; a scope on the RSU V Monitor shows each waveform and 0 V after it.
+- `TODO(verify)` at L8: releasing the FLEX lock is enough for the library session (ATV-14; fallback
+  `settings.wgfmu.flex_during_phase: close`); `initialize` leaves an SMU bias alone (ATV-17); the RSU SMU path
+  (ATV-32); an accepted `disconnect` = the relay opened; the error-string format; the readback time of 504,000
+  points; real noise floors and bandwidth with the lab's cables.
 
 ## Simulator behaviour
 

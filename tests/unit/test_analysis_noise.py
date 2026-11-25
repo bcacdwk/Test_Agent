@@ -69,6 +69,7 @@ def rtn_record(seed: int = 1, n: int = 200_000, dt: float = 1e-5, *, delta: floa
 # -- Welch PSD -------------------------------------------------------------------------------------------------------
 
 
+@pytest.mark.wgfmu
 def test_white_noise_psd_is_two_sigma_squared_dt() -> None:
     rng = np.random.default_rng(0)
     dt, sigma = 1e-6, 3e-9
@@ -136,6 +137,7 @@ def test_auto_adds_the_lorentzian_of_a_telegraph_signal() -> None:
     assert single["gamma"].value > 1.2  # one power law through a Lorentzian is too steep
 
 
+@pytest.mark.wgfmu
 def test_psd_results_units_reference_frequency_and_input_referred_noise() -> None:
     rng = np.random.default_rng(3)
     dt = 1e-5
@@ -164,6 +166,7 @@ def test_a_window_without_bins_fails_as_a_result() -> None:
 # -- rtn_levels ------------------------------------------------------------------------------------------------------
 
 
+@pytest.mark.wgfmu
 def test_rtn_levels_recovers_the_trap() -> None:
     found = by_quantity(nz.rtn_levels(run_data(rtn_record(), 1e-5)))
     assert found["tau_c"].value == pytest.approx(1e-3, rel=0.1) and found["tau_e"].value == pytest.approx(5e-4, rel=0.1)
@@ -193,6 +196,7 @@ def test_a_p_channel_record_and_the_occupied_option() -> None:
     assert swapped["delta_i_rel"].value == pytest.approx(0.05 / 0.95, rel=0.03)  # relative to the low level
 
 
+@pytest.mark.wgfmu
 def test_rtn_warnings_short_records_and_coarse_sampling() -> None:
     short = by_quantity(nz.rtn_levels(run_data(rtn_record(n=8000), 1e-5)))
     assert short["tau_c"].outcome == "ok" and any("transitions" in w for w in short["tau_c"].warnings)
@@ -278,6 +282,7 @@ def test_records_need_time_and_enough_points() -> None:
 # -- registry and plot -----------------------------------------------------------------------------------------------
 
 
+@pytest.mark.wgfmu
 def test_the_methods_are_registered_for_noise_records() -> None:
     for name in ("it_statistics", "psd_welch", "rtn_levels", "plot_psd"):
         method = ANALYSIS_METHODS[name]
@@ -290,6 +295,7 @@ def test_the_methods_are_registered_for_noise_records() -> None:
     assert "hysteresis" in ANALYSIS_METHODS["rtn_levels"].options and "gm_s" in ANALYSIS_METHODS["psd_welch"].options
 
 
+@pytest.mark.wgfmu
 def test_plot_psd_renders_and_never_refuses() -> None:
     x = rtn_record(n=100_000)
     plots = run_method("plot_psd", run_data(x, 1e-5))

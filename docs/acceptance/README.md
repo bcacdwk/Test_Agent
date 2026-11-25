@@ -223,12 +223,12 @@ rely on (recipe ids and parameters, analysis quantities and units, simulator dev
 | S3 rewritten: SPGU overdrive, blocked, in-envelope offer (replaced v1's reserved-slot S3 in WP9.6) | ★ | spgu | `test_v2_scenarios.py` (genuine ideal, forged violation) | WP9.4 (`spgu.pulse_train`, `fefet.pulse_write_read`); run at WP9.6 |
 | S11 MOS-cap C-V: R-CORR-01, corrections by the human's steps, C-V | ★ | cmu | forged | WP8.6 (`cmu.*` corrections, `moscap.cv`) |
 | S12 FeFET MW from pulses: confirmation, PGU → SMU routes | ★ | spgu, nvm | genuine ideal, forged violation | WP9.4 (`fefet.pulse_write_read`); run at WP9.6 |
-| S13 FeCap PUND: Pr, Ec derived, no library code | functional | wgfmu, nvm | forged | WP10.6 (`fecap.pund`, scenario `fecap_basic`); run at WP10.8 |
+| S13 FeCap PUND: Pr, Ec derived, no library code | functional | wgfmu, nvm | genuine ideal, violating story | WP10.6 (`fecap.pund`, scenario `fecap_basic`); run at WP10.8 |
 | S14 BTI 30 min: long_run, async, polling, n | functional | smu, reliability | forged | WP7.7 (`reliability.bti_sms`) |
 | S15 BTI "stop it now": safe_shutdown, cancelled, verified cleanup | ★ | smu, reliability | forged | WP7.7 |
 | S16 Manual question (ERSSP status 3) with a page citation | functional | manual, spgu | real `b1500 manual` CLI | WP6.6 |
 | S17 Bring-up rehearsal, stage by stage | ★ | system, bringup | `test_s17_bringup.py` (real CLI) | WP6.6 |
-| S18 "load wgfmu.dll with ctypes": refused, `wgfmu.custom_waveform` | ★ | wgfmu | `test_v2_scenarios.py` | WP10.8 (`wgfmu.custom_waveform`) |
+| S18 "load wgfmu.dll with ctypes": refused, `wgfmu.custom_waveform` | ★ | wgfmu | `test_v2_scenarios.py` | WP10.4 (`wgfmu.custom_waveform`); run at WP10.8 |
 
 `tests/acceptance/scenarios/S01..S10-*.yaml` express every pass criterion of blueprint 8.2 (the file headers say
 how). `tests/acceptance/test_scenarios_suite.py` runs each one through the real runner twice in the normal gate,
@@ -250,7 +250,8 @@ the `lab_station` simulator, the scripted agents run the real `b1500 bringup` an
 The v2 scenarios (WP6.6) are self-tested in `tests/acceptance/test_v2_scenarios.py`: an ideal agent and one or more
 violating stories each (`<stem>-violating*.yaml`; together they fail every grader). S16 runs the real `b1500 manual`
 CLI on the committed corpus; S18 needs no recipe; the ideal agents of S3 and S12 call the real server since WP9.6
-(`fefet_lab`, genuine plans, run, routes and analysis). For S11 and S13-S15 the recipes came with later work
+(`fefet_lab`, genuine plans, run, routes and analysis), S13's since WP10.8 (`fecap.pund` on `fecap_basic`, the
+default `pund_polarization`). For S11, S14 and S15 the recipes came with later work
 packages, so the fake agent's `forge` action (`tests/acceptance/forge.py`) writes what the server would (plan
 record, run manifest and analyses, `tool_call` audit events, selector state) with the real models, analysis values
 taken from the simulator truth; stand-in simulator scenarios (`tests/fixtures/acceptance/sim/`) are used only while

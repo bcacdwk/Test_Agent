@@ -552,8 +552,14 @@ SPGU_RULE_CASES = ("pulse", "spgu-", "route")
 """Case ids of the HV-SPGU and 16440A rules (R-PULSE-01..03, R-SPGU-01, R-ROUTE-01/02): marked ``spgu`` (WP9.6)."""
 
 
-@pytest.mark.parametrize("case", [pytest.param(c, id=c.id, marks=[pytest.mark.spgu] if c.id.startswith(
-    SPGU_RULE_CASES) else []) for c in CASES])
+def _family_marks(case: Case) -> list[pytest.MarkDecorator]:
+    marks = [pytest.mark.spgu] if case.id.startswith(SPGU_RULE_CASES) else []
+    if case.rule_id.startswith("R-WG-") or "wgfmu" in case.id or "rsu" in case.id:
+        marks.append(pytest.mark.wgfmu)  # R-WG-01/02 and the WGFMU/RSU rows of the shared rules (WP10.8)
+    return marks
+
+
+@pytest.mark.parametrize("case", [pytest.param(c, id=c.id, marks=_family_marks(c)) for c in CASES])
 def test_rule_table_v2(case: Case) -> None:
     cfg, ctx = case.build()
     report = engine(cfg).evaluate(ctx, case.phase)  # type: ignore[arg-type]
@@ -564,8 +570,9 @@ def test_rule_table_v2(case: Case) -> None:
     assert not [f for f in report.findings if "failed (" in f.message], "a rule crashed (fail closed)"
 
 
-@pytest.mark.parametrize("build", [pytest.param(v2.spgu, id="spgu", marks=pytest.mark.spgu), v2.smu_pulse, v2.wgfmu,
-                                   v2.cv], ids=[None, "smu", "wgfmu", "cv"])
+@pytest.mark.parametrize("build", [pytest.param(v2.spgu, id="spgu", marks=pytest.mark.spgu), v2.smu_pulse,
+                                   pytest.param(v2.wgfmu, id="wgfmu", marks=pytest.mark.wgfmu), v2.cv],
+                         ids=[None, "smu", None, "cv"])
 def test_default_v2_plans_are_ok(build: Any) -> None:
     """Each builder's default plan is in spec and inside every band: tier ok, no block or confirm anywhere."""
     cfg, ctx = build()
@@ -685,6 +692,7 @@ def test_cmu_status_letters_refuse_unassigned_bits(eee: int) -> None:
         cmu_status_letter(eee)
 
 
+@pytest.mark.wgfmu
 def test_wgfmu_flags_map_to_v_and_x() -> None:
     assert wgfmu_status_letter(range_overflow=False, error=False) == "N"
     assert wgfmu_status_letter(range_overflow=True, error=False) == "V"

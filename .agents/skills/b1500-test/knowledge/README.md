@@ -20,8 +20,8 @@ skill's rules, a card, a recipe, the policy or a DUT profile, and it never autho
 | [08 capacitance and C-V](08-capacitance-cv.md) | MFCMU pairs Cp-G/Cs-Rs/Z-theta, corrections, MOS-C HF C-V, Cox/EOT, 1/C^2 doping, flatband, Vth, hysteresis, split C-V, SCUU same landing, AC level, pulsed, C-f, C-t, QSCV, Dit over the gap (high-low, conductance), FeCap butterfly | any capacitance, C-V, QSCV or Dit request; before `analyze_run` on a C-V run |
 | debug | skill `b1500-debug`: triage order, runbooks, cases | noisy, impossible, compliance-limited or drifting data; faults; VISA errors |
 | [09 pulses, HV-SPGU and selector](09-pulse-spgu-selector.md) | HV-SPGU output and SER (open-load doubling, high_z residual), PG and ALWG trains, count/duration bounds, running a train, readings during a train, R-PULSE/R-SPGU rules, program/read (pulse_read) and its schedules (cycles, endurance bursts, grid, retention), simulator, module coverage and bring-up L7 | any SPGU pulse or waveform plan; program/erase then read; a gate pulse that did nothing or too much |
-| [10 WGFMU fast I-V and noise](10-wgfmu-fast-iv-noise.md) | WGFMU/RSU facts (ranges, bandwidth, floor, sampling, memory), fast I-V timing, constant-bias sampling (`dc_sample`, lab LFN layout), RTN and 1/f physics, choosing range/interval/record, `rtn_levels`, `psd_welch`, `plot_psd`, `it_statistics`, simulator | any WGFMU fast I-V, RTN, 1/f or PSD request; reading a noise analysis |
-| [11 switching and routing](11-switching-routing.md) | switches in the station profile, routes per phase, 16440A selector (ERSSP, PGU open, Force only), SCUU/ASU paths, RSU, guard and R-ROUTE rules, cleanup to rest, selector check and wiring record (L7), simulator | any plan through a switch target; selector wiring (L7); a run blocked or failed on a route |
+| [10 WGFMU fast I-V and noise](10-wgfmu-fast-iv-noise.md) | WGFMU/RSU facts (ranges, bandwidth, floor, sampling, memory), fast I-V timing, constant-bias sampling (`dc_sample`, lab LFN layout), RTN and 1/f physics, choosing range/interval/record, `rtn_levels`, `psd_welch`, `plot_psd`, `it_statistics`, simulator | any WGFMU fast I-V, RTN, 1/f or PSD request; reading a noise analysis; WGFMU coverage and bring-up L8 |
+| [11 switching and routing](11-switching-routing.md) | switches in the station profile, routes per phase, 16440A selector (ERSSP, PGU open, Force only), SCUU/ASU paths, RSU (paths, V Monitor, 3001), guard and R-ROUTE rules, cleanup to rest, selector check and wiring record (L7), simulator | any plan through a switch target; selector wiring (L7); a run blocked or failed on a route |
 
 ## Sections by file
 
@@ -206,6 +206,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [RTN analysis rtn_levels](10-wgfmu-fast-iv-noise.md#rtn-analysis-rtn_levels)
 - [PSD analysis psd_welch and plot_psd](10-wgfmu-fast-iv-noise.md#psd-analysis-psd_welch-and-plot_psd)
 - [Record statistics it_statistics](10-wgfmu-fast-iv-noise.md#record-statistics-it_statistics)
+- [Module coverage and bring-up L8](10-wgfmu-fast-iv-noise.md#module-coverage-and-bring-up-l8)
 - [Simulator behaviour](10-wgfmu-fast-iv-noise.md#simulator-behaviour)
 - [Troubleshooting noise records](10-wgfmu-fast-iv-noise.md#troubleshooting-noise-records)
 

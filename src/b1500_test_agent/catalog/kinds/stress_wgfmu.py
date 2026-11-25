@@ -78,7 +78,7 @@ from b1500_test_agent.catalog.kinds.stress_measure import (
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError, RawAcquisition, setting_value
 from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.b1500 import RawBlock
-from b1500_test_agent.driver.wgfmu import WgfmuTrace
+from b1500_test_agent.driver.wgfmu import WgfmuTrace, warning_facts
 from b1500_test_agent.models.analysis import Quantity
 from b1500_test_agent.models.common import StrictModel
 from b1500_test_agent.models.plan import (
@@ -653,6 +653,7 @@ def acquire(kind_id: str, tx: Transaction, plan: PlanRecord) -> WgfmuStressAcqui
     monitor = SmuMonitor(program.smu_measure)
     result = WgfmuStressAcquisition()
     reason = ""
+    warnings: list[str] = []
     offsets = dict.fromkeys(channels, 0)
     timeout = 2.0 * SMU_READ_S + READ_TIMEOUT_MARGIN_S
     with tx.wgfmu_phase(flex_io=bool(program.biases)) as wg:
@@ -675,6 +676,7 @@ def acquire(kind_id: str, tx: Transaction, plan: PlanRecord) -> WgfmuStressAcqui
 
             block = wg.run(check_abort=tx.check_abort, on_poll=on_poll)
             traces = dict(block.traces)
+            warnings.extend(block.warnings)
             if archive is not None:
                 for ch, trace in sorted(traces.items()):
                     archive(ch, trace.time_s, trace.value, offset=offsets[ch], quantity=trace.quantity)
@@ -694,7 +696,7 @@ def acquire(kind_id: str, tx: Transaction, plan: PlanRecord) -> WgfmuStressAcqui
                 tx.mark("stopped: " + reason)
                 break
     tx.mark("data read")
-    result.kind_result = {**_result(program, len(result.traces), reason), **monitor.facts()}
+    result.kind_result = {**_result(program, len(result.traces), reason), **monitor.facts(), **warning_facts(warnings)}
     return result
 
 

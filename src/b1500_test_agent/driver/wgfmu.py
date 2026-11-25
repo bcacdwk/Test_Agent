@@ -26,6 +26,11 @@ refusal (``EnvelopeViolation``) means nothing of that operation reached the libr
   (``RUN_MARGIN_FRACTION``, ``RUN_MARGIN_S``) of host waiting raises ``WgfmuRunTimeout``.
 - ``force_dc(ch, v)``/``measure_dc(ch)``: DC mode output (level through ``check_waveform`` as a pattern without
   vectors) and spot measurement (WG p89-90 (4-19, 4-20)).
+- ``warnings()`` (WP10.8): the library's warning summary as lines (WG p119 (4-49); kept until the next ``load``
+  clears the setup). ``run()`` reads it after the readback into ``WgfmuBlock.warnings``; the kinds put the lines in
+  ``kind_result`` (``wgfmu_warnings``, ``wgfmu_warning_text``) and the audit keeps the call. A warning never stops a
+  run: the library defaults stay (report severe and normal warnings, turn none into an error; WG p133 (4-63),
+  p138 (4-68) Table 4-4), and an unreadable summary is itself reported as a warning line, never an error.
 - ``abort()``: stop every sequencer (WG p79 (4-9)).
 - ``maintenance(operation)`` (WP10.7): the library's self-test or self-calibration of the mainframe and all modules
   (``WGFMU_doSelfTest``/``WGFMU_doSelfCalibration``, WG p91-92 (4-21, 4-22); the library raises its session timeout to
@@ -68,6 +73,7 @@ from b1500_test_agent.transport.wgfmu.api import (
     STATUS_NAMES,
     STATUS_RUNNING,
     WgfmuApi,
+    WgfmuError,
 )
 
 POLL_S = 1.0
@@ -82,6 +88,8 @@ RUN_MARGIN_FRACTION = 0.2
 (``WgfmuRunTimeout``): the library's status reports the run's total time (WG p117 (4-47))."""
 
 _DETAIL_LIMIT = 400
+WARNING_TEXT_CHARS = 400
+"""Longest ``kind_result.wgfmu_warning_text`` (the audit's ``warnings`` call keeps the summary too)."""
 
 
 class WgfmuRunFailed(DriverError):
@@ -120,14 +128,15 @@ class WgfmuTrace:
 
 @dataclass(frozen=True)
 class WgfmuBlock:
-    """What ``WgfmuDriver.run`` returns: per measuring channel its trace, the final sequencer status and times, and
-    the number of status polls."""
+    """What ``WgfmuDriver.run`` returns: per measuring channel its trace, the final sequencer status and times, the
+    number of status polls and the library's warnings of this setup and run (``WgfmuDriver.warnings``)."""
 
     traces: dict[int, WgfmuTrace]
     status: str
     elapsed_s: float
     total_s: float
     polls: int
+    warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -382,7 +391,7 @@ class WgfmuDriver:
             if program.points(ch) > 0:
                 traces[ch] = self.read(ch, check_abort=check_abort)
         return WgfmuBlock(traces=traces, status=STATUS_NAMES.get(status, str(status)), elapsed_s=elapsed,
-                          total_s=total, polls=polls)
+                          total_s=total, polls=polls, warnings=tuple(self.warnings()))
 
     def _poll(self, check_abort: Callable[[], None] | None, on_poll: Callable[[float, float], None] | None,
               poll_s: float) -> tuple[int, float, float, int]:
@@ -430,6 +439,13 @@ class WgfmuDriver:
         empty = np.zeros(0, dtype=float)
         return WgfmuTrace(channel=ch, quantity=quantity, time_s=np.concatenate(times) if times else empty,
                           value=np.concatenate(values) if values else empty)
+
+    def warnings(self) -> list[str]:
+        """The library's warning summary as lines (module docstring); never raises: a failed read is one line."""
+        try:
+            return list(self.api.warnings())
+        except WgfmuError as exc:
+            return [f"warning summary not read: {exc}"[:_DETAIL_LIMIT]]
 
     # -- maintenance ---------------------------------------------------------------------------------------------------
 
@@ -493,3 +509,13 @@ def rsu_targets(switches: Sequence[SwitchSpec], channels: Sequence[int]) -> Mapp
         if rsu is not None:
             found[ch] = f"{rsu[0].id}.{rsu[1]}"
     return found
+
+
+def warning_facts(lines: Sequence[str]) -> dict[str, int | str]:
+    """``kind_result`` facts of the library warnings a run read (module docstring): ``wgfmu_warnings`` (count) and,
+    when there are any, ``wgfmu_warning_text`` (the distinct lines joined, at most ``WARNING_TEXT_CHARS``)."""
+    facts: dict[str, int | str] = {"wgfmu_warnings": len(lines)}
+    if lines:
+        text = " | ".join(dict.fromkeys(lines))
+        facts["wgfmu_warning_text"] = text if len(text) <= WARNING_TEXT_CHARS else text[:WARNING_TEXT_CHARS - 3] + "..."
+    return facts

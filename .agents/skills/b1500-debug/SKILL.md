@@ -42,7 +42,7 @@ plans; the human does every physical step. Backend `sim`: symptoms and fixes are
 | Pulse level at the pad not the set level, R-SPGU-01 SER/high_z block | [spgu-load-mismatch](runbooks/spgu-load-mismatch.md) |
 | Sampling run with skipped samples, `index_gaps`, host/index time, early abort | [smu-sampling-skips](runbooks/smu-sampling-skips.md) |
 | BTI/HCI/SILC/IGZO stress: no shift, wrong sign, huge shift, odd exponent | [stress-degradation-unexpected](runbooks/stress-degradation-unexpected.md) |
-| WGFMU: library/session error or 30xx/33xx code; status V at full scale; too many stored values or 3050 | [wgfmu-library-error](runbooks/wgfmu-library-error.md), [wgfmu-range-overflow](runbooks/wgfmu-range-overflow.md), [wgfmu-memory-budget](runbooks/wgfmu-memory-budget.md) |
+| WGFMU: library/session error or 30xx/33xx code; RSU not at rest, 3001, level missing at the DUT, SMU path through the RSU open; status V at full scale; too many stored values or 3050 | [wgfmu-library-error](runbooks/wgfmu-library-error.md), [wgfmu-rsu-route](runbooks/wgfmu-rsu-route.md), [wgfmu-range-overflow](runbooks/wgfmu-range-overflow.md), [wgfmu-memory-budget](runbooks/wgfmu-memory-budget.md) |
 
 No match: follow part 2 and record a case.
 

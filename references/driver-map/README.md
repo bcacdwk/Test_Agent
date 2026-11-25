@@ -1,4 +1,4 @@
-# Driver map: legacy v0.2 taxonomy → new B1500Driver
+# Driver map: legacy v0.2 taxonomy → new B1500Driver and WgfmuDriver
 
 Frozen history plus a working map for FLEX driver work. The v0.2 fake MCP server exposed 379 tools
 (282 atoms, 97 flows; git tag `archive/v0.2-fake-mcp`). The re-architecture (`docs/design/blueprint.md`) replaces
@@ -45,8 +45,9 @@ at the top of the script: `COMMAND_TARGETS`, `M2_COMMANDS`, `ATOM_OVERRIDES`, `D
 | `id`, `class` | legacy tool name and class (`A` connection/status, `B` safety/state, `C` measurement, `D` analysis) |
 | `basis` | the legacy basis list, verbatim |
 | `flex` | normalized FLEX mnemonics from `basis`. `MM13` and `MM` with a known mode become `MM 13`. Prefix wildcards (`BD*`, `LS*`, `BS*`, `DSMPL*`) expand within their manual group. WGFMU library calls, EasyEXPERT SCPI and host operations are not FLEX and are left out. Always empty for D |
-| `target` | list of `B1500Driver.<method>`s (or a `flex.<builder>` when no method sends the command), or `unmapped` |
+| `target` | list of `B1500Driver.<method>`s (or a `flex.<builder>` when no method sends the command), WGFMU targets (below), or `unmapped` |
 | `unmapped_flex` | only on partially mapped atoms (and on atoms mapped through `ATOM_SUCCESSORS`): the FLEX entries no driver target covers |
+| `unmapped_wgfmu` | the same for WGFMU library functions of `basis` that the binding does not call (WP10.8) |
 | `priority` | `m1`, `m2` or `later` (scale below) |
 | `note` | why a hand decision overrides the automatic rule, or where the capability went instead |
 | `legacy_priority`, `successor` | D only: the v0.2 `P0`/`P1`/`P2`, and the new analysis/archive/catalog element that replaces it (§2.6–2.8) |
@@ -61,12 +62,12 @@ naming it), `note`.
 
 Coverage ledger (blueprint v2 §9, WP7.7): every atom, flow and command also carries `family` (`smu`, `cmu`, `spgu`,
 `wgfmu`, `system`) and `scope`: `mapped` (a driver target, a D-atom `successor`, an `ATOM_SUCCESSORS` target, or a
-flow `target` list of `recipe:<id>`, `kind:<id>`, `analysis:<method>` or `B1500Driver.<method>`), `out_of_scope`
+flow `target` list of `recipe:<id>`, `kind:<id>`, `analysis:<method>` or driver targets), `out_of_scope`
 (with `reason`, from `OUT_OF_SCOPE`) or `open`. Families come from `entry_family` (id words) and, for commands, from
 the manual category (`COMMAND_CATEGORY_FAMILY`) with the `COMMAND_FAMILY` overrides. `counts.ledger` holds
 mapped/out_of_scope/open per family and entry type; `--check` fails on an `open` entry of a family in
-`CLOSED_FAMILIES` (`smu` since WP7.7, `cmu` since WP8.6, `spgu` with the 16440A selector since WP9.6; the module
-closure 10.8 adds `wgfmu`, WP11.2 the rest). The `cmu` family holds the MFCMU, SCUU and QSCV entries; the GNDU has no
+`CLOSED_FAMILIES` (`smu` since WP7.7, `cmu` since WP8.6, `spgu` with the 16440A selector since WP9.6, `wgfmu` with
+the RSU since WP10.8; WP11.2 the rest). The `cmu` family holds the MFCMU, SCUU and QSCV entries; the GNDU has no
 legacy atom, flow or command (its v2 parts are rule R-GNDU-01 and the simulator's return-current accounting, WP8.5).
 CMU out of scope: the high-speed spot C `TC`/`TTC` with its monitors `TMACV`/`TMDCV` and the timer-start outputs
 `TACV`/`TDCV` (the MM 17 spot and MM 26 time stamps serve the recipes).
@@ -79,6 +80,20 @@ closure also files the output comparison commands `SOPC`/`SOVC` under `smu` (the
 expanders, PG p508-510), with the expander reason; the legacy atoms that named them SPGU open/short compensation
 stay `spgu`, out of scope with the same reason. SPGU out of scope: the setup read-back queries (`SIM?`, `SPV?`, ...),
 `MSP` (the SPGU as a sampling source) and raw digital I/O (`ERM`, `ERC`, `ERS?`).
+
+WGFMU (WP10.8): the library calls of an atom's `basis` map through `WGFMU_FUNCTION_TARGETS` (exactly the C functions
+the protocol binds, `transport.wgfmu.api.C_FUNCTIONS`) onto `WgfmuDriver.<method>` (`configure`, `load`, `connect`,
+`force_dc`, `measure_dc`, `run`, `read`, `maintenance`, `abort`, `safe_state`, `warnings`), the transaction's WGFMU
+phase (`Transaction.wgfmu_phase`: session open and `initialize`; `WgfmuLink.read_live`: the pre-execute channel read;
+`WgfmuLink.safe_state_step`: cleanup step 3 with the session close) and, for bound functions no driver method calls,
+`WgfmuApi.<method>` (`set_timeout`, `channel_status`, `wait_until_completed`, `errors`, `set_warning_level`,
+`warning_level`, `treat_warnings_as_errors`: the kernel keeps the library's warning defaults and reads the warning
+summary after every run, blueprint v2 1.2 "error/warning queues"). `ATOM_SUCCESSORS` maps the error summary to
+`errors`, the measure times to `read` (times come with the values), `abortChannel` to `abort` and
+`dcmeasureAveragedValue` to `measure_dc` (`samples` readings). WGFMU out of scope: the library log file (the audit
+log), `exportAscii` (program.json), event-completion reads while running (unproven realtime readback), read-back of
+what the program defines (events, force values), pattern editing/transforms (host builders), trigger output and the
+force/measure delay trims.
 
 ## Target vocabulary (§2.3)
 
@@ -97,6 +112,7 @@ stay `spgu`, out of scope with the same reason. SPGU out of scope: the setup rea
 | MFCMU: `IMP`, `FC`/`ACV`/`DCV`, `RC`, `ACT`, `LMN`, the MM 18-26 sources and timing, `ADJ`, `CORRL`, `CLCORR`, `CORR?`, `DCORR`, `CORRDT`, `CORRST`; `MM` 17-20, 22, 23, 26 (`MM_MODE_TARGETS`); SCUU `SSP`, `SSL` | `CmuOps` (`apply_cmu_signal`, `cv_sweep`, `cf_sweep`, ...), `SwitchOps.scuu_route` | WP8.1 |
 | SMU conditioning `FL` / `SSR` / `AZ` / `AV` / `RM`; `WNCC` (WP7.7) | `set_filter` / `set_series_resistor` / `set_adc_zero` / `set_averaging` / `set_range_mode`; `clear_sweep_sources` | `fl` / `ssr` / `az` / `av` / `rm`; `wncc` |
 | MFCMU correction data `CORRDT?` (WP8.6; with `CORRL?` for the count) | `correction_data`, `correction_data_list` | `corrdt_q` |
+| WGFMU library functions (WP10.8; not FLEX: `WGFMU_FUNCTION_TARGETS`) | `WgfmuDriver.*`, `Transaction.wgfmu_phase`, `WgfmuLink.*`, `WgfmuApi.*` | - (the binding `WgfmuDll`) |
 
 Mapped since: `CM`, `*LRN?` (WP5.6); the probe queries `ERMOD?`, `ERSSP?`, `SPST?`, `CORRST?`, `ADJ?` (WP6.1); the
 sampling setup `MM 10`, `MCC`, `ML`, `MT`, `MSC`, `MV`, `MI` and the time stamps `TSC`, `TSR` (WP7.4); `DI`, `WI`,

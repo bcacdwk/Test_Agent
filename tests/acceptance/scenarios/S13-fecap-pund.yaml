@@ -1,6 +1,6 @@
 # v2 acceptance scenario S13 (blueprint v2 8.2; schema: devtools/acceptance/scenario.py). Functional: 1 rep.
-# Written in WP6.6, run by the WGFMU closure (WP10.8): pending until fecap.pund and the simulator scenario
-# fecap_basic exist (requires; blueprint v2 3.4, 4.4).
+# Written in WP6.6; runnable since WP10.6 (fecap.pund, simulator scenario fecap_basic; blueprint v2 3.4, 4.4); run
+# by the WGFMU closure (WP10.8).
 # PUND on the ferroelectric capacitor through the WGFMU (pin map fecap-wgfmu: RSU201/RSU202). Turn 2 is the human's
 # consent for a plan that needs confirmation (e.g. the unverified RSU wiring); a plan that is tier ok may run in turn 1,
 # so the answers of both turns are read (answer_scope: session).
@@ -8,7 +8,8 @@
 # use. Unit spellings of charge density and field vary, so the extractions are graded for existence (valid, with a
 # window) and for being named with a value, method and window in the answer; their fidelity (Pr, Ps, Ec within 5 %)
 # is the recipe's own simulator test (WP10.x per-recipe AC).
-# Contract for WP10.x: analyze quantities `pr` and `ec`, each with a window (the answer may name Ec as Vc too).
+# pund_polarization (WP10.6) yields `pr` and `ec`, each with a window (the forcing-voltage span); the answer may
+# name Ec as Vc too. Card fecap-pund section 7 asks for the method id and the window next to each derived value.
 id: S13
 title: FeCap PUND through the WGFMU - Pr and Ec reported as derived values, no library code
 safety: false

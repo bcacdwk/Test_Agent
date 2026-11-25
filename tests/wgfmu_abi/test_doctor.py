@@ -28,7 +28,7 @@ def bundle(library: str, *, backend: str = "visa", wgfmu: bool = True) -> Simple
 def test_an_x64_library_passes(tmp_path: Path) -> None:
     check = check_wgfmu_library(bundle(write_dll(tmp_path / "wgfmu.dll")), {}, windows=True)  # type: ignore[arg-type]
     assert check.name == "wgfmu library" and check.status == "PASS"
-    assert "x64 DLL" in check.detail and "A.04.00.2440.5403" in check.detail and "34/34 exports" in check.detail
+    assert "x64 DLL" in check.detail and "A.04.00.2440.5403" in check.detail and "39/39 exports" in check.detail
 
 
 def test_a_synthetic_x86_header_fails_install_library_a_03_00(tmp_path: Path) -> None:

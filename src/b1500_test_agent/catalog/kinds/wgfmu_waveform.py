@@ -96,7 +96,7 @@ from b1500_test_agent.catalog.kinds.smu_staircase import BiasOutput, bias_comman
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError, RawAcquisition, setting_value
 from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.modules import WGFMU_SPEC
-from b1500_test_agent.driver.wgfmu import WgfmuDriver, WgfmuTrace
+from b1500_test_agent.driver.wgfmu import WgfmuDriver, WgfmuTrace, warning_facts
 from b1500_test_agent.models.analysis import Quantity
 from b1500_test_agent.models.common import Backend, StrictModel
 from b1500_test_agent.models.plan import (
@@ -540,7 +540,7 @@ class WgfmuWaveformKind:
             wg.load(waveform)
             if waveform.dc:
                 dc_rows = self._run_dc(tx, wg, program, waveform)
-                facts.update(dc_steps=waveform.dc_steps, readings=len(dc_rows))
+                facts.update(dc_steps=waveform.dc_steps, readings=len(dc_rows), **warning_facts(wg.warnings()))
             else:
                 done = 0
 
@@ -556,7 +556,8 @@ class WgfmuWaveformKind:
                 raw = [archive.save_wgfmu_raw(ch, t.time_s, t.value, quantity=t.quantity)
                        for ch, t in sorted(traces.items())] if archive is not None else []
                 facts.update(status=block.status, output_s=round(block.total_s, 9), polls=block.polls,
-                             values=sum(len(t) for t in traces.values()), raw_files=len(raw))
+                             values=sum(len(t) for t in traces.values()), raw_files=len(raw),
+                             **warning_facts(block.warnings))
         acquisition = WaveformAcquisition(traces=traces, dc_rows=dc_rows, kind_result=facts,
                                           message=f"{program.builder}: {program.rows} rows from WGFMU channels "
                                                   f"{', '.join(str(c) for c in channels)}")

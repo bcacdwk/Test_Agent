@@ -1,7 +1,7 @@
 ---
 stage: L1
 title: SMU zero - outputs safe at 0 V, cleanup verified, one mid-run stop, CLI and MCP coexist, self-test/cal
-recipes: [system.zero_check, system.self_test, system.self_cal, system.wgfmu_self_test, system.wgfmu_self_cal]
+recipes: [system.zero_check, system.self_test, system.self_cal]
 checks:
   - {id: cleanup_lop, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: floor_smu3, quantity: smu3_floor, method: zero_floor, unit: A, reference: 'HRSMU sanity 1 pA; the simulator assumes 1e-13 A', text: recorded (lowest range)}
@@ -13,9 +13,7 @@ checks:
   - {id: lop_positive_control, quantity: positive_control, reference: run manifest cleanup.positive_control, text: 'every connected slot non-00 right after CN'}
   - {id: self_test_result, recipe: system.self_test, quantity: result, reference: '*TST? result (0 = pass)', tolerance: {max_abs: 0.5}, text: result 0}
   - {id: self_cal_result, recipe: system.self_cal, quantity: result, reference: '*CAL? result (0 = pass)', tolerance: {max_abs: 0.5}, text: result 0}
-  - {id: wgfmu_self_test_result, recipe: system.wgfmu_self_test, quantity: result, reference: 'library self-test result (0 = pass)', tolerance: {max_abs: 0.5}, text: 'result 0 (only with a B1530A and a loadable wgfmu.dll)'}
-  - {id: wgfmu_self_cal_result, recipe: system.wgfmu_self_cal, quantity: result, reference: 'library self-calibration result (0 = pass)', tolerance: {max_abs: 0.5}, text: 'result 0 (only with a B1530A and a loadable wgfmu.dll)'}
-version: 2
+version: 3
 ---
 
 # L1 - SMU zero, cleanup, interruption
@@ -56,9 +54,7 @@ summary, stop, the human's own consent, one run per consent (skill `b1500-test`)
    (any adopted pin map, e.g. `open-smus`), tier `needs_confirmation` (`system_self_test`, `first_hw_run`); ask the
    human to confirm the open terminals in the same message as the summary; stop; after consent
    `run_confirmed_plan`. Same for `system.self_cal`. Report `kind_result` (result, failed units) from `get_run`.
-   With a B1530A whose library the L0 `--wgfmu-session` probe opened: the same for `system.wgfmu_self_test` and
-   `system.wgfmu_self_cal` (RSU outputs open too; the run opens and closes a WGFMU library session); else skip
-   them and say why.
+   The WGFMU library's own self-test and self-calibration belong to stage L8.
 4. Zero check: `validate_plan` of `system.zero_check` with pin map `open-smus` and DUT profile `open-circuit`,
    default params (about 50 s); summary, stop, consent, `run_confirmed_plan`; `get_run` with `summary`, `quality`,
    `audit`; report the default `zero_floor` results (floor per SMU and range, offsets; derived; integration and
@@ -84,7 +80,6 @@ summary, stop, the human's own consent, one run per consent (skill `b1500-test`)
 | `lop_positive_control` | non-`00` on every connected slot right after `CN`, every run | recorded | manifest, audit |
 | `self_test_result` | `kind_result.result` 0, no failed unit | 0 | `*TST?` (PG p540 (4-222) "open the measurement terminals") |
 | `self_cal_result` | `kind_result.result` 0 | 0 | `*CAL?` |
-| `wgfmu_self_test_result`, `wgfmu_self_cal_result` | `kind_result.result` 0 through the WGFMU library (RSU outputs open) | 0 | WG p92 (4-22) "WGFMU_doSelfTest" |
 
 - Zero-check runs: every status letter `N`; floors and offsets within the sanity bounds, recorded per range (the
   owner tightens the bounds after the first runs). SMUs in other slots appear in the record as extra `smuN_floor`
@@ -113,10 +108,8 @@ summary, stop, the human's own consent, one run per consent (skill `b1500-test`)
   (`uv run b1500 bringup record L1 --run H... --run H... --operator NAME`; the human adds the drill and
   coexistence observations while reviewing), the recipe record of `system.zero_check`
   (`uv run b1500 bringup record L1 --run H... --recipe system.zero_check`) and one each for `system.self_test` and
-  `system.self_cal` (`--recipe system.self_test`), and for the two WGFMU recipes when they ran. The human reviews
-  them and moves them to `validation/hw/stage-l1.yaml`, `validation/hw/system.zero_check.yaml`,
-  `validation/hw/system.self_test.yaml`, `validation/hw/system.self_cal.yaml`,
-  `validation/hw/system.wgfmu_self_test.yaml`, `validation/hw/system.wgfmu_self_cal.yaml`; FMT fixtures to
-  `tests/fixtures/hw/`.
+  `system.self_cal` (`--recipe system.self_test`). The human reviews them and moves them to
+  `validation/hw/stage-l1.yaml`, `validation/hw/system.zero_check.yaml`, `validation/hw/system.self_test.yaml`,
+  `validation/hw/system.self_cal.yaml`; FMT fixtures to `tests/fixtures/hw/`.
 - Simulator rehearsal: runs are `S...` and every value SIMULATED; `bringup record` refuses them: no record, no
   fixture; say which records the stage would draft on hardware.

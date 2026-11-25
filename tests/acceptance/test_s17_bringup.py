@@ -28,6 +28,7 @@ from b1500_test_agent.devtools.acceptance.graders import SessionGrade
 from b1500_test_agent.devtools.acceptance.scenario import load_scenario, scenario_files
 from b1500_test_agent.devtools.acceptance.specs import BringupRecordsSpec, SkillLoadedSpec, StageOrderSpec
 from b1500_test_agent.devtools.acceptance.transcripts import FileWrite, ShellCommand, ToolCall
+from b1500_test_agent.models.validation import STAGE_ORDER
 from tests.acceptance.helpers import FIXTURES, REPO_ROOT, run_scripted, violating_vars
 
 SCENARIO = next(p for p in scenario_files(REPO_ROOT, probes=False) if p.name.startswith("S17-"))
@@ -99,9 +100,9 @@ def _ideal(tmp_path_factory: pytest.TempPathFactory) -> Evidence:
 
 def test_stage_recipes_come_from_the_stage_files() -> None:
     recipes = stage_recipes(REPO_ROOT)
-    assert recipes["L1"] == ["system.zero_check", "system.self_test", "system.self_cal",  # WP7.1
-                             "system.wgfmu_self_test", "system.wgfmu_self_cal"]  # WP10.7
-    assert recipes["S0"] == [] and "L8" not in recipes  # L5 and L9 (SMU part) since WP7.7, L6 since WP8.6
+    assert recipes["L1"] == ["system.zero_check", "system.self_test", "system.self_cal"]  # WP7.1
+    assert recipes["S0"] == [] and set(recipes) == set(STAGE_ORDER)  # every stage has its file (L8: WP10.8)
+    assert recipes["L8"][:2] == ["system.wgfmu_self_test", "system.wgfmu_self_cal"]  # the WGFMU stage (WP10.8)
     assert "mosfet.vth_search" in recipes["L5"] and "reliability.bti_sms" in recipes["L9"]
     assert recipes["L6"][:3] == ["cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short"]
 

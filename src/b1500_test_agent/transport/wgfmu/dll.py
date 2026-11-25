@@ -26,6 +26,11 @@ surfaces as ``OSError``, a marshalling error as ``ctypes.ArgumentError``) become
 TODO(verify) at bring-up L8: the text format of the library's error strings (firmware code position) and the real
 codes of firmware errors (blueprint 7.6 item 5).
 
+Warnings (WP10.8). ``warnings()`` reads the warning summary with ``WGFMU_getWarningSummarySize``/
+``WGFMU_getWarningSummary`` (WG p119 (4-49)) into a buffer one longer than its size and splits it into its non-empty
+lines; the warning level is set and read with ``WGFMU_setWarningLevel``/``WGFMU_getWarningLevel`` and the error
+threshold with ``WGFMU_treatWarningsAsErrors`` (Table 4-4 codes). TODO(verify) at L8: the summary's line format.
+
 Readback. ``measure_values`` reads in chunks of ``READBACK_CHUNK`` (100,000) values per ``WGFMU_getMeasureValues``
 call into preallocated numpy arrays, as the lab code does (``lwp/1530/LFN_noise_meas.cpp``); a short chunk ends the
 read, and ``RESULT_NOT_READY`` or ``PARAMETER_OUT_OF_RANGE`` (offset at the end) after the first chunk returns what was
@@ -73,8 +78,10 @@ from b1500_test_agent.transport.wgfmu.api import (
     PARAMETER_OUT_OF_RANGE,
     READBACK_CHUNK,
     RESULT_NOT_READY,
+    WARNING_LEVELS,
     WgfmuError,
     WgfmuMeasureMode,
+    WgfmuWarningLevel,
     error_text,
 )
 
@@ -101,6 +108,9 @@ C_SIGNATURES: Final[dict[str, tuple[str, ...]]] = {
     "WGFMU_getMeasureValueSize": ("int", "int*", "int*"),
     "WGFMU_getMeasureValues": ("int", "int", "int*", "double*", "double*"),
     "WGFMU_getStatus": ("int*", "double*", "double*"),
+    "WGFMU_getWarningLevel": ("int*",),
+    "WGFMU_getWarningSummary": ("char*", "int*"),
+    "WGFMU_getWarningSummarySize": ("int*",),
     "WGFMU_initialize": (),
     "WGFMU_openSession": ("const char*",),
     "WGFMU_setForceVoltageRange": ("int", "int"),
@@ -112,6 +122,8 @@ C_SIGNATURES: Final[dict[str, tuple[str, ...]]] = {
     "WGFMU_setOperationMode": ("int", "int"),
     "WGFMU_setRangeEvent": ("const char*", "const char*", "double", "int"),
     "WGFMU_setTimeout": ("double",),
+    "WGFMU_setWarningLevel": ("int",),
+    "WGFMU_treatWarningsAsErrors": ("int",),
     "WGFMU_update": (),
     "WGFMU_waitUntilCompleted": (),
 }
@@ -780,6 +792,36 @@ class WgfmuDll:
             found.append(buffer.value.decode("ascii", errors="replace").strip())
         taken, self._taken = self._taken, []
         return [*taken, *found]
+
+    def set_warning_level(self, level: WgfmuWarningLevel) -> None:
+        fn = "set_warning_level"
+        self._call(fn, "WGFMU_setWarningLevel", _code(fn, WARNING_LEVELS, level, "warning level"))
+
+    def warning_level(self) -> WgfmuWarningLevel:
+        fn = "warning_level"
+        value = ctypes.c_int(0)
+        self._call(fn, "WGFMU_getWarningLevel", ctypes.byref(value))
+        for name, code in WARNING_LEVELS.items():
+            if code == value.value:
+                return name  # type: ignore[return-value]
+        raise WgfmuError(LIBRARY_ERROR, f"{fn}: {error_text(LIBRARY_ERROR, f'unknown warning level {value.value}')}",
+                         function=fn)
+
+    def treat_warnings_as_errors(self, level: WgfmuWarningLevel) -> None:
+        fn = "treat_warnings_as_errors"
+        self._call(fn, "WGFMU_treatWarningsAsErrors", _code(fn, WARNING_LEVELS, level, "warning level"))
+
+    def warnings(self) -> list[str]:
+        fn = "warnings"
+        size = ctypes.c_int(0)
+        self._call(fn, "WGFMU_getWarningSummarySize", ctypes.byref(size))
+        if size.value <= 0:
+            return []
+        buffer = ctypes.create_string_buffer(size.value + 1)
+        length = ctypes.c_int(size.value + 1)
+        self._call(fn, "WGFMU_getWarningSummary", buffer, ctypes.byref(length))
+        text = buffer.value.decode("ascii", errors="replace")
+        return [line.strip() for line in text.splitlines() if line.strip()]
 
 
 def _queues_refusals(method: Callable[..., Any]) -> Callable[..., Any]:

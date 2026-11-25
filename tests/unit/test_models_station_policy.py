@@ -518,6 +518,7 @@ def test_correction_record_covers_frequencies_and_ages() -> None:
         CorrectionRecord.model_validate({**record.model_dump(), "ts": "2026-11-17T06:00:00"})  # naive time
 
 
+@pytest.mark.wgfmu
 def test_settings_wgfmu_library_defaults_to_the_installer_path() -> None:
     settings = Settings.model_validate(example("settings.example.yaml"))
     assert settings.wgfmu.library == "" and Settings().wgfmu.library == ""

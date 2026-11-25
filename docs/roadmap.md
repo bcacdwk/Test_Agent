@@ -14,10 +14,10 @@ the source of truth for status. This page is updated at milestone boundaries.
 | M4 Hardware bring-up | Checklists for the Windows lab PC and staged hardware validation | planned (docs only; execution later with the owner) |
 | M5 Foundations | v2 plan, package split, models/config v2, guard + rules v2, per-transaction VISA + visa-loop, async runs, archive v2, manual corpus, device models v2, skills v2 structure | **done** (2026-11-18) |
 | M6 Lab-ready core | Read-only probe, station proposal and config adoption, visa completeness, bring-up skill, hardware suite, Windows readiness, acceptance v2 | **done** (2026-11-19) |
-| M7 SMU complete | Spot/Kelvin/ASU, sweeps v2, pulsed, sampling + TDDB, search + BDV, stress-measure, compact models | planned |
-| M8 MFCMU, SCUU, GNDU | CMU driver + simulator, corrections, C-V core and variants, QSCV, Dit, GNDU budget | planned |
-| M9 HV-SPGU + 16440A | SPGU driver + simulator, selector routes, pulse kind, program/read, kinetics, endurance, retention | planned |
-| M10 WGFMU | Library protocol + simulator, DLL binding, driver + phase, waveform kind, noise, FeCap PUND, fast BTI | planned |
+| M7 SMU complete | Spot/Kelvin/ASU, sweeps v2, pulsed, sampling + TDDB, search + BDV, stress-measure, compact models | **done** (2026-11-24) |
+| M8 MFCMU, SCUU, GNDU | CMU driver + simulator, corrections, C-V core and variants, QSCV, Dit, GNDU budget | **done** (2026-11-25) |
+| M9 HV-SPGU + 16440A | SPGU driver + simulator, selector routes, pulse kind, program/read, kinetics, endurance, retention | **done** (2026-11-25) |
+| M10 WGFMU | Library protocol + simulator, DLL binding, driver + phase, waveform kind, noise, FeCap PUND, fast BTI | **done** (2026-11-26) |
 | M11 Integration and closure | Async/debug completeness, coverage ledger closure, full safety + visa-loop, docs, final acceptance S1–S18 | planned |
 | M12 Hardware session | Owner at the lab PC: staged bring-up S0–L10, validation records, then per-module developer WPs | owner (outside the v2 goal) |
 
@@ -142,3 +142,71 @@ S18 and the rewritten S3 are written and wait only for their recipes).
 | 6.4 Hardware suite | `tests/hardware/` (markers `hardware`, `hw_l0` … `hw_l10`): the read-only probe and the stage/validation records checked on the lab PC with `B1500_HW=1`, skipped everywhere else; a read-only proof on the visa loop |
 | 6.5 Windows readiness | CI runs the whole gate (tests with `-n auto`, ruff, recipe check, skill lint, card index, skill mirror, tool budget, manual corpus) green on `windows-latest` and `macos-latest`; Windows paths, line ends, encodings and Windows-only code tested on every OS by platform injection; the CLI never fails on a cp1252/cp936 console; `docs/deployment-windows.md` v2 with the first-session script and an offline wheelhouse checked on the Mac |
 | 6.6 Acceptance v2 + checkpoint | Runner v2: scenario `tags:`/`touches:`/`requires:`, `run --tag`, `--affected` (changes since the last report's commit), `--max-sessions`, `--dry-run`, per-session token usage in every report, `sim.timing: scaled(f)`; graders `commands`, `plans`, `async_run`, `routes` (+ `sim_call` truths, pulse bands); S16 (manual lookup) runs now; S3 rewritten, S11-S15 and S18 written with their graders and self-tested on forged evidence, pending until their module adds the recipes; checkpoint S1-S10, S16, S17 passed on Claude Code 2.1.328 and codex-cli 0.170.0 ([Claude](acceptance/2026-11-19-claude-2.1.328.md), [Codex](acceptance/2026-11-19-codex-0.170.0.md)) |
+
+## M7-M10 — Modules (done)
+
+The four modules ran in parallel worktrees (one commit per WP, cherry-picked onto `rearch/v2` in WP order, the full
+gate after each pick). Each module ends with a closure WP: its runbooks, its bring-up stage with machine-readable
+checks, its coverage-ledger rows closed (every legacy atom, flow and command mapped or out of scope with a written
+reason; `CLOSED_FAMILIES` in `scripts/build_driver_map.py`), every catalogue row of blueprint §3 `sim_validated`
+against model truth, and its acceptance scenarios on both harnesses (§8.2: ★ 3/3, functional 1/1). Result: 68
+runnable recipes, 14 kinds, 34 cards, every bring-up stage S0, L0-L10 written; nothing has run on hardware (M12).
+
+### M7 — SMU complete (done)
+
+| WP | Result |
+|---|---|
+| 7.1 Spot, I-forcing, Kelvin, ASU | `smu_spot`, `system.zero_check`, `generic.smu_spot`, `resistor.kelvin_4w` (Kelvin R +-0.5 % of 1 Ohm), ASU 1 pA path |
+| 7.2 Sweeps v2 | current forcing, log, synchronous and multi-channel sweeps; `basic.iv_force_i`, `mosfet.idvg_family`, `idvg_sync`, `body_effect`, `generic.smu_multi_sweep`; DIBL |
+| 7.3 Pulsed | `smu_pulsed` (MM 3/4/5/27/28), four pulsed recipes, `pulsed_vs_dc`, `pulse_plateau` |
+| 7.4 Sampling + TDDB | `smu_sampling` with time stamps and segmented long runs, `generic.smu_sampling`, `mosfet.id_t_sampling`, `reliability.tddb_cvs`, Weibull |
+| 7.5 Search + BDV | `smu_search` (MM 9/14/15), `mosfet.vth_search`, `basic.breakdown_search`, `dielectric.bdv` |
+| 7.6 Stress-measure | shared blocks, `stress_measure`, BTI/IGZO/HCI/SILC recipes, cancel at every checkpoint |
+| 7.7 SMU closure | compact models (EKV fit, SPICE netlist; `hspice.compare` retired), stages L5 and L9 (SMU part), SMU ledger closed; acceptance below |
+
+### M8 — MFCMU, SCUU, GNDU (done)
+
+| WP | Result |
+|---|---|
+| 8.1 CMU driver + sim | MFCMU builders and ops, impedance parser, simulator with fixture parasitics, SCUU as a switch |
+| 8.2 Correction | `cmu_correction`, the correction store, R-CORR-01/R-CMU-01, phase/open/short/load recipes (human steps confirmed) |
+| 8.3 C-V core | `cmu_measure`; `cmu.spot`, `moscap.cv`, `mosfet.cgc_cv`, `mosfet.cgd_cv` (Cox, Vfb, Nsub, Vth, hysteresis) |
+| 8.4 C-V variants | AC level, pulsed C-V, C-f, C-t, FeCap butterfly |
+| 8.5 QSCV, Dit, GNDU | `smu_qscv`, `moscap.qscv`, `moscap.cv_multi_freq`, Dit (high-low, conductance), R-GNDU-01 |
+| 8.6 CMU closure | runbooks, stage L6, `CORRDT?` read-back, CMU ledger closed; acceptance below |
+
+### M9 — HV-SPGU + 16440A (done)
+
+| WP | Result |
+|---|---|
+| 9.1 SPGU driver + sim | SPGU builders and ops, `check_pulse`, simulator (SER divider, `SPST?`, ALWG, free run after `*RST`) |
+| 9.2 Selector routes | 16440A routes applied, verified and restored; R-ROUTE-01/02; `system.selector_check` |
+| 9.3 Pulse kind | `spgu_pulse`; `spgu.pulse_train`, `spgu.alwg_sequence`, `mosfet.charge_pumping`; R-PULSE-01..03, R-SPGU-01 |
+| 9.4 Program/read core | `pulse_read`; `fefet.pulse_write_read`, `spgu.program_smu_read`, `memory_window_pulse` |
+| 9.5 Kinetics, endurance, retention | `fefet.switching_kinetics`, `fefet.endurance`, `fefet.retention` (async with checkpoints and cancel) |
+| 9.6 SPGU closure | stage L7 (selector map and wiring record), SPGU ledger closed, S3 rewritten; acceptance below |
+
+### M10 — WGFMU + RSU (done)
+
+| WP | Result |
+|---|---|
+| 10.1 Protocol + simulator | `WgfmuApi`, `SimWgfmu` (WG Examples 1-11, error codes, RSU), audit of every library call |
+| 10.2 DLL binding | `WgfmuDll` (ctypes, prototypes generated from the API extract), PE probe (x64 >= A.03.00), `doctor` checks |
+| 10.3 Driver + phase | `WgfmuDriver` (whole program guard-checked first), `tx.wgfmu_phase()` (FLEX unlocked, relocked), cleanup step 3, R-WG-02 |
+| 10.4 Waveform kind | `wgfmu_waveform`; `wgfmu.pulsed_iv`, `fast_iv`, `pulse_train`, `custom_waveform` (lab CSVs), `dc_spot`; pulsed = DC +-2 % at 1 % duty |
+| 10.5 Noise | `wgfmu.rtn`, `wgfmu.lfn`; `rtn_levels`, `psd_welch`, `it_statistics`, `plot_psd` |
+| 10.6 FeCap + fast program/read | `fecap.pund`, `fecap.endurance_pund`, `fefet.fast_program_read`; Pr, Ps, Ec +-5 % of the model |
+| 10.7 Fast BTI, WGFMU system | `wgfmu.fast_bti` (recovery suppressed), `system.wgfmu_self_test`, `system.wgfmu_self_cal` |
+| 10.8 WGFMU closure | runbook `wgfmu-rsu-route`, stage L8 (+ L9's FeCap endurance), the library's warning queue in the protocol (read after every run into `kind_result`), WGFMU ledger closed (WgfmuDriver targets), S13 ideal agent genuine; acceptance below |
+
+### Module acceptance (blueprint v2 8.2; codex-cli 0.170.0 and Claude Code 2.1.328)
+
+| Closure | Scenarios | Codex | Claude Code | Reports |
+|---|---|---|---|---|
+| 7.7 SMU | S14, S15 ★, S17 ★ | S14 1/1, S15 3/3, S17 3/3 | S14 1/1, S15 3/3, S17 3/3 | [Codex](acceptance/2026-11-24-codex-0.170.0.md), [Claude](acceptance/2026-11-24-claude-2.1.328.md) |
+| 8.6 CMU | S11 ★ | 3/3 | 3/3 | [Codex](acceptance/2026-11-25-codex-0.170.0.md), [Claude](acceptance/2026-11-25-claude-2.1.328.md) |
+| 9.6 SPGU | S12 ★, S3 ★ | 3/3, 3/3 | 3/3, 3/3 | [Codex](acceptance/2026-11-25-codex-0.170.0-spgu.md), [Claude](acceptance/2026-11-25-claude-2.1.328-spgu.md) |
+| 10.8 WGFMU | S13, S18 ★ | S13 1/1, S18 3/3 | S13 1/1, S18 3/3 (after a `CLAUDE.md` text fix) | [Codex](acceptance/2026-11-25-codex-0.170.0-wgfmu.md), [Claude](acceptance/2026-11-25-claude-2.1.328-wgfmu.md) |
+
+Next: M11 (async and debug completeness, coverage closure of the `system` family, the full safety and visa-loop
+matrix, docs, final acceptance S1-S18).

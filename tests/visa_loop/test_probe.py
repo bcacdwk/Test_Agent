@@ -116,6 +116,7 @@ def test_unlisted_resource_warns_and_the_open_fails(world: VisaWorld) -> None:
     assert report.error_code == "transport_error" and report.transcript == []
 
 
+@pytest.mark.wgfmu
 def test_a_visa_library_that_does_not_load_fails_before_any_open(world: VisaWorld) -> None:
     bus = world.bus("lab_station")
 

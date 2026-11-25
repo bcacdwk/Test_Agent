@@ -5,8 +5,8 @@ draft-record template ``records/_TEMPLATE.yaml`` (the only file in ``records/``:
 ``ValidationRecord``; drafts live in ``work/bringup/records/`` and reviewed records in ``validation/hw/``, never in the
 skill).
 
-WP6.3 wrote S0, L0-L4 and L10; L5-L9 arrive with their module work packages. Until a stage's file exists, cards
-naming that stage get a lint note (``missing_stage_notes``), never a problem.
+WP6.3 wrote S0, L0-L4 and L10; the module closures L5-L9 (WP10.8 the last, L8). A card naming a stage whose file
+is missing gets a lint note (``missing_stage_notes``), never a problem.
 """
 
 
@@ -136,13 +136,13 @@ def check_records(lint: Lint, records_dir: Path) -> None:
 
 
 def missing_stage_notes(cards: list[Card], stages: dict[str, StageFrontmatter]) -> list[str]:
-    """One note per bring-up stage that cards name but that has no stage file yet."""
+    """One note per bring-up stage that cards name but that has no stage file."""
     waiting: dict[str, list[str]] = {}
     for card in cards:
         for stage in card.front.stages:
             if stage not in stages:
                 waiting.setdefault(stage, []).append(card.front.id)
     order = list(STAGES)
-    return [f"bring-up stage {stage} has no stage file yet ({SOURCE_DIR}/{BRINGUP_SKILL}/{STAGES_DIR}/"
+    return [f"bring-up stage {stage} has no stage file ({SOURCE_DIR}/{BRINGUP_SKILL}/{STAGES_DIR}/"
             f"{STAGES[stage][0]}.md); cards waiting: {', '.join(sorted(ids))}"
             for stage, ids in sorted(waiting.items(), key=lambda item: order.index(item[0]))]

@@ -49,13 +49,12 @@ def test_status_on_the_simulator(cli_world: World) -> None:
     result = invoke("bringup", "status")
     assert result.exit_code == 0, result.output
     assert result.stdout.startswith("[SIMULATED] ok: SIMULATED next stage S0: Physical prerequisites")
-    assert "-> S0   open" in result.stdout and "L8   no_stage_file" in result.stdout  # L5, L6, L9 exist (WP7.7, 8.6)
+    assert "-> S0   open" in result.stdout and "no_stage_file" not in result.stdout  # every stage (L8: WP10.8)
     assert "next: simulator: a rehearsal; no record is ever drafted from simulator runs" in result.stdout
     status = BringupStatus.model_validate(as_json(invoke("bringup", "status", "--json")))
     assert status.next_stage == "S0" and status.simulated and len(status.stages) == 12
     l1 = next(s for s in status.stages if s.stage == "L1")
-    assert [r.recipe_id for r in l1.records] == ["system.self_test", "system.self_cal", "system.wgfmu_self_test",
-                                                 "system.wgfmu_self_cal", None]
+    assert [r.recipe_id for r in l1.records] == ["system.self_test", "system.self_cal", None]  # WGFMU ones: L8
     assert _tool_calls(cli_world, "bringup_status")[-1]["status"] == "ok"
 
 

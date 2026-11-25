@@ -7,7 +7,9 @@ settable ``argtypes``/``restype``. A call is checked the way ctypes marshals it:
 ``from_param`` (a ``str`` for a ``c_char_p``, a float for a ``c_int``, a ``double*`` where an ``int*`` belongs all
 fail as they would in ctypes). Outputs are written through the pointers, ``byref`` objects and string buffers the
 binding passed, with C semantics: return code, out-parameters, an error-string queue read with
-``WGFMU_getErrorSize``/``WGFMU_getError``.
+``WGFMU_getErrorSize``/``WGFMU_getError``, the warning summary (one string, the backend's warning lines joined by
+newlines) read with ``WGFMU_getWarningSummarySize``/``WGFMU_getWarningSummary`` (a size below its length stores a
+part, WG p119 (4-49)), the warning level and threshold as Table 4-4 codes (WP10.8).
 
 Behaviour comes from a ``WgfmuApi`` backend, normally a ``SimWgfmu`` (so the WG examples, the faults and the
 simulated instrument stay what WP10.1 built): integer codes are decoded back to the protocol's literals, a
@@ -43,6 +45,7 @@ CURRENT_RANGES = _reverse(api.MEASURE_CURRENT_RANGES)
 VOLTAGE_RANGES = _reverse(api.MEASURE_VOLTAGE_RANGES)
 ENABLED = _reverse(api.MEASURE_ENABLED)
 EVENT_DATA = _reverse(api.MEASURE_EVENT_DATA)
+WARNING_LEVELS = _reverse(api.WARNING_LEVELS)
 
 
 class Unknown(Exception):
@@ -346,3 +349,25 @@ class FakeWgfmuLibrary:
         self._fill()
         text = self.pending.popleft() if self.pending else ""
         store(size, write_string(result, text, wanted))
+
+    def _setWarningLevel(self, level: int) -> None:
+        self.backend.set_warning_level(_decode(WARNING_LEVELS, level, "warning level"))
+
+    def _getWarningLevel(self, level: Any) -> None:
+        store(level, api.WARNING_LEVELS[self.backend.warning_level()])
+
+    def _treatWarningsAsErrors(self, level: int) -> None:
+        self.backend.treat_warnings_as_errors(_decode(WARNING_LEVELS, level, "warning level"))
+
+    def _summary(self) -> str:
+        return "\n".join(self.backend.warnings())
+
+    def _getWarningSummarySize(self, size: Any) -> None:
+        store(size, len(self._summary()))
+
+    def _getWarningSummary(self, result: Any, size: Any) -> None:
+        wanted = int(load(size))
+        if wanted <= 0:
+            raise WgfmuError(api.PARAMETER_OUT_OF_RANGE, "getWarningSummary: size must be positive",
+                             function="warnings")
+        store(size, write_string(result, self._summary(), wanted))

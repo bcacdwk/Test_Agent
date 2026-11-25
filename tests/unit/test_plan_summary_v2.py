@@ -76,12 +76,14 @@ def test_fresh_corrections_read_below_one_hour() -> None:
     assert "corr <1h" in summarize(v2.cv(corrections=fresh))[0]
 
 
+@pytest.mark.wgfmu
 def test_wgfmu_channels_name_builder_levels_points_and_interval() -> None:
     text, _ = summarize(v2.wgfmu())
     assert text == ("fecap.pund@1 | bottom=WGFMU1:202 via RSU202.OUT pund 0 V 4000 pts @10 ns; top=WGFMU1:201 via "
                     "RSU201.OUT pund 0..3 V 4000 pts @10 ns | DUT fecap-generic | pins fecap-wgfmu | sim")
 
 
+@pytest.mark.wgfmu
 def test_wgfmu_dc_sample_like_the_blueprint() -> None:
     program = v2.wave(builder="dc_sample",
                       patterns={"hold": {"v0": 0.5, "vectors": [[0.0504, 0.5]]},

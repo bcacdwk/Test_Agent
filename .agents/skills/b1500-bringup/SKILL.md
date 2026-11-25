@@ -40,8 +40,8 @@ applies in full to every measurement (validate first, consent per plan, report r
 
 Work in this order; `uv run b1500 bringup status` shows where the bring-up stands (each stage's records,
 reviewed or drafted) and names the next stage. A stage starts only after the human signed off the previous one (a
-reviewed record or an explicit "go on" in chat). Read the stage file before acting; a stage without a file (status
-`no_stage_file`: L5 to L9 arrive with their module work) is not ready: say so and stop there.
+reviewed record or an explicit "go on" in chat). Read the stage file before acting; every stage has one (status
+`no_stage_file` means it is missing or unreadable: say so and stop there).
 
 | Stage | Goal | Stage file |
 |---|---|---|
@@ -54,7 +54,7 @@ reviewed record or an explicit "go on" in chat). Read the stage file before acti
 | L5 | SMU pulsed, sampling, search, QSCV leakage | `stages/l5-smu-advanced.md` |
 | L6 | CMU phase compensation, open/short (the human lifts and lands), known C, MOS-C | `stages/l6-cmu.md` |
 | L7 | 16440A selector map, SPGU pulses into 1 MOhm, FeFET program/read | `stages/l7-spgu-selector.md` |
-| L8 | WGFMU library session, self-test/cal, DC through the RSU, fast vs DC Id-Vg | `stages/l8-wgfmu.md` |
+| L8 | WGFMU library session, self-test/cal, DC through the RSU, fast vs DC Id-Vg, lab waveform, noise, PUND | `stages/l8-wgfmu.md` |
 | L9 | long runs: async, cancel, recovery, auto-calibration restored | `stages/l9-long-runs.md` |
 | L10 | acceptance prompts on hardware with the owner; records reviewed and transferred | `stages/l10-harness-handoff.md` |
 

@@ -182,6 +182,7 @@ def test_a_route_the_switch_cannot_take_is_refused_even_when_compiled() -> None:
 # -- check_waveform --------------------------------------------------------------------------------------------------
 
 
+@pytest.mark.wgfmu
 def test_waveform_inside_the_envelope_passes() -> None:
     g = guard()
     g.check_waveform(201, [1e-6, 1e-6, 1e-6, 1e-6], [3.0, 0.0, -3.0, 0.0], v0=0.0)
@@ -204,6 +205,7 @@ def test_waveform_inside_the_envelope_passes() -> None:
         (201, [1e-6], [math.nan], None, "non_finite"),
     ],
 )
+@pytest.mark.wgfmu
 def test_waveform_refusals(ch: int, dt: list[float], v: list[float], v0: float | None, reason: str) -> None:
     with pytest.raises(EnvelopeViolation) as caught:
         guard().check_waveform(ch, dt, v, v0=v0)
@@ -300,6 +302,7 @@ def test_allowed_v2_operations_are_written() -> None:
     ("dt", "v", "v0"),
     [([1.5e-8], [1.0], 0.0), ([1e-6], [3.5], 0.0), ([1e-6], [0.0], 4.0), ([1e-6] * 5, [0.0] * 5, 0.0)],
 )
+@pytest.mark.wgfmu
 def test_refused_waveform_reaches_no_library_call(dt: list[float], v: list[float], v0: float) -> None:
     api = SpyWgfmu()
     with pytest.raises(EnvelopeViolation):
@@ -307,6 +310,7 @@ def test_refused_waveform_reaches_no_library_call(dt: list[float], v: list[float
     assert api.calls == []
 
 
+@pytest.mark.wgfmu
 def test_allowed_waveform_reaches_the_library() -> None:
     api = SpyWgfmu()
     load_pattern(api, guard(), 201, "p", 0.0, [1e-6, 1e-6], [3.0, 0.0])

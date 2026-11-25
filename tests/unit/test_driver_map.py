@@ -229,7 +229,8 @@ def test_spgu_atoms_whose_legacy_command_v2_replaces_map_to_their_successor(doc:
     assert (enable["target"], enable["unmapped_flex"]) == (["B1500Driver.enable"], ["CNX"])
     assert (status["target"], status["unmapped_flex"]) == (["B1500Driver.selector_state"], ["ERS?"])
     assert all(a["scope"] == "mapped" and a["note"].startswith("successor: ") for a in (enable, status))
-    assert set(builder.ATOM_SUCCESSORS) == {"B_atom_output_spgu_enable_channels", "A_atom_flex_query_selector_status"}
+    assert {a for a in builder.ATOM_SUCCESSORS if builder.entry_family(a) == "spgu"} == {
+        "B_atom_output_spgu_enable_channels", "A_atom_flex_query_selector_status"}
     for atom_id in ("A_atom_flex_query_spgu_open_comp", "B_atom_correction_spgu_set_short_comp",
                     "A_atom_flex_query_spgu_setup", "C_atom_spgu_configure_sampling_pulse",
                     "B_atom_routing_dio_set_mode"):
@@ -248,6 +249,99 @@ def test_ledger_check_rejects_open_spgu_entries(doc: dict) -> None:
     problems = builder.check_ledger(broken["atoms"], broken["flows"], broken["commands"])
     assert any("command SPV?: spgu entry is neither mapped nor out_of_scope" in p for p in problems)
     assert any("flow C_flow_pulse_spgu_train: spgu entry is neither mapped nor out_of_scope" in p for p in problems)
+
+
+# -- coverage ledger: the WGFMU and RSU rows (WP10.8) -----------------------------------------------------------------
+
+
+@pytest.mark.wgfmu
+def test_every_wgfmu_entry_is_mapped_or_out_of_scope_with_a_reason(doc: dict) -> None:
+    """Blueprint v2 1.2 WGFMU + RSU row: session, initialize, self-test/cal, modes, ranges, patterns/vectors, events,
+    sequences, execute/wait/abort, chunked readback, DC force/measure, connect/disconnect and the error and warning
+    queues are mapped onto the WGFMU targets; log file, ASCII export, realtime event reads, setup read-backs, pattern
+    edits, trigger output and delay trims are out of scope with a reason (WP10.8 handoff of 10.3)."""
+    assert set(builder.CLOSED_FAMILIES) == {"smu", "cmu", "spgu", "wgfmu"}
+    wgfmu = doc["counts"]["ledger"]["wgfmu"]
+    assert {kind: wgfmu[kind]["open"] for kind in ("atoms", "flows", "commands")} == {"atoms": 0, "flows": 0,
+                                                                                       "commands": 0}
+    assert wgfmu["atoms"]["mapped"] >= 41 and wgfmu["flows"]["mapped"] >= 13
+    atoms = {a["id"]: a for a in doc["atoms"]}
+    expected = {
+        "A_atom_wgfmu_open_session": ["Transaction.wgfmu_phase", "WgfmuLink.read_live"],
+        "A_atom_wgfmu_close_session": ["WgfmuLink.safe_state_step"],
+        "C_atom_wgfmu_add_vectors": ["WgfmuDriver.load"], "C_atom_wgfmu_execute": ["WgfmuDriver.run"],
+        "C_atom_wgfmu_read_measurement_values": ["WgfmuDriver.read"], "B_atom_output_wgfmu_connect":
+        ["WgfmuDriver.connect"], "B_atom_diagnostic_wgfmu_self_test": ["WgfmuDriver.maintenance"],
+        "C_atom_wgfmu_dc_force_measure": ["WgfmuDriver.force_dc", "WgfmuDriver.measure_dc"],
+        "A_atom_wgfmu_wait_until_completed": ["WgfmuApi.wait_until_completed"],
+        "A_atom_wgfmu_read_warning_summary": ["WgfmuDriver.warnings"],  # read after every run (orchestrator, 1.2)
+        "A_atom_wgfmu_set_warning_level": ["WgfmuApi.set_warning_level"],
+        "B_atom_policy_wgfmu_treat_warnings_as_errors": ["WgfmuApi.treat_warnings_as_errors"],
+    }
+    for atom_id, target in expected.items():
+        assert (atoms[atom_id]["target"], atoms[atom_id]["scope"]) == (target, "mapped"), atom_id
+    assert atoms["C_atom_wgfmu_add_vectors"]["unmapped_wgfmu"] == ["WGFMU_addVector"]  # one call per pattern
+    for atom_id in ("A_atom_wgfmu_open_log", "A_atom_wgfmu_export_ascii",
+                    "A_atom_wgfmu_is_event_completed", "C_atom_wgfmu_transform_pattern",
+                    "C_atom_wgfmu_set_trigger_event", "C_atom_wgfmu_configure_force_measure_delay"):
+        assert atoms[atom_id]["scope"] == "out_of_scope" and atoms[atom_id]["reason"], atom_id
+    assert "blueprint v2 1.2" in atoms["C_atom_wgfmu_set_trigger_out_mode"]["reason"]
+    flows = {f["id"]: f for f in doc["flows"]}
+    assert flows["C_flow_spot_wgfmu_dc"]["target"][0] == "recipe:wgfmu.dc_spot"
+    assert "recipe:system.wgfmu_self_test" in flows["B_flow_maintenance_wgfmu_self_test_calibration"]["target"]
+    assert flows["AB_flow_recovery_wgfmu_abort_disconnect"]["target"] == ["WgfmuLink.safe_state_step"]
+    assert flows["A_flow_prepare_wgfmu_logging"]["scope"] == "out_of_scope"
+
+
+@pytest.mark.wgfmu
+def test_wgfmu_targets_name_real_methods_and_every_bound_function() -> None:
+    """Every WGFMU target names a method of its class, and the function table covers exactly the C functions the
+    protocol binds (``C_FUNCTIONS``): a library call the binding makes is mapped, one it never makes is not."""
+    from b1500_test_agent.driver.wgfmu import WgfmuDriver
+    from b1500_test_agent.session.transaction import Transaction
+    from b1500_test_agent.session.wgfmu_phase import WgfmuLink
+    from b1500_test_agent.transport.wgfmu.api import API_METHODS, C_FUNCTIONS
+
+    owners = {"WgfmuDriver": WgfmuDriver, "WgfmuLink": WgfmuLink, "Transaction": Transaction}
+    for target in builder.WGFMU_TARGETS:
+        owner, method = target.split(".", 1)
+        if owner == "WgfmuApi":
+            assert method in API_METHODS, target
+        else:
+            assert callable(getattr(owners[owner], method, None)), target
+    bound = {name for names in C_FUNCTIONS.values() for name in names}
+    assert set(builder.WGFMU_FUNCTION_TARGETS) == bound
+    for function, targets in builder.WGFMU_FUNCTION_TARGETS.items():
+        assert targets and set(targets) <= set(builder.WGFMU_TARGETS), function
+    for method, functions in C_FUNCTIONS.items():  # a protocol method no driver calls is its own target
+        api_targets = {t for f in functions for t in builder.WGFMU_FUNCTION_TARGETS[f] if t.startswith("WgfmuApi.")}
+        assert api_targets <= {f"WgfmuApi.{method}"}, method
+
+
+@pytest.mark.wgfmu
+def test_wgfmu_successor_atoms_keep_the_legacy_function(doc: dict) -> None:
+    atoms = {a["id"]: a for a in doc["atoms"]}
+    summary = atoms["A_atom_wgfmu_read_error_summary"]
+    assert summary["target"] == ["WgfmuApi.errors"] and summary["note"].startswith("successor: ")
+    assert summary["unmapped_wgfmu"] == ["WGFMU_getErrorSummarySize", "WGFMU_getErrorSummary"]
+    assert atoms["B_atom_lifecycle_wgfmu_abort_channel"]["unmapped_wgfmu"] == ["WGFMU_abortChannel"]
+    assert atoms["C_atom_wgfmu_dc_measure_averaged"]["target"] == ["WgfmuDriver.measure_dc"]
+    assert {a for a in builder.ATOM_SUCCESSORS if builder.entry_family(a) == "wgfmu"} == {
+        "A_atom_wgfmu_read_error_summary", "A_atom_wgfmu_get_measure_times", "B_atom_lifecycle_wgfmu_abort_channel",
+        "C_atom_wgfmu_dc_measure_averaged"}
+
+
+@pytest.mark.wgfmu
+def test_ledger_check_rejects_open_wgfmu_entries_and_unknown_wgfmu_targets(doc: dict) -> None:
+    broken = copy.deepcopy(doc)
+    atom = next(a for a in broken["atoms"] if a["id"] == "A_atom_wgfmu_export_ascii")
+    atom.update(scope="open")
+    del atom["reason"]
+    flow = next(f for f in broken["flows"] if f["id"] == "C_flow_spot_wgfmu_dc")
+    flow["target"] = ["WgfmuDriver.no_such_method"]
+    problems = builder.check_ledger(broken["atoms"], broken["flows"], broken["commands"])
+    assert any("atom A_atom_wgfmu_export_ascii: wgfmu entry is neither mapped nor out_of_scope" in p for p in problems)
+    assert any("WgfmuDriver.no_such_method is not a driver target" in p for p in problems)
 
 
 @pytest.mark.parametrize(("entry_id", "family"), [

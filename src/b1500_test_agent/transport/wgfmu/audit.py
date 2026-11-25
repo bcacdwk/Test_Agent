@@ -7,7 +7,8 @@ The wrapper implements ``WgfmuApi`` over any implementation (``SimWgfmu``, the c
 - ``data``: ``fn`` (the Python method), every scalar argument by name (``ch``, ``pattern``, ``t``, ``points`` ...),
   the length of every vector argument (``n_dt``, ``n_v``) instead of its values, and the return code ``rc`` (0, or
   the library code of a failure; firmware failures also carry ``code``, e.g. 3050);
-- ``resp``: a short rendering of the result (a status tuple, a measured value, ``n=100000`` for a readback);
+- ``resp``: a short rendering of the result (a status tuple, a measured value, ``n=100000`` for a readback, the
+  warning summary's lines: the audit keeps every warning the kernel reads);
 - ``error``: the exception text of a failed call (the exception is re-raised unchanged), ``dur_ms`` the duration.
 
 ``bind(run=, tx=, intent=)`` stamps the run, transaction and intent on the events inside the block, as
@@ -28,7 +29,14 @@ from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.common import Backend, JsonScalar
 from b1500_test_agent.models.sources import WgfmuCurrentRange, WgfmuForceRange, WgfmuMode, WgfmuVoltageRange
 from b1500_test_agent.transport.audit import AuditContext, AuditSink
-from b1500_test_agent.transport.wgfmu.api import C_FUNCTIONS, NO_ERROR, WgfmuApi, WgfmuError, WgfmuMeasureMode
+from b1500_test_agent.transport.wgfmu.api import (
+    C_FUNCTIONS,
+    NO_ERROR,
+    WgfmuApi,
+    WgfmuError,
+    WgfmuMeasureMode,
+    WgfmuWarningLevel,
+)
 
 T = TypeVar("T")
 
@@ -207,6 +215,27 @@ class AuditingWgfmu:
 
     def errors(self) -> list[str]:
         return self._call("errors", {}, self.inner.errors, lambda found: f"{len(found)} error(s)")
+
+    def set_warning_level(self, level: WgfmuWarningLevel) -> None:
+        self._call("set_warning_level", {"level": level}, lambda: self.inner.set_warning_level(level))
+
+    def warning_level(self) -> WgfmuWarningLevel:
+        return self._call("warning_level", {}, self.inner.warning_level, str)
+
+    def treat_warnings_as_errors(self, level: WgfmuWarningLevel) -> None:
+        self._call("treat_warnings_as_errors", {"level": level}, lambda: self.inner.treat_warnings_as_errors(level))
+
+    def warnings(self) -> list[str]:
+        return self._call("warnings", {}, self.inner.warnings, _render_warnings)
+
+
+WARNINGS_RESP_CHARS = 600
+"""Longest rendering of a warning summary in one audit event (the run's ``kind_result`` keeps the lines too)."""
+
+
+def _render_warnings(found: list[str]) -> str:
+    text = f"{len(found)} warning(s)" + (": " + " | ".join(found) if found else "")
+    return text if len(text) <= WARNINGS_RESP_CHARS else text[:WARNINGS_RESP_CHARS - 3] + "..."
 
 
 def _render_status(result: tuple[int, float, float]) -> str:

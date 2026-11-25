@@ -7,6 +7,15 @@ pointers, ``None``/values instead of output parameters, and an exception instead
 implementations: ``transport.sim.wgfmu.SimWgfmu`` (simulator, WP10.1) and ``transport.wgfmu.dll.WgfmuDll`` (ctypes,
 WP10.2); ``transport.wgfmu.audit.AuditingWgfmu`` wraps either and audits every call (``ev: wgfmu_call``).
 
+Warnings (WP10.8; blueprint v2 1.2 "error/warning queues"): the library also reports conditions that do not fail a
+call (WG p138 (4-68) Table 4-4: severe - an event overwrites an overlapping one, a measurement call on a channel that
+is not in Fast IV/PG mode; normal - a measurement call without such a channel, a size too small for the data, an
+``offset + size`` beyond the data, the instrument error queue not empty at session open/close; information - a value
+is rounded). ``warnings()`` reads the warning summary (WG p119 (4-49); kept until ``clear``), ``set_warning_level``
+chooses what it reports and ``treat_warnings_as_errors`` makes warnings at or above a level fail their call (WG p133
+(4-63)); the kernel keeps the library defaults (report ``normal`` and ``severe``, never turn a warning into an error)
+and reads the summary after every run (``WgfmuDriver.run``), so a warning is reported, never blocking.
+
 Error model (WG p148 (4-78) "Return Codes"): every C function returns ``WGFMU_NO_ERROR`` (0) or a negative library
 error code (``LIBRARY_ERRORS``, WG p150-151 (4-80, 4-81)); errors the firmware reports (``OPERATION_ERRORS``, WG
 p152-155 (4-82 to 4-85): 3000 module missing, 3001 RSU, 3050 memory overflow, 3301-3327 setup limits ...) reach the
@@ -48,6 +57,11 @@ from b1500_test_agent.transport.base import TransportError
 
 WgfmuMeasureMode = Literal["voltage", "current"]
 """Measurement mode of a channel (``WGFMU_setMeasureMode``)."""
+
+WgfmuWarningLevel = Literal["off", "severe", "normal", "information"]
+"""Warning level of the library (WG p138 (4-68) Table 4-4): which warnings the summary reports
+(``WGFMU_setWarningLevel``, default ``normal``) or which turn into errors (``WGFMU_treatWarningsAsErrors``, default
+``off``)."""
 
 # -- wgfmu.h constants (WG Tables 4-4 to 4-18) -----------------------------------------------------------------------
 
@@ -503,6 +517,23 @@ class WgfmuApi(Protocol):
         """Read and remove every queued error string, oldest first (WG p97 (4-27))."""
         ...
 
+    def set_warning_level(self, level: WgfmuWarningLevel) -> None:
+        """Choose which warnings the warning summary reports (WG p133 (4-63); Table 4-4; default ``normal``)."""
+        ...
+
+    def warning_level(self) -> WgfmuWarningLevel:
+        """The warning reporting level now in effect (WG p118 (4-48))."""
+        ...
+
+    def treat_warnings_as_errors(self, level: WgfmuWarningLevel) -> None:
+        """Make warnings at or above ``level`` fail their call as errors (WG p133 (4-63); default ``off``: none)."""
+        ...
+
+    def warnings(self) -> list[str]:
+        """The warning summary, one warning per line, oldest first; reading leaves it (``clear`` empties it; WG p119
+        (4-49))."""
+        ...
+
 
 API_METHODS: Final[tuple[str, ...]] = (
     "open_session", "close_session", "initialize", "clear", "set_timeout", "channel_ids", "set_operation_mode",
@@ -510,9 +541,10 @@ API_METHODS: Final[tuple[str, ...]] = (
     "set_measure_enabled", "create_pattern", "add_vectors", "set_measure_event", "set_range_event", "add_sequence",
     "update", "connect", "disconnect", "execute", "wait_until_completed", "abort", "status", "channel_status",
     "measure_value_size", "measure_values", "dc_force_voltage", "dc_measure_value", "self_test", "self_calibration",
-    "errors",
+    "errors", "set_warning_level", "warning_level", "treat_warnings_as_errors", "warnings",
 )  # fmt: skip
-"""The protocol's methods in blueprint order (test: equal to ``WgfmuApi``'s and ``models.sim.LIBRARY_FUNCTIONS``)."""
+"""The protocol's methods: blueprint v2 2.4's in its order, then the warning queue of blueprint v2 1.2 (WP10.8; test:
+equal to ``WgfmuApi``'s and ``models.sim.LIBRARY_FUNCTIONS``)."""
 
 C_FUNCTIONS: Final[dict[str, tuple[str, ...]]] = {
     "open_session": ("WGFMU_openSession",),
@@ -547,6 +579,10 @@ C_FUNCTIONS: Final[dict[str, tuple[str, ...]]] = {
     "self_test": ("WGFMU_doSelfTest",),
     "self_calibration": ("WGFMU_doSelfCalibration",),
     "errors": ("WGFMU_getError", "WGFMU_getErrorSize"),
+    "set_warning_level": ("WGFMU_setWarningLevel",),
+    "warning_level": ("WGFMU_getWarningLevel",),
+    "treat_warnings_as_errors": ("WGFMU_treatWarningsAsErrors",),
+    "warnings": ("WGFMU_getWarningSummary", "WGFMU_getWarningSummarySize"),
 }
 """Protocol method -> the C functions it calls, the audited one first (the DLL binding's ``argtypes`` table covers
 exactly these; test: every name is in the API extract)."""

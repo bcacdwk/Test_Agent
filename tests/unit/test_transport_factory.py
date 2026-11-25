@@ -69,6 +69,7 @@ def test_visa_only_when_the_settings_say_so() -> None:
     assert sink.events == []
 
 
+@pytest.mark.wgfmu
 def test_visa_takes_an_injected_wgfmu_library_and_sim_refuses_one(repo_paths: Paths) -> None:
     made: list[str] = []
 
@@ -113,6 +114,7 @@ def test_fault_profile_or_list_activates_faults(repo_paths: Paths) -> None:
         assert [f.kind for f in bus.flex.inner.instrument.faults.faults] == ["oscillation"]
 
 
+@pytest.mark.wgfmu
 def test_sim_bus_carries_the_audited_wgfmu_library_on_the_same_instrument(repo_paths: Paths) -> None:
     bundle = load_config(repo_paths)
     sink = MemoryAuditSink()

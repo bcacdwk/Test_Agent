@@ -66,7 +66,7 @@ Ferroelectric memory: FeFET memory window, program/read, switching kinetics, end
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
 | nvm | FeCap, ferroelectric capacitor, C-V butterfly, coercive voltage, coercive field, Ec, Vc, imprint, HZO, small-signal C-V | [fecap-cv-butterfly](nvm/fecap-cv-butterfly.md) | `fecap.cv_butterfly` | sim_validated | MFCMU | L6 |
-| nvm | FeCap, PUND, remanent polarization, Pr, Ps, coercive field, Ec, switching charge, P-V loop, endurance, fatigue, wake-up | [fecap-pund](nvm/fecap-pund.md) | `fecap.pund`, `fecap.endurance_pund` | sim_validated | WGFMU | L8 |
+| nvm | FeCap, PUND, remanent polarization, Pr, Ps, coercive field, Ec, switching charge, P-V loop, endurance, fatigue, wake-up | [fecap-pund](nvm/fecap-pund.md) | `fecap.pund`, `fecap.endurance_pund` | sim_validated | WGFMU | L8 (`fecap.endurance_pund`: L9) |
 | nvm | FeFET, memory window, hysteresis, dual sweep, Vth_fwd/Vth_rev | [fefet-dual-sweep-mw](nvm/fefet-dual-sweep-mw.md) | `fefet.dual_sweep_mw` | sim_validated | HRSMU, MPSMU, GNDU | L7 |
 | nvm | FeFET, endurance, cycling, program erase cycles, wake-up, fatigue, retention, data retention, memory window versus cycles, memory window versus time, 10 years | [fefet-endurance-retention](nvm/fefet-endurance-retention.md) | `fefet.endurance`, `fefet.retention` | sim_validated | HVSPGU, HRSMU, MPSMU, GNDU | L9 |
 | nvm | FeFET, memory window from pulses, program pulse, erase pulse, write read, program verify, pulse then read, SPGU program SMU read, fast read, WGFMU program read | [fefet-pulse-write-read](nvm/fefet-pulse-write-read.md) | `fefet.pulse_write_read`, `spgu.program_smu_read`, `fefet.fast_program_read` | sim_validated | HVSPGU, HRSMU, MPSMU, GNDU, WGFMU | L7 (`fefet.fast_program_read`: L8) |
@@ -89,5 +89,5 @@ Instrument maintenance: self-test, self-calibration, zero check.
 
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
-| system | self-test, self-calibration, \*TST?, \*CAL?, module check, recalibrate, WGFMU self-test, WGFMU self-calibration, instrument library | [self-test-cal](system/self-test-cal.md) | `system.self_test`, `system.self_cal`, `system.wgfmu_self_test`, `system.wgfmu_self_cal` | sim_validated | all installed | L1 |
+| system | self-test, self-calibration, \*TST?, \*CAL?, module check, recalibrate, WGFMU self-test, WGFMU self-calibration, instrument library | [self-test-cal](system/self-test-cal.md) | `system.self_test`, `system.self_cal`, `system.wgfmu_self_test`, `system.wgfmu_self_cal` | sim_validated | all installed | L1 (`system.wgfmu_self_test`: L8; `system.wgfmu_self_cal`: L8) |
 | system | zero check, noise floor, offset current, open terminals, SMU floor, baseline | [zero-check](system/zero-check.md) | `system.zero_check` | sim_validated | HRSMU, MPSMU | L1 |

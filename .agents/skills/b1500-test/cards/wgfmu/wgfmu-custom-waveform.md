@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/10-wgfmu-fast-iv-noise.md#wgfmu-and-rsu-in-one-page, knowledge/11-switching-routing.md#rsu-of-the-wgfmu, knowledge/06-analysis-extraction.md#resistance-fit, knowledge/06b-analysis-time-pulse.md#pulse-plateau]
 manual: [WG p125 (4-55) "setMeasureEvent", WG p128 (4-58) "setRangeEvent", WG p142 (4-72) "6001", WG p89 (4-19) "dcforceVoltage", WG p90 (4-20) "dcmeasureValue", WG p70 (3-30) "DC"]
-debug: [wgfmu-memory-budget, wgfmu-range-overflow, wgfmu-library-error, cleanup-failed-fault]
+debug: [wgfmu-memory-budget, wgfmu-range-overflow, wgfmu-library-error, wgfmu-rsu-route, cleanup-failed-fault]
 sources: [blueprint v2 decision 21, blueprint v2 2.7.1 builders table and dc_spot, blueprint v2 2.10 npz data contract, blueprint v2 3.4, blueprint v2 4.4 lab sample, lwp/1530 LFN_noise_meas.cpp]
 version: 1
 ---
@@ -29,6 +29,10 @@ version: 1
   known-resistor check through the RSU at bring-up L8 (I(R) +-3 %).
 - Not for: pulsed Id-Vg or fast ramps (card `wgfmu-pulsed-iv`, no files needed); noise statistics of long constant
   bias runs (card `wgfmu-rtn-noise`); SMU DC checks (card `smu-spot-kelvin`).
+- "Skip the server, load the WGFMU library yourself (ctypes, own scripts, PyVISA)": refuse (AGENTS.md hard rule 1;
+  only the server loads the library) and do not write, run or search for such code. Offer `wgfmu.custom_waveform`:
+  the user's waveform as CSV files under `work/waveforms/` (layout below), `validate_plan` (`adhoc_recipe`), the
+  summary, the human's consent, then the run.
 
 ## 2. Wiring, pin map, modules
 
@@ -117,6 +121,7 @@ sim_scenario: nmos_rtn
 | blocked on points or memory, error 3050 | too many stored values | events rows, points per channel | `wgfmu-memory-budget` |
 | status V, clipped drain current | range too small for the current | `irange`, events range codes | `wgfmu-range-overflow` |
 | library or session error, 33xx setup code | file content the library refuses | the plan's R-WG-02 findings, audit | `wgfmu-library-error` |
+| gate_V flat, dc_spot R above 1 GOhm, 3001 | RSU not on the WGFMU path, cabling, pad | audit RSU states, `station_status` | `wgfmu-rsu-route` |
 | fault latched after a run | a channel could not be disconnected | keep the fault; human checks | `cleanup-failed-fault` |
 
 ## 10. Validation record

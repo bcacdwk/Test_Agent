@@ -5,6 +5,7 @@ command walk (alternatives, options, scope) and the repository's stage notes."""
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import get_args
 
 import pytest
@@ -31,6 +32,7 @@ from b1500_test_agent.devtools.skills.common import (
 )
 from b1500_test_agent.devtools.skills.markdown import parse_markdown
 from b1500_test_agent.devtools.skills.params import ParamRow, check_param_row, split_param_cell
+from b1500_test_agent.devtools.skills.stages import missing_stage_notes
 from b1500_test_agent.models.recipe import ParamSpec, RecipeFamily
 from b1500_test_agent.models.station import ModuleType
 
@@ -170,21 +172,26 @@ def test_command_scope_skips_the_plan_and_session_reports() -> None:
     assert not any(f.startswith(("docs/design/", "docs/acceptance/20", ".claude/")) for f in files)
 
 
-def test_repository_lint_notes_stages_without_files() -> None:
+def test_repository_lint_has_a_stage_file_for_every_stage() -> None:
+    """WP6.3 wrote S0, L0-L4 and L10, the module closures L5-L9 (WP10.8 L8, the last): no card waits for a stage."""
     report = lint_skills.lint_skills(ROOT)
     assert report.ok, lint_skills.format_report(report)
-    stage_notes = [n for n in report.notes if n.startswith("bring-up stage ")]
-    assert stage_notes and all("has no stage file yet" in n for n in stage_notes)
-    assert not any(n.startswith(("bring-up stage S0 ", "bring-up stage L1 ", "bring-up stage L4 "))
-                   for n in stage_notes)  # WP6.3 wrote S0, L0-L4 and L10
-    assert not any(n.startswith(("bring-up stage L5 ", "bring-up stage L9 ")) for n in stage_notes)  # WP7.7
-    assert not any(n.startswith("bring-up stage L6 ") for n in stage_notes)  # WP8.6
-    assert not any(n.startswith("bring-up stage L7 ") for n in stage_notes)  # WP9.6 wrote L7
+    assert not [n for n in report.notes if n.startswith("bring-up stage ")]
     assert report.stages == [f".agents/skills/b1500-bringup/stages/{stem}.md" for stem in sorted(
         ("s0-physical", "l0-probe-config", "l1-smu-zero", "l2-resistors", "l3-diode", "l4-mosfet",
-         "l5-smu-advanced", "l6-cmu", "l7-spgu-selector", "l9-long-runs", "l10-harness-handoff"))]
+         "l5-smu-advanced", "l6-cmu", "l7-spgu-selector", "l8-wgfmu", "l9-long-runs", "l10-harness-handoff"))]
     assert "recipes without a card by design: generic.smu_staircase" in report.notes
     assert report.skills == ["b1500-bringup", "b1500-debug", "b1500-test"]
+
+
+def test_a_missing_stage_file_is_a_note_naming_the_waiting_cards() -> None:
+    """A card naming a stage whose file is missing (a deleted or unreadable file) gets a note, never a problem."""
+    cards = [SimpleNamespace(front=SimpleNamespace(id="fecap-pund", stages=["L8", "L9"])),
+             SimpleNamespace(front=SimpleNamespace(id="wgfmu-rtn-noise", stages=["L8"])),
+             SimpleNamespace(front=SimpleNamespace(id="zero-check", stages=["L1"]))]
+    notes = missing_stage_notes(cards, {"L1": None, "L9": None})  # type: ignore[arg-type, dict-item]
+    assert notes == [("bring-up stage L8 has no stage file (.agents/skills/b1500-bringup/stages/l8-wgfmu.md); cards "
+                      "waiting: fecap-pund, wgfmu-rtn-noise")]
 
 
 # -- analysis-only cards (WP7.7: smu/compact-model-spice) ------------------------------------------------------------

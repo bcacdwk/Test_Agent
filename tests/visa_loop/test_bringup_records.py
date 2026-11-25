@@ -87,7 +87,7 @@ def test_status_follows_drafts_and_reviewed_records(stages: VisaWorld) -> None:
     status = bringup.bringup_status(service)
     assert status.ok and not status.simulated and status.next_stage == "S0"
     states = {s.stage: s.state for s in status.stages}
-    assert states["S0"] == "open" and states["L8"] == "no_stage_file" and states["L10"] == "open"  # L6: WP8.6
+    assert set(states.values()) == {"open"} and len(states) == 12  # every stage has its file (L8: WP10.8)
     run_id = _hardware_run(world, service)
     draft = bringup.record(service, "L2", [run_id], references=[f"r_dmm={_resistance(world, run_id)}"])
     assert draft.ok and draft.record is not None
@@ -180,7 +180,10 @@ def test_record_rules_for_recipe_and_stage_records(stages: VisaWorld) -> None:
     assert "no check(s) ['vth']" in bringup.record(service, "L2", [run_id], references=["vth=0.4"]).message
     assert "not CHECK=VALUE" in bringup.record(service, "L2", [run_id], references=["r_dmm"]).message
     assert "unknown stage" in bringup.record(service, "L11", [run_id]).message
-    assert "has no stage file yet" in bringup.record(service, "L8", [run_id]).message  # L6 exists since WP8.6
+    world.root.joinpath(*STAGE_FILES_DIR, "l8-wgfmu.md").unlink()  # a missing stage file (all exist since WP10.8)
+    assert "has no stage file" in bringup.record(service, "L8", [run_id]).message
+    l8 = next(s for s in bringup.bringup_status(service).stages if s.stage == "L8")
+    assert l8.state == "no_stage_file" and l8.records == []
     assert "does not run basic.contact_resistor" in bringup.record(service, "L1", [run_id],
                                                                    recipe_id="basic.contact_resistor").message
 

@@ -26,6 +26,8 @@ import pytest
 from b1500_test_agent.transport.wgfmu.api import LIBRARY_CONSTANTS
 from tests.unit.test_lint_flex_literals import string_literals
 
+pytestmark = pytest.mark.wgfmu
+
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_DIR = ROOT / "src" / "b1500_test_agent"
 STRUCTURED = ROOT / "references" / "manuals" / "structured"

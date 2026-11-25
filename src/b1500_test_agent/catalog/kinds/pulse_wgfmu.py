@@ -93,7 +93,7 @@ from b1500_test_agent.catalog.kinds.wgfmu_waveform import _wg_role
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError, RawAcquisition, setting_value
 from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.modules import WGFMU_SPEC
-from b1500_test_agent.driver.wgfmu import WgfmuTrace
+from b1500_test_agent.driver.wgfmu import WgfmuTrace, warning_facts
 from b1500_test_agent.models.analysis import Quantity
 from b1500_test_agent.models.common import StrictModel
 from b1500_test_agent.models.measurement import Channel
@@ -811,6 +811,8 @@ class _Facts:
         self.precycles = 0
         self.held_s = 0.0
         self.stop_reason = ""
+        self.warnings: list[str] = []
+        """The library warnings every execution read (``WgfmuBlock.warnings``; WP10.8)."""
 
     def add(self, step: ReadStep) -> None:
         self.done.append(step)
@@ -842,7 +844,7 @@ class _Facts:
             "pulse_ops_planned": sum(s.action == "pulse" for s in self.steps),
             "pulse_ops_done": sum(s.action == "pulse" for s in self.done), "pulses_applied": self.pulses,
             "executions": len(self.done), "stopped_early": len(reads_done) < len(reads),
-            "stop_reason": self.stop_reason}
+            "stop_reason": self.stop_reason, **warning_facts(self.warnings)}
         if program.schedule == "cycles":
             planned = program.checkpoints[-1] if program.checkpoints else program.cycles
             facts.update(cycles_planned=program.precycles + planned,
@@ -893,6 +895,7 @@ def acquire(kind_id: str, tx: Transaction, plan: PlanRecord) -> WgfmuPulseAcquis
 
             block = wg.run(check_abort=tx.check_abort, on_poll=on_poll)
             traces = dict(block.traces)
+            facts.warnings.extend(block.warnings)
             if archive is not None:
                 for ch, trace in sorted(traces.items()):
                     archive(ch, trace.time_s, trace.value, offset=offsets[ch], quantity=trace.quantity)

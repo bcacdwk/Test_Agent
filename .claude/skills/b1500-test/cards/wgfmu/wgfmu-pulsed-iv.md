@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/10-wgfmu-fast-iv-noise.md#fast-i-v-pulses-ramps-and-timing, knowledge/11-switching-routing.md#rsu-of-the-wgfmu, knowledge/06b-analysis-time-pulse.md#pulse-plateau, knowledge/06b-analysis-time-pulse.md#pulsed-versus-dc, knowledge/06-analysis-extraction.md#maximum-transconductance]
 manual: [WG p63 (3-23) "Id-Vg", WG p125 (4-55) "setMeasureEvent", WG p126 (4-56) "average", WG p80 (4-10) "addSequence", WG p142 (4-72) "6003", WG p16 (1-4) "full scale"]
-debug: [wgfmu-range-overflow, wgfmu-library-error, wgfmu-memory-budget, cleanup-failed-fault]
+debug: [wgfmu-range-overflow, wgfmu-library-error, wgfmu-rsu-route, wgfmu-memory-budget, cleanup-failed-fault]
 sources: [blueprint v2 2.7 wgfmu_waveform, blueprint v2 2.7.1 builders pulsed_iv fast_iv_ramp pulse_train, blueprint v2 3.4, WG Ex. 1-3 and 9, 1 us flash I-V application note]
 version: 1
 ---
@@ -131,7 +131,7 @@ sim_scenario: nmos_wgfmu
 | status V points, flat-topped Id | drain range too small | `irange` vs Id; quality report | `wgfmu-range-overflow` |
 | library or session error, 30xx code | DLL, session, RSU, setup error | `station_status` WGFMU line, audit | `wgfmu-library-error` |
 | plan blocked on points / memory | too many stored values (~4 M per channel) | summary pts, `samples`, `count` | `wgfmu-memory-budget` |
-| no current at all, 3001 | RSU not on the WGFMU path, probe not landed | audit RSU states, contact check | `wgfmu-library-error` |
+| no current at all, 3001 | RSU not on the WGFMU path, probe not landed | audit RSU states, contact check | `wgfmu-rsu-route` |
 | fault latched after a run | a channel could not be disconnected | keep the fault; human checks | `cleanup-failed-fault` |
 
 ## 10. Validation record

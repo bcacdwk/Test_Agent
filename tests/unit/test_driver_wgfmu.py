@@ -18,12 +18,14 @@ from b1500_test_agent.driver.guard import EnvelopeViolation, OutputGuard
 from b1500_test_agent.driver.wgfmu import (
     POLL_S,
     RUN_MARGIN_S,
+    WARNING_TEXT_CHARS,
     WgfmuDriver,
     WgfmuRunFailed,
     WgfmuRunTimeout,
     find_rsu,
     rsu_rest_path,
     rsu_targets,
+    warning_facts,
 )
 from b1500_test_agent.models.plan import CompiledEnvelope
 from b1500_test_agent.models.routing import Route
@@ -49,6 +51,7 @@ class FakeApi:
         self.statuses = list(statuses)
         self.values = values if values is not None else {TOP: 4000, BOTTOM: 4000}
         self.fail: dict[str, BaseException] = {}
+        self.warning_lines: list[str] = []
 
     def __getattr__(self, name: str) -> Callable[..., Any]:
         if name not in api.API_METHODS:
@@ -77,6 +80,8 @@ class FakeApi:
             return [TOP, BOTTOM]
         if name == "dc_measure_value":
             return 1.5e-4
+        if name == "warnings":
+            return list(self.warning_lines)
         return None
 
     def names(self) -> list[str]:
@@ -283,6 +288,31 @@ def test_run_updates_connects_executes_polls_and_reads_in_chunks() -> None:
     trace = block.traces[TOP]
     assert len(trace) == 250_000 and trace.quantity == "V" and trace.time_s[-1] == pytest.approx(249_999e-8)
     assert block.traces[BOTTOM].quantity == "I" and len(block.traces[BOTTOM]) == 0
+    assert names[-1] == "warnings" and block.warnings == ()  # WP10.8: the summary read after the readback
+
+
+def test_run_reports_the_library_warnings_and_never_fails_on_them() -> None:
+    """WP10.8 (blueprint v2 1.2 "error/warning queues"): the warning summary read after the run comes back in the
+    block; an unreadable summary is one warning line, never an error of a completed run."""
+    wg, fake, _ = make()
+    wg.load(program())
+    fake.warning_lines = ["[severe] set_measure_event: event 'm' overwrites 1 overlapping measurement event(s)"]
+    block = wg.run()
+    assert block.status == "completed" and block.warnings == tuple(fake.warning_lines)
+    fake.fail["warnings"] = WgfmuError(api.COMMUNICATION_ERROR, "warnings: hung", function="warnings")
+    block = wg.run()
+    assert block.status == "completed" and len(block.warnings) == 1
+    assert block.warnings[0].startswith("warning summary not read: ") and "hung" in block.warnings[0]
+    assert all(name != "set_warning_level" and name != "treat_warnings_as_errors" for name in fake.names())
+
+
+def test_warning_facts_count_and_text() -> None:
+    assert warning_facts([]) == {"wgfmu_warnings": 0}
+    facts = warning_facts(["[normal] a", "[normal] a", "[severe] b"])
+    assert facts == {"wgfmu_warnings": 3, "wgfmu_warning_text": "[normal] a | [severe] b"}
+    long = warning_facts(["x" * 500])
+    text = str(long["wgfmu_warning_text"])
+    assert len(text) == WARNING_TEXT_CHARS and text.endswith("...")
 
 
 def test_run_checks_every_route_before_its_first_call() -> None:

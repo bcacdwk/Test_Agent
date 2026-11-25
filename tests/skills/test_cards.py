@@ -95,13 +95,16 @@ STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfe
             "cmu/moscap-dit": "L6",  # WP8.5
             "wgfmu/wgfmu-rtn-noise": "L8"}  # WP10.5
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
-RECIPE_STAGES = {"nvm/fefet-pulse-write-read": {"fefet.fast_program_read": "L8"}}
-"""Recipes another stage validates than their card's (frontmatter ``recipe_stages``; WP10.6)."""
+RECIPE_STAGES = {"nvm/fefet-pulse-write-read": {"fefet.fast_program_read": "L8"},
+                 "nvm/fecap-pund": {"fecap.endurance_pund": "L9"},  # WP10.8 (blueprint v2 3.4)
+                 "system/self-test-cal": {"system.wgfmu_self_test": "L8", "system.wgfmu_self_cal": "L8"}}  # WP10.8
+"""Recipes another stage validates than their card's (frontmatter ``recipe_stages``; WP10.6, WP10.8)."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault", "cmu-correction-stale",  # WP8.2: the first v2 runbook
             "spgu-selector-state", "spgu-pulse-no-effect", "spgu-load-mismatch",  # WP9.3
             "smu-sampling-skips", "stress-degradation-unexpected",  # WP7.7
             "wgfmu-library-error", "wgfmu-range-overflow", "wgfmu-memory-budget",  # WP10.4
+            "wgfmu-rsu-route",  # WP10.8
             "cmu-cv-distortion", "cmu-series-resistance"}  # WP8.6
 RUN_ID = re.compile(r"\bS\d{8}T\d{6}Z-[0-9a-f]{4}\b")
 SCENARIOS = sorted(p.stem for p in (ROOT / "config" / "sim" / "scenarios").glob("*.yaml"))
@@ -187,7 +190,8 @@ def test_generated_index_has_a_row_per_card_and_recipe(registry: RecipeRegistry)
         row = next(line for line in text.splitlines() if f"]({card}.md)" in line)
         family = card.split("/")[0]
         assert row.startswith(f"| {family} |") and all(f"`{r}`" in row for r in recipes)
-        stage = STAGE_OF[card] + "".join(f" (`{r}`: {s})" for r, s in RECIPE_STAGES.get(card, {}).items())
+        others = "; ".join(f"`{r}`: {s}" for r, s in RECIPE_STAGES.get(card, {}).items())
+        stage = STAGE_OF[card] + (f" ({others})" if others else "")
         assert f"| {_card(card).front['status']} |" in row and row.endswith(f"| {stage} |")
     for recipe in CARDLESS_RECIPES:
         assert f"| `{recipe}` |" in text and "no card by design" in text

@@ -82,6 +82,7 @@ def _program(**changes: object) -> WaveformProgram:
     return WaveformProgram.model_validate(data)
 
 
+@pytest.mark.wgfmu
 def test_waveform_time_matches_the_manual_example() -> None:
     """WG ch. 4 channel-status example: 3 x 10 us + 50 ns + 1 x 50 us + 50 ns + 2 x 20 us = 120.1 us."""
     program = _program()
@@ -89,6 +90,7 @@ def test_waveform_time_matches_the_manual_example() -> None:
     assert program.total_time_s() == pytest.approx(120.1e-6)
 
 
+@pytest.mark.wgfmu
 def test_waveform_points_count_raw_samples_and_repeats() -> None:
     program = _program()
     assert MeasureEvent(pattern="a", event="e", t=0, points=10, interval=1e-6, average=1e-8, raw=True).data_points == 30
@@ -112,6 +114,7 @@ def test_measure_event_end_includes_the_10_ns_tail() -> None:
      {"events": [{"kind": "range", "pattern": "zzz", "event": "r", "t": 0, "range": "1ma"}]}, {"channels": {}},
      {"builder": "Bad Name"}],
 )
+@pytest.mark.wgfmu
 def test_waveform_references_resolve(changes: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         _program(**changes)

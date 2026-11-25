@@ -14,6 +14,9 @@ sources: [blueprint v2 2.4 (WgfmuApi, WgfmuError), 2.6 (WGFMU phase, cleanup ste
 - `validate_plan` blocked by R-WG-01: library not loadable (32-bit `wgfmu.dll`, not found), channels not among the
   library's channel ids, a WGFMU role not on its RSU.
 - `station_status`: the WGFMU library line is not loadable; a run left `cleanup_unverified` after a WGFMU phase.
+- A completed run with `kind_result.wgfmu_warnings` > 0: the library's warning summary (`wgfmu_warning_text`; WG
+  p138 (4-68) Table 4-4: severe = an event overwrote another or a measurement call hit a non-Fast-IV/PG channel,
+  normal = no such channel, a short buffer, the instrument error queue not empty). A warning never stops a run.
 
 ## Likely causes
 
@@ -30,7 +33,8 @@ sources: [blueprint v2 2.4 (WgfmuApi, WgfmuError), 2.6 (WGFMU phase, cleanup ste
 ## First safe checks
 
 1. `get_run(run_id, include=[summary, audit])`: the failing library call (`wgfmu_call` events: function, rc,
-   error text), the phase checkpoints (`wgfmu_phase`, `wgfmu_phase_end`) and whether the cleanup verified.
+   error text; `WGFMU_getWarningSummary` keeps the warnings), the phase checkpoints (`wgfmu_phase`,
+   `wgfmu_phase_end`) and whether the cleanup verified. A severe warning: report no value from that run.
 2. `station_status`: WGFMU library probe (path, x64, version), fault latch, active run, RSU states.
 3. On visa: `uv run b1500 doctor` (library check) and, with the human's go, `uv run b1500 doctor --probe
    --wgfmu-session` (read-only: open, channel ids, status, close).

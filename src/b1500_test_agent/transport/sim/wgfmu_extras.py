@@ -1,10 +1,10 @@
 """Simulator-only extras of ``SimWgfmu`` (``transport/sim/wgfmu.py``; blueprint v2 8.1 "SimWgfmu vs WG Examples
 1-11"): library functions outside the ``WgfmuApi`` protocol that the WG example fixtures and the tests use (warning
-levels, the error summary, event completion, measurement times, interpolated force values) and the RSU path.
+records, the error summary, event completion, measurement times, interpolated force values) and the RSU path.
 
 ``WgfmuExtras`` is a mixin of ``SimWgfmu``; it reads the library state that class owns (the run, the channel
-hardware state, the warnings and the error summary). The DLL binding (WP10.2) can add the matching C functions to the
-protocol later; until then the driver uses only ``WgfmuApi``.
+hardware state, the warnings and the error summary). The driver uses only ``WgfmuApi`` (the warning level, threshold
+and summary joined it in WP10.8; these extras stay simulator-only).
 """
 
 from __future__ import annotations
@@ -19,7 +19,6 @@ from b1500_test_agent.transport.wgfmu.api import (
     CONTEXT_ERROR,
     EVENT_NOT_FOUND,
     PARAMETER_OUT_OF_RANGE,
-    WARNING_LEVELS,
     WgfmuError,
 )
 
@@ -34,27 +33,14 @@ class WgfmuExtras:
         _run: Any
         _warnings: list[tuple[str, str]]
         _summary: list[str]
-        warning_level: str
-        treat_level: str
 
         def _fail(self, fn: str, code: int, detail: str = "", *, rc: int | None = None) -> WgfmuError: ...
         def _tick(self) -> float: ...
         def _hw(self, ch: int) -> WgfmuChannelState: ...
 
-    def set_warning_level(self, level: str) -> None:
-        """``WGFMU_setWarningLevel`` (``off``, ``severe``, ``normal``, ``information``)."""
-        if level not in WARNING_LEVELS:
-            raise self._fail("set_warning_level", PARAMETER_OUT_OF_RANGE, f"level {level!r}")
-        self.warning_level = level
-
-    def treat_warnings_as_errors(self, level: str) -> None:
-        """``WGFMU_treatWarningsAsErrors``: warnings at or above ``level`` fail the call (WG p133 (4-63))."""
-        if level not in WARNING_LEVELS:
-            raise self._fail("treat_warnings_as_errors", PARAMETER_OUT_OF_RANGE, f"level {level!r}")
-        self.treat_level = level
-
-    def warnings(self) -> list[tuple[str, str]]:
-        """``(level, text)`` of every reported warning since ``clear``."""
+    def warning_records(self) -> list[tuple[str, str]]:
+        """``(level, text)`` of every reported warning since ``clear`` (the protocol's ``warnings()`` renders them as
+        summary lines; the warning level and threshold are protocol methods since WP10.8)."""
         return list(self._warnings)
 
     def error_summary(self) -> str:

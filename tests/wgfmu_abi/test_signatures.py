@@ -60,7 +60,7 @@ def test_the_committed_table_is_the_generated_one(corpus, items) -> None:
 
 def test_the_table_binds_exactly_the_protocol_functions() -> None:
     used = {name for names in api.C_FUNCTIONS.values() for name in names}
-    assert set(C_SIGNATURES) == used and len(C_SIGNATURES) == 34
+    assert set(C_SIGNATURES) == used and len(C_SIGNATURES) == 39
 
 
 def test_every_function_is_documented_with_matching_parameter_types(items) -> None:

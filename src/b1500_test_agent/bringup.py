@@ -12,7 +12,8 @@ moves a draft record to ``validation/hw/``.
 **Status** (``bringup_status``): for every stage in order (``models.validation.STAGES``) the records that sign it
 off (``StageFrontmatter.record_keys``: one per recipe with checks, plus the stage record) looked up among the
 reviewed records in ``validation/hw/`` and the drafts in ``work/bringup/records/``; the next stage is the first one
-not signed (a stage without a stage file is not ready: its module work package brings it).
+not signed (every stage S0, L0-L10 has a committed stage file since WP10.8; a missing or unreadable one is not
+ready).
 
 **Capture** (``capture``): the instrument answers of hardware runs (``H…``, backend visa, run files unchanged since
 the run) or of a hardware probe record become anonymized golden fixtures in the ``tests/fixtures/flex/`` format
@@ -435,8 +436,9 @@ def _status(bundle: Any) -> BringupStatus:
     if current is None:
         message, steps = f"{flag}every bring-up stage is signed", ["L10: hand the reviewed records over (OD-7)"]
     elif current.state == "no_stage_file":
-        message = f"{flag}next stage {current.stage} ({current.title}) has no stage file yet: not ready"
-        steps = [f"stop here: stage {current.stage} arrives with its module work package"]
+        message = f"{flag}next stage {current.stage} ({current.title}) has no stage file: not ready"
+        steps = [(f"stop here: the stage file of {current.stage} is missing or unreadable (it is committed with "
+                  "the repository: restore it with git, or ask the developer)")]
     else:
         message = f"{flag}next stage {current.stage}: {current.title} ({current.state})"
         steps = [f"read {current.file} and work it from its preconditions"]
@@ -756,7 +758,7 @@ def _record(service: B1500Service, bundle: Any, stage: str, run_ids: list[str], 
                                               "only on the lab PC with backend visa", [REHEARSAL_STEP])
     path, front, problem = load_stage(bundle.paths.repo_root, stage)
     if front is None:
-        return _refused(RecordDraft, backend, problem or f"stage {stage} has no stage file yet "
+        return _refused(RecordDraft, backend, problem or f"stage {stage} has no stage file "
                                                          f"({bundle.paths.display(path)}): not ready")
     try:
         parsed = parse_references(references)

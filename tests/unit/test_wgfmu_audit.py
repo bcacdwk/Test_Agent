@@ -30,7 +30,8 @@ class Recorder:
             raise AttributeError(name)
         results = {"channel_ids": [201, 202], "status": (10002, 0.5, 2.0), "channel_status": (10000, 2.0, 2.0),
                    "measure_value_size": (40, 100), "measure_values": (np.zeros(3), np.ones(3)),
-                   "dc_measure_value": 1.25e-6, "self_test": 0, "self_calibration": 4, "errors": ["a", "b"]}
+                   "dc_measure_value": 1.25e-6, "self_test": 0, "self_calibration": 4, "errors": ["a", "b"],
+                   "warning_level": "normal", "warnings": ["[normal] x", "[severe] y"]}
 
         def call(*args: Any) -> Any:
             self.calls.append((name, args))
@@ -75,6 +76,10 @@ CALLS: list[tuple[str, tuple[Any, ...], dict[str, Any], str | None]] = [
     ("self_test", (), {}, "0"),
     ("self_calibration", (), {}, "4"),
     ("errors", (), {}, "2 error(s)"),
+    ("set_warning_level", ("information",), {"level": "information"}, None),
+    ("warning_level", (), {}, "normal"),
+    ("treat_warnings_as_errors", ("severe",), {"level": "severe"}, None),
+    ("warnings", (), {}, "2 warning(s): [normal] x | [severe] y"),  # WP10.8: the audit keeps every warning read
 ]
 
 

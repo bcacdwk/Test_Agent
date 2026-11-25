@@ -98,9 +98,21 @@ through declared outputs and never claims a wiring it cannot read back.
 
 ## RSU of the WGFMU
 
-- The remote-sense and switch unit puts the WGFMU or the SMU cabled to its SMU input on the DUT; it is switched by
-  the WGFMU instrument library (connect/disconnect), not by FLEX, and returned by the WGFMU cleanup (blueprint v2
-  2.6 step 3). FLEX snapshots do not read it.
+- The B1531A remote-sense and switch unit sits near the probes, one per WGFMU channel (station `switches` kind `rsu`,
+  `RSU201`/`RSU202`, `ports.OUT: {index: 201, inputs: {wgfmu: 201, smu: <SMU or null>}}`). Normally it connects its
+  From SMU input to the output; while its channel outputs or measures, the WGFMU (WG p19 (1-7)). The output takes
+  +-10 V from the WGFMU and +-25 V from the SMU (WG p20 (1-8)).
+- The WGFMU instrument library switches it (`connect` enables the channel and its RSU, WG p85 (4-15); `disconnect`
+  gives the output back to the SMU path), never FLEX; FLEX snapshots do not read it, and the library cannot read the
+  relay back, so a state is what the library accepted. Before execute the transaction disconnects every declared RSU
+  channel (a refused disconnect leaves the output unread: R-ROUTE-01 blocks); during the run each channel's RSU is
+  on `wgfmu` (`smu` in SMU mode); cleanup step 3 (blueprint v2 2.6) aborts, initializes and disconnects every
+  channel and closes the session.
+- An SMU through an RSU (the DC reference of fast I-V, the SMU bias of a combined recipe) needs that SMU's Force
+  cable on the From SMU input, recorded as `inputs.smu` (ATV-32); recabling only with the DUT lifted. The V Monitor
+  (BNC) shows the WGFMU output to a high-impedance scope and is grounded while the RSU is on its SMU path.
+- Firmware code 3001 "RSU is not connected": wrong channel number or no RSU on that channel (WG p152 (4-82)).
+  Symptoms and checks: runbook `wgfmu-rsu-route` (skill `b1500-debug`); the stage check is bring-up L8.
 
 ## Guard and rules
 

@@ -192,6 +192,7 @@ def triangle(device: FecapDevice, v_max: float, rise_s: float = 1e-6, steps: int
     return volts, amps, np.full(volts.shape, dt)
 
 
+@pytest.mark.wgfmu
 def test_pund_recovers_pr_ps_and_ec() -> None:
     device = fecap()
     v_max = 4.0  # 4·Vc: the branches are within 2.4 % of Ps
@@ -220,6 +221,7 @@ def test_pund_recovers_pr_ps_and_ec() -> None:
     assert (np.sum(i_n[:n] * dt_n[:n]) - np.sum(i_d[:n] * dt_d[:n])) / 2 / area * 1e6 == pytest.approx(-pr, rel=1e-6)
 
 
+@pytest.mark.wgfmu
 def test_minor_pund_has_a_smaller_remanence() -> None:
     device = fecap()
     small = device.pund_truth(1.2)
@@ -246,6 +248,7 @@ def test_cv_butterfly_peaks_at_plus_minus_vc() -> None:
     assert device.admittance(0.0, 1e5).imag == pytest.approx(2 * math.pi * 1e5 * device.capacitance(0.0, 1e5))
 
 
+@pytest.mark.wgfmu
 def test_fecap_charge_balance_endurance_and_state() -> None:
     device = fecap(wake_frac=0.2, wake_cycles=10.0)
     triangle(device, -4.0)
@@ -272,6 +275,7 @@ def test_fecap_charge_balance_endurance_and_state() -> None:
     assert device.terminal_currents({"top": 1.0, "bottom": 0.0}) == {"top": 0.0, "bottom": -0.0}
 
 
+@pytest.mark.wgfmu
 def test_fecap_crossing_helper_sanity() -> None:
     device = fecap()
     v = np.linspace(-3, 3, 601)

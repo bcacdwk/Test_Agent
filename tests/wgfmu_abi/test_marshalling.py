@@ -21,6 +21,7 @@ ADDRESS = "GPIB0::17::INSTR"
 
 SEQUENCE: list[tuple[str, tuple]] = [
     ("open_session", (ADDRESS,)), ("set_timeout", (100.0,)), ("initialize", ()), ("clear", ()), ("channel_ids", ()),
+    ("set_warning_level", ("information",)), ("warning_level", ()), ("treat_warnings_as_errors", ("off",)),
     ("set_operation_mode", (101, "fastiv")), ("set_force_voltage_range", (101, "5v")),
     ("set_measure_mode", (101, "current")), ("set_measure_current_range", (101, "1ma")),
     ("set_measure_enabled", (101, True)), ("set_operation_mode", (102, "fastiv")),
@@ -30,7 +31,9 @@ SEQUENCE: list[tuple[str, tuple]] = [
     ("create_pattern", ("q", 0.0)), ("add_vectors", ("q", [2e-6], [0.5])),
     ("add_sequence", (101, "p", 1.0)), ("add_sequence", (102, "q", 1.0)), ("update", ()), ("connect", (101,)),
     ("execute", ()), ("wait_until_completed", ()), ("status", ()), ("channel_status", (101,)),
-    ("measure_value_size", (101,)), ("measure_values", (101, 0, 10)), ("abort", ()), ("disconnect", (101,)),
+    ("measure_value_size", (101,)), ("measure_values", (101, 0, 10)),
+    ("measure_values", (101, 5, 10)), ("warnings", ()),  # offset + size beyond the data: a normal warning
+    ("abort", ()), ("disconnect", (101,)),
     ("set_operation_mode", (102, "dc")), ("dc_force_voltage", (102, 0.5)), ("dc_measure_value", (102,)),
     ("self_test", ()), ("self_calibration", ()), ("errors", ()), ("close_session", ()),
 ]
@@ -65,6 +68,8 @@ def test_every_method_calls_exactly_its_c_functions(binding: Binding) -> None:
             assert names == ["WGFMU_getChannelIdSize", "WGFMU_getChannelIds"]
         elif method == "errors":
             assert names == ["WGFMU_getErrorSize"]  # nothing queued: one size query ends the drain
+        elif method == "warnings":  # the size first, then the summary (WG p119 (4-49))
+            assert names == ["WGFMU_getWarningSummarySize", "WGFMU_getWarningSummary"]
         else:
             assert names == expected[:1], (method, names)
         seen.add(method)

@@ -93,7 +93,7 @@ def test_an_x64_library_is_loadable_on_windows(tmp_path: Path) -> None:
     probe = probe_library(path, platform="win32", bits=64)
     assert probe.loadable and probe.exists and probe.machine == "x64" and probe.missing_exports == []
     assert probe.file_version == LAB_VERSION and probe.python_bits == 64 and probe.path == path
-    assert "34/34 exports" in probe.message and "loadable" in probe.message
+    assert "39/39 exports" in probe.message and "loadable" in probe.message
 
 
 def test_a_32_bit_library_fails_install_a_03_00(tmp_path: Path) -> None:
@@ -118,7 +118,7 @@ def test_off_windows_nothing_is_loadable_but_the_file_is_still_described(tmp_pat
 
 
 @pytest.mark.parametrize(("kwargs", "fragment"), [
-    ({"exports": ["WGFMU_openSession", "WGFMU_closeSession"]}, "32 function(s) the binding needs are not exported"),
+    ({"exports": ["WGFMU_openSession", "WGFMU_closeSession"]}, "37 function(s) the binding needs are not exported"),
     ({"export_table": False}, "no export table"),
     ({"machine": ARM64}, "not an x64 DLL"),
     ({"magic": PE32_MAGIC}, "not an x64 DLL"),  # x64 machine with a 32-bit optional header
@@ -128,7 +128,7 @@ def test_an_incomplete_or_foreign_library_is_not_loadable(tmp_path: Path, kwargs
     probe = probe_library(write_dll(tmp_path / "wgfmu.dll", **kwargs), platform="win32", bits=64)
     assert not probe.loadable and probe.exists and fragment in probe.message, probe.message
     if "exports" in kwargs:
-        assert len(probe.missing_exports) == 32 and "WGFMU_getMeasureValues" in probe.missing_exports
+        assert len(probe.missing_exports) == 37 and "WGFMU_getMeasureValues" in probe.missing_exports
 
 
 def test_a_32_bit_python_cannot_load_the_x64_library(tmp_path: Path) -> None:

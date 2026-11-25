@@ -26,9 +26,10 @@ RUNBOOKS = ("current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo"
             "interlock-open", "cleanup-failed-fault", "cmu-correction-stale", "spgu-selector-state",
             "spgu-pulse-no-effect", "spgu-load-mismatch", "smu-sampling-skips", "stress-degradation-unexpected",
             "wgfmu-library-error", "wgfmu-range-overflow", "wgfmu-memory-budget", "cmu-cv-distortion",
-            "cmu-series-resistance")
+            "cmu-series-resistance", "wgfmu-rsu-route")
 """Blueprint 6.5 (v1 eight) + v2 6.1 (``cmu-correction-stale``, WP8.2; the three ``spgu-*``, WP9.3; the two SMU
-runbooks, WP7.7; the three ``wgfmu-*``, WP10.4; ``cmu-cv-distortion``, ``cmu-series-resistance``, WP8.6); test cards
+runbooks, WP7.7; three ``wgfmu-*``, WP10.4; ``cmu-cv-distortion``, ``cmu-series-resistance``, WP8.6;
+``wgfmu-rsu-route``, WP10.8); test cards
 name these ids in ``debug:`` (``runbooks/<id>.md`` stem)."""
 
 RUNBOOK_SECTIONS = ("Symptom", "Likely causes", "First safe checks", "Physical checks to ask the human", "Do not",

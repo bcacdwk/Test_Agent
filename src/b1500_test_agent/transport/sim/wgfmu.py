@@ -46,11 +46,20 @@ timeout, then a communication error; on ``execute``/``wait_until_completed`` the
 FLEX link holds the exclusive bus lock (``flex_locked``): the transaction's WGFMU phase must release it first
 (blueprint v2 2.6, ATV-14).
 
+Warnings (WG p138 (4-68) Table 4-4; protocol since WP10.8): severe - an event overwrites an overlapping event of the
+same type (``set_measure_event``, ``set_range_event``), a channel-specific measurement call on a channel not in Fast
+IV/PG mode (``measure_value_size``/``measure_values``); normal - a measurement call with no such channel connected
+(``execute``), ``offset + size`` beyond the stored values (``measure_values``), the instrument error queue not empty
+at ``open_session``/``close_session``; information - a value is rounded (a time off the 10 ns grid, a non-integer
+sequence count). ``set_warning_level`` chooses what the summary keeps (default ``normal``),
+``treat_warnings_as_errors`` makes warnings at or above a level fail their call (default ``off``); ``clear`` empties
+the summary and restores both defaults (the simulator's reading of WG p84 (4-14), TODO(verify) at L8). ``warnings()``
+returns one ``[<level>] <function>: <text>`` line per warning (the real summary's line format: TODO(verify) at L8).
+
 Extras beyond the protocol (simulator only, for the WG example fixtures and tests): ``session_open``,
-``poll_quantum_s`` and the mixin ``transport/sim/wgfmu_extras.py`` (``set_warning_level``,
-``treat_warnings_as_errors``, ``warnings``, ``error_summary``, ``completed_measure_event_size``,
-``measure_event_completed``, ``measure_times``, ``force_levels``, ``rsu_path``). Setup checks: ``wgfmu_checks.py``;
-waveform and measurement arithmetic: ``wgfmu_engine.py``.
+``poll_quantum_s`` and the mixin ``transport/sim/wgfmu_extras.py`` (``warning_records``, ``error_summary``,
+``completed_measure_event_size``, ``measure_event_completed``, ``measure_times``, ``force_levels``, ``rsu_path``).
+Setup checks: ``wgfmu_checks.py``; waveform and measurement arithmetic: ``wgfmu_engine.py``.
 """
 
 from __future__ import annotations
@@ -120,6 +129,7 @@ from b1500_test_agent.transport.wgfmu.api import (
     WARNING_LEVELS,
     WgfmuError,
     WgfmuMeasureMode,
+    WgfmuWarningLevel,
     channel_ids_of,
     error_text,
     is_channel_id,
@@ -137,6 +147,8 @@ DC_MEASURE_S = 1e-3
 
 _MEMORY = int(LIMITS["memory_points"])
 _GRID = LIMITS["grid_s"]
+ROUNDING_TOLERANCE = 1e-6
+"""A value within this fraction of a step from a whole multiple counts as on the grid (no rounding warning)."""
 
 
 @dataclass
@@ -182,7 +194,8 @@ class SimWgfmu(WgfmuExtras):
         self._errors: deque[str] = deque()
         self._summary: list[str] = []
         self._warnings: list[tuple[str, str]] = []
-        self.warning_level = "normal"
+        self._level = "normal"
+        """Warning reporting level (``set_warning_level``)."""
         self.treat_level = "off"
         self.timeout_s = LIMITS["timeout_default_s"]
         self.session: str | None = None
@@ -204,11 +217,12 @@ class SimWgfmu(WgfmuExtras):
         return WgfmuError(code, text, rc=rc, function=fn)
 
     def _warn(self, fn: str, level: str, detail: str) -> None:
-        """Record a warning of ``level`` (severe/normal/information; WG p138 (4-68) Table 4-4)."""
+        """Record a warning of ``level`` (severe/normal/information; WG p138 (4-68) Table 4-4); a level the
+        ``treat_warnings_as_errors`` threshold covers fails the call instead (WG p133 (4-63))."""
         rank = WARNING_LEVELS[level]
         if self.treat_level != "off" and rank <= WARNING_LEVELS[self.treat_level]:
             raise self._fail(fn, UNIDENTIFIED_ERROR, f"warning treated as error: {detail}")
-        if self.warning_level != "off" and rank <= WARNING_LEVELS[self.warning_level]:
+        if self._level != "off" and rank <= WARNING_LEVELS[self._level]:
             self._warnings.append((level, f"{fn}: {detail}"))
 
     def _gate(self, fn: str) -> None:
@@ -329,7 +343,7 @@ class SimWgfmu(WgfmuExtras):
         self._errors.clear()
         self._summary.clear()
         self._warnings.clear()
-        self.warning_level, self.treat_level = "normal", "off"
+        self._level, self.treat_level = "normal", "off"
         if self._run is not None:
             self._run.out_of_date = True
 
@@ -422,6 +436,7 @@ class SimWgfmu(WgfmuExtras):
         if np.any(np.abs(volts) > LIMITS["max_abs_v"]):
             k = int(np.argmax(np.abs(volts) > LIMITS["max_abs_v"]))
             raise self._fail(fn, PARAMETER_OUT_OF_RANGE, f"v[{k}] = {volts[k]:g} V")
+        self._rounded(fn, "dt", dts, _GRID)
         spec.dts.extend(int(t) for t in ticks)
         spec.volts.extend(float(x) for x in volts)
 
@@ -439,6 +454,8 @@ class SimWgfmu(WgfmuExtras):
                 raise self._fail(fn, PARAMETER_OUT_OF_RANGE, f"{label} {value!r} s")
         if to_ticks(interval) < 1:
             raise self._fail(fn, PARAMETER_OUT_OF_RANGE, f"interval {interval:g} s is below 10 ns")
+        for label, value in (("time", t), ("interval", interval), ("average", average)):
+            self._rounded(fn, label, [value], _GRID)
         new = MeasureSpec(event, to_ticks(t), int(points), to_ticks(interval), to_ticks(average), bool(raw))
         kept = [e for e in spec.measures if not e.overlaps(new)]
         if len(kept) != len(spec.measures):
@@ -456,6 +473,7 @@ class SimWgfmu(WgfmuExtras):
             raise self._fail(fn, PARAMETER_OUT_OF_RANGE, f"range {rng!r}")
         if not _finite(t) or t < 0:
             raise self._fail(fn, PARAMETER_OUT_OF_RANGE, f"time {t!r} s")
+        self._rounded(fn, "time", [t], _GRID)
         tick = to_ticks(t)
         kept = [r for r in spec.ranges if r.t != tick]
         if len(kept) != len(spec.ranges):
@@ -473,6 +491,7 @@ class SimWgfmu(WgfmuExtras):
         rounded = math.floor(float(count) + 0.5)
         if rounded < LIMITS["count_min"]:
             raise self._fail(fn, PARAMETER_OUT_OF_RANGE, f"count {count!r} is below 1")
+        self._rounded(fn, "count", [count], 1.0)
         self._sequences.setdefault(int(ch), []).append((pattern, rounded))
 
     # -- applying the setup --------------------------------------------------------------------------------------------
@@ -862,6 +881,38 @@ class SimWgfmu(WgfmuExtras):
         found = list(self._errors)
         self._errors.clear()
         return found
+
+    def set_warning_level(self, level: WgfmuWarningLevel) -> None:
+        fn = "set_warning_level"
+        self._gate(fn)
+        if level not in WARNING_LEVELS:
+            raise self._fail(fn, PARAMETER_OUT_OF_RANGE, f"level {level!r}")
+        self._level = level
+
+    def warning_level(self) -> WgfmuWarningLevel:  # type: ignore[override]
+        self._gate("warning_level")
+        return self._level  # type: ignore[return-value]
+
+    def treat_warnings_as_errors(self, level: WgfmuWarningLevel) -> None:
+        fn = "treat_warnings_as_errors"
+        self._gate(fn)
+        if level not in WARNING_LEVELS:
+            raise self._fail(fn, PARAMETER_OUT_OF_RANGE, f"level {level!r}")
+        self.treat_level = level
+
+    def warnings(self) -> list[str]:
+        self._gate("warnings")
+        return [f"[{level}] {text}" for level, text in self._warnings]
+
+    def _rounded(self, fn: str, what: str, values: Sequence[float] | np.ndarray, step: float) -> None:
+        """Information warning when a value is not a whole multiple of ``step`` (the library rounds it; WG p138
+        (4-68) Table 4-4 "A value is rounded"; WG p82 (4-12): times on the 10 ns grid)."""
+        scaled = np.asarray(values, dtype=float) / step
+        off = np.abs(scaled - np.floor(scaled + 0.5)) > ROUNDING_TOLERANCE
+        if np.any(off):
+            k = int(np.argmax(off))
+            self._warn(fn, "information", f"{what} {float(np.asarray(values, dtype=float).ravel()[k]):g} rounded to "
+                       f"{math.floor(scaled.ravel()[k] + 0.5) * step:g}")
 
     # -- circuit coupling ----------------------------------------------------------------------------------------------
 

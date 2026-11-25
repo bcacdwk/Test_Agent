@@ -102,6 +102,7 @@ def test_smu_pulse_problems(module: str, changes: dict[str, object], fragment: s
     assert (problems == []) if fragment is None else any(fragment in p.message for p in problems), problems
 
 
+@pytest.mark.wgfmu
 def test_wgfmu_ranges_by_mode_and_train_grid() -> None:
     assert WGFMU_SPEC.range_bounds("fastiv", "10v") == (0.0, 10.0)
     assert WGFMU_SPEC.range_bounds("pg", "auto") == (-5.0, 5.0)

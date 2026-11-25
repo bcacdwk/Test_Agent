@@ -8,6 +8,7 @@ device_types: []
 modules: []
 routes: []
 bringup_stage: L1
+recipe_stages: {system.wgfmu_self_test: L8, system.wgfmu_self_cal: L8}
 status: sim_validated
 confirmation: always
 knowledge: [knowledge/02-b1500-instrument.md#self-test-self-calibration-and-auto-calibration, knowledge/02-b1500-instrument.md#status-byte-errors-and-interlock, knowledge/02-b1500-instrument.md#measurement-sequence-and-cleanup]
@@ -126,9 +127,10 @@ code, failed units, duration, backend. Never derive measurement offsets from the
 | sim | 2026-11-24 | nmos_bti | none | S20261124T103806Z-0296 | `system.wgfmu_self_cal`: needs_confirmation (system_self_cal); result 0 | - |
 | hw | pending (bring-up stage L1) | - | - | - | - | - |
 
-WGFMU recipes on hardware after the L0 `--wgfmu-session` probe passed. Sim rows: the example plan (and the same
-request for the other recipes) validated and run with the summary through `B1500Service` with temporary
-`B1500_CONFIG_DIR`/`B1500_DATA_DIR`; those run folders were not kept.
+WGFMU recipes on hardware at stage L8 (the WGFMU stage), after the L0 `--wgfmu-session` probe passed. Sim rows:
+the example plan (and the same request for the other recipes) validated and run with the summary through
+`B1500Service` with temporary `B1500_CONFIG_DIR`/`B1500_DATA_DIR`; those run folders were not kept.
 Hardware records: `validation/hw/system.self_test.yaml`, `validation/hw/system.self_cal.yaml`,
 `validation/hw/system.wgfmu_self_test.yaml`, `validation/hw/system.wgfmu_self_cal.yaml` (reviewed by a human after
-bring-up stage L1, skill `b1500-bringup`; drafts only from hardware `H...` runs, never from simulator `S...` runs).
+bring-up stage L1, the WGFMU ones after L8, skill `b1500-bringup`; drafts only from hardware `H...` runs, never from
+simulator `S...` runs).

@@ -395,7 +395,7 @@ class StageRecordItem(StrictModel):
 class StageProgress(StrictModel):
     """One stage of ``b1500 bringup status``: ``signed`` (every record reviewed and passing), ``review`` (every
     record drafted, some still unreviewed), ``in_progress`` (some records), ``open`` (none), ``no_stage_file`` (the
-    stage arrives with its module work package)."""
+    stage file is missing or unreadable; every stage has a committed one since WP10.8)."""
 
     stage: StageId
     title: str

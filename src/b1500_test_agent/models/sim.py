@@ -442,10 +442,10 @@ LIBRARY_FUNCTIONS: tuple[str, ...] = (
     "set_measure_enabled", "create_pattern", "add_vectors", "set_measure_event", "set_range_event", "add_sequence",
     "update", "connect", "disconnect", "execute", "wait_until_completed", "abort", "status", "channel_status",
     "measure_value_size", "measure_values", "dc_force_voltage", "dc_measure_value", "self_test", "self_calibration",
-    "errors",
+    "errors", "set_warning_level", "warning_level", "treat_warnings_as_errors", "warnings",
 )  # fmt: skip
 """The methods of the WGFMU instrument-library protocol (``transport.wgfmu.api.WgfmuApi``, blueprint v2 2.4) that
-the WGFMU faults can target (test: equal to the protocol's methods)."""
+the WGFMU faults can target (test: equal to the protocol's methods; the warning queue since WP10.8)."""
 
 LibraryFunction = Annotated[str, Field(pattern=r"^[a-z][a-z_]{1,39}$")]
 

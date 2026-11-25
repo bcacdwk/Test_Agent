@@ -680,7 +680,55 @@ def test_open_session_warns_about_a_non_empty_instrument_error_queue() -> None:
     st = ex.station()
     st.flex.write("XX")  # unknown command: error 100 queued
     st.sim.open_session(ADDR)
-    assert st.sim.warnings() == [("normal", "open_session: the instrument error queue is not empty (1 error(s))")]
+    records = st.sim.warning_records()
+    assert records == [("normal", "open_session: the instrument error queue is not empty (1 error(s))")]
+    assert st.sim.warnings() == ["[normal] open_session: the instrument error queue is not empty (1 error(s))"]
+
+
+# -- the warning queue (WP10.8; WG p119 (4-49), p133 (4-63), p138 (4-68) Table 4-4) -----------------------------------
+
+
+def test_warning_levels_choose_what_the_summary_reports_and_clear_empties_it() -> None:
+    s = ex.station().sim
+    assert s.warning_level() == "normal" and s.warnings() == []  # the defaults (Table 4-4)
+    s.create_pattern("p", 0.0)
+    s.add_vectors("p", [1.005e-6], [1.0])  # rounded to the 10 ns grid: an information warning
+    s.set_measure_event("p", "m", 0.0, 10, 1e-7, 1e-7, False)
+    s.set_measure_event("p", "m2", 5e-7, 10, 1e-7, 1e-7, False)  # overlaps m: severe
+    severe = "[severe] set_measure_event: event 'm2' overwrites 1 overlapping measurement event(s) of pattern 'p'"
+    assert s.warnings() == [severe]
+    s.set_warning_level("information")
+    assert s.warning_level() == "information"
+    s.add_sequence(201, "p", 1.4)  # a count is a whole number: rounded
+    s.set_range_event("p", "r", 2.004e-7, "1ma")  # off the grid: rounded
+    lines = s.warnings()
+    assert lines[1].startswith("[information] add_sequence: count 1.4 rounded to 1")
+    assert lines[2].startswith("[information] set_range_event: time 2.004e-07 rounded to 2e-07")
+    assert s.warnings() == lines  # reading leaves the summary
+    s.set_warning_level("off")
+    s.set_range_event("p", "r", 2e-7, "10ua")  # overwrites r: severe, but nothing is reported at level off
+    assert len(s.warnings()) == 3
+    s.clear()
+    assert s.warnings() == [] and s.warning_level() == "normal"
+    with pytest.raises(WgfmuError) as caught:
+        s.set_warning_level("loud")  # type: ignore[arg-type]
+    assert caught.value.wgfmu_code == sim_wgfmu.PARAMETER_OUT_OF_RANGE
+
+
+def test_warnings_at_or_above_the_threshold_fail_their_call() -> None:
+    """WG p133 (4-63): ``treat_warnings_as_errors(severe)`` turns a severe warning into an error; a normal one stays a
+    warning; ``off`` (the default) never fails a call."""
+    s = ex.station().sim
+    s.create_pattern("p", 0.0)
+    s.add_vectors("p", [1e-6], [1.0])
+    s.set_measure_event("p", "m", 0.0, 10, 1e-7, 1e-7, False)
+    s.treat_warnings_as_errors("severe")
+    with pytest.raises(WgfmuError) as caught:
+        s.set_measure_event("p", "m2", 5e-7, 10, 1e-7, 1e-7, False)
+    assert "warning treated as error" in caught.value.text and s.warnings() == []
+    s.treat_warnings_as_errors("off")
+    s.set_measure_event("p", "m2", 5e-7, 10, 1e-7, 1e-7, False)
+    assert len(s.warnings()) == 1
 
 
 def test_a_waveform_program_loads_with_the_models_counts_and_times() -> None:

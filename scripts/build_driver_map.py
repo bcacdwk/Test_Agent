@@ -5,7 +5,8 @@ The legacy package `src/b1500_test_agent/mcp/` (282 atoms, 97 flows) is read fro
 `ast` only; the legacy modules are never imported. Every A/B/C atom's FLEX basis is the second argument of
 its `_fake_response` call (C atoms pass it through `_c_response`, whose third argument is forwarded as that
 second argument); D atoms take theirs from the `_SPECS` catalog. Each atom is mapped onto the new
-`B1500Driver` methods / `driver/flex/` builders of blueprint §2.3, or marked `unmapped`. Manual pages of
+`B1500Driver` methods / `driver/flex/` builders of blueprint §2.3 (its WGFMU library calls onto `WgfmuDriver`, the
+transaction's WGFMU phase and `WgfmuApi`, WP10.8), or marked `unmapped`. Manual pages of
 commands that the summary lists only in its grouped index come from `GROUPED_PAGES` (read from the Programming
 Guide by WP1.3; the same pages are cited in the builder docstrings of `driver/flex/`).
 
@@ -102,7 +103,24 @@ COMMAND_BUILDERS = (
     "qsv", "qst", "qsm", "qsl", "qso", "qsc", "qsr", "qsz",
     "corrdt_q",
 )  # fmt: skip
-DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
+WGFMU_DRIVER_METHODS = (
+    "configure", "load", "connect", "force_dc", "measure_dc", "run", "read", "maintenance", "abort", "safe_state",
+    "warnings",
+)  # fmt: skip
+WGFMU_SESSION_TARGETS = ("Transaction.wgfmu_phase", "WgfmuLink.read_live", "WgfmuLink.safe_state_step")
+WGFMU_API_METHODS = ("set_timeout", "channel_status", "wait_until_completed", "errors", "set_warning_level",
+                     "warning_level", "treat_warnings_as_errors")
+WGFMU_TARGETS = (tuple(f"WgfmuDriver.{m}" for m in WGFMU_DRIVER_METHODS) + WGFMU_SESSION_TARGETS
+                 + tuple(f"WgfmuApi.{m}" for m in WGFMU_API_METHODS))
+"""WGFMU targets (blueprint v2 2.4-2.6; WP10.8): methods of the guarded ``WgfmuDriver`` (``driver/wgfmu.py``), the
+transaction's WGFMU phase, pre-execute read and cleanup step 3 (``session/wgfmu_phase.py``), and the library protocol
+methods (``transport/wgfmu/api.py``, bound 1:1 by ``WgfmuDll``) that no driver method calls: the WGFMU counterparts of
+the ``B1500Driver`` methods and ``flex.`` builders."""
+DRIVER_TARGETS = (tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
+                  + WGFMU_TARGETS)
+TARGET_OWNERS = frozenset(target.split(".", 1)[0] for target in DRIVER_TARGETS)
+"""``B1500Driver``, ``flex``, ``WgfmuDriver``, ``Transaction``, ``WgfmuLink``, ``WgfmuApi``: a flow target with one of
+these owners must be one of ``DRIVER_TARGETS``."""
 
 
 @dataclass(frozen=True)
@@ -119,6 +137,55 @@ class CommandTarget:
         """The method if one sends the command, else the builder."""
         return f"B1500Driver.{self.method}" if self.method else f"flex.{self.builder}"
 
+
+# WGFMU library function -> the WGFMU targets that call it (WP10.8). Exactly the C functions the protocol binds
+# (`transport.wgfmu.api.C_FUNCTIONS`, test); a legacy basis function not listed here is `unmapped_wgfmu`.
+WGFMU_FUNCTION_TARGETS: dict[str, tuple[str, ...]] = {
+    "WGFMU_openSession": ("Transaction.wgfmu_phase", "WgfmuLink.read_live"),
+    "WGFMU_closeSession": ("WgfmuLink.safe_state_step",),
+    "WGFMU_initialize": ("Transaction.wgfmu_phase", "WgfmuDriver.safe_state"),
+    "WGFMU_clear": ("WgfmuDriver.load",),
+    "WGFMU_setTimeout": ("WgfmuApi.set_timeout",),
+    "WGFMU_getChannelIdSize": ("WgfmuLink.read_live",),
+    "WGFMU_getChannelIds": ("WgfmuLink.read_live",),
+    "WGFMU_setOperationMode": ("WgfmuDriver.configure",),
+    "WGFMU_setForceVoltageRange": ("WgfmuDriver.configure",),
+    "WGFMU_setMeasureMode": ("WgfmuDriver.configure",),
+    "WGFMU_setMeasureCurrentRange": ("WgfmuDriver.configure",),
+    "WGFMU_setMeasureVoltageRange": ("WgfmuDriver.configure",),
+    "WGFMU_setMeasureEnabled": ("WgfmuDriver.configure",),
+    "WGFMU_createPattern": ("WgfmuDriver.load",),
+    "WGFMU_addVectors": ("WgfmuDriver.load",),
+    "WGFMU_setMeasureEvent": ("WgfmuDriver.load",),
+    "WGFMU_setRangeEvent": ("WgfmuDriver.load",),
+    "WGFMU_addSequence": ("WgfmuDriver.load",),
+    "WGFMU_update": ("WgfmuDriver.run",),
+    "WGFMU_connect": ("WgfmuDriver.connect",),
+    "WGFMU_disconnect": ("WgfmuDriver.safe_state",),
+    "WGFMU_execute": ("WgfmuDriver.run",),
+    "WGFMU_waitUntilCompleted": ("WgfmuApi.wait_until_completed",),
+    "WGFMU_abort": ("WgfmuDriver.abort",),
+    "WGFMU_getStatus": ("WgfmuDriver.run",),
+    "WGFMU_getChannelStatus": ("WgfmuApi.channel_status",),
+    "WGFMU_getMeasureValueSize": ("WgfmuDriver.read",),
+    "WGFMU_getMeasureValues": ("WgfmuDriver.read",),
+    "WGFMU_dcforceVoltage": ("WgfmuDriver.force_dc",),
+    "WGFMU_dcmeasureValue": ("WgfmuDriver.measure_dc",),
+    "WGFMU_doSelfTest": ("WgfmuDriver.maintenance",),
+    "WGFMU_doSelfCalibration": ("WgfmuDriver.maintenance",),
+    "WGFMU_getError": ("WgfmuApi.errors",),
+    "WGFMU_getErrorSize": ("WgfmuApi.errors",),
+    "WGFMU_setWarningLevel": ("WgfmuApi.set_warning_level",),
+    "WGFMU_getWarningLevel": ("WgfmuApi.warning_level",),
+    "WGFMU_treatWarningsAsErrors": ("WgfmuApi.treat_warnings_as_errors",),
+    "WGFMU_getWarningSummary": ("WgfmuDriver.warnings",),
+    "WGFMU_getWarningSummarySize": ("WgfmuDriver.warnings",),
+}
+"""``WgfmuApi.set_timeout``, ``channel_status``, ``wait_until_completed``, ``errors`` and the warning level and
+threshold are bound but called by no driver method: the driver polls ``getStatus`` at most 1 s apart (abort checks)
+instead of blocking in ``waitUntilCompleted`` under the library's timeout, the binding reads each error string after a
+failed call (``WgfmuError.text``), and the kernel keeps the library's warning defaults (report severe and normal
+warnings, turn none into an error) while ``WgfmuDriver.warnings`` reads the summary after every run (WP10.8)."""
 
 # FLEX mnemonic -> new driver target. Every mnemonic not listed here is `unmapped`.
 COMMAND_TARGETS: dict[str, CommandTarget] = {
@@ -552,6 +619,24 @@ ATOM_SUCCESSORS: dict[str, tuple[tuple[str, ...], str]] = {
         ("B1500Driver.selector_state",),
         ("successor: ERSSP? per declared selector port after ERMOD 1 (PG p434 (4-116)); the legacy basis ERS? "
          "reads the raw digital I/O port bits (PG p159 (2-71)), out of scope by blueprint v2 1.2")),
+    # family wgfmu (WP10.8)
+    "A_atom_wgfmu_read_error_summary": (
+        ("WgfmuApi.errors",),
+        ("successor: the binding reads each error string (WGFMU_getError) right after a failed call into "
+         "WgfmuError.text and the audit; the summary (WGFMU_getErrorSummary, the lab's error handler) repeats the "
+         "same strings")),
+    "A_atom_wgfmu_get_measure_times": (
+        ("WgfmuDriver.read",),
+        ("successor: WGFMU_getMeasureValues returns every value with its time stamp (the centre of its averaging "
+         "window), read in 100,000-value chunks; no separate time read")),
+    "B_atom_lifecycle_wgfmu_abort_channel": (
+        ("WgfmuDriver.abort", "WgfmuDriver.safe_state"),
+        ("successor: one waveform program per transaction, so the kernel stops every sequencer at once "
+         "(WGFMU_abort) and the cleanup's safe state aborts, initializes and disconnects every channel")),
+    "C_atom_wgfmu_dc_measure_averaged": (
+        ("WgfmuDriver.measure_dc",),
+        ("successor: wgfmu.dc_spot takes `samples` readings per level with WGFMU_dcmeasureValue (one row each); the "
+         "analysis averages them")),
 }
 
 # D atoms are hardware-free analysis stubs: never mapped to the driver; successor in the new layers
@@ -611,12 +696,12 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
 # --- Coverage ledger (blueprint v2 0 row 1, 9 "Driver map v2 = coverage ledger"; WP7.7 closes the SMU rows) ----------
 # Every atom, flow and command belongs to one family; an entry is `mapped` (a driver target, a D-atom successor, an
 # ATOM_SUCCESSORS target or a flow target), `out_of_scope` (a reason from OUT_OF_SCOPE) or `open`. `--check` fails on
-# an `open` entry of a closed family. The module closures add theirs (8.6 cmu: done, 9.6 spgu: done, 10.8 wgfmu);
-# WP11.2 closes `system` and maps the rest.
+# an `open` entry of a closed family. The module closures add theirs (8.6 cmu, 9.6 spgu, 10.8 wgfmu: done); WP11.2
+# closes `system` and maps the rest.
 LEDGER_FAMILIES = ("smu", "cmu", "spgu", "wgfmu", "system")
-CLOSED_FAMILIES = ("smu", "cmu", "spgu")
+CLOSED_FAMILIES = ("smu", "cmu", "spgu", "wgfmu")
 """Families whose every entry is mapped or out of scope (`--check` enforces it): smu (WP7.7), cmu (WP8.6), spgu with
-the 16440A selector (WP9.6)."""
+the 16440A selector (WP9.6), wgfmu with the RSU (WP10.8)."""
 
 COMMAND_CATEGORY_FAMILY: dict[str, str] = {
     "ASU / SCUU / SMU Conditioning": "smu", "SMU Integration Time and Averaging": "smu",
@@ -671,6 +756,27 @@ _SPGU_SAMPLING = ("SPGU as the synchronous source of an MM 10 sampling measureme
                   "blueprint v2 1.2 (sampling sources are SMUs: MV/MI); SMU readings during an SPGU train come from "
                   "the spgu_pulse spot reads (time averages; mosfet.charge_pumping), a time-resolved pulse response "
                   "from the WGFMU (M10)")
+_WGFMU_LOG = ("the library's own log file of errors and warnings (WGFMU_openLogFile/closeLogFile, WG p73 (4-3)): the "
+              "audit log records every library call with its arguments, return code and error text (ev wgfmu_call, "
+              "transport/wgfmu/audit.py)")
+_WGFMU_EXPORT = ("ASCII export of the library's setup (WGFMU_exportAscii): the archive keeps the program as "
+                 "program.json (archive.write_program) and the data as data.csv/data.npz plus raw/wgfmu-<ch>-<n>.npz")
+_WGFMU_REALTIME = ("reading measurement events while the sequencer runs (WGFMU_getCompletedMeasureEventSize, "
+                   "isMeasureEventCompleted): realtime readback is unproven in the lab code (blueprint v2 1.1 "
+                   "pitfalls); the kinds read back after completion in 100,000-value chunks and split long runs into "
+                   "executions with checkpoints")
+_WGFMU_SETUP_READBACK = ("read-back of setup the program itself defines (measure events, force values, interpolated "
+                         "levels): the WaveformProgram is the source (archived as program.json); "
+                         "catalog.waveforms.point_layout/program_levels give each value's event and level on the host "
+                         "(checked against SimWgfmu)")
+_WGFMU_PATTERN_EDIT = ("editing or transforming created patterns (setVector/setVectors, mergePatterns, "
+                       "multiplyPattern, offsetPattern): the builders compute every pattern whole on the host "
+                       "(catalog/waveforms.py) and the guard checks it before one addVectors call")
+_WGFMU_TRIGGER = ("WGFMU trigger output to external instruments (setTriggerOutMode, setTriggerOutEvent): out of "
+                  "scope by blueprint v2 1.2 (WGFMU row)")
+_WGFMU_DELAY = ("per-channel force/measure delay trims (setForceDelay, setMeasureDelay: cable skew between channels): "
+                "not in blueprint v2 1.2; the library's initial 0 s delays are kept and the timing lives on the 10 ns "
+                "pattern grid; real cable skew is a hardware fact (blueprint v2 7.6 item 9)")
 _RAW_DIO = ("raw digital I/O port control (ERM port assignment, ERC output bits, ERS? port status; PG p159 (2-71)): "
             "out of scope by blueprint v2 1.2; the 16440A selectors are driven only by ERMOD 1 + ERSSP and read back "
             "by ERSSP?")
@@ -739,6 +845,17 @@ OUT_OF_SCOPE: dict[str, str] = {
     "B_atom_output_dio_set_relay_bits": _RAW_DIO,
     # flows of family spgu
     "C_flow_sampling_smu_spgu_bias": _SPGU_SAMPLING,
+    # atoms and flows of family wgfmu (WGFMU + RSU, WP10.8)
+    "A_atom_wgfmu_open_log": _WGFMU_LOG, "A_atom_wgfmu_close_log": _WGFMU_LOG,
+    "A_flow_prepare_wgfmu_logging": _WGFMU_LOG,
+    "A_atom_wgfmu_export_ascii": _WGFMU_EXPORT,
+    "A_atom_wgfmu_get_completed_event_count": _WGFMU_REALTIME, "A_atom_wgfmu_is_event_completed": _WGFMU_REALTIME,
+    "A_atom_wgfmu_get_measure_event_info": _WGFMU_SETUP_READBACK,
+    "A_atom_wgfmu_get_interpolated_force_value": _WGFMU_SETUP_READBACK,
+    "C_atom_wgfmu_read_force_values": _WGFMU_SETUP_READBACK,
+    "C_atom_wgfmu_set_vectors": _WGFMU_PATTERN_EDIT, "C_atom_wgfmu_transform_pattern": _WGFMU_PATTERN_EDIT,
+    "C_atom_wgfmu_set_trigger_out_mode": _WGFMU_TRIGGER, "C_atom_wgfmu_set_trigger_event": _WGFMU_TRIGGER,
+    "C_atom_wgfmu_configure_force_measure_delay": _WGFMU_DELAY,
     # commands of family system that an spgu atom names (decided here; WP11.2 closes the system family)
     "CNX": ("CN variant that also closes the output switch of a module in the high-voltage state without an error "
             "(PG p381 (4-63) Table 4-23): the 42 V ceiling never produces that state, the kinds enable with CN"),
@@ -798,6 +915,26 @@ FLOW_TARGETS: dict[str, list[str]] = {
     "CD_flow_qualify_cv_dataset": ["recipe:moscap.cv", "analysis:quality_report", "analysis:cv_cox"],
     "C_flow_pulse_spgu_train": ["recipe:spgu.pulse_train", "kind:spgu_pulse"],
     "C_flow_waveform_spgu_sequence": ["recipe:spgu.alwg_sequence", "kind:spgu_pulse"],
+    # family wgfmu (WP10.8)
+    "A_flow_discover_wgfmu_session": ["WgfmuLink.read_live"],
+    "A_flow_snapshot_wgfmu_diagnostics": ["WgfmuLink.read_live", "WgfmuApi.channel_status", "WgfmuApi.errors",
+                                          "WgfmuDriver.warnings"],
+    "A_flow_drain_wgfmu_errors": ["WgfmuApi.errors"],
+    "A_flow_teardown_wgfmu_session": ["WgfmuLink.safe_state_step"],
+    "B_flow_emergency_wgfmu_abort_disconnect": ["WgfmuDriver.safe_state", "WgfmuLink.safe_state_step"],
+    "B_flow_baseline_wgfmu_known_state": ["Transaction.wgfmu_phase", "WgfmuApi.treat_warnings_as_errors"],
+    "B_flow_maintenance_wgfmu_self_test_calibration": ["recipe:system.wgfmu_self_test", "recipe:system.wgfmu_self_cal",
+                                                       "kind:system", "WgfmuDriver.maintenance"],
+    "C_flow_spot_wgfmu_dc": ["recipe:wgfmu.dc_spot", "kind:wgfmu_waveform", "WgfmuDriver.force_dc",
+                             "WgfmuDriver.measure_dc"],
+    "C_flow_waveform_wgfmu_acquire": ["recipe:wgfmu.custom_waveform", "recipe:wgfmu.pulsed_iv",
+                                      "kind:wgfmu_waveform", "WgfmuDriver.load", "WgfmuDriver.run"],
+    "AB_flow_startup_wgfmu_baseline_session": ["Transaction.wgfmu_phase"],
+    "AB_flow_shutdown_wgfmu_safe_session": ["WgfmuLink.safe_state_step"],
+    "AB_flow_recovery_wgfmu_abort_disconnect": ["WgfmuLink.safe_state_step"],
+    "AB_flow_maintenance_wgfmu_self_test_calibration": ["recipe:system.wgfmu_self_test",
+                                                        "recipe:system.wgfmu_self_cal", "kind:system",
+                                                        "WgfmuDriver.maintenance"],
 }
 """v2 successors of the legacy flows (recipes, kinds, analysis methods, driver methods): a flow is a recipe now."""
 
@@ -1090,6 +1227,7 @@ def map_atom(atom: dict[str, Any], summary: CommandSummary) -> dict[str, Any]:
     flex: list[str] = []
     targets: list[str] = []
     unmapped_flex: list[str] = []
+    unmapped_wgfmu: list[str] = []
     priorities: list[str] = []
     for token in basis:
         kind, entries = classify_token(token, summary)
@@ -1106,6 +1244,13 @@ def map_atom(atom: dict[str, Any], summary: CommandSummary) -> dict[str, Any]:
                 elif target not in targets:
                     targets.append(target)
                 priorities.append(_flex_priority(item))
+        elif kind == "wgfmu":
+            mapped = WGFMU_FUNCTION_TARGETS.get(token)
+            if mapped is None:
+                unmapped_wgfmu.append(token)
+            else:
+                targets.extend(target for target in mapped if target not in targets)
+            priorities.append("later")
         elif kind == "host":
             host_target = HOST_TOKENS[token]
             if host_target and host_target not in targets:
@@ -1126,6 +1271,8 @@ def map_atom(atom: dict[str, Any], summary: CommandSummary) -> dict[str, Any]:
     entry.update(flex=flex, target=targets or UNMAPPED)
     if targets and unmapped_flex:
         entry["unmapped_flex"] = unmapped_flex
+    if targets and unmapped_wgfmu:
+        entry["unmapped_wgfmu"] = unmapped_wgfmu
     entry["priority"] = priority
     if "note" in override:
         entry["note"] = override["note"]
@@ -1322,13 +1469,16 @@ def check_ledger(atoms: list[dict[str, Any]], flows: list[dict[str, Any]],
             problems.append(f"{name}: mapped and listed in OUT_OF_SCOPE (remove the out-of-scope decision)")
     for flow in flows:
         for target in flow.get("target", []):
-            prefix, _, value = target.partition(":")
-            if target.startswith("B1500Driver.") and target not in DRIVER_TARGETS:
-                problems.append(f"flow {flow['id']}: target {target} is not a driver target")
-            elif prefix == "recipe" and known_recipes and value not in known_recipes:
-                problems.append(f"flow {flow['id']}: recipe {value} does not exist")
-            elif prefix not in ("recipe", "kind", "analysis") and not target.startswith("B1500Driver."):
-                problems.append(f"flow {flow['id']}: target {target!r} is not recipe:/kind:/analysis:/B1500Driver.")
+            prefix, sep, value = target.partition(":")
+            if sep and prefix in ("recipe", "kind", "analysis"):
+                if prefix == "recipe" and known_recipes and value not in known_recipes:
+                    problems.append(f"flow {flow['id']}: recipe {value} does not exist")
+            elif target.split(".", 1)[0] in TARGET_OWNERS:
+                if target not in DRIVER_TARGETS:
+                    problems.append(f"flow {flow['id']}: target {target} is not a driver target")
+            else:
+                problems.append(f"flow {flow['id']}: target {target!r} is not recipe:/kind:/analysis: or a driver "
+                                "target")
     return problems
 
 
@@ -1345,7 +1495,7 @@ def _recipe_ids() -> set[str]:
 # --- Rendering ---------------------------------------------------------------------------------------------
 HEADER = """\
 # GENERATED by scripts/build_driver_map.py from the legacy sources named under `source:`; do not edit.
-# Frozen v0.2 fake-MCP taxonomy (282 atoms, 97 flows) mapped onto the new B1500Driver (blueprint section 2.3)
+# Frozen v0.2 fake-MCP taxonomy (282 atoms, 97 flows) mapped onto the new B1500Driver and WgfmuDriver (blueprint 2.3)
 # and coverage of every command in references/manuals/structured/b1500a-command-summary.yaml.
 # Field meanings and the priority scale: README.md next to this file. Never auto-loaded by agents.
 """

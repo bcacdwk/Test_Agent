@@ -35,6 +35,8 @@ BLUEPRINT_METHODS = [
     "errors",
 ]
 """The methods of ``WgfmuApi`` in blueprint v2 2.4, in its order."""
+WARNING_METHODS = ["set_warning_level", "warning_level", "treat_warnings_as_errors", "warnings"]
+"""The warning queue of blueprint v2 1.2 ("error/warning queues"), added after them (WP10.8; orchestrator decision)."""
 
 
 def _protocol_methods() -> list[str]:
@@ -42,13 +44,14 @@ def _protocol_methods() -> list[str]:
 
 
 def test_protocol_is_exactly_the_blueprint_one() -> None:
-    assert _protocol_methods() == BLUEPRINT_METHODS == list(api.API_METHODS) == list(LIBRARY_FUNCTIONS)
-    assert list(api.C_FUNCTIONS) == BLUEPRINT_METHODS
+    methods = BLUEPRINT_METHODS + WARNING_METHODS
+    assert _protocol_methods() == methods == list(api.API_METHODS) == list(LIBRARY_FUNCTIONS)
+    assert list(api.C_FUNCTIONS) == methods
 
 
 @pytest.mark.parametrize("impl", [SimWgfmu, AuditingWgfmu])
 def test_implementations_have_the_protocol_signatures(impl: type) -> None:
-    for name in BLUEPRINT_METHODS:
+    for name in BLUEPRINT_METHODS + WARNING_METHODS:
         expected = list(inspect.signature(getattr(WgfmuApi, name)).parameters)
         assert list(inspect.signature(getattr(impl, name)).parameters) == expected, name
 

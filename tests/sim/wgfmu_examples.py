@@ -147,7 +147,7 @@ def ex03(st: Station) -> dict[str, Any]:
         wg.connect(101)  # pragma: no cover - not reached
     except WgfmuError as exc:
         caught = exc
-    return {"error": caught, "error_strings": wg.errors(), "warnings": st.sim.warnings()}
+    return {"error": caught, "error_strings": wg.errors(), "warnings": st.sim.warning_records()}
 
 
 def ex04(st: Station) -> dict[str, Any]:
@@ -192,7 +192,7 @@ def ex05(st: Station) -> dict[str, Any]:
              ret(lambda: wg.set_operation_mode(101, example("ex03")["params"]["bad_mode"])),
              ret(lambda: wg.connect(101)), ret(wg.execute), ret(wg.wait_until_completed), ret(wg.initialize),
              ret(wg.close_session)]
-    return {"codes": codes, "summary": st.sim.error_summary(), "warnings": [w[0] for w in st.sim.warnings()]}
+    return {"codes": codes, "summary": st.sim.error_summary(), "warnings": [w[0] for w in st.sim.warning_records()]}
 
 
 def _ex06_setup(st: Station) -> dict[str, Any]:

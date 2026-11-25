@@ -9,11 +9,12 @@ device_types: [fecap]
 modules: [WGFMU]
 routes: [rsu:wgfmu]
 bringup_stage: L8
+recipe_stages: {fecap.endurance_pund: L9}
 status: sim_validated
 confirmation: always
 knowledge: [knowledge/04-ferroelectric-oxide.md#fecap-p-v-and-pund, knowledge/06b-analysis-time-pulse.md#pund, knowledge/04-ferroelectric-oxide.md#ferroelectric-basics-ec-pr-ps, knowledge/10-wgfmu-fast-iv-noise.md#pund-program-read-and-the-pulse_read-wgfmu-path, knowledge/11-switching-routing.md#rsu-of-the-wgfmu]
 manual: [WG p125 (4-55) "setMeasureEvent", WG p126 (4-56) "average", WG p80 (4-10) "addSequence", WG p142 (4-72) "6003", WG p16 (1-4) "full scale"]
-debug: [wgfmu-range-overflow, wgfmu-library-error, wgfmu-memory-budget, noisy-data, cleanup-failed-fault]
+debug: [wgfmu-range-overflow, wgfmu-library-error, wgfmu-rsu-route, wgfmu-memory-budget, noisy-data, cleanup-failed-fault]
 sources: [blueprint v2 3.4 (fecap.pund, fecap.endurance_pund), blueprint v2 2.7.1 (builder pund), blueprint v2 2.10 (pund_polarization), blueprint v2 4.2 (ferro FeCap), blueprint v2 6.3 (fecap-pund)]
 version: 1
 ---
@@ -110,8 +111,9 @@ sim_scenario: fecap_basic
 - `pund_polarization` (default): `pr`, `ps` (uC/cm^2), `ec` (MV/cm), `vc`, `v_imprint` (V), `c_lin` (F), `q_switch`
   (C); several reads add `pr_initial`, `pr_max`, `wake_up`, `fatigue`, `cycles_to_failure`
   ([06b](../../knowledge/06b-analysis-time-pulse.md#pund)). `plot_pund`: currents, P-V, Pr versus cycles.
-- Report Pr, Ps, Ec as derived values with the method and the window (the forcing-voltage span), the cycle count,
-  status counts and the SIMULATED flag.
+- Report every one as derived, the method id and the window (forcing-voltage span) next to each value:
+  `Pr = 17.0 uC/cm^2 (derived; pund_polarization; window -3..3 V)`, the same for Ps, Ec (and Vc); then the cycle
+  count, status counts and the SIMULATED flag. Never call Pr or Ec measured.
 
 ## 8. Expected result shape
 
@@ -125,7 +127,7 @@ sim_scenario: fecap_basic
 | symptom | likely cause | first safe check | runbook |
 |---|---|---|---|
 | `V` samples, read refused | range below the switching current | `irange` vs A Ps dV/dt | `wgfmu-range-overflow` |
-| Pr ~ 0, P equals U | no switching: amplitude below Vc, wrong path | `kind_result`, RSU states | `noisy-data` |
+| Pr ~ 0, P equals U | no switching: amplitude below Vc, or an RSU off the WGFMU path | `kind_result`, audit RSU states | `wgfmu-rsu-route` |
 | large U/D charge, leaky loop | leakage, broken film | `c_lin`, gate-leakage card | `noisy-data` |
 | library error, run stopped | WGFMU session or RSU | the error text | `wgfmu-library-error` |
 | plan blocked: too many values | interval too fine for the read | points per read | `wgfmu-memory-budget` |
@@ -140,4 +142,4 @@ sim_scenario: fecap_basic
 | hw | pending (bring-up stage L8) | - | - | - | - | - |
 
 Sim rows: the example plan and the endurance defaults through `B1500Service` (folders not kept). Hardware records:
-`validation/hw/fecap.pund.yaml`, `validation/hw/fecap.endurance_pund.yaml` (human-reviewed after L8).
+`validation/hw/fecap.pund.yaml` (human-reviewed after L8), `validation/hw/fecap.endurance_pund.yaml` (after L9).

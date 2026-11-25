@@ -1,4 +1,4 @@
-"""Bring-up stage files S0, L0-L4 and L10 (WP6.3; blueprint v2 6.1, 6.2, 7.4).
+"""Bring-up stage files S0, L0-L10 (WP6.3: S0, L0-L4, L10; the module closures L5-L9; blueprint v2 6.1, 6.2, 7.4).
 
 The stage lint itself runs in ``tests/skills/test_lint_*.py``; here the content the plan fixes: which stages exist,
 the recipes each runs (L1 uses ``basic.contact_resistor`` at 0 V until the zero-check recipe arrives), the §7.4 pass
@@ -21,15 +21,14 @@ from b1500_test_agent.models.validation import STAGE_FILES_DIR, STAGES, StageFro
 
 ROOT = Path(__file__).resolve().parents[2]
 STAGE_DIR = ROOT.joinpath(*STAGE_FILES_DIR)
-WRITTEN = ("S0", "L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L9", "L10")
-"""Stages of WP6.3 and the module closures (WP7.7: L5, the SMU part of L9; WP9.5 adds L9's FeFET endurance and
-retention; WP8.6: L6; WP9.6: L7); L8 arrives with its module work package (L9's WGFMU part with WP10.8)."""
+WRITTEN = ("S0", "L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10")
+"""Every stage of blueprint v2 7.4: WP6.3 and the module closures (WP7.7: L5, the SMU part of L9; WP9.5 adds L9's
+FeFET endurance and retention; WP8.6: L6; WP9.6: L7; WP10.8: L8 and L9's FeCap endurance next to 10.7's fast BTI)."""
 HUMAN_ONLY = ("con" + "fig init", "con" + "fig adopt", "run " + "--confirm", "fa" + "ult clear")
 """Human-only CLI verbs, assembled at run time (the harness guard blocks shell commands that spell them)."""
 RECIPES = {
     "S0": [], "L0": [], "L10": [],
-    "L1": ["system.zero_check", "system.self_test", "system.self_cal", "system.wgfmu_self_test",
-           "system.wgfmu_self_cal"],  # WP7.1: the zero-check recipe; WP10.7: the WGFMU library self-test/cal
+    "L1": ["system.zero_check", "system.self_test", "system.self_cal"],  # WP7.1: the zero-check recipe
     "L2": ["basic.contact_resistor", "generic.smu_multi_sweep", "generic.smu_spot", "resistor.kelvin_4w"],
     "L3": ["basic.diode_iv", "basic.iv_force_i"],
     "L4": ["mosfet.idvg", "mosfet.idvd", "mosfet.gate_leakage", "mosfet.idvg_family", "mosfet.idvg_sync",
@@ -42,10 +41,15 @@ RECIPES = {
     "L7": ["system.selector_check", "spgu.pulse_train", "spgu.alwg_sequence", "fefet.dual_sweep_mw",
            "fefet.pulse_write_read", "spgu.program_smu_read", "fefet.switching_kinetics",
            "mosfet.charge_pumping"],  # WP9.6: every HV-SPGU and 16440A recipe of blueprint v2 3.3 but L9's
+    "L8": ["system.wgfmu_self_test", "system.wgfmu_self_cal", "wgfmu.dc_spot", "wgfmu.pulsed_iv", "wgfmu.fast_iv",
+           "wgfmu.pulse_train", "wgfmu.custom_waveform", "wgfmu.rtn", "wgfmu.lfn", "fecap.pund",
+           "fefet.fast_program_read"],  # WP10.8: every WGFMU recipe of blueprint v2 3.4 but L9's (WGFMU self-test/cal
+    # moved from L1, where WP10.7 had put them before L8 existed)
     "L9": ["reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "reliability.silc", "reliability.tddb_cvs",
            "dielectric.bdv", "basic.breakdown_search",  # WP7.7: the SMU part
            "fefet.endurance", "fefet.retention",  # WP9.5: the HV-SPGU part
-           "wgfmu.fast_bti"],  # WP10.7: the WGFMU fast BTI
+           "wgfmu.fast_bti",  # WP10.7: the WGFMU fast BTI
+           "fecap.endurance_pund"],  # WP10.8: the FeCap endurance by PUND
 }
 
 
@@ -118,8 +122,7 @@ def test_pass_criteria_are_the_blueprint_defaults() -> None:
 
 def test_record_keys_of_each_stage() -> None:
     assert _front("S0").record_keys() == [None] and _front("L0").record_keys() == [None]
-    assert _front("L1").record_keys() == ["system.self_test", "system.self_cal", "system.wgfmu_self_test",
-                                          "system.wgfmu_self_cal", None]
+    assert _front("L1").record_keys() == ["system.self_test", "system.self_cal", None]
     assert _front("L2").record_keys() == ["basic.contact_resistor", "generic.smu_multi_sweep", "generic.smu_spot",
                                           "resistor.kelvin_4w"]
     assert _front("L3").record_keys() == ["basic.diode_iv", "basic.iv_force_i"]
@@ -233,3 +236,58 @@ def test_l7_pass_criteria_follow_the_blueprint() -> None:
     assert "certainty: verified" in physical and "SEL1.OUT1" in physical
     for runbook in ("spgu-pulse-no-effect", "spgu-selector-state", "spgu-load-mismatch"):
         assert runbook in _section("L7", "Abort criteria"), runbook
+
+
+@pytest.mark.wgfmu
+def test_l8_pass_criteria_follow_the_blueprint() -> None:
+    """Blueprint v2 7.4 L8: DLL/session, self-test/cal, DC into a known R via the RSU (I(R) +-3 %), fast vs DC Id-Vg
+    (explained), the lwp waveform rerun, no 30xx errors; every L8 recipe has a check and a cleanup check (WP10.8)."""
+    front = _front("L8")
+    r = _check("L8", "r_wgfmu")
+    assert (r.recipe, r.quantity, r.method, r.tolerance and r.tolerance.rel) == ("wgfmu.dc_spot", "resistance",
+                                                                                 "resistance", 0.03)
+    assert r.tolerance is not None and r.tolerance.check(1.02e5, 1.0e5) and not r.tolerance.check(1.04e5, 1.0e5)
+    pulsed = _check("L8", "pulsed_vs_dc")
+    assert (pulsed.recipe, pulsed.quantity, pulsed.method, pulsed.tolerance) == (
+        "wgfmu.pulsed_iv", "pulsed_over_dc", "pulsed_vs_dc", None)  # explained, not a pass/fail band
+    assert "explained" in pulsed.text and "mosfet.idvg" in pulsed.reference
+    for check, recipe in (("wgfmu_self_test_result", "system.wgfmu_self_test"),
+                          ("wgfmu_self_cal_result", "system.wgfmu_self_cal")):
+        found = _check("L8", check)
+        assert found.recipe == recipe and found.tolerance is not None and found.tolerance.check(0, None)
+        assert not found.tolerance.check(4, None)
+    assert (_check("L8", "lwp_values").recipe, _check("L8", "lwp_values").quantity) == ("wgfmu.custom_waveform",
+                                                                                        "values")
+    assert _check("L8", "pund_pr").method == "pund_polarization"
+    for stage_check in ("session_probe", "lock_cycle", "rsu_vmonitor", "no_fw_errors"):
+        assert _check("L8", stage_check).recipe is None, stage_check  # stage record (probe, audit, the human)
+    assert "30xx" in _check("L8", "no_fw_errors").text and "ATV-14" in _check("L8", "lock_cycle").reference
+    for recipe in front.recipes:
+        checks = front.checks_for(recipe)
+        assert any(c.quantity == "cleanup" for c in checks), recipe
+        assert any(c.quantity != "cleanup" for c in checks), recipe
+    assert front.record_keys() == [*front.recipes, None]
+    agent, physical = _section("L8", "Agent steps"), _section("L8", "Physical steps (human)")
+    assert "uv run b1500 doctor --probe --wgfmu-session" in agent and '"pulsed_vs_dc"' in agent
+    assert "uv run b1500 bringup propose-station" in agent and "`mosfet-4t`" in agent
+    assert "con" + "fig adopt work/bringup/station.proposed.yaml --as station" in physical
+    assert "From SMU" in physical and "V Monitor" in physical
+    expected = _section("L8", "Expected values")
+    assert "TODO(verify)" in expected and "ATV-14" in expected and "ATV-17" in expected and "ATV-32" in expected
+    for runbook in ("wgfmu-library-error", "wgfmu-rsu-route", "wgfmu-range-overflow", "wgfmu-memory-budget"):
+        assert runbook in _section("L8", "Abort criteria"), runbook
+
+
+@pytest.mark.wgfmu
+def test_l9_wgfmu_part_runs_the_fast_bti_and_the_fecap_endurance() -> None:
+    """Blueprint v2 3.4: ``wgfmu.fast_bti`` and ``fecap.endurance_pund`` are L9 recipes (WP10.7, WP10.8); each has a
+    check and a cleanup check, and L9's agent steps run the FeCap endurance asynchronously."""
+    front = _front("L9")
+    for recipe in ("wgfmu.fast_bti", "fecap.endurance_pund"):
+        checks = front.checks_for(recipe)
+        assert any(c.quantity == "cleanup" for c in checks) and any(c.quantity != "cleanup" for c in checks), recipe
+    endurance = _check("L9", "pund_wake_fatigue")
+    assert (endurance.quantity, endurance.method) == ("fatigue", "pund_polarization")
+    agent = _section("L9", "Agent steps")
+    assert "`fecap.endurance_pund`" in agent and "poll `get_run`" in agent
+    assert "`fecap-wgfmu`" in _section("L9", "Physical steps (human)")

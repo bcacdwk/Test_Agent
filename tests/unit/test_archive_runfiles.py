@@ -163,6 +163,7 @@ def test_a_program_names_a_source_and_channels() -> None:
 # -- raw WGFMU blocks ------------------------------------------------------------------------------------------------
 
 
+@pytest.mark.wgfmu
 def test_raw_wgfmu_blocks_are_numbered_per_channel(tmp_path: Path) -> None:
     t = np.arange(5) * 1e-7
     assert write_wgfmu_raw(tmp_path, 201, t, np.ones(5), quantity="V") == "raw/wgfmu-201-000.npz"
@@ -177,6 +178,7 @@ def test_raw_wgfmu_blocks_are_numbered_per_channel(tmp_path: Path) -> None:
     assert read_wgfmu_raw(tmp_path / "raw" / "wgfmu-201-000.npz").quantity == "V"
 
 
+@pytest.mark.wgfmu
 def test_raw_wgfmu_blocks_keep_four_million_points(tmp_path: Path) -> None:
     n = 4_000_000
     rel = write_wgfmu_raw(tmp_path, 1002, np.arange(n) * 1e-8, np.linspace(-1.0, 1.0, n), quantity="I")
@@ -185,11 +187,13 @@ def test_raw_wgfmu_blocks_keep_four_million_points(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("channel", [0, 1, 103, 1101, 7, True, "201"])
+@pytest.mark.wgfmu
 def test_wgfmu_channel_numbers_are_checked(channel: object) -> None:
     with pytest.raises(InvalidInputError):
         check_wgfmu_channel(channel)  # type: ignore[arg-type]
 
 
+@pytest.mark.wgfmu
 def test_raw_wgfmu_arguments_are_checked(tmp_path: Path) -> None:
     with pytest.raises(InvalidInputError):
         write_wgfmu_raw(tmp_path, 201, np.zeros(3), np.zeros(4))

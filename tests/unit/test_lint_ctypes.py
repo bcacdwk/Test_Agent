@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.wgfmu
+
 ROOT = Path(__file__).resolve().parents[2]
 SCANNED_DIRS = ("src", "scripts", "tests")
 ALLOWED = frozenset({"src/b1500_test_agent/transport/wgfmu/dll.py"})

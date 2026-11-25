@@ -7,13 +7,14 @@ corrections" and "measure at the wrong time"). Every deciding grader passes the 
 fails exactly the graders its script names, and together the violating sessions fail every deciding grader. Harness
 formats alternate (odd ids: ideal in Codex format, violations alternating from Claude Code).
 
-S16 and S18 use only existing code (S16 runs the real ``b1500 manual`` CLI on the committed corpus); the ideal agents
-of S3 and S12 call the real server since the SPGU closure (WP9.6: ``spgu.pulse_train``, ``fefet.pulse_write_read`` on
-``fefet_lab``). The other scenarios were written ahead of their recipes: their plans, runs and analyses are forged
-with the real models (``forge.py``), with analysis values taken from the simulator truth, and their simulator
-scenarios are stand-ins (``tests/fixtures/acceptance/sim/``) where the real ones do not exist yet; violating stories
-forge what the server would refuse. A scenario stays *pending* (never run by ``--all``) until its module adds the
-recipes; then it runs as written (``requires``). v1's S3 (reserved WGFMU slots) was retired by WP9.6.
+S16 and S18 use only existing code (S16 runs the real ``b1500 manual`` CLI on the committed corpus); the ideal agents of
+S3 and S12 call the real server since the SPGU closure (WP9.6: ``spgu.pulse_train``, ``fefet.pulse_write_read`` on
+``fefet_lab``), S13's since the WGFMU closure (WP10.8: ``fecap.pund`` on ``fecap_basic``). The other scenarios were
+written ahead of their recipes: their plans, runs and analyses are forged with the real models (``forge.py``), with
+analysis values taken from the simulator truth, and their simulator scenarios are stand-ins
+(``tests/fixtures/acceptance/sim/``) where the real ones do not exist yet; violating stories forge what the server would
+refuse. A scenario stays *pending* (never run by ``--all``) until its module adds the recipes; then it runs as written
+(``requires``). v1's S3 (reserved WGFMU slots) was retired by WP9.6.
 """
 
 from __future__ import annotations
@@ -52,7 +53,7 @@ CASES: dict[str, tuple[str, str, Callable[[Path], None] | None]] = {
     "S3": ("S03-spgu-overdrive.yaml", "S03", None),
     "S11": ("S11-moscap-cv-corrections.yaml", "S11", add_sim_stand_ins),
     "S12": ("S12-fefet-pulse-mw.yaml", "S12", None),
-    "S13": ("S13-fecap-pund.yaml", "S13", add_sim_stand_ins),
+    "S13": ("S13-fecap-pund.yaml", "S13", None),
     "S14": ("S14-bti-async.yaml", "S14", add_sim_stand_ins),
     "S15": ("S15-bti-cancel.yaml", "S15", add_sim_stand_ins),
     "S16": ("S16-manual-erssp.yaml", "S16", add_manual_corpus),
@@ -61,11 +62,11 @@ CASES: dict[str, tuple[str, str, Callable[[Path], None] | None]] = {
 """Case -> (scenario file, agent script stem, repository preparation)."""
 SAFETY = {"S3", "S11", "S12", "S15", "S18"}
 """Blueprint v2 8.2: the ★ scenarios among these (S17 is self-tested in ``test_s17_bringup.py``)."""
-PENDING = {"S13", "S14", "S15", "S18"}
-"""Scenarios whose recipes later work packages add (S13, S18: 10.8; S14, S15: 7.7); they may miss only what their
-``requires`` and simulator scenario name. S11 runs since WP8.3 (moscap.cv; graded at 8.6), S3 and S12 since WP9.4
-(graded at 9.6)."""
-GENUINE = {"S3", "S12", "S16", "S18"}
+PENDING = {"S14", "S15"}
+"""Scenarios written ahead of their recipes (S14, S15: graded at 7.7); they may miss only what their ``requires`` and
+simulator scenario name. S11 runs since WP8.3 (moscap.cv; graded at 8.6), S3 and S12 since WP9.4 (graded at 9.6), S13
+and S18 since WP10.6/10.4 (graded at 10.8)."""
+GENUINE = {"S3", "S12", "S13", "S16", "S18"}
 """Cases whose ideal agent calls only the real server and CLI (no ``forge`` action)."""
 TAG_VOCABULARY = set(RecipeFamily.__args__) | {"manual", "bringup"}  # type: ignore[attr-defined]
 

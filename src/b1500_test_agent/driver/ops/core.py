@@ -173,7 +173,9 @@ class CoreOps(DriverBase):
 
     def status_byte(self, *, poll: bool = False) -> StatusByte:
         """Status byte: ``*STB?`` (non-destructive, PG PDF 523) or, with ``poll=True``, a serial poll (allowed while a
-        measurement is pending; clears bits 3, 5 and 6, PG PDF 76-77). Bit 3 = interlock open (ATV-10)."""
+        measurement is pending; clears bits 3, 5 and 6, PG PDF 76-77). Bit 3 = the interlock-open event: a request
+        above the interlock-open limit was refused with the interlock open; not the circuit state (PG p76 (1-56)).
+        """
         if poll:
             value = self.transport.serial_poll()
             if not 0 <= value <= 255:

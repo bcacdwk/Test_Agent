@@ -48,8 +48,11 @@ loops call ``check_abort()``; with a ``RunControl`` (``session/runner.py``) this
 asynchronous run and raises ``RunCancelled`` when ``safe_shutdown`` asked (any process, abort file), which the exit
 path handles like any other exception: full cleanup, verified. ``suspend_auto_calibration`` (R-CAL-02) sends
 ``CM 0`` and makes the cleanup restore the state read before the run (``restore`` step after the verification;
-skipped when the cleanup could not verify the outputs). A recovery cleanup of a stale in-flight marker is reported
-to ``Session.on_recovery`` (the executor finalizes the orphaned run folder).
+skipped when the cleanup could not verify the outputs). The in-flight marker records that state first
+(``auto_calibration_before``), so when the process dies mid-run (a harness that kills the MCP server, WP7.7) the next
+transaction's recovery cleanup restores it too (WP11.1; bring-up L9 ``autocal_restored`` after the kill drill). A
+recovery cleanup of a stale in-flight marker is reported to ``Session.on_recovery`` (the executor finalizes the
+orphaned run folder).
 
 ``LOP?`` positive control (blueprint v2 10.2 row 6.2; v1 ATV-1, ATV-23): on hardware a kind calls
 ``lop_positive_control(channels)`` right after ``CN`` (outputs on at 0 V, before any level): ``LOP?`` must report a
@@ -155,6 +158,9 @@ class InflightMarker(StrictModel):
     host: str = "unknown"
     adapter: Adapter | None = None
     since: AwareDatetime | None = None
+    auto_calibration_before: Literal["on", "off", "unknown"] | None = None
+    """Written by ``Transaction.suspend_auto_calibration`` before it sends ``CM 0`` (R-CAL-02): the auto-calibration
+    state the recovery cleanup restores when this transaction never finishes; ``None`` = auto-calibration untouched."""
 
 
 def read_inflight(path: Path) -> InflightMarker | None:
@@ -455,6 +461,11 @@ def _codes_text(codes: dict[int, str]) -> str:
 # -- Transaction ------------------------------------------------------------------------------------------------------
 
 
+def _on_off(state: bool | None) -> Literal["on", "off", "unknown"]:
+    """An auto-calibration state as the marker and the audit spell it."""
+    return "unknown" if state is None else ("on" if state else "off")
+
+
 def _scalar(value: object) -> JsonScalar:
     if isinstance(value, float) and not math.isfinite(value):
         return str(value)
@@ -515,6 +526,10 @@ class Transaction:
         self.positive_control: PositiveControl | None = None
         """The hardware ``LOP?`` positive control of this transaction (``lop_positive_control``), if one ran."""
         self._auto_calibration_suspended = False
+        self._holder: LockHolder | None = None
+        self._pending_restore: Literal["on", "off", "unknown"] | None = None
+        """A crashed transaction's auto-calibration state not restored yet: carried in this transaction's marker until
+        the recovery restored it, so a crash during the recovery itself does not lose it."""
         self._state_saved_at: float | None = None
         self._wgfmu: WgfmuLink | None = None
 
@@ -589,6 +604,8 @@ class Transaction:
             raise
         try:
             self.previous_marker = read_inflight(session.inflight_path)
+            if self.previous_marker is not None:
+                self._pending_restore = self.previous_marker.auto_calibration_before
             self._write_marker(holder)
             if self.mode == "transaction":
                 if self.previous_marker is not None:
@@ -602,9 +619,12 @@ class Transaction:
         return self
 
     def _write_marker(self, holder: LockHolder) -> None:
+        self._holder = holder
+        restore = _on_off(self.auto_calibration_before) if self._auto_calibration_suspended else self._pending_restore
         marker = InflightMarker(tx=self.tx_id, run=self.run_id, intent=self.intent, plan_id=self.plan_id,
                                 resource=self._session.transport.resource, backend=self._session.backend,
-                                pid=holder.pid, host=holder.host, adapter=holder.adapter, since=holder.since)
+                                pid=holder.pid, host=holder.host, adapter=holder.adapter, since=holder.since,
+                                auto_calibration_before=restore)
         atomic_write_json(self._session.inflight_path, marker.model_dump(mode="json"))
         self._marker_written = True
 
@@ -626,11 +646,16 @@ class Transaction:
                                         "verified": report.verified})
         if report.verified == "unverified":
             report = self._latch(report, f"inflight recovery unverified (stale transaction {previous.tx})")
+            report = self._restore_previous_auto_calibration(previous, report)
             self.recovery = report
             self.cleanup = report
             self._cleanup_done = True
             self._notify_recovery(previous, report)
             raise CleanupUnverified(report, "inflight recovery could not verify the safe state; fault latched")
+        report = self._restore_previous_auto_calibration(previous, report)
+        if self._pending_restore is not None and self._holder is not None:
+            self._pending_restore = None  # restored: this transaction's own marker no longer carries it
+            self._write_marker(self._holder)
         self.recovery = report
         self._notify_recovery(previous, report)
         if outcome.deferred is not None:
@@ -721,17 +746,30 @@ class Transaction:
 
     def suspend_auto_calibration(self, before: bool | None) -> None:
         """R-CAL-02 (asynchronous runs): send ``CM 0`` now and restore ``before`` (the state read before the run;
-        ``None`` = unknown, left off) in the cleanup, after the outputs are verified off."""
-        self.driver.set_auto_calibration(False)
+        ``None`` = unknown, left off) in the cleanup, after the outputs are verified off. The in-flight marker records
+        ``before`` first, so a recovery after a crash restores it as well (module docstring)."""
         self.auto_calibration_before = before
         self._auto_calibration_suspended = True
-        state = "unknown" if before is None else ("on" if before else "off")
-        self._emit("checkpoint", {"label": "auto_calibration_off", "before": state})
+        if self._marker_written and self._holder is not None:
+            self._write_marker(self._holder)
+        self.driver.set_auto_calibration(False)
+        self._emit("checkpoint", {"label": "auto_calibration_off", "before": _on_off(before)})
 
-    def _restore_auto_calibration(self, report: CleanupReport) -> CleanupReport:
+    def _restore_previous_auto_calibration(self, previous: InflightMarker, report: CleanupReport) -> CleanupReport:
+        """The ``restore`` step of a recovery cleanup: the auto-calibration state the crashed transaction had
+        suspended (its marker's ``auto_calibration_before``); nothing when it had not."""
+        if previous.auto_calibration_before is None:
+            return report
+        before = {"on": True, "off": False}.get(previous.auto_calibration_before)
+        return self._restore_auto_calibration(report, before, recovery=True)
+
+    def _restore_auto_calibration(self, report: CleanupReport, before: bool | None = None, *,
+                                  recovery: bool = False) -> CleanupReport:
         """The ``restore`` step: put the auto-calibration switch back as it was before the run (only after a verified
-        cleanup; an unverified one leaves it off, the safer state while a human investigates)."""
-        before = self.auto_calibration_before
+        cleanup; an unverified one leaves it off, the safer state while a human investigates). ``recovery``: the run
+        was another (crashed) transaction's, ``before`` is from its marker."""
+        if not recovery:
+            before = self.auto_calibration_before
         attempt = max((s.attempt for s in report.steps), default=1)
         error: str | None = None
         if report.verified == "unverified":
@@ -748,6 +786,8 @@ class Transaction:
             except Exception as exc:  # noqa: BLE001 - recorded; the outputs are already verified off
                 ok, detail = False, f"{command} failed ({type(exc).__name__}: {exc}); auto-calibration stays off"
                 error = detail
+        if recovery:
+            detail = f"recovery of the crashed run: {detail}"
         step = CleanupStep(step="restore", ok=ok, attempt=attempt, detail=detail[:_DETAIL_LIMIT])
         self._emit("cleanup_step", {"step": "restore", "ok": ok, "attempt": attempt, "detail": step.detail},
                    error=error)
@@ -858,6 +898,8 @@ class Transaction:
                     self._emit("cleanup_verified", {"method": report.verified, "errors": len(report.errors)})
                 if self._auto_calibration_suspended:
                     report = self._restore_auto_calibration(report)
+                if self.mode == "shutdown" and self.previous_marker is not None:
+                    report = self._restore_previous_auto_calibration(self.previous_marker, report)
                 self.cleanup = report
                 if self.mode == "shutdown" and self.previous_marker is not None:
                     self._emit("recovery_cleanup", {"previous_tx": self.previous_marker.tx,

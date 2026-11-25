@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: conditional
 knowledge: [knowledge/02b-smu-modes.md#zero-check-floor, knowledge/02-b1500-instrument.md#integration-time-and-ranging, knowledge/03-probe-station-wiring.md#guard-for-low-current, knowledge/03-probe-station-wiring.md#shielding-grounding-and-interlock, knowledge/02-b1500-instrument.md#measurement-sequence-and-cleanup]
 manual: [PG p470 (4-152) "MM", PG p501 (4-183) "RI", PG p337 (4-19) "1 pA limited auto", PG p396 (4-78) "DV"]
-debug: [noisy-data, compliance-hit, current-too-high, cleanup-failed-fault, errx-codes]
+debug: [noisy-data, compliance-hit, current-too-high, cleanup-failed-fault, errx-codes, async-run-interrupted]
 sources: [blueprint v2 3.1 (system.zero_check), 7.4 (stage L1 floors), deck slide 12]
 version: 1
 ---
@@ -109,6 +109,7 @@ sim_scenario: lab_station
 | `C` at 0 V, run stopped | terminal connected to a DUT or a leakage path | stop; ask the human to lift the probes | `compliance-hit` |
 | large constant offset | charging cable, guard not connected | wait and repeat; ask about Guard | `current-too-high` |
 | run `failed`, errors, fault latched | instrument error, unverified cleanup | `safe_shutdown`, then skill `b1500-debug` | `errx-codes`, `cleanup-failed-fault` |
+| run `cancelled` or `aborted` after the session ended | harness closed or killed its MCP server mid-run | `safe_shutdown`, then `get_run` (outcome, partial rows) | `async-run-interrupted` |
 
 ## 10. Validation record
 

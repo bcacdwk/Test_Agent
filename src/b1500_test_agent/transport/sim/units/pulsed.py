@@ -532,7 +532,7 @@ class PulsedUnit:
             levels, currents = self._pulse_levels_at(plan, step, plan.window[0], levels0, currents0)
             potentials = {**levels, **{ch: vcomp for ch, (_, vcomp) in currents.items()}}
             if self.interlock_open() and self._high_voltage(potentials):
-                self._queue_error(flex.ERR_INTERLOCK)  # all outputs to 0 V, error 202 (PG PDF 577)
+                self._interlock_trip()  # all outputs to 0 V, error 202 (PG PDF 577)
                 zero_at = end
                 aborted = True
                 blocks.append(self._pulse_dummy(plan, channels, step, stamp, last))

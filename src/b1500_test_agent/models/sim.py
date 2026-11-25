@@ -263,7 +263,8 @@ class GarbageData(StrictModel):
 
 class InterlockOpen(StrictModel):
     """The interlock opens: immediately (``at_step`` null) or when a measurement reaches step ``at_step``. In the
-    high-voltage state (any output above 42 V) all outputs drop to 0 V, error 202 is queued and the sweep aborts."""
+    high-voltage state (any output above 42 V) all outputs drop to 0 V, error 202 is queued, status byte bit 3 is set
+    and the sweep aborts; below 42 V nothing changes (bit 3 is an event, PG p76 (1-56), not the circuit state)."""
 
     kind: Literal["interlock_open"] = "interlock_open"
     at_step: Step | None = None

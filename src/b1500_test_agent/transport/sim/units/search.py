@@ -525,7 +525,7 @@ class SearchUnit:
             levels, _, forced = self._search_levels(src, sync, value, levels0, currents0)
             potentials = {**levels, **{ch: comp for ch, (_, comp) in forced.items()}}
             if self.interlock_open() and self._high_voltage(potentials):
-                self._queue_error(flex.ERR_INTERLOCK)  # all outputs to 0 V, error 202 (PG PDF 577)
+                self._interlock_trip()  # all outputs to 0 V, error 202 (PG PDF 577)
                 interlock = True
                 return None
             point = self._search_point(src, sync, mon, value, index, levels0, currents0, rng)
@@ -672,7 +672,7 @@ class SearchUnit:
         if self.faults.interlock_opens_at(0):
             self._interlock_open = True
         if self.interlock_open() and self._high_voltage({**levels0, src.channel: max(src.start, src.stop, key=abs)}):
-            self._queue_error(flex.ERR_INTERLOCK)
+            self._interlock_trip()
             interlock = True
         else:
             if self.circuit.has_state:

@@ -99,7 +99,7 @@ plan (`plan:...`) or a state file (`data/state/fault.json`). "pre" = `pre_execut
 | R-ALWAYS-01 | plan | Recipe `always_confirm` reasons (`destructive`, `system_self_test`, `system_self_cal`, `physical_setup` ...); kind `cmu_correction` always `physical_setup` (declared or not), the message naming the probe state the human sets up (`program.setup`: lift the probes, land them on a short, connect the load standard), and so does any plan whose program carries such a prompt (WP8.5: the QSCV offset measurement, probes lifted); a `file` parameter from `work/waveforms/` (ad-hoc waveform) | confirm (that reason; `adhoc_recipe` for the file) | recipe `#always_confirm`, `code:…run.PHYSICAL_SETUP_KINDS`, `plan:files.<name>` |
 | R-ERRX-01 | pre (plan with a snapshot) | Pre-existing `ERRX?` entries drained by the snapshot are recorded | warn | `live:errors` |
 | R-CAL-01 | pre | Auto-calibration state and the last completed self-calibration (archive) are recorded | warn if unknown, else info | `live:auto_calibration`, `data/runs/index.jsonl` |
-| R-CAL-02 | pre | An async run records the auto-calibration state (`*LRN? 31`); the run sends `CM 0` before the kind and the cleanup's `restore` step puts the state back after a verified cleanup (an unverified cleanup leaves it off) | info | `live:auto_calibration` |
+| R-CAL-02 | pre | An async run records the auto-calibration state (`*LRN? 31`, also in the in-flight marker); the run sends `CM 0` before the kind and the cleanup's `restore` step puts the state back after a verified cleanup, or the in-flight recovery does when the run's process died (an unverified cleanup leaves it off) | info | `live:auto_calibration` |
 | R-PULSE-01 | plan | Every pulse channel (`pulse_v`, `pgu`, or a pulse envelope) has a pulse envelope and compiled trains; each train inside its module spec (HV-SPGU: levels ±40 V at 1 mV, period 20 ns–10 s, width 10 ns–period−10 ns, delay, transitions 8 ns–0.4 s, resolutions, width ≥ leading/0.8, period ≥ delay + width + trailing/0.8, count 1–10⁶ or duration 1 µs–1 year, `SER` 0.1 Ω–1 MΩ; SMU: the `PT` table, 500 µs–2 s on HR/MP, period ≥ width + 2/10 ms; WGFMU: 10 ns grid) and inside the channel's pulse envelope; free run cannot be expressed; trains on a non-pulse channel and an invalid source plan block | block | `code:…SPGU_SPEC`, `…SMU_PULSE_SPECS[<type>]`, `…WGFMU_SPEC`, `plan:envelope.channels.<ch>.pulse.*`, `plan:program.sources` |
 | R-PULSE-02 | plan | The pulse channel's DUT terminal declares a `pulse` envelope (missing → block, never invented); open-load level, width, duty, pulses per run outside it → confirm | block / confirm `dut_envelope` | `duts/<name>.yaml#terminals.<t>.pulse.*` |
 | R-PULSE-03 | plan | Above `policy.pulse` (level at the DUT, pulses per run, time at the pulse level, duty) | confirm `soft_pulse` | `policy.yaml#pulse.*` |
@@ -131,11 +131,14 @@ event rather than showing the interlock's level. The ATV-10 fallback therefore a
 blocks on `ERRX?` errors 202 ("Interlock circuit must be closed") and 203 ("Cannot enable channel", PDF 577), and
 measurement kinds call `rules.builtin.interlock_errors()` after `CN` and abort on a hit. With the default policy the
 rule is unreachable (R-LIM-02 caps \|V\| at 42 V), but an owner who lowers `interlock.required_above_v` makes it
-active. The real bit behavior is verified at M4 L0. Because the station never uses the interlock and a clear bit says
-nothing about the circuit on hardware, `station_status` carries an `interlock` label (WP6.2): `SIMULATED open|closed`
-on the simulator (whose bit mirrors the scenario), on hardware "not used at this station: kept open, the B1500A limits
-outputs to 42 V" plus what bit 3 means (set: a >42 V request was refused; clear: no such request). The CLI prints the
-label instead of `closed`. It is a label only: no rule, limit or tier reads it.
+active. The real bit behavior is verified at M4 L0; the simulator follows the manual since WP11.1 (bit 3 set by a
+refused request above 42 V or an interlock opening in a high-voltage state, cleared by a serial poll, `*RST` or a device
+clear; `*STB?` reads without clearing). Because the station never uses the interlock and a clear bit says nothing
+about the circuit, `station_status` carries an `interlock` label (WP6.2): `SIMULATED open|closed (scenario)` on the
+simulator (the scenario's circuit state), on hardware "not used at this station: kept open, the B1500A limits outputs
+to 42 V"; both add what bit 3 means (set: a >42 V request was refused; clear: no such request; hardware states both).
+`doctor --probe` WARNs on a set bit 3. The CLI prints the label instead of `closed`. It is a label only: no rule,
+limit or tier reads it.
 
 ## Tiers and confirmation
 
@@ -248,8 +251,13 @@ interpreter exit) requests the abort and waits up to 10 s; the worker is a non-d
 until a longer segment has ended and the cleanup is verified; the CLI's Ctrl-C does the same. Residuals: a cancel
 waits up to one segment (≤ 30 s); a hard kill (SIGKILL, power loss, Task Manager) of the server or CLI leaves the
 outputs on until the next transaction: new runs are refused (R-FAULT-01, an unrecovered in-flight marker) until
-`safe_shutdown` runs the in-flight recovery cleanup, which also archives the dead run as `aborted` with the rows it
-had written; a run longer than 10 min needs confirmation, longer than 24 h is blocked.
+`safe_shutdown` runs the in-flight recovery cleanup over every installed family (SMU, MFCMU, SPGU and selectors,
+WGFMU through a library session opened only to abort and disconnect), restores the auto-calibration state the marker
+recorded before `CM 0` went out (WP11.1) and archives the dead run as `aborted` with the rows it had written and its
+consent record; a run longer than 10 min needs confirmation, longer than 24 h is blocked. codex-cli 0.170.0 ends the
+MCP server at every headless turn end without the hook (WP7.7), so a run started in one Codex turn is recovered,
+`aborted`, by the next turn's `safe_shutdown`; Claude Code sends SIGTERM and the hook cancels it. The debug runbook
+`async-run-interrupted` gives the agent this path; bring-up stage L9 drills a cancel and a kill per bus family.
 
 **Sampling and stress (`smu_sampling`, WP7.4).** The synchronous sources (`MV`/`MI`) are source commands: the guard
 checks their base and bias level and compliance before anything is written, again for every continuation block of a
@@ -348,8 +356,9 @@ cannot be verified, a persistent **fault latch** is set: every sourcing path the
 runs `b1500 fault clear`, which succeeds only after a verified safe shutdown. `safe_shutdown` itself is never gated.
 A crash mid-run leaves an in-flight marker; the next transaction runs the recovery cleanup first. The instrument
 lock is an OS file lock, released automatically when its process dies. After the verification an asynchronous run's
-cleanup adds a `restore` step (the auto-calibration switch, R-CAL-02); it never touches an output and is skipped when
-the cleanup could not verify the safe state.
+cleanup adds a `restore` step (the auto-calibration switch, R-CAL-02); a recovery adds it for the crashed run when
+its marker recorded a suspended state (a crash during the recovery keeps that state in the recovering transaction's
+marker). It never touches an output and is skipped when the cleanup could not verify the safe state.
 
 **MFCMU and SCUU (WP8.1).** Every MFCMU source command passes `OutputGuard.check_ac` with the channel's resulting
 frequency, AC level and DC bias (`FC`, `ACV`, `DCV`, both ends of every `WDCV`/`WFC`/`WACV` sweep, base and pulse of

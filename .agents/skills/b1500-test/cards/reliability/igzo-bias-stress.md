@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/05-reliability-defects.md#igzo-instability-mechanisms, knowledge/05-reliability-defects.md#stress-measure-analysis, knowledge/06b-analysis-time-pulse.md#sampling-summary-and-relaxation-fit]
 manual: [PG p474-475 (4-156) "MT", PG p472-473 (4-154) "MSC", PG p568 (4-250) "WV", PG p396 (4-78) "DV"]
-debug: [stress-degradation-unexpected, vth-drift-igzo, compliance-hit, noisy-data, errx-codes, cleanup-failed-fault]
+debug: [stress-degradation-unexpected, vth-drift-igzo, compliance-hit, noisy-data, errx-codes, cleanup-failed-fault, async-run-interrupted]
 sources: [blueprint v2 3.1 2.7 and 4.2, deck slide 17, Libsch and Kanicki APL 62 1286 (1993)]
 version: 1
 ---
@@ -122,6 +122,7 @@ sim_scenario: igzo_transient
 | tau/beta at the grid edge | too few reads, short stress | more reads per decade, longer stress | `noisy-data` |
 | no shift, wrong sign, huge shift | stress too weak, recovery, polarity, breakdown | reference read, Ig trend | `stress-degradation-unexpected` |
 | run `failed`, fault latched | instrument error, unverified cleanup | `safe_shutdown`, skill `b1500-debug` | `errx-codes`, `cleanup-failed-fault` |
+| run `cancelled` or `aborted` after the session ended | harness closed or killed its MCP server mid-run | `safe_shutdown`, then `get_run` (outcome, partial rows) | `async-run-interrupted` |
 
 ## 10. Validation record
 

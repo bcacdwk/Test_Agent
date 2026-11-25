@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: conditional
 knowledge: [knowledge/04-ferroelectric-oxide.md#pulse-write-read-endurance-and-retention, knowledge/04-ferroelectric-oxide.md#retention, knowledge/06b-analysis-time-pulse.md#endurance, knowledge/06b-analysis-time-pulse.md#retention, knowledge/09-pulse-spgu-selector.md#program-and-read, knowledge/05-reliability-defects.md#ferroelectric-wake-up-imprint-and-fatigue]
 manual: [PG p433 (4-115) "ERSSP", PG p507 (4-189) "SER", PG p512 (4-194) "SPRM", PG p146 (2-58) "3-level", PG p142 (2-54) "SPST"]
-debug: [spgu-pulse-no-effect, spgu-selector-state, spgu-load-mismatch, compliance-hit, noisy-data, cleanup-failed-fault]
+debug: [spgu-pulse-no-effect, spgu-selector-state, spgu-load-mismatch, compliance-hit, noisy-data, cleanup-failed-fault, async-run-interrupted]
 sources: [blueprint v2 2.6 async runs, blueprint v2 2.7 pulse_read, blueprint v2 2.10 nvm.py, blueprint v2 3.3, blueprint v2 4.2 ferro, AN-NVM]
 version: 1
 ---
@@ -137,7 +137,7 @@ sim_scenario: fefet_lab
 | states shifted more than expected | SER 50 Ohm on the open gate | plan `SER`, DUT `impedance` | `spgu-load-mismatch` |
 | read or hold compliance, run stopped | gate breakdown during cycling | stop; report cycles reached | `compliance-hit` |
 | scattered Vth between reads | contact drift over hours, noise | reads' status counts, re-land | `noisy-data` |
-| fault latched after a cancel | relay stuck, SPGU will not stop | keep the fault; human checks | `cleanup-failed-fault` |
+| fault latched after a cancel; `aborted` after the session ended | relay stuck; server killed mid-run | keep the fault; `safe_shutdown` recovers | `cleanup-failed-fault`, `async-run-interrupted` |
 
 ## 10. Validation record
 

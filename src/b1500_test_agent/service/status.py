@@ -11,9 +11,10 @@ its in-flight marker and the held lock) ``station_status`` never waits for the l
 (<done>/<total>)`` from the last snapshot of this process (``live: cached``) and names the run in ``active_run``.
 
 Interlock label (blueprint v2 10.2 row 6.2; standing decision "interlock never used"): ``interlock_open`` is status
-byte bit 3, and its meaning differs by backend. The simulator keeps bit 3 equal to its scenario's interlock state;
-the B1500A sets it only when an output or compliance above 42 V was requested with the interlock open and clears it
-on a serial poll (PG p76-77 (1-56), ATV-10), so on hardware a clear bit says nothing about the circuit.
+byte bit 3, which the B1500A sets only when an output or compliance above 42 V was requested with the interlock open
+and clears on a serial poll, ``*RST`` or device clear (PG p76-77 (1-56), ATV-10), so a clear bit says nothing about
+the circuit. The simulator follows the manual (WP11.1); its circuit state comes from the scenario
+(``interlock_closed``), so the simulator label names that state and adds bit 3 only when it is set.
 ``interlock_label`` puts that into words for the agent and the CLI; it changes no behaviour (R-IL-01 and the
 42 V / 100 mA code ceiling are unchanged).
 """
@@ -94,21 +95,28 @@ def module_checks(station: StationProfile, live: LiveState | None) -> list[Modul
     return sorted(checks, key=lambda c: c.slot)
 
 
-def interlock_label(backend: str, station: StationProfile, live: LiveState | None) -> str | None:
-    """The ``interlock`` text of ``station_status`` (module docstring); ``None`` without a live status byte."""
+BIT3_SET = ("STB bit 3 SET: an output or compliance above 42 V was requested with the interlock open and refused (an "
+            "event, cleared by a serial poll; see errors 202/203)")
+"""The bit-3 part of the label when the event is set (both backends)."""
+
+
+def interlock_label(backend: str, station: StationProfile, live: LiveState | None,
+                    scenario_closed: bool | None = None) -> str | None:
+    """The ``interlock`` text of ``station_status`` (module docstring); ``None`` without a live status byte.
+    ``scenario_closed`` is the simulator scenario's ``interlock_closed`` (``None`` = not on the simulator)."""
     if live is None or live.status_byte is None:
         return None
     bit3 = live.status_byte.interlock_open
     if backend == "sim":
-        return ("SIMULATED open (scenario): outputs limited to 42 V" if bit3
-                else "SIMULATED closed (scenario)")
+        state = ("SIMULATED closed (scenario)" if scenario_closed
+                 else "SIMULATED open (scenario): outputs limited to 42 V")
+        return f"{state}; {BIT3_SET}" if bit3 else state
     if station.interlock.available:
         use = "wired and tested at stage S0 (station profile)"
     else:
         use = "not used at this station: kept open, the B1500A limits outputs to 42 V (the code ceiling)"
     if bit3:
-        return (f"{use}; STB bit 3 SET: an output or compliance above 42 V was requested with the interlock open and "
-                "refused (an event, cleared by a serial poll; see errors 202/203)")
+        return f"{use}; {BIT3_SET}"
     return f"{use}; STB bit 3 clear (it flags only a refused >42 V request, not the circuit state; ATV-10)"
 
 
@@ -209,9 +217,10 @@ def station_status(svc: B1500Service, bundle: ConfigBundle, refresh: bool) -> St
         notes.append(f"IDN {live.identity.model} {live.identity.serial}")
     if mismatched:
         notes.append(f"modules differ from the station profile in slots {mismatched} (runs are blocked by R-INV-01)")
+    if backend == "sim" and bundle.sim_scenario is not None and not bundle.sim_scenario.interlock_closed:
+        notes.append("interlock open (SIMULATED scenario; outputs limited to 42 V)")
     if live is not None and live.interlock_open:
-        notes.append("interlock open (outputs limited to 42 V)" if backend == "sim"
-                     else "STB bit 3: a >42 V request was refused with the interlock open")
+        notes.append("STB bit 3: a >42 V request was refused with the interlock open")
     if live is not None and live.errors:
         notes.append(f"{len(live.errors)} instrument error(s) drained")
     corrections, correction_notes = correction_status(bundle, live, svc.executor.now())
@@ -253,7 +262,8 @@ def station_status(svc: B1500Service, bundle: ConfigBundle, refresh: bool) -> St
         sim_scenario=bundle.settings.sim.scenario if backend == "sim" else None,
         identity=live.identity.raw.strip() if live is not None and live.identity is not None else None,
         modules=modules, interlock_open=live.interlock_open if live is not None else None,
-        interlock=interlock_label(backend, bundle.station, live),
+        interlock=interlock_label(backend, bundle.station, live, scenario_closed=(
+            bundle.sim_scenario.interlock_closed if backend == "sim" and bundle.sim_scenario is not None else None)),
         instrument_errors=list(live.errors) if live is not None else [],
         outputs_on=sorted(ch for ch, out in live.outputs.items() if out.output_on) if live is not None else [],
         live=source, live_error=clip(live_error, 300) if live_error else None,

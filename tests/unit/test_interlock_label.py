@@ -1,9 +1,10 @@
 """The interlock label of ``station_status`` (blueprint v2 10.2 row 6.2; standing decision "interlock never used").
 
-Status byte bit 3 means different things per backend: the simulator mirrors its scenario's interlock state, the
-B1500A latches it only for a refused >42 V request (PG p76 (1-56); ATV-10). ``interlock_label`` says which, and that
-the station never uses the interlock; it is a label only (no rule, limit or tier depends on it). The service-level
-cases run ``station_status`` on sim and on visa (visa-loop) and the CLI line shows the label.
+Status byte bit 3 is an event on both backends: the B1500A, and since WP11.1 the simulator, set it only for a refused
+>42 V request and clear it on a serial poll, ``*RST`` or device clear (PG p76 (1-56); ATV-10). On the simulator the
+label names the scenario's circuit state and adds bit 3 when set; on hardware it says the station never uses the
+interlock plus what bit 3 means. It is a label only (no rule, limit or tier depends on it). The service-level cases run
+``station_status`` on sim and on visa (visa-loop) and the CLI line shows the label.
 """
 
 from __future__ import annotations
@@ -34,18 +35,23 @@ BIT_SET = ("STB bit 3 SET: an output or compliance above 42 V was requested with
            "event, cleared by a serial poll; see errors 202/203)")
 
 
-@pytest.mark.parametrize(("backend", "stb", "available", "expected"), [
-    ("sim", 8, None, "SIMULATED open (scenario): outputs limited to 42 V"),
-    ("sim", 0, None, "SIMULATED closed (scenario)"),
-    ("visa", 0, None, f"{NOT_USED}; {BIT_CLEAR}"),
-    ("visa", 0, False, f"{NOT_USED}; {BIT_CLEAR}"),
-    ("visa", 8 + 32, None, f"{NOT_USED}; {BIT_SET}"),
-    ("visa", 0, True, f"wired and tested at stage S0 (station profile); {BIT_CLEAR}"),
+SIM_OPEN = "SIMULATED open (scenario): outputs limited to 42 V"
+
+
+@pytest.mark.parametrize(("backend", "stb", "available", "closed", "expected"), [
+    ("sim", 0, None, False, SIM_OPEN),
+    ("sim", 8, None, False, f"{SIM_OPEN}; {BIT_SET}"),
+    ("sim", 0, None, True, "SIMULATED closed (scenario)"),
+    ("sim", 8 + 32, None, True, f"SIMULATED closed (scenario); {BIT_SET}"),
+    ("visa", 0, None, None, f"{NOT_USED}; {BIT_CLEAR}"),
+    ("visa", 0, False, None, f"{NOT_USED}; {BIT_CLEAR}"),
+    ("visa", 8 + 32, None, None, f"{NOT_USED}; {BIT_SET}"),
+    ("visa", 0, True, None, f"wired and tested at stage S0 (station profile); {BIT_CLEAR}"),
 ])
 def test_label_by_backend_status_bit_and_station_record(backend: str, stb: int, available: bool | None,
-                                                         expected: str) -> None:
+                                                         closed: bool | None, expected: str) -> None:
     profile = station(interlock={"available": available, "note": ""})
-    assert interlock_label(backend, profile, live(stb, backend)) == expected
+    assert interlock_label(backend, profile, live(stb, backend), scenario_closed=closed) == expected
 
 
 def test_no_status_byte_no_label() -> None:
@@ -76,11 +82,33 @@ def test_station_status_and_the_cli_carry_the_label_on_visa(tmp_path: Path) -> N
 
 
 def test_station_status_on_the_simulator_says_simulated(tmp_path: Path) -> None:
+    """The scenario's open interlock is named; bit 3 stays clear, as on hardware, until a >42 V request is refused."""
     world = make_world(tmp_path)
     service = world.service()
     try:
         status = service.station_status()
-        assert status.simulated and status.interlock == "SIMULATED open (scenario): outputs limited to 42 V"
-        assert "interlock open (outputs limited to 42 V)" in status.message
+        assert status.simulated and status.interlock == SIM_OPEN and status.interlock_open is False
+        assert "interlock open (SIMULATED scenario; outputs limited to 42 V)" in status.message
+        assert "STB bit 3" not in status.message
     finally:
         service.close()
+
+
+def test_a_refused_high_voltage_request_is_the_bit_3_event_on_the_visa_path(tmp_path: Path) -> None:
+    """WP11.1 (ATV-10, PG p76 (1-56)): a request above 42 V with the interlock open (here sent to the simulated
+    instrument behind the visa-loop, as another program would) sets bit 3; ``station_status`` reads it with ``*STB?``
+    (non-destructive) and labels it; a serial poll clears it."""
+    world = make_visa_world(tmp_path)
+    try:
+        bus = LoopBus(world.bus_dir, load_scenario("lab_station"))  # interlock open
+        assert bus.instrument.handle("CN 3") is None and bus.instrument.handle("DV 3,0,50,1E-3") is None
+        bus.instrument.handle("CL")
+        status = world.service(bus).station_status()
+        assert status.interlock_open is True and status.interlock == f"{NOT_USED}; {BIT_SET}"
+        assert "STB bit 3: a >42 V request was refused with the interlock open" in status.message
+        assert [e.code for e in status.instrument_errors] == [202]
+        assert bus.instrument.serial_poll() & 8 and not bus.instrument.interlock_event
+        again = world.service(bus).station_status()
+        assert again.interlock_open is False and again.interlock == f"{NOT_USED}; {BIT_CLEAR}"
+    finally:
+        world.close()

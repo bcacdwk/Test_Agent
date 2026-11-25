@@ -161,6 +161,25 @@ def test_live_state_findings(world: VisaWorld, seed, check: str, status: str, fr
     assert all(e.ev == "query" for e in io_events(world))
 
 
+def test_status_byte_bit_3_is_the_refused_high_voltage_event(world: VisaWorld) -> None:
+    """WP11.1 (ATV-10, PG p76 (1-56)): with the interlock open (lab_station) bit 3 stays clear and the line PASSes; a
+    request above 42 V refused earlier by another program sets it: WARN naming the event, nothing else sent; the
+    probe's ``*STB?`` does not clear it, a serial poll does."""
+    bus = world.bus("lab_station")
+    assert bus.instrument.interlock_open()
+    clean = next(c for c in probe(world, bus).checks if c.name == "status byte")
+    assert clean.status == "PASS" and "interlock" not in clean.detail, clean
+    bus.instrument.handle("CN 3")
+    bus.instrument.handle("DV 3,0,50,1E-3")  # refused: error 202 and the bit-3 event
+    bus.instrument.handle("CL")
+    report = probe(world, bus)
+    line = next(c for c in report.checks if c.name == "status byte")
+    assert line.status == "WARN" and "interlock_open" in line.detail and "above 42 V" in line.detail, line
+    assert report.ok and statuses(report)["error queue"] == "WARN"  # the 202 is drained and reported
+    assert bus.instrument.interlock_event and all(e.ev == "query" for e in io_events(world))
+    assert bus.instrument.serial_poll() & 8 and not bus.instrument.interlock_event
+
+
 def test_selector_outputs_are_read_only_with_the_selector_control_mode_on(world: VisaWorld) -> None:
     bus = world.bus("lab_station")
     off = probe(world, bus)

@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: conditional
 knowledge: [knowledge/09-pulse-spgu-selector.md#hv-spgu-output-and-the-ser-load, knowledge/09-pulse-spgu-selector.md#pg-pulse-trains, knowledge/09-pulse-spgu-selector.md#alwg-waveforms, knowledge/09-pulse-spgu-selector.md#running-a-train, knowledge/09-pulse-spgu-selector.md#guard-and-rules, knowledge/11-switching-routing.md#the-16440a-selector]
 manual: [PG p507 (4-189) "SER", PG p512 (4-194) "SPRM", PG p142 (2-54) "SPST", PG p146 (2-58) "3-level", PG p149 (2-61) "ALWG", PG p433 (4-115) "ERSSP"]
-debug: [spgu-pulse-no-effect, spgu-load-mismatch, spgu-selector-state, cleanup-failed-fault]
+debug: [spgu-pulse-no-effect, spgu-load-mismatch, spgu-selector-state, cleanup-failed-fault, async-run-interrupted]
 sources: [blueprint v2 2.7 spgu_pulse, blueprint v2 2.8 R-PULSE-01..03 and R-SPGU-01, blueprint v2 3.3, lwp SPGU_pulse.m and test_SPGU.m]
 version: 1
 ---
@@ -131,6 +131,7 @@ sim_scenario: fefet_lab
 | device changed more than expected | SER 50 Ohm on an open load, wrong load | plan `SER`, DUT `impedance` | `spgu-load-mismatch` |
 | plan blocked, selector not at rest | earlier run or human left it on PGU | `safe_shutdown`, `station_status` | `spgu-selector-state` |
 | `spp_fallbacks` > 0 or fault latched | SPST? stuck, output would not stop | keep the fault; human checks | `cleanup-failed-fault` |
+| run `cancelled` or `aborted` after the session ended | harness closed or killed its MCP server mid-run | `safe_shutdown`, then `get_run` (outcome, partial rows) | `async-run-interrupted` |
 
 ## 10. Validation record
 

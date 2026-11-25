@@ -135,23 +135,42 @@ def test_garbage_data_makes_one_element_unparsable(make_sim) -> None:
         float(data[2][3:])
 
 
-def test_interlock_open_now_sets_stb_bit_3_and_blocks_high_voltage(make_sim) -> None:
+def test_interlock_open_now_blocks_high_voltage_and_the_refusal_sets_stb_bit_3(make_sim) -> None:
+    """Bit 3 is an event (PG p76 (1-56)): opening the interlock alone leaves it clear; a refused request above 42 V
+    sets it (with error 202); ``*STB?`` reads it without clearing, a serial poll clears it (WP11.1, ATV-10)."""
     closed = scenario_with({"o": {"model": "open"}}, {"o": {"x": 1}}, interlock_closed=True)
     sim = make_sim(closed)
     assert not sim.serial_poll() & 8
     sim.inject(InterlockOpen())
-    assert sim.serial_poll() & 8 and int(sim.query("*STB?")) & 8
-    run(sim, "CN 1")
+    assert sim.instrument.interlock_open() and not int(sim.query("*STB?")) & 8
+    run(sim, "CN 1", "DV 1,0,40,1E-3")  # below the interlock-open limit: allowed, no event
+    assert not int(sim.query("*STB?")) & 8
     sim.write("DV 1,0,50,1E-3")
+    assert int(sim.query("*STB?")) & 8 and int(sim.query("*STB?")) & 8  # *STB? does not clear it
     assert errx_all(sim) == [202]
+    assert sim.serial_poll() & 8 and not sim.serial_poll() & 8  # the serial poll clears it
     sim.clear_faults()
-    assert not sim.serial_poll() & 8
+    assert not sim.instrument.interlock_open() and not sim.serial_poll() & 8
+
+
+@pytest.mark.parametrize("clear", ["*RST", "device clear"])
+def test_rst_and_device_clear_clear_the_interlock_event(make_sim, clear: str) -> None:
+    sim = make_sim(scenario_with({"o": {"model": "open"}}, {"o": {"x": 1}}))  # interlock open (scenario)
+    run(sim, "CN 1")
+    sim.write("DV 1,0,-45,1E-3")
+    assert int(sim.query("*STB?")) & 8
+    if clear == "*RST":
+        sim.write("*RST")
+    else:
+        sim.device_clear()
+    assert not int(sim.query("*STB?")) & 8 and sim.instrument.interlock_open()
 
 
 def test_interlock_opening_mid_sweep_in_the_high_voltage_state_zeroes_outputs(make_sim) -> None:
     closed = resistor_scenario(1e6, interlock_closed=True)
     sim = make_sim(closed, faults=[InterlockOpen(at_step=2)])
     run(sim, "FMT 1,1", "CN 1,3", "DV 3,0,0,1E-2", "MM 2,3", "WV 1,1,0,40,60,5,1E-3")  # 40 45 50 55 60 V
+    assert not int(sim.query("*STB?")) & 8
     sim.write("XE")
     data = sim.read().split(",")
     assert statuses(",".join(data[0::2])) == ["N", "N", "V", "V", "V"]
@@ -161,12 +180,13 @@ def test_interlock_opening_mid_sweep_in_the_high_voltage_state_zeroes_outputs(ma
     assert sim.serial_poll() & 8
 
 
-def test_interlock_opening_mid_sweep_at_low_voltage_only_sets_the_bit(make_sim) -> None:
+def test_interlock_opening_mid_sweep_at_low_voltage_leaves_the_bit_clear(make_sim) -> None:
+    """Below 42 V an open interlock changes nothing: no error, no status-byte event (PG p76 (1-56))."""
     sim = make_sim(resistor_scenario(1e6, interlock_closed=True), faults=[InterlockOpen(at_step=1)])
     assert not sim.serial_poll() & 8
     run(sim, *SETUP, "XE")
     assert set(statuses(sim.read())) == {"N"}
-    assert sim.serial_poll() & 8 and errx_all(sim) == []
+    assert sim.instrument.interlock_open() and not sim.serial_poll() & 8 and errx_all(sim) == []
 
 
 def test_disconnect_drops_the_link_and_keeps_the_outputs(make_sim) -> None:

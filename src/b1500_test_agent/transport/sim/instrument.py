@@ -24,10 +24,15 @@ read whose data is not ready within its timeout raises ``TransportTimeout``. ``t
 sleeps ``f`` real seconds per virtual second waited (``scaled`` = ``SCALED_TIME_FACTOR``); ``instant`` never sleeps
 (blueprint v2 4.1). Status byte: PDF 76-77; device clear initialises like power-on (PDF 175).
 
-Simulator conventions (not from the manual): STB bit 3 tracks the interlock state continuously (the blueprint's
-reading, verified on hardware as ATV-10; the PG describes a latched bit, PDF 76); compliance is symmetric
-(|I| ≤ |Icomp|, |V| ≤ |Vcomp|); a fixed current range overflows above 115 % of full scale; voltage measurements are
-noiseless.
+Status byte bit 3 follows the manual (PG p76 (1-56) "Interlock open"; WP11.1, ATV-10): it is an event, set when a
+voltage output or voltage compliance above the interlock-open limit (42 V) is requested, or reached by a running
+measurement, while the interlock circuit is open (the instrument refuses with error 202), and cleared by a serial poll,
+``*RST`` or a device clear (``*STB?`` reads it without clearing, PG p523 (4-205)). The circuit state itself (scenario
+``interlock_closed``, fault ``interlock_open``) never shows in the status byte; ``interlock_open()`` reports it.
+
+Simulator conventions (not from the manual): the ``*SRE`` mask is not modelled (the kernel never sends ``*SRE``), so a
+serial poll always clears bits 3 and 5; compliance is symmetric (|I| ≤ |Icomp|, |V| ≤ |Vcomp|); a fixed current range
+overflows above 115 % of full scale; voltage measurements are noiseless.
 
 Device state (FeFET polarization): the voltages actually applied are committed to the circuit after every DC output
 change (``DC_COMMIT_COMMANDS``) and after every measured sweep step (all steps are evaluated at ``XE``; an ``AB`` or
@@ -194,6 +199,9 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, SearchUnit, Qsc
         self._measurement: Measurement | None = None
         self._input_queue: list[str] = []
         self._interlock_open = not scenario.interlock_closed
+        self._interlock_event = False
+        """Status byte bit 3: a high-voltage request refused with the interlock open since the last serial poll,
+        ``*RST`` or device clear (module docstring)."""
         self._reset_settings()
         self._sync_channels()
         self._handlers: dict[str, Callable[[flex.Command], str | None]] = {
@@ -280,15 +288,30 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, SearchUnit, Qsc
         return self._channel_type(channel) in SMU_TYPES
 
     def interlock_open(self) -> bool:
-        """Whether the simulated interlock circuit is open."""
+        """Whether the simulated interlock circuit is open (not the status byte: see ``interlock_event``)."""
         return self._interlock_open or self.faults.interlock_opens_now()
+
+    @property
+    def interlock_event(self) -> bool:
+        """Status byte bit 3 (PG p76 (1-56)): a voltage output or compliance above 42 V was requested or reached
+        with the interlock open since the last serial poll, ``*RST`` or device clear."""
+        return self._interlock_event
 
     def _high_voltage(self, levels: dict[int, float]) -> bool:
         return any(abs(v) > flex.INTERLOCK_OPEN_MAX_V for v in levels.values())
 
     def _check_interlock(self, voltage: float) -> None:
+        """A setup value ``voltage`` (output or voltage compliance) above 42 V with the interlock open: status byte
+        bit 3 and error 202 (the command is refused)."""
         if abs(voltage) > flex.INTERLOCK_OPEN_MAX_V and self.interlock_open():
+            self._interlock_event = True
             raise flex.FlexError(flex.ERR_INTERLOCK, f"{voltage} V with the interlock open")
+
+    def _interlock_trip(self) -> None:
+        """A running measurement reached a high-voltage state with the interlock open (or it opened there): status
+        byte bit 3 and error 202; the caller zeroes the outputs (PG p76 (1-56), p577)."""
+        self._interlock_event = True
+        self._queue_error(flex.ERR_INTERLOCK)
 
     # -- errors, log, time ---------------------------------------------------------------------------------------------
 
@@ -499,11 +522,12 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, SearchUnit, Qsc
         raise TransportTimeout(f"Nothing to read within {timeout_s} s (virtual).")
 
     def _status_byte(self, busy: bool) -> int:
-        """Status byte (PG PDF 76-77): bit 0 data ready, 3 interlock open, 4 set ready, 5 error."""
+        """Status byte (PG PDF 76-77): bit 0 data ready, 3 interlock open (the event, module docstring), 4 set ready,
+        5 error."""
         value = 0
         if self._buffer or any(m.ready_at <= self.clock for m in self._queries):
             value |= 1
-        if self.interlock_open():
+        if self._interlock_event:
             value |= 8
         if not busy:
             value |= 16
@@ -512,11 +536,13 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, SearchUnit, Qsc
         return value
 
     def serial_poll(self) -> int:
-        """Serial poll: the status byte without touching the buffers; clears the error bit (PG PDF 77)."""
+        """Serial poll: the status byte without touching the buffers; clears the interlock and error bits (PG p76
+        (1-56), p77 (1-57))."""
         self.clock += POLL_ADVANCE_S
         self._settle()
         value = self._status_byte(busy=self._measurement is not None)
         self._error_flag = False
+        self._interlock_event = False
         return value
 
     def device_clear(self) -> None:
@@ -534,6 +560,7 @@ class SimInstrument(CoreUnit, SmuUnit, SamplingUnit, PulsedUnit, SearchUnit, Qsc
         self._buffer = []
         self._errors.clear()
         self._error_flag = False
+        self._interlock_event = False
         self._busy_until = self.clock
         self._timer_zero = self.clock
         self._reset_settings()

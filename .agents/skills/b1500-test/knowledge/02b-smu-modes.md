@@ -117,5 +117,7 @@ initial settings below (a kind that uses one restores it in its cleanup).
   `bti-stress-measure`).
 - Asynchronous runs send `CM 0` first and the cleanup restores the auto-calibration state read by `*LRN? 31`
   (R-CAL-02): auto-calibration after 30 min would otherwise run with outputs off in the middle of a stress.
-- A killed server leaves the outputs as they were until the next transaction: it finds the in-flight marker, runs
-  the recovery cleanup (`AB`, `DZ`, `CL`, verify) and finalizes the run `aborted` (bring-up drill: L9).
+- A killed server (codex-cli ends it at every headless turn end) leaves the outputs and `CM 0` as they were until
+  the next transaction: it finds the in-flight marker, runs the recovery cleanup (`AB`, `DZ`, `CL`, verify),
+  restores auto-calibration from the marker and finalizes the run `aborted` (bring-up drill: L9; skill
+  `b1500-debug`, runbook `async-run-interrupted`).

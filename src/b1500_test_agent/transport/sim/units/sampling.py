@@ -384,7 +384,7 @@ class SamplingUnit:
                 self._interlock_open = True
             forced_v = {**levels, **{ch: vcomp for ch, (_, vcomp) in currents.items()}}
             if self.interlock_open() and self._high_voltage(forced_v):
-                self._queue_error(flex.ERR_INTERLOCK)  # all outputs to 0 V, error 202 (PG PDF 577)
+                self._interlock_trip()  # all outputs to 0 V, error 202 (PG PDF 577)
                 zero_at = end = t
                 aborted = True
                 blocks.append(self._dummy_sample(channels, index, stamp, tmeas, fast))

@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/05-reliability-defects.md#bti-stress-measure-stress, knowledge/05-reliability-defects.md#stress-measure-analysis, knowledge/06-analysis-extraction.md#vth-constant-current, knowledge/11-switching-routing.md#rsu-of-the-wgfmu]
 manual: [PG p474-475 (4-156) "MT", PG p472-473 (4-154) "MSC", PG p396 (4-78) "DV", WG p125 (4-55) "setMeasureEvent", WG p66 (3-26) "Example 10", WG p19 (1-7) "SMU input"]
-debug: [stress-degradation-unexpected, vth-drift-igzo, compliance-hit, noisy-data, wgfmu-range-overflow, wgfmu-library-error, errx-codes, cleanup-failed-fault]
+debug: [stress-degradation-unexpected, vth-drift-igzo, compliance-hit, noisy-data, wgfmu-range-overflow, wgfmu-library-error, errx-codes, cleanup-failed-fault, async-run-interrupted]
 sources: [blueprint v2 3.1 3.4 2.7 2.7.1 and 4.2, deck slide 14, Kaczer et al. IRPS 2008, WG Ex. 10 and 11]
 version: 2
 ---
@@ -136,6 +136,7 @@ sim_scenario: nmos_bti
 | dVth scattered, n off | noise, recovery during reads | fewer points, longer `width` (WGFMU) | `noisy-data` |
 | no shift, wrong sign, huge shift | stress too weak, polarity, breakdown | reference read, Ig trend | `stress-degradation-unexpected` |
 | WGFMU library error; run `failed`, fault latched | library, RSU; unverified cleanup | `safe_shutdown`, `b1500 doctor` | `wgfmu-library-error`, `errx-codes`, `cleanup-failed-fault` |
+| run `cancelled` or `aborted` after the session ended | harness closed or killed its MCP server mid-run | `safe_shutdown`, then `get_run` (outcome, partial rows) | `async-run-interrupted` |
 
 ## 10. Validation record
 

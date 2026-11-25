@@ -11,7 +11,8 @@ its channel ids and status. Lines, in order:
    process holds the instrument lock or another VISA client (EasyEXPERT) holds the bus, then nothing is sent;
 3. ``identity`` (``*IDN?`` names the B1500A; firmware recorded), ``inventory`` (``UNT?`` against the active station
    profile, normally ``config/local/station.yaml``), ``error queue`` (``ERRX?`` drained; ``0,`` and ``+0,`` both mean
-   empty), ``status byte`` (``*STB?``), ``outputs`` (``LOP?``: every slot off), ``settings`` (``*LRN? 31``: the
+   empty), ``status byte`` (``*STB?``: WARN when bit 3, the refused-high-voltage event of PG p76 (1-56), or the
+   error bit is set), ``outputs`` (``LOP?``: every slot off), ``settings`` (``*LRN? 31``: the
    auto-calibration switch, raw answer recorded), ``selectors`` (``ERMOD?``, then ``ERSSP?`` per declared 16440A
    output when the selector control mode is on), ``spgu`` (``SPST?``, only with an SPGU installed) and one ``cmu
    <alias>`` line per installed MFCMU (``CORRST?`` open/short/load, ``ADJ? ch,0`` = last phase compensation result
@@ -217,10 +218,15 @@ class _Probe:
         status = driver.status_byte()
         flags = status_flags(status)
         detail = f"value {status.value} ({', '.join(flags) if flags else 'no bit set'})"
-        if status.interlock_open:
-            detail += "; interlock open: the B1500A limits outputs to 42 V, as v2 expects (no workflow needs more)"
+        warnings = []
+        if status.interlock_open:  # an event, not the circuit state (PG p76 (1-56); ATV-10)
+            warnings.append("bit 3 is set: since the last serial poll, *RST or device clear something requested an "
+                            "output or compliance above 42 V with the interlock open and was refused (no plan of "
+                            "this kernel does; ask the human which program did, e.g. EasyEXPERT)")
         if "error" in flags:
-            self.add("status byte", "WARN", detail + "; the error bit is still set after draining the queue")
+            warnings.append("the error bit is still set after draining the queue")
+        if warnings:
+            self.add("status byte", "WARN", detail + "; " + "; ".join(warnings))
         else:
             self.add("status byte", "PASS", detail)
 

@@ -214,7 +214,7 @@ SPOT: dict[tuple[str, str], Case] = {
     ("garbage_data", "after_xe"): Case(A, sim(GarbageData(at_step=0)), raises=FlexParseError, blocks=None),
     ("garbage_data", "during_read"): Case(R, sim(GarbageData(at_step=0)), raises=FlexParseError, blocks=None),
     ("garbage_data", "during_cleanup"): Case(X, sim(GarbageData(at_step=0))),
-    # the interlock opens (no effect below 42 V, STB bit 3 only)
+    # the interlock opens (no effect below 42 V; STB bit 3 stays clear: an event, PG p76 (1-56))
     ("interlock_open", "configure"): Case(C, sim(InterlockOpen())),
     ("interlock_open", "after_xe"): Case(A, sim(InterlockOpen(at_step=0))),
     ("interlock_open", "during_read"): Case(R, sim(InterlockOpen())),

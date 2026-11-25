@@ -167,7 +167,7 @@ def test_simulated_queries_parse_with_the_driver() -> None:
     code_only = parse_errx(transport.query("ERRX? 1"))
     assert code_only is not None and code_only.code == 100 and code_only.message == ""
     status = parse_status_byte(transport.query("*STB?"))
-    assert status.interlock_open  # nmos_basic: interlock open
+    assert not status.interlock_open  # nmos_basic: interlock open, no refused request (bit 3 is an event)
     assert 0 <= transport.serial_poll() <= 255
     lop = parse_lop(transport.query("LOP?"))
     assert set(lop) == set(range(1, 11)) and not any(o.output_on for o in lop.values())
@@ -248,8 +248,11 @@ def test_parser_query_fixtures_match_the_simulator() -> None:
     transport.write("BC")
     assert errx.fullmatch(transport.query("ERRX?"))
     transport.inject(InterlockOpen())
-    assert parse_status_byte(transport.query("*STB?")).value & 8 == parse_status_byte(
-        fixtures["stb_interlock_error.txt"].body).value & 8
+    transport.write("CN 5")
+    transport.write("DV 5,0,50,1E-4")  # refused: 202 and bit 3, the fixture's 40 = bits 3 and 5 (PG p523 (4-205))
+    assert parse_status_byte(transport.query("*STB?")).value & 40 == parse_status_byte(
+        fixtures["stb_interlock_error.txt"].body).value
+    transport.write("CL")
     assert parse_self_test_result(fixtures["tst_slot3_and_mainframe_failed.txt"].body) == 1028
     lrn = all_fixtures("lrn")[0]
     transport.write("CM 1")

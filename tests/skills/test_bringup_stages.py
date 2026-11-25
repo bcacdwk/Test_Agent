@@ -180,6 +180,7 @@ def test_l5_and_l9_pass_criteria_follow_the_blueprint() -> None:
     assert _check("L5", "vth_search").tolerance.absolute == 0.005  # type: ignore[union-attr]
     for check in ("async_progress", "cancel_drill", "recovery_drill", "autocal_restored"):
         assert _check("L9", check).recipe is None, check  # stage-record checks
+    assert "each recovery" in _check("L9", "autocal_restored").text  # WP11.1: restored after a kill too
     assert _front("L9").record_keys()[-1] is None and "reliability.bti_sms" in _front("L9").record_keys()
     agent = _section("L9", "Agent steps")
     assert "`stress_time: 600`" in agent and "get_run(run, include=[progress])" in agent
@@ -291,3 +292,25 @@ def test_l9_wgfmu_part_runs_the_fast_bti_and_the_fecap_endurance() -> None:
     agent = _section("L9", "Agent steps")
     assert "`fecap.endurance_pund`" in agent and "poll `get_run`" in agent
     assert "`fecap-wgfmu`" in _section("L9", "Physical steps (human)")
+
+
+def test_l9_drills_cover_every_bus_family_of_the_long_runs() -> None:
+    """WP11.1 (blueprint v2 7.4 L9: async + cancel + recovery, cleanup verified after cancel and after recovery, for
+    every long-run family): a cancel and a kill-recovery drill on the SMU (``reliability.bti_sms``), the HV-SPGU with
+    the selector (``fefet.endurance``) and the WGFMU with the RSUs (``fecap.endurance_pund``); the agent steps name
+    the per-bus safe state, the human performs both drills, the stage points to the debug runbook."""
+    for bus, recipe in (("", "reliability.bti_sms"), ("_spgu", "fefet.endurance"), ("_wgfmu", "fecap.endurance_pund")):
+        for drill in ("cancel_drill", "recovery_drill"):
+            check = _check("L9", drill + bus)
+            assert check.recipe is None and check.quantity == drill + bus and check.tolerance is None, check
+        assert recipe in _check("L9", "cancel_drill" + bus).text or bus == "", recipe
+    agent = _section("L9", "Agent steps")
+    for fragment in ("`cancel_drill_spgu`", "`recovery_drill_spgu`", "`SPST?` 0", "`SEL1.OUT1` open",
+                     "`cancel_drill_wgfmu`", "`recovery_drill_wgfmu`", "`RSU201.OUT`/`RSU202.OUT` open",
+                     "`restore` step", "consent record"):
+        assert fragment in agent, fragment
+    physical = _section("L9", "Physical steps (human)")
+    assert "Cancel drills" in physical and "Kill drills" in physical and "`fecap.endurance_pund`" in physical
+    expected = _section("L9", "Expected values")
+    assert "`recovery_drill`, `recovery_drill_spgu`, `recovery_drill_wgfmu`" in expected
+    assert "async-run-interrupted" in (STAGE_DIR / stage_file_name("L9")).read_text(encoding="utf-8")

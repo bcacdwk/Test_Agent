@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/05-reliability-defects.md#tddb-constant-voltage-stress, knowledge/05-reliability-defects.md#breakdown-voltage-ramps, knowledge/06b-analysis-time-pulse.md#time-to-breakdown-and-weibull, knowledge/06b-analysis-time-pulse.md#breakdown-voltage, knowledge/02b-smu-modes.md#sampling-measurement-mm-10, knowledge/02b-smu-modes.md#search-measurements-mm-9-14-15]
 manual: [PG p472-473 (4-154) "MSC", PG p474-475 (4-156) "MT", PG p106-107 (2-18) "Quasi-Pulsed Spot", PG p365 (4-47) "BDV", PG p110-111 (2-22) "Linear Search", PG p459-460 (4-141) "LSV"]
-debug: [compliance-hit, current-too-high, smu-sampling-skips, errx-codes, cleanup-failed-fault]
+debug: [compliance-hit, current-too-high, smu-sampling-skips, errx-codes, cleanup-failed-fault, async-run-interrupted]
 sources: [blueprint v2 3.1 and 4.2, JEDEC JESD92, JEDEC JESD35, McPherson and Mogul J. Appl. Phys. 84 1513 (1998), PG examples Tables 3-10 and 3-11]
 version: 2
 ---
@@ -133,6 +133,7 @@ BDV on the same film: `{recipe_id: dielectric.bdv, params: {method: linear, v_st
 | quasi-pulsed `S` | breakdown within 10 V of `v_start` | `method: linear` | `errx-codes` |
 | CVS `index_gaps`, host time | interval vs integration | `kind_result` | `smu-sampling-skips` |
 | run `failed`, errors, fault latched | instrument error, unverified cleanup | `safe_shutdown`, then skill `b1500-debug` | `cleanup-failed-fault` |
+| run `cancelled` or `aborted` after the session ended | harness closed or killed its MCP server mid-run | `safe_shutdown`, then `get_run` (outcome, partial rows) | `async-run-interrupted` |
 
 ## 10. Validation record
 

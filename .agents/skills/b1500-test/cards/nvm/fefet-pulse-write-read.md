@@ -13,7 +13,7 @@ status: sim_validated
 confirmation: conditional
 knowledge: [knowledge/09-pulse-spgu-selector.md#program-and-read, knowledge/09-pulse-spgu-selector.md#hv-spgu-output-and-the-ser-load, knowledge/06b-analysis-time-pulse.md#program-read-memory-window, knowledge/04-ferroelectric-oxide.md#pulse-write-read-endurance-and-retention, knowledge/11-switching-routing.md#the-16440a-selector, knowledge/10-wgfmu-fast-iv-noise.md#pund-program-read-and-the-pulse_read-wgfmu-path]
 manual: [PG p433 (4-115) "ERSSP", PG p507 (4-189) "SER", PG p512 (4-194) "SPRM", PG p142 (2-54) "SPST", PG p568-569 (4-250) "WV", WG p125 (4-55) "setMeasureEvent", WG p80 (4-10) "addSequence"]
-debug: [spgu-pulse-no-effect, spgu-selector-state, spgu-load-mismatch, compliance-hit, noisy-data, wgfmu-range-overflow, cleanup-failed-fault]
+debug: [spgu-pulse-no-effect, spgu-selector-state, spgu-load-mismatch, compliance-hit, noisy-data, wgfmu-range-overflow, cleanup-failed-fault, async-run-interrupted]
 sources: [blueprint v2 2.7 pulse_read, blueprint v2 2.7.1 program_read, blueprint v2 2.10 nvm.py, blueprint v2 3.3, blueprint v2 3.4 (fefet.fast_program_read), blueprint v2 4.2 ferro, lwp SPGU_pulse.m]
 version: 1
 ---
@@ -135,7 +135,7 @@ sim_scenario: fefet_lab
 | plan blocked, selector not at rest | earlier run or human left it switched | `safe_shutdown`, `station_status` | `spgu-selector-state` |
 | states shifted more than expected | SER 50 Ohm on the open gate, wrong load | plan `SER`, DUT `impedance` | `spgu-load-mismatch` |
 | read or pulse compliance, run stopped | damaged stack, short | stop; report; gate-leakage card | `compliance-hit` |
-| fault latched, cleanup unverified | relay stuck, SPGU will not stop | keep the fault; human checks | `cleanup-failed-fault` |
+| fault latched; long run `aborted` after the session ended | relay stuck; server killed mid-run | keep the fault; `safe_shutdown` recovers | `cleanup-failed-fault`, `async-run-interrupted` |
 
 ## 10. Validation record
 

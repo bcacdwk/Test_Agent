@@ -90,8 +90,10 @@ one turn, give the human the adoption command in chat and stop (skill part 4).
 - Terminations (ATV-2): every query answered without a timeout, no stray CR or trailing space in the raw
   answers, the FlexGUI window shows `RMT`. Fallback: the human sets `visa.write_termination` and
   `visa.read_termination` in `config/local/settings.yaml` and L0 is repeated.
-- Status byte bit 3 (ATV-10) is an event (a refused high-voltage request), not the interlock state; the physical
-  state is the S0 test. Fallback (in the code): rule R-IL-01 also checks errors 202/203.
+- Status byte bit 3 (ATV-10) is an event (a refused high-voltage request, PG p76 (1-56)), not the interlock state:
+  with the interlock open as S0 requires `*STB?` still reads 16 (the simulator does the same); the physical state
+  is the S0 test. A set bit 3 WARNs (a program asked for > 42 V). Fallback (in the code): R-IL-01 also checks
+  errors 202/203.
 - Per-call open, lock, unlock and close below 100 ms (ATV-13, from the `bus_*` lines of the daily audit). Fallback,
   an owner decision: `visa.session: process` in `config/local/settings.yaml`.
 - Line frequency of S0 equals the policy's `line_hz` (ATV-31); otherwise the human corrects the policy.
@@ -108,9 +110,6 @@ one turn, give the human the adoption command in chat and stop (skill part 4).
 - `LOP?` not all `00`; the error queue not empty on the second probe; status byte bit 3 or 5 set on two probes;
   a `wgfmu_library` FAIL (WGFMU recipes cannot load the library: the human installs library >= A.03.00,
   `docs/deployment-windows.md` step 2).
-  Simulator rehearsal only: the simulator keeps bit 3 set while the interlock is open (it models the interlock
-  state, not the manual's event, PG p76 (1-56)), so `*STB?` reads 24 with the interlock open as S0 requires; there
-  bit 3 alone is no abort criterion (bit 5 still is). On hardware the criterion stands.
 - Any setting or source command in the L0 audit (the daily `data/state/audit/<UTC date>.jsonl` must hold
   `"ev":"query"` lines only for the probe).
 - On any of them: `safe_shutdown(reason)`, report the line and the raw answer, wait for the human.

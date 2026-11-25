@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/10-wgfmu-fast-iv-noise.md#random-telegraph-noise-physics, knowledge/10-wgfmu-fast-iv-noise.md#low-frequency-noise-physics, knowledge/10-wgfmu-fast-iv-noise.md#choosing-range-sampling-and-record-length, knowledge/10-wgfmu-fast-iv-noise.md#rtn-analysis-rtn_levels, knowledge/10-wgfmu-fast-iv-noise.md#psd-analysis-psd_welch-and-plot_psd, knowledge/11-switching-routing.md#rsu-of-the-wgfmu]
 manual: [WG p125 (4-55) "setMeasureEvent", WG p126 (4-56) "average", WG p142 (4-72) "6003", WG p16 (1-4) "full scale", AN-RTN p3 (3) "RTN", AN-RTN p5 (5) "400", AN-RTN p7 (7) "2.4 MHz", AN-RTN p8 (8) "RTN"]
-debug: [wgfmu-range-overflow, wgfmu-memory-budget, noisy-data, wgfmu-library-error, wgfmu-rsu-route, cleanup-failed-fault]
+debug: [wgfmu-range-overflow, wgfmu-memory-budget, noisy-data, wgfmu-library-error, wgfmu-rsu-route, cleanup-failed-fault, async-run-interrupted]
 sources: [blueprint v2 2.7.1 builder dc_sample, blueprint v2 2.10 noise.py, blueprint v2 3.4, blueprint v2 4.2 noise targets, Keysight application note 5990-3705 RTN, lwp/1530 LFN_noise_meas.cpp]
 version: 1
 ---
@@ -131,6 +131,7 @@ sim_scenario: nmos_rtn
 | library error, 30xx code | DLL, session, RSU | `station_status` WGFMU line, audit | `wgfmu-library-error` |
 | record at the open-circuit floor, 3001 | RSU not on the WGFMU path, cabling | audit RSU states | `wgfmu-rsu-route` |
 | fault latched after a run | a channel could not be disconnected | keep the fault; human checks | `cleanup-failed-fault` |
+| run `cancelled` or `aborted` after the session ended | harness closed or killed its MCP server mid-run | `safe_shutdown`, then `get_run` (outcome, partial rows) | `async-run-interrupted` |
 
 ## 10. Validation record
 

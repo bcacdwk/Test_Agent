@@ -401,7 +401,7 @@ class QscvUnit:
             if self.faults.interlock_opens_at(index):
                 self._interlock_open = True
             if self.interlock_open() and self._high_voltage({**levels0, src.channel: max(v_lo, v_hi, key=abs)}):
-                self._queue_error(flex.ERR_INTERLOCK)  # all outputs to 0 V, error 202 (PG PDF 577)
+                self._interlock_trip()  # all outputs to 0 V, error 202 (PG PDF 577)
                 interlock = aborted = True
                 readings.append(None)
                 step_ends.append(t0 + factor * clock)

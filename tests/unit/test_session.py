@@ -197,7 +197,8 @@ def test_snapshot_is_read_only_and_cached(tmp_path: Path) -> None:
     live = h.session.snapshot()
     assert live.identity is not None and live.identity.model == "B1500A"
     assert live.inventory is not None and live.inventory.model_in_slot(3) == "B1517A"
-    assert live.status_byte is not None and live.status_byte.interlock_open  # nmos_basic: interlock open
+    # nmos_basic: interlock open, but bit 3 is the refused-request event (PG p76 (1-56)), clear without one
+    assert live.status_byte is not None and not live.status_byte.interlock_open
     assert not any(o.output_on for o in live.outputs.values()) and live.errors == []
     assert {r.mnemonic for r in h.log} == {"*IDN?", "UNT?", "ERRX?", "*STB?", "LOP?"}
     count = len(h.log)

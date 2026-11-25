@@ -7,6 +7,10 @@ last source command) or the fault latch with ``cleanup_unverified``; no lock, ma
 The second processes are the real ``b1500``/``b1500-mcp`` console scripts (or ``multiprocessing`` spawn children)
 against the same temporary config and data directories; the simulator runs ``timing: scaled(f)`` so the runs are
 observable for a few seconds.
+
+WP11.1 adds ``test_async_long_runs.py`` (cancel at a boundary for one async plan of every long-run recipe across the
+families, and the Codex-style kill of ``b1500-mcp`` without its shutdown hook per bus family) and
+``test_async_recovery.py`` (the recovery restores a crashed run's auto-calibration state).
 """
 
 from __future__ import annotations

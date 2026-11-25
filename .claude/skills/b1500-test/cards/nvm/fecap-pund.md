@@ -14,7 +14,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/04-ferroelectric-oxide.md#fecap-p-v-and-pund, knowledge/06b-analysis-time-pulse.md#pund, knowledge/04-ferroelectric-oxide.md#ferroelectric-basics-ec-pr-ps, knowledge/10-wgfmu-fast-iv-noise.md#pund-program-read-and-the-pulse_read-wgfmu-path, knowledge/11-switching-routing.md#rsu-of-the-wgfmu]
 manual: [WG p125 (4-55) "setMeasureEvent", WG p126 (4-56) "average", WG p80 (4-10) "addSequence", WG p142 (4-72) "6003", WG p16 (1-4) "full scale"]
-debug: [wgfmu-range-overflow, wgfmu-library-error, wgfmu-rsu-route, wgfmu-memory-budget, noisy-data, cleanup-failed-fault]
+debug: [wgfmu-range-overflow, wgfmu-library-error, wgfmu-rsu-route, wgfmu-memory-budget, noisy-data, cleanup-failed-fault, async-run-interrupted]
 sources: [blueprint v2 3.4 (fecap.pund, fecap.endurance_pund), blueprint v2 2.7.1 (builder pund), blueprint v2 2.10 (pund_polarization), blueprint v2 4.2 (ferro FeCap), blueprint v2 6.3 (fecap-pund)]
 version: 1
 ---
@@ -133,6 +133,7 @@ sim_scenario: fecap_basic
 | library error, run stopped | WGFMU session or RSU | the error text | `wgfmu-library-error` |
 | plan blocked: too many values | interval too fine for the read | points per read | `wgfmu-memory-budget` |
 | fault latched | stuck RSU relay, interrupted cleanup | keep the fault; human checks | `cleanup-failed-fault` |
+| run `cancelled` or `aborted` after the session ended | harness closed or killed its MCP server mid-run | `safe_shutdown`, then `get_run` (outcome, partial rows) | `async-run-interrupted` |
 
 ## 10. Validation record
 

@@ -41,11 +41,16 @@ def test_errx_drains_the_queue_in_order_with_messages(make_sim) -> None:
 
 
 def test_stb_bits_interlock_ready_error_and_data(make_sim, nmos: SimScenario) -> None:
-    """Bit 0 data ready, bit 3 interlock open, bit 4 set ready, bit 5 error (PG PDF 76-77)."""
+    """Bit 0 data ready, bit 3 interlock open (an event: a refused request above 42 V), bit 4 set ready, bit 5 error
+    (PG PDF 76-77). An open interlock alone leaves bit 3 clear (WP11.1, ATV-10)."""
     sim = make_sim(nmos)  # interlock_closed: false
-    assert int(sim.query("*STB?")) == 8 | 16
+    assert int(sim.query("*STB?")) == 16
     closed = make_sim(nmos.model_copy(update={"interlock_closed": True}))
     assert int(closed.query("*STB?")) == 16
+    sim.write("CN 3")
+    sim.write("DV 3,0,43,1E-3")  # above the interlock-open limit: refused, error 202, bit 3
+    assert int(sim.query("*STB?")) == 8 | 16 | 32
+    assert sim.query("ERRX? 1") == "202" and int(sim.query("*STB?")) == 8 | 16  # ERRX? clears bit 5 only
     sim.write("NOPE")
     assert int(sim.query("*STB?")) & 32
     sim.write("*IDN?")  # unread response -> data ready
@@ -58,7 +63,7 @@ def test_serial_poll_reads_without_touching_the_buffer_and_clears_the_error_bit(
     sim.write("NOPE")
     sim.write("*OPC?")
     first = sim.serial_poll()
-    assert first & 32 and first & 1 and first & 8
+    assert first & 32 and first & 1 and not first & 8  # no high-voltage request: bit 3 clear
     assert not sim.serial_poll() & 32  # serial poll clears bit 5
     assert sim.read() == "1"  # the buffered *OPC? answer is still there
     assert errx_all(sim) == [100]  # the error itself stays queued

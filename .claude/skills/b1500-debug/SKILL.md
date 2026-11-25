@@ -1,6 +1,6 @@
 ---
 name: b1500-debug
-description: Use when B1500A data look noisy, impossible, too high, compliance-limited or drifting (IGZO Vth), on a fault, fault_latched or cleanup_unverified result, instrument (ERRX) or VISA errors, or an interlock question. Triage order, runbooks, safe checks; never raise limits to get past a symptom.
+description: Use when B1500A data look noisy, impossible, too high, compliance-limited or drifting (IGZO Vth), on a fault, fault_latched, cleanup_unverified or interrupted-run result, ERRX or VISA errors, or an interlock question. Triage order, runbooks, safe checks; never raise limits to get past a symptom.
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
@@ -11,8 +11,9 @@ plans; the human does every physical step. Backend `sim`: symptoms and fixes are
 
 ## 1. First moves
 
-1. Fault, error, stop request, `cleanup_unverified` or outputs in doubt: `safe_shutdown(reason)` first (never
-   gated); then report "cleanup verified" (or unverified, from its `cleanup`) and a stopped run's rows as partial.
+1. Fault, error, stop request, interrupted long run, `cleanup_unverified` or outputs in doubt: `safe_shutdown(reason)`
+   first (never gated); then report "cleanup verified" (or unverified, from its `cleanup`) and a stopped run's rows
+   as partial.
 2. Report no derived value from the suspect run: no Vth, SS or fit from untrusted or noise-floor data, no `force`.
 3. `station_status`: fault latch, lock holder, interlock bit, instrument errors, outputs on, config problems.
 4. Pick the runbook (part 3), work through it in order, then record the case (part 7).
@@ -25,25 +26,21 @@ plans; the human does every physical step. Backend `sim`: symptoms and fixes are
 4. DUT: process defect, damage, material effects (oxide TFTs, ferroelectrics); never blamed before steps 1-3 are
    cleared. One change at a time; note each result.
 
-## 3. Symptom index
+## 3. Symptom router (family x symptom)
 
-| Symptom | Runbook |
+Check the `any` rows first, then the row of the card's family (cards/README.md); follow the runbook in order.
+
+| Family | Symptom -> runbook |
 |---|---|
-| Current orders of magnitude above expected, Ioff near Ion, ohmic curve on a switching device | [current-too-high](runbooks/current-too-high.md) |
-| Scatter, "at the noise floor" warning, `noise-dominated` refusal | [noisy-data](runbooks/noisy-data.md) |
-| Status C or T, `completed_with_flags`, verdict `limited`, sweep stopped early | [compliance-hit](runbooks/compliance-hit.md) |
-| IGZO or oxide TFT Vth differs from run to run | [vth-drift-igzo](runbooks/vth-drift-igzo.md) |
-| Instrument errors, `instrument_error`, an ERRX code | [errx-codes](runbooks/errx-codes.md) |
-| `transport_error`, timeouts, no identity on the visa backend | [visa-no-connection](runbooks/visa-no-connection.md) |
-| Interlock OPEN or unknown, errors 202, 203, 310 | [interlock-open](runbooks/interlock-open.md) |
-| `fault`, `fault_latched`, `cleanup_unverified`, fault latch set | [cleanup-failed-fault](runbooks/cleanup-failed-fault.md) |
-| MFCMU: C-V blocked or refused by R-CORR-01, corrections missing, stale or lost; C-V shape wrong (Cmax above Cox, stretch-out, deep depletion, branches apart, status U/D); Cp falls with frequency, large D or `rs` | [cmu-correction-stale](runbooks/cmu-correction-stale.md), [cmu-cv-distortion](runbooks/cmu-cv-distortion.md), [cmu-series-resistance](runbooks/cmu-series-resistance.md) |
-| Selector off rest, SPGU output running, SPP fallback (`spp_fallbacks`) | [spgu-selector-state](runbooks/spgu-selector-state.md) |
-| SPGU pulses did nothing (no switching, no charge-pumping current) | [spgu-pulse-no-effect](runbooks/spgu-pulse-no-effect.md) |
-| Pulse level at the pad not the set level, R-SPGU-01 SER/high_z block | [spgu-load-mismatch](runbooks/spgu-load-mismatch.md) |
-| Sampling run with skipped samples, `index_gaps`, host/index time, early abort | [smu-sampling-skips](runbooks/smu-sampling-skips.md) |
-| BTI/HCI/SILC/IGZO stress: no shift, wrong sign, huge shift, odd exponent | [stress-degradation-unexpected](runbooks/stress-degradation-unexpected.md) |
-| WGFMU: library/session error or 30xx/33xx code; RSU not at rest, 3001, level missing at the DUT, SMU path through the RSU open; status V at full scale; too many stored values or 3050 | [wgfmu-library-error](runbooks/wgfmu-library-error.md), [wgfmu-rsu-route](runbooks/wgfmu-rsu-route.md), [wgfmu-range-overflow](runbooks/wgfmu-range-overflow.md), [wgfmu-memory-budget](runbooks/wgfmu-memory-budget.md) |
+| any state | fault, `fault_latched`, `cleanup_unverified` [cleanup-failed-fault](runbooks/cleanup-failed-fault.md); `instrument_error`, an ERRX code [errx-codes](runbooks/errx-codes.md); `transport_error`, timeouts, no identity (visa) [visa-no-connection](runbooks/visa-no-connection.md); interlock OPEN or unknown, 202/203/310 [interlock-open](runbooks/interlock-open.md); a long run cancelled by a closed session, killed with its server, `aborted` by a recovery, in-flight marker [async-run-interrupted](runbooks/async-run-interrupted.md) |
+| any data | scatter, noise floor, `noise-dominated` [noisy-data](runbooks/noisy-data.md); status C or T, `limited`, stopped early [compliance-hit](runbooks/compliance-hit.md); current orders above expected, Ioff near Ion [current-too-high](runbooks/current-too-high.md) |
+| smu | oxide TFT Vth differs run to run [vth-drift-igzo](runbooks/vth-drift-igzo.md); sampling `index_gaps`, skipped samples, host time [smu-sampling-skips](runbooks/smu-sampling-skips.md) |
+| cmu | blocked by R-CORR-01, corrections missing, stale or lost [cmu-correction-stale](runbooks/cmu-correction-stale.md); C-V shape wrong (Cmax above Cox, stretch-out, deep depletion, status U/D) [cmu-cv-distortion](runbooks/cmu-cv-distortion.md); Cp falls with frequency, large D or `rs` [cmu-series-resistance](runbooks/cmu-series-resistance.md) |
+| spgu | selector off rest, SPGU running, `spp_fallbacks` [spgu-selector-state](runbooks/spgu-selector-state.md); pulses did nothing [spgu-pulse-no-effect](runbooks/spgu-pulse-no-effect.md); level at the pad wrong, R-SPGU-01 SER/high_z [spgu-load-mismatch](runbooks/spgu-load-mismatch.md) |
+| wgfmu | library or session error, 30xx/33xx [wgfmu-library-error](runbooks/wgfmu-library-error.md); RSU not at rest, 3001, level missing at the DUT [wgfmu-rsu-route](runbooks/wgfmu-rsu-route.md); status V at full scale [wgfmu-range-overflow](runbooks/wgfmu-range-overflow.md); too many stored values, 3050 [wgfmu-memory-budget](runbooks/wgfmu-memory-budget.md) |
+| nvm | FeFET pulses (SPGU) no switching [spgu-pulse-no-effect](runbooks/spgu-pulse-no-effect.md), selector or level [spgu-selector-state](runbooks/spgu-selector-state.md) [spgu-load-mismatch](runbooks/spgu-load-mismatch.md); FeCap PUND or fast program (WGFMU) [wgfmu-rsu-route](runbooks/wgfmu-rsu-route.md) [wgfmu-range-overflow](runbooks/wgfmu-range-overflow.md) [wgfmu-library-error](runbooks/wgfmu-library-error.md) [wgfmu-memory-budget](runbooks/wgfmu-memory-budget.md); butterfly C-V [cmu-correction-stale](runbooks/cmu-correction-stale.md) [cmu-cv-distortion](runbooks/cmu-cv-distortion.md); memory window drifts [vth-drift-igzo](runbooks/vth-drift-igzo.md) |
+| reliability | no shift, wrong sign, huge shift, odd exponent, early breakdown [stress-degradation-unexpected](runbooks/stress-degradation-unexpected.md); IGZO recovery drift [vth-drift-igzo](runbooks/vth-drift-igzo.md); TDDB sampling gaps [smu-sampling-skips](runbooks/smu-sampling-skips.md); fast BTI (WGFMU) [wgfmu-range-overflow](runbooks/wgfmu-range-overflow.md) [wgfmu-library-error](runbooks/wgfmu-library-error.md) |
+| system | self-test or self-calibration failure bits (stop) [errx-codes](runbooks/errx-codes.md); WGFMU self-test/cal [wgfmu-library-error](runbooks/wgfmu-library-error.md); zero-check floor high [noisy-data](runbooks/noisy-data.md), constant offset (cable charging, Guard) [current-too-high](runbooks/current-too-high.md) |
 
 No match: follow part 2 and record a case.
 

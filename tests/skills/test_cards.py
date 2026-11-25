@@ -105,7 +105,8 @@ RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo"
             "smu-sampling-skips", "stress-degradation-unexpected",  # WP7.7
             "wgfmu-library-error", "wgfmu-range-overflow", "wgfmu-memory-budget",  # WP10.4
             "wgfmu-rsu-route",  # WP10.8
-            "cmu-cv-distortion", "cmu-series-resistance"}  # WP8.6
+            "cmu-cv-distortion", "cmu-series-resistance",  # WP8.6
+            "async-run-interrupted"}  # WP11.1
 RUN_ID = re.compile(r"\bS\d{8}T\d{6}Z-[0-9a-f]{4}\b")
 SCENARIOS = sorted(p.stem for p in (ROOT / "config" / "sim" / "scenarios").glob("*.yaml"))
 

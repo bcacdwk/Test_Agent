@@ -689,7 +689,7 @@ class SmuUnit:
             potentials = {**levels, **{ch: vcomp for ch, (_, vcomp) in forced.items()}}
             if not aborted and self.interlock_open() and self._high_voltage(potentials):
                 # interlock opened in the high-voltage state: all outputs to 0 V, error 202 (PG PDF 577)
-                self._queue_error(flex.ERR_INTERLOCK)
+                self._interlock_trip()
                 zero_at = end
                 aborted = True
             if aborted:

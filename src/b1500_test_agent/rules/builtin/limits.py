@@ -281,7 +281,8 @@ def interlock_closed(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
         yield block(f"{need}, but the status byte was not read", source=env.live("status_byte"), observed=None,
                     limit="bit 3 clear")
     elif live.status_byte.interlock_open:
-        yield block(f"{need}; status byte bit 3 (interlock open) is set", source=env.live("status_byte.bit3"),
+        yield block(f"{need}; status byte bit 3 (interlock open: a request above the limit was refused) is set",
+                    source=env.live("status_byte.bit3"),
                     observed=live.status_byte.value, limit="bit 3 clear")
     for error in interlock_errors(live.errors):
         yield block(f"{need}; instrument error {error.code} ({INTERLOCK_ERRORS[error.code]}) reports an interlock "

@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: conditional
 knowledge: [knowledge/03-probe-station-wiring.md#kelvin-four-wire-connection, knowledge/03-probe-station-wiring.md#four-wire-resistance, knowledge/06-analysis-extraction.md#resistance-fit, knowledge/02-b1500-instrument.md#integration-time-and-ranging, knowledge/02-b1500-instrument.md#measurement-modes, knowledge/01-device-physics.md#resistor-contact-versus-bulk-resistance]
 manual: [PG p391 (4-73) "DI", PG p396 (4-78) "DV", PG p470 (4-152) "MM", PG p380 (4-62) "CMM", PG p102 (2-14) "Multi Channel Sweep", PG p557 (4-239) "WNX", PG p226 (3-46) "Table 3-13"]
-debug: [noisy-data, compliance-hit, current-too-high, errx-codes, cleanup-failed-fault]
+debug: [noisy-data, compliance-hit, current-too-high, errx-codes, cleanup-failed-fault, async-run-interrupted]
 sources: [blueprint v2 2.7 (smu_spot), blueprint v2 3.1 (generic.smu_spot; resistor.kelvin_4w; generic.smu_multi_sweep), blueprint v2 6.3, blueprint v2 7.4 (L2), deck slide 12, Programming Guide Table 3-13]
 version: 2
 ---
@@ -133,7 +133,7 @@ sim_scenario: resistor_1r_kelvin
 | R about 2x nominal or a few ohms high | Sense not landed (two-wire reading) | ask about the sense probes; compare with `resistor-2t` contact check | `current-too-high` |
 | negative R or `failed` | sense lines swapped or floating | stop; ask the human to check the Kelvin wiring | `noisy-data` |
 | scattered V, low r2; a terminal noise-dominated | thermal EMF, short integration; probe not landed | `integration: long`, more `samples`; contact check | `noisy-data` |
-| run `failed`, errors, fault latched | instrument error, unverified cleanup | `safe_shutdown`, then skill `b1500-debug` | `errx-codes`, `cleanup-failed-fault` |
+| run `failed`, fault latched; `aborted` after the session ended | instrument error, unverified cleanup; server killed | `safe_shutdown`, then skill `b1500-debug` | `errx-codes`, `cleanup-failed-fault`, `async-run-interrupted` |
 
 ## 10. Validation record
 

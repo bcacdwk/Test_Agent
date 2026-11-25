@@ -210,8 +210,9 @@ Measurement status letter `A` of each data element (PG Table 1-10, PDF 53):
 
 ## Status byte errors and interlock
 
-- Status byte (PG PDF 76-78): bit 0 data ready, bit 1 wait, bit 3 interlock open (with output above the allowed
-  threshold), bit 4 set ready, bit 5 error, bit 6 service request.
+- Status byte (PG PDF 76-78): bit 0 data ready, bit 1 wait, bit 3 interlock open (an event: an output or
+  compliance above 42 V was requested with the interlock open; cleared by a serial poll, `*RST` or device clear),
+  bit 4 set ready, bit 5 error, bit 6 service request.
 - `ERRX?` returns the oldest error code with its message (PG PDF 431). Families (PG PDF 575-601): 100-299
   syntax, parameter and setup (100 undefined command, 200 output switch must be on, 201 compliance must be set,
   202 interlock must be closed, 203 cannot enable channel), 300-399 hardware condition (305 excess current in
@@ -221,8 +222,9 @@ Measurement status letter `A` of each data element (PG Table 1-10, PDF 53):
   ±42 V (UG PDF 49); the interlock function must be checked daily (UG PDF 142). v1 never exceeds 42 V, so no v1
   workflow needs a closed interlock (deck slide 8 rule kept as R-IL-01 for later).
 - `station_status.interlock` says what the reading means: on the simulator the scenario's state (`SIMULATED
-  open`); on hardware "not used at this station" plus status bit 3, which the B1500A sets only for a refused
-  request above 42 V with the interlock open (PG PDF 76), so a clear bit never means "closed".
+  open`); on hardware "not used at this station". Both add status bit 3 when set: the B1500A (and the simulator)
+  sets it only for a refused request above 42 V with the interlock open (PG PDF 76), so a clear bit never means
+  "closed".
 
 ## Self-test self-calibration and auto calibration
 

@@ -4,7 +4,7 @@ and the live instrument state read back from the mainframe (blueprint v1 2.2, 2.
 Config files: ``settings`` (``Settings``), ``station`` (``StationProfile``), ``pinmaps/<name>`` (``PinMap``) and
 ``sim/scenarios/<name>`` (``SimScenario``). Module models and channel numbers follow the Keysight B1500 Series
 Programming Guide, Edition 15 ("PG"): Table 4-1 (PDF 334) for channel numbers, ``UNT?`` (PDF 545) for the inventory,
-the status byte table (PDF 76) for bit 3 = interlock open.
+the status byte table (PDF 76) for bit 3 = interlock open (an event, not the circuit state).
 
 v2 (blueprint 2.3): the station declares its switches (``switches``: 16440A selectors, SCUU, ASU, RSU; see
 ``models/routing.py``) instead of the v1 ``topology.switching`` booleans; a pin-map terminal may target a channel,
@@ -820,13 +820,16 @@ class InstrumentError(StrictModel):
 
 
 class StatusByte(StrictModel):
-    """Status byte from ``*STB?`` or a serial poll; bit 3 (value 8) = interlock open (PG PDF 76; ATV-10)."""
+    """Status byte from ``*STB?`` or a serial poll; bit 3 (value 8) = "Interlock open" (PG p76 (1-56); ATV-10): an
+    event, set when a voltage output or voltage compliance above the interlock-open limit (42 V) was requested with the
+    interlock circuit open, cleared by a serial poll, ``*RST`` or a device clear (``*STB?`` does not clear it). A clear
+    bit says nothing about the circuit; the simulator follows the same rule (WP11.1)."""
 
     value: int = Field(ge=0, le=255)
 
     @property
     def interlock_open(self) -> bool:
-        """True when the interlock circuit is open and a high-voltage setup was requested."""
+        """True when a high-voltage setup was requested with the interlock circuit open (the bit-3 event)."""
         return bool(self.value & 0b1000)
 
 

@@ -133,7 +133,7 @@ from b1500_test_agent.analysis.reliability import (
 from b1500_test_agent.analysis.resistor import resistance
 from b1500_test_agent.analysis.spectrum import fit_psd, log_bins, welch_psd
 from b1500_test_agent.analysis.spice import SpiceExport, write_spice_files
-from b1500_test_agent.analysis.stress import bti_power_law, degradation_vs_time, silc, stress_reads
+from b1500_test_agent.analysis.stress import bti_power_law, degradation_vs_time, fast_bti_shift, silc, stress_reads
 
 __all__ = [
     "ANALYSIS_METHODS",
@@ -182,6 +182,7 @@ __all__ = [
     "endurance_curve",
     "endurance_summary",
     "export_spice_netlist",
+    "fast_bti_shift",
     "find_run",
     "fit_psd",
     "fit_stretched_exponential",

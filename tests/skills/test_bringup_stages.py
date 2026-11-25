@@ -28,7 +28,8 @@ HUMAN_ONLY = ("con" + "fig init", "con" + "fig adopt", "run " + "--confirm", "fa
 """Human-only CLI verbs, assembled at run time (the harness guard blocks shell commands that spell them)."""
 RECIPES = {
     "S0": [], "L0": [], "L10": [],
-    "L1": ["system.zero_check", "system.self_test", "system.self_cal"],  # WP7.1: the zero-check recipe
+    "L1": ["system.zero_check", "system.self_test", "system.self_cal", "system.wgfmu_self_test",
+           "system.wgfmu_self_cal"],  # WP7.1: the zero-check recipe; WP10.7: the WGFMU library self-test/cal
     "L2": ["basic.contact_resistor", "generic.smu_multi_sweep", "generic.smu_spot", "resistor.kelvin_4w"],
     "L3": ["basic.diode_iv", "basic.iv_force_i"],
     "L4": ["mosfet.idvg", "mosfet.idvd", "mosfet.gate_leakage", "mosfet.idvg_family", "mosfet.idvg_sync",
@@ -37,7 +38,8 @@ RECIPES = {
            "mosfet.id_t_sampling", "generic.smu_sampling", "mosfet.vth_search"],  # WP7.7 (QSCV leakage: M8)
     "L9": ["reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "reliability.silc", "reliability.tddb_cvs",
            "dielectric.bdv", "basic.breakdown_search",  # WP7.7: the SMU part
-           "fefet.endurance", "fefet.retention"],  # WP9.5: the HV-SPGU part
+           "fefet.endurance", "fefet.retention",  # WP9.5: the HV-SPGU part
+           "wgfmu.fast_bti"],  # WP10.7: the WGFMU fast BTI
 }
 
 
@@ -110,7 +112,8 @@ def test_pass_criteria_are_the_blueprint_defaults() -> None:
 
 def test_record_keys_of_each_stage() -> None:
     assert _front("S0").record_keys() == [None] and _front("L0").record_keys() == [None]
-    assert _front("L1").record_keys() == ["system.self_test", "system.self_cal", None]
+    assert _front("L1").record_keys() == ["system.self_test", "system.self_cal", "system.wgfmu_self_test",
+                                          "system.wgfmu_self_cal", None]
     assert _front("L2").record_keys() == ["basic.contact_resistor", "generic.smu_multi_sweep", "generic.smu_spot",
                                           "resistor.kelvin_4w"]
     assert _front("L3").record_keys() == ["basic.diode_iv", "basic.iv_force_i"]

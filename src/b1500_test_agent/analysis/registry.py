@@ -79,7 +79,7 @@ from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.reliability import plot_timeseries_method, sampling_summary, time_to_breakdown
 from b1500_test_agent.analysis.resistor import kelvin_resistance, resistance
 from b1500_test_agent.analysis.spice import SpiceExport
-from b1500_test_agent.analysis.stress import bti_power_law, degradation_vs_time, silc
+from b1500_test_agent.analysis.stress import bti_power_law, degradation_vs_time, fast_bti_shift, silc
 from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport, TrustPolicy
 from b1500_test_agent.models.recipe import RecipeFamily
@@ -316,8 +316,12 @@ _METHODS = [
             _SAMPLING, _SAMPLING_KINDS, families=_SMU_RELIABILITY, milestone="M7"),
     _method("bti_power_law", "extraction", bti_power_law,
             "BTI threshold shift |dVth| = A t^n over the stress reads (exponent n, A at 1 s); recovered fraction.",
-            ("reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "generic.*"), _STRESS_KINDS,
-            families=_RELIABILITY, milestone="M7"),
+            ("reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "wgfmu.fast_bti", "generic.*"),
+            _STRESS_KINDS, families=_RELIABILITY, milestone="M7"),
+    _method("fast_bti_shift", "extraction", fast_bti_shift,
+            "Fast BTI: dVth per microsecond WGFMU read (own Id-Vg or the reference curve), |dVth| = A t^n, read time "
+            "off the stress.",
+            ("wgfmu.fast_bti", "generic.*"), _STRESS_KINDS, families=_RELIABILITY, milestone="M10"),
     _method("degradation_vs_time", "extraction", degradation_vs_time,
             "Change of Id, Vth or Ig against stress time: power law b t^m or stretched exponential tau, beta.",
             ("reliability.*", "igzo.bias_stress", "generic.*"), _STRESS_KINDS, families=_RELIABILITY,

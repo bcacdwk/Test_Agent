@@ -26,8 +26,10 @@ one is listed, not only the guard train's level of largest magnitude)
     top=WGFMU1:201 via RSU201.OUT dc_sample 0.5 V 504000 pts @100 ns
     force=SMU3(HRSMU) bias I<=1 mA Vcomp 5 V
     gate=SMU4(HRSMU) sweep -0.2..1.5 V (max 2 V) stress 2 V Icomp 1 uA
+    gate=WGFMU1:201 via RSU201.OUT fast_bti 0..2 V stress 2 V
 
-(the stress-measure form: the read levels, then the stress level and ``rec <V> V`` for a non-zero recovery level),
+(the stress-measure forms, SMU and WGFMU: the read levels, then the stress level and ``rec <V> V`` for a non-zero
+recovery level),
 followed, when they apply, by ``routes SEL1.OUT1->smu,pgu`` (routes no role uses) and, after the backend,
 ``async ~42 min`` and the stress schedule ``stress 30 min x11 reads`` (``, recovery 10 min x9 reads``). Channels are
 sorted by role name; flags follow the rule-table order, one per (rule, reason) pair, ``blocked`` for a block. The
@@ -271,8 +273,8 @@ def _channel(plan: PlanRecord, channel: int, entry: ChannelEnvelope, ctx: _Conte
     if function in _PULSE_FUNCTIONS or entry.pulse is not None:
         body = _pulse(entry, ctx.sources.trains(channel), ctx.isc.get(entry.role), compact=compact,
                       pgu=function == "pgu", away=ctx.away.get(_norm(channel)))
-    elif function == "wgfmu":
-        body = _wgfmu(entry, ctx.sources, channel, compact=compact)
+    elif function == "wgfmu":  # a WGFMU stress (WP10.7) also names its stress level, as an SMU stress does
+        body = _wgfmu(entry, ctx.sources, channel, compact=compact) + _dc_stress(ctx.sources, channel, compact=compact)
     elif function == "cmu_high":
         corr_alias = alias or f"CH{channel}"
         return f"{head} {_cmu(entry, ctx.corr_age.get(corr_alias), compact=compact)}"  # the MFCMU has no Icomp

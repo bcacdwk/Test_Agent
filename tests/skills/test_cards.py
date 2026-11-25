@@ -31,12 +31,13 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "smu/mosfet-idvd": ["mosfet.idvd"],
     "smu/gate-leakage": ["mosfet.gate_leakage"],
     "nvm/fefet-dual-sweep-mw": ["fefet.dual_sweep_mw"],
-    "system/self-test-cal": ["system.self_test", "system.self_cal"],
+    "system/self-test-cal": ["system.self_test", "system.self_cal", "system.wgfmu_self_test",
+                             "system.wgfmu_self_cal"],  # WP10.7: the WGFMU library self-test/cal
     "smu/smu-sampling": ["mosfet.id_t_sampling", "generic.smu_sampling"],  # WP7.4
     "reliability/tddb-bdv": ["reliability.tddb_cvs", "dielectric.bdv", "basic.breakdown_search"],  # WP7.4, WP7.5
     "smu/smu-spot-kelvin": ["generic.smu_spot", "resistor.kelvin_4w", "generic.smu_multi_sweep"],  # WP7.1, WP7.2
     "system/zero-check": ["system.zero_check"],  # WP7.1
-    "reliability/bti-stress-measure": ["reliability.bti_sms"],  # WP7.6 (WP10.7 adds wgfmu.fast_bti)
+    "reliability/bti-stress-measure": ["reliability.bti_sms", "wgfmu.fast_bti"],  # WP7.6, WP10.7
     "reliability/igzo-bias-stress": ["igzo.bias_stress"],  # WP7.6
     "reliability/hci-silc": ["reliability.hci", "reliability.silc"],  # WP7.6
     "cmu/cmu-correction": ["cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short",
@@ -69,7 +70,8 @@ ROUTES = {"spgu/selector-check": ["selector_16440a:smu", "selector_16440a:pgu", 
           "nvm/fefet-switching-kinetics": ["selector_16440a:pgu", "selector_16440a:smu"],  # WP9.5
           "nvm/fefet-endurance-retention": ["selector_16440a:pgu", "selector_16440a:smu"],
           "cmu/moscap-dit": ["scuu:smu", "scuu:cmu"],  # WP8.5
-          "wgfmu/wgfmu-rtn-noise": ["rsu:wgfmu"]}  # WP10.5
+          "wgfmu/wgfmu-rtn-noise": ["rsu:wgfmu"],  # WP10.5
+          "reliability/bti-stress-measure": ["rsu:wgfmu"]}  # WP10.7: the fast BTI's RSU path
 """Cards whose recipes set switch routes (WP9.2, WP9.3; WP8.3: the MFCMU recipes through an SCUU when the pin map says
 so; WP9.4: program/read through the selector; WP10.4: the RSU path of the WGFMU; WP8.5: QSCV through the SCUU's SMU
 path); every other card's recipes route nothing ("Routes: none")."""

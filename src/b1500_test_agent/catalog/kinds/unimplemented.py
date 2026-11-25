@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from b1500_test_agent.session.transaction import Transaction
 
 UNIMPLEMENTED_KINDS: dict[str, str] = {
-    "wgfmu_fast_bti": "WGFMU fast BTI (on-the-fly); needs the WGFMU library and async runs",
     "wgfmu_pulse_sequence": "WGFMU pulse write + read sequences (FeFET endurance/retention, FeCap PUND)",
 }
 """Declared kind ids and what each is waiting for."""

@@ -1,6 +1,7 @@
-"""Stress-measure analysis (blueprint v2 2.10, the ``reliability.py`` methods of WP7.6 in their own module so that
-``reliability.py`` stays small): ``bti_power_law``, ``degradation_vs_time`` and ``silc`` on runs of kind
-``stress_measure`` (``reliability.bti_sms``, ``igzo.bias_stress``, ``reliability.hci``, ``reliability.silc``).
+"""Stress-measure analysis (blueprint v2 2.10, the ``reliability.py`` methods of WP7.6 and WP10.7 in their own module so
+that ``reliability.py`` stays small): ``bti_power_law``, ``degradation_vs_time``, ``silc`` and ``fast_bti_shift`` on
+runs of kind ``stress_measure`` (``reliability.bti_sms``, ``igzo.bias_stress``, ``reliability.hci``,
+``reliability.silc``, ``wgfmu.fast_bti``).
 
 Definitions (the single source of the section "Stress-measure analysis" of knowledge file
 ``05-reliability-defects.md`` of skill ``b1500-test``; change both together):
@@ -41,6 +42,19 @@ Methods:
   (``relative`` default false) or ``ig``; ``fit`` ``power_law`` (default: results ``b`` and ``m``), ``stretched_exp``
   (``tau``, ``beta``, ``delta_inf``) or ``none``; always ``delta`` (the change at the last stress read) and, with
   recovery reads, ``recovery``. ``min_change`` default 1e-3 (relative) or 1 mV / 1 pA (absolute).
+- ``fast_bti_shift`` (WGFMU fast BTI: microsecond senses): ``ΔVth`` per read by ``vth_method`` ``constant_current``
+  (the read's own staircase at ``i_crit_a`` x ``w_over_l``, 1 uA by default: a fast sense averages microseconds, so the
+  criterion sits well above its noise; then ``Δ = Vth(t) - Vth(0)``) or ``reference_curve`` (every trusted row of the
+  read whose current lies inside the reference read's monotonic range is mapped onto the reference Id-Vg:
+  ``Δ = x - x_ref(|y|)``, averaged over the rows; a rigid shift of the curve, the method for spot reads of one level);
+  ``auto`` (default) takes ``constant_current`` when every stress and recovery read sweeps ``x``, else
+  ``reference_curve``. Both find a crossing on the monotonic stretch of log10|y| (down from the largest current to the
+  noise floor) with the cubic through the four sense levels around it (linear when the stretch has fewer): a fast
+  staircase is coarse (50 mV steps), and linear interpolation of log10|y| would bias each shift by a few percent of a
+  step depending on where in the step it falls. Then as ``bti_power_law``: results ``n``, ``a``, ``dvth``
+  [+ ``recovery``, ``recovery_rate``]; every ``fit`` also holds ``read_s`` (the time each read kept the gate off its
+  stress level, from the run's ``kind_result``) and ``read_fraction`` = ``read_s`` / the first stress read's time:
+  above 2 % a warning says that the reads themselves may have let the shift recover.
 - ``silc``: ``X`` = ``|Ig|`` at ``v_sense`` (``y`` default ``gate_I``; ``v_sense`` default: the plan parameter
   ``v_sense``, else the spot read level of the gate); the SILC ratio ``r(t) = (|Ig(t)| - |Ig0|)/|Ig0|``. Results
   ``silc_ratio`` (1, at the last stress read), ``silc_exponent`` (1, the power-law slope of ``r`` over the stress
@@ -65,7 +79,15 @@ import numpy as np
 import pandas as pd
 from pydantic import ConfigDict, Field, validate_call
 
-from b1500_test_agent.analysis.common import Results, analysed_rows, interpolate, line_fit, policy_params, trust_policy
+from b1500_test_agent.analysis.common import (
+    Results,
+    analysed_rows,
+    increasing_with_x,
+    interpolate,
+    line_fit,
+    policy_params,
+    trust_policy,
+)
 from b1500_test_agent.analysis.dataset import CYCLE, PHASE, T_S, RunData, status_column, trust_levels
 from b1500_test_agent.analysis.mosfet import DEFAULT_I_CRIT_A, vth_constant_current, vth_linear_extrapolation
 from b1500_test_agent.analysis.reliability import BETA_GRID, fit_stretched_exponential
@@ -343,6 +365,193 @@ def bti_power_law(
     return _with_recovery(out, series, recovery, end, results, rate=True)
 
 
+# -- fast_bti_shift --------------------------------------------------------------------------------------------------
+
+FAST_I_CRIT_A = 1e-6
+"""Default constant-current criterion of ``fast_bti_shift`` (A, times ``w_over_l``)."""
+
+READ_FRACTION_WARN = 0.02
+"""``read_s`` / first stress read time above which ``fast_bti_shift`` warns about recovery during the reads."""
+
+FastVthMethod = Literal["auto", "constant_current", "reference_curve"]
+
+
+def _sweeps(read: Read, x: str) -> bool:
+    return x in read.rows.columns and read.rows[x].nunique(dropna=True) > 1
+
+
+@dataclass
+class _Curve:
+    """A read's transfer curve for the crossings: x and log10|y| along the monotonic stretch that ends at the largest
+    current (log10|y| increasing with the index; the noise floor at the low end ends the stretch)."""
+
+    xs: np.ndarray
+    log_i: np.ndarray
+
+    def x_at(self, current: float) -> float | None:
+        """The x where the curve reaches ``current`` (module docstring: local cubic), ``None`` outside its range."""
+        if current <= 0:
+            return None
+        target = math.log10(current)
+        log_i, xs = self.log_i, self.xs
+        if target < log_i[0] or target > log_i[-1]:
+            return None
+        k = max(1, int(np.searchsorted(log_i, target)))
+        a, b = float(xs[k - 1]), float(xs[k])
+        linear = a + (b - a) * (target - log_i[k - 1]) / (log_i[k] - log_i[k - 1])
+        if xs.size < 4:
+            return float(linear)
+        lo = max(0, min(k - 2, xs.size - 4))
+        coeffs = np.polyfit(xs[lo:lo + 4], log_i[lo:lo + 4], 3)
+        fa, fb = np.polyval(coeffs, a) - target, np.polyval(coeffs, b) - target
+        if fa * fb > 0:  # the cubic leaves the bracket (noise): keep the linear crossing
+            return float(linear)
+        for _ in range(60):
+            m = 0.5 * (a + b)
+            fm = np.polyval(coeffs, m) - target
+            if fa * fm <= 0:
+                b = m
+            else:
+                a, fa = m, fm
+        return 0.5 * (a + b)
+
+
+def _curve(d: RunData, read: Read, *, x: str, y: str, force: bool, policy: TrustPolicy,
+           what: str) -> tuple[_Curve | None, Value]:
+    """The monotonic transfer curve of one staircase read (``Value(0.0)`` when usable), or why not."""
+    if not _sweeps(read, x):
+        return None, Value(None, why=f"{what} does not sweep {x}: a threshold needs its staircase")
+    r = analysed_rows(_sub(d, read.rows), x, y, policy, segment=None)
+    problems = r.problems(what, noise=False)
+    if problems and not force:
+        return None, Value(None, why="refused: " + "; ".join(problems), refused=True)
+    keep = np.abs(r.ys) > 0
+    xs, ys = r.xs[keep], np.abs(r.ys[keep])
+    if xs.size < 2:
+        return None, Value(None, why=f"{what} has fewer than 2 trusted non-zero currents")
+    order = np.argsort(xs) if increasing_with_x(xs, ys) else np.argsort(xs)[::-1]
+    xs, log_i = xs[order], np.log10(ys[order])
+    top = int(np.argmax(log_i))
+    start = top
+    while start > 0 and log_i[start - 1] < log_i[start]:  # down from the largest current: the noise floor ends it
+        start -= 1
+    if top - start < 1:
+        return None, Value(None, why=f"the current of {what} does not rise along its staircase")
+    forced = bool(problems)
+    return _Curve(xs=xs[start:top + 1], log_i=log_i[start:top + 1]), Value(
+        0.0, forced=forced, warnings=[f"forced on untrusted data in {what}"] if forced else [])
+
+
+def _fast_vth(d: RunData, read: Read, *, i_crit: float, x: str, y: str, force: bool, policy: TrustPolicy) -> Value:
+    """The constant-current threshold of one fast read (its own staircase; local cubic crossing)."""
+    curve, status = _curve(d, read, x=x, y=y, force=force, policy=policy, what=f"read {read.cycle}")
+    if curve is None:
+        return status
+    found = curve.x_at(i_crit)
+    if found is None:
+        return Value(None, why=f"read {read.cycle}: {i_crit:g} A lies outside its trusted currents "
+                               f"({10 ** curve.log_i[0]:.3g}..{10 ** curve.log_i[-1]:.3g} A)")
+    return Value(found, forced=status.forced, warnings=status.warnings)
+
+
+def _shift_on_curve(d: RunData, read: Read, curve: _Curve, *, x: str, y: str, force: bool,
+                    policy: TrustPolicy) -> Value:
+    """``Δ`` of one read against the reference curve (module docstring)."""
+    r = analysed_rows(_sub(d, read.rows), x, y, policy, segment=None)
+    problems = r.problems(f"read {read.cycle}", noise=False)
+    if problems and not force:
+        return Value(None, why="refused: " + "; ".join(problems), refused=True)
+    shifts = [xv - found for xv, yv in zip(r.xs, r.ys, strict=True)
+              if (found := curve.x_at(abs(float(yv)))) is not None]
+    if not shifts:
+        return Value(None, why=f"read {read.cycle}: no trusted current inside the reference read's range")
+    return Value(float(np.mean(shifts)), samples=[float(v) for v in shifts], forced=bool(problems),
+                 warnings=[f"forced on untrusted data in read {read.cycle}"] if problems else [])
+
+
+@validate_call(config=_CALL_CONFIG)
+def fast_bti_shift(
+    d: RunData,
+    *,
+    vth_method: FastVthMethod = "auto",
+    i_crit_a: float = Field(default=FAST_I_CRIT_A, gt=0),
+    w_over_l: float | None = Field(default=None, gt=0),
+    x: str = "gate_V",
+    y: str = "drain_I",
+    t_min: float | None = Field(default=None, ge=0),
+    t_max: float | None = Field(default=None, gt=0),
+    min_change: float = Field(default=DEFAULT_MIN_SHIFT_V, ge=0),
+    force: bool = False,
+    criteria: TrustPolicy | None = None,
+) -> list[ExtractionResult]:
+    """WGFMU fast BTI: ``ΔVth`` per microsecond read, ``|ΔVth| = A·t^n``, recovery (module docstring): ``n``, ``a``,
+    ``dvth`` [+ ``recovery``, ``recovery_rate``]."""
+    policy = trust_policy(criteria)
+    reads = stress_reads(d, "fast_bti_shift")
+    if y not in d.measured_columns:
+        raise InvalidInputError(f"fast_bti_shift: {y!r} is not a measured column of run {d.run_id}; measured: "
+                                f"{d.measured_columns}.")
+    method = vth_method
+    if method == "auto":
+        method = "constant_current" if all(_sweeps(r, x) for r in reads[1:]) else "reference_curve"
+    out = Results("fast_bti_shift", {"vth_method": method, "i_crit_a": i_crit_a, "w_over_l": w_over_l, "x": x,
+                                     "y": y, "t_min": t_min, "t_max": t_max, "min_change": min_change,
+                                     "force": force, "trust_policy": policy_params(policy)})
+    names: list[tuple[str, Unit]] = [("n", "1"), ("a", "V"), ("dvth", "V")]
+    if method == "constant_current":
+        i_crit = i_crit_a * (w_over_l if w_over_l is not None else 1.0)
+        series = _series(reads, lambda r: _fast_vth(d, r, i_crit=i_crit, x=x, y=y, force=force, policy=policy),
+                         t_min, t_max)
+    else:
+        curve, reference = _curve(d, reads[0], x=x, y=y, force=force, policy=policy, what="the reference read")
+        if curve is None:
+            return _not_ok(out, names, "reference read: " + reference.why, reference.refused)
+        series = _series(reads, lambda r: reference if r.cycle == 0 else _shift_on_curve(
+            d, r, curve, x=x, y=y, force=force, policy=policy), t_min, t_max)
+    changes = _changes(series, relative=False)
+    if isinstance(changes, str):
+        return _not_ok(out, names, changes, series.reference.refused)
+    stress, recovery = changes
+    out.warnings.extend(series.warnings())
+    if series.forced:
+        out.flag(["at least one read was extracted from untrusted data"])
+    if not stress:
+        return _not_ok(out, names, "no usable stress read", False)
+    timing, timing_warnings = _read_timing(d, [t for t, _ in stress])
+    out.warnings.extend(timing_warnings)
+    fitted = _power_law(stress, min_change)
+    end = stress[-1][1]
+    vth0 = series.reference.value if method == "constant_current" else math.nan
+    results: list[ExtractionResult] = []
+    if isinstance(fitted, str):
+        results += [out.failed(q, u, fitted, excluded={}) for q, u in names[:2]]
+    else:
+        exponent, prefactor, r2, used = fitted
+        fit = {**_common_fit(series, used), "r2": r2, "vth0_v": vth0 if vth0 is not None else math.nan, **timing}
+        results += [out.ok("n", exponent, "1", excluded={}, points_used=len(used), fit=fit),
+                    out.ok("a", abs(prefactor), "V", excluded={}, points_used=len(used), fit=fit)]
+    results.append(out.ok("dvth", end, "V", excluded={}, points_used=len(stress),
+                          fit={"t_stress_s": series.t_stress, **timing}))
+    return _with_recovery(out, series, recovery, end, results, rate=True)
+
+
+def _read_timing(d: RunData, stress_times: list[float]) -> tuple[dict[str, float], list[str]]:
+    """``({read_s, read_fraction}, warnings)`` from the run's ``kind_result`` (module docstring)."""
+    value = d.manifest.kind_result.get("read_s")
+    if not isinstance(value, int | float) or isinstance(value, bool) or not stress_times:
+        unknown = ("the run does not record how long each read took (kind_result.read_s): the recovery during the "
+                   "reads is unknown")
+        return {}, [unknown]
+    first = min(stress_times)
+    fraction = float(value) / first if first > 0 else math.inf
+    warnings: list[str] = []
+    if fraction > READ_FRACTION_WARN:
+        warnings.append(f"each read kept the gate off its stress level for {float(value):.3g} s, {fraction:.1%} of "
+                        f"the first stress interval ({first:.3g} s): the early reads may include recovery; start "
+                        "later (first_read) or read faster (fewer points, shorter width)")
+    return {"read_s": float(value), "read_fraction": fraction}, warnings
+
+
 # -- degradation_vs_time ---------------------------------------------------------------------------------------------
 
 
@@ -533,4 +742,4 @@ def _magnitude(value: Value) -> Value:
                  forced=value.forced, warnings=value.warnings)
 
 
-__all__ = ["Read", "bti_power_law", "degradation_vs_time", "silc", "stress_reads"]
+__all__ = ["Read", "bti_power_law", "degradation_vs_time", "fast_bti_shift", "silc", "stress_reads"]

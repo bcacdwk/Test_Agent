@@ -97,6 +97,7 @@ from b1500_test_agent.models.run import (
     RunOutcome,
     RunSummary,
 )
+from b1500_test_agent.models.sources import SOURCE_PLAN_KEY
 from b1500_test_agent.models.station import LiveState
 from b1500_test_agent.rules import CalibrationState, RulesEngine, with_rules
 from b1500_test_agent.rules.builtin.cmu import correction_next_steps
@@ -180,8 +181,12 @@ class _RunContext:
 
 
 def _uses_wgfmu(plan: PlanRecord) -> bool:
-    """Whether the plan drives a WGFMU channel (its pre-execute snapshot then reads the library's channel ids)."""
-    return plan.envelope is not None and any(ch.function == "wgfmu" for ch in plan.envelope.channels.values())
+    """Whether the plan drives a WGFMU channel or opens the library without one (``SourcePlan.library``: the WGFMU
+    self-test and self-calibration); its pre-execute snapshot then reads the library's channel ids."""
+    if plan.envelope is not None and any(ch.function == "wgfmu" for ch in plan.envelope.channels.values()):
+        return True
+    raw = plan.program.get(SOURCE_PLAN_KEY)
+    return isinstance(raw, dict) and raw.get("library") is True
 
 
 def _flags(findings: list[RuleFinding], severity: str) -> str:

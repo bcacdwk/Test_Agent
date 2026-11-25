@@ -1,7 +1,7 @@
 ---
 stage: L9
-title: Long runs (SMU and HV-SPGU parts) - async BTI with cancel and kill-recovery drills, auto-calibration restored, destructive stress and breakdown recipes, FeFET endurance and retention
-recipes: [reliability.bti_sms, igzo.bias_stress, reliability.hci, reliability.silc, reliability.tddb_cvs, dielectric.bdv, basic.breakdown_search, fefet.endurance, fefet.retention]
+title: Long runs (SMU, HV-SPGU and WGFMU fast BTI parts) - async BTI with cancel and kill-recovery drills, auto-calibration restored, destructive stress and breakdown recipes, FeFET endurance and retention, fast BTI
+recipes: [reliability.bti_sms, igzo.bias_stress, reliability.hci, reliability.silc, reliability.tddb_cvs, dielectric.bdv, basic.breakdown_search, fefet.endurance, fefet.retention, wgfmu.fast_bti]
 checks:
   - {id: async_progress, quantity: async_progress, reference: get_run progress of the 10 min BTI run, text: 'running, progress advancing per checkpoint, completed'}
   - {id: cancel_drill, quantity: cancel_drill, reference: human observation + manifest, text: 'safe_shutdown from the CLI: cancelled within one checkpoint, cleanup verified, partial rows kept'}
@@ -25,11 +25,16 @@ checks:
   - {id: endurance_cleanup, recipe: fefet.endurance, quantity: cleanup, reference: run manifests, text: 'verified: lop, SPGU stopped, selector at rest, also after the cancel'}
   - {id: retention_slope, recipe: fefet.retention, quantity: retention_slope_program, method: retention_fit, unit: V/dec, reference: 'lab FeFET retention data', text: recorded for both states}
   - {id: retention_cleanup, recipe: fefet.retention, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run, selector at rest'}
-version: 1
+  - {id: fast_bti_n, recipe: wgfmu.fast_bti, quantity: n, method: fast_bti_shift, unit: '1', reference: 'bti_n of a sister device (SMU reads) or lab fast-BTI data', tolerance: {absolute: 0.05}, text: '+-0.05 of the reference exponent'}
+  - {id: fast_vs_smu, recipe: wgfmu.fast_bti, quantity: dvth, method: fast_bti_shift, unit: V, reference: 'dvth of reliability.bti_sms on a sister device at the same stress and time', text: 'fast dVth >= SMU dVth (less recovery during the reads); ratio recorded'}
+  - {id: rsu_smu_path, recipe: wgfmu.fast_bti, quantity: vth0, unit: V, reference: 'mosfet.idvg on mosfet-4t through the RSU SMU inputs (ATV-32), same 1 uA criterion', tolerance: {absolute: 0.02}, text: 'fast reference read Vth = DC Vth +-20 mV'}
+  - {id: fast_bti_cleanup, recipe: wgfmu.fast_bti, quantity: cleanup, reference: run manifests, text: 'WGFMU channels disconnected, session closed, FLEX relocked; SMUs verified'}
+  - {id: run_boundary, recipe: wgfmu.fast_bti, quantity: run_boundary, reference: audit time stamps between two WGFMU executions, text: 'host time per boundary recorded; output stays at the stress level (V Monitor or scope)'}
+version: 2
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
-# L9 - Long runs (SMU and HV-SPGU parts)
+# L9 - Long runs (SMU, HV-SPGU and WGFMU fast BTI parts)
 
 Asynchronous runs on hardware: `reliability.bti_sms` held for 10 min (card `bti-stress-measure`) while the agent
 polls `get_run`, a cancel drill (`safe_shutdown` from the CLI) and a kill-and-recover drill; then the other SMU
@@ -37,7 +42,8 @@ stress and breakdown recipes (cards `igzo-bias-stress`, `hci-silc`, `tddb-bdv`).
 `needs_confirmation` (`destructive`, `long_run` above 10 min, `first_hw_run`) with the human's own consent per run,
 always on a sacrificial device. HV-SPGU part (L7 signed off): `fefet.endurance` (10^6 bipolar cycles, about 18
 min, cancel within 10 s of output) and `fefet.retention` (hours; card `fefet-endurance-retention`) on a spare
-FeFET through `SEL1.OUT1`. The WGFMU part (`wgfmu.fast_bti`) joins with M10.
+FeFET through `SEL1.OUT1`. WGFMU part (L8 signed off; WP10.7): `wgfmu.fast_bti` on a sister MOSFET through the RSUs
+(cancel within one 1 s status poll).
 
 ## 1. Preconditions
 
@@ -58,6 +64,9 @@ FeFET through `SEL1.OUT1`. The WGFMU part (`wgfmu.fast_bti`) joins with M10.
 4. Re-land on the next sacrificial device for each recipe of agent step 7 and confirm.
 5. Land a spare FeFET (pin map `fefet-sel`, the L7 wiring; DUT profile with the gate's pulse `max_count` reviewed
    for 2 x 10^6 pulses); confirm in chat.
+6. Fast BTI: land a sister MOSFET on the RSU outputs (gate RSU201, drain RSU202; pin map `mosfet-wgfmu`), with SMU4
+   and SMU3 cabled to the RSUs' "From SMU" inputs (WG p20 (1-8) "From SMU") so that `mosfet-4t` reaches it too;
+   optionally a scope on the RSU201 V Monitor; confirm the cabling in chat.
 
 ## 3. Agent steps
 
@@ -80,6 +89,9 @@ FeFET through `SEL1.OUT1`. The WGFMU part (`wgfmu.fast_bti`) joins with M10.
 8. FeFET (physical step 5), new consent per run: `fefet.endurance` (`soft_pulse`, `dut_envelope`, `long_run`;
    poll `get_run`; `endurance_summary`), then `fefet.retention` on a fresh FeFET (`retention_fit`); report MW(N),
    wake-up, fatigue, the retention slopes and any extrapolation as derived.
+9. Fast BTI (physical step 6): `mosfet.idvg` on `mosfet-4t` (DC reference through the RSU SMU path, ATV-32), then
+   `wgfmu.fast_bti` (`stress_time: 600`, same stress as step 2): `fast_bti_shift`; compare `n`, `dvth` with step 4's
+   `bti_power_law`; the audit's time stamps between two WGFMU executions give `run_boundary`.
 
 ## 4. Expected values
 
@@ -96,9 +108,14 @@ FeFET through `SEL1.OUT1`. The WGFMU part (`wgfmu.fast_bti`) joins with M10.
 | `breakdown_search` | diode breakdown voltage | +-5 % of the reference | datasheet / EasyEXPERT |
 | `endurance_mw`, `retention_slope` | MW versus cycles; Vth slope per decade | recorded | lab FeFET data |
 | `bti_cleanup`, `igzo_cleanup`, `hci_cleanup`, `silc_cleanup`, `tddb_cleanup`, `bdv_cleanup`, `search_bd_cleanup`, `endurance_cleanup`, `retention_cleanup` | every run `verified: lop` | pass/fail | manifests |
+| `fast_bti_n`, `fast_vs_smu` | fast exponent; fast dVth >= SMU dVth | +-0.05; recorded | sister device |
+| `rsu_smu_path` | fast reference Vth = DC Vth through the RSU SMU path (ATV-32) | +-20 mV | `mosfet.idvg` on `mosfet-4t` |
+| `fast_bti_cleanup`, `run_boundary` | WGFMU safe state verified; boundary time recorded | pass/fail; recorded | manifest, audit |
 
 - TODO(verify) at this stage: the timer runs on over hours without a reset (sampling `time_source` stays
-  `timestamp`), host overhead per hold block, auto-calibration over hours with outputs off.
+  `timestamp`), host overhead per hold block, auto-calibration over hours with outputs off; WGFMU: the next
+  execution's update leaves the output at the stress level, the RSU SMU path reaches the DUT (ATV-32; else the
+  fallback: separate SMU wiring in the pin map).
 
 ## 5. Abort criteria
 
@@ -114,6 +131,7 @@ FeFET through `SEL1.OUT1`. The WGFMU part (`wgfmu.fast_bti`) joins with M10.
   `--reference` values where the lab has them). The human reviews them and moves them to `validation/hw/stage-l9.yaml`,
   `validation/hw/reliability.bti_sms.yaml`, `validation/hw/igzo.bias_stress.yaml`, `validation/hw/reliability.hci.yaml`,
   `validation/hw/reliability.silc.yaml`, `validation/hw/reliability.tddb_cvs.yaml`, `validation/hw/dielectric.bdv.yaml`,
-  `validation/hw/basic.breakdown_search.yaml`, `validation/hw/fefet.endurance.yaml`, `validation/hw/fefet.retention.yaml`.
+  `validation/hw/basic.breakdown_search.yaml`, `validation/hw/fefet.endurance.yaml`, `validation/hw/fefet.retention.yaml`,
+  `validation/hw/wgfmu.fast_bti.yaml`.
 - Simulator rehearsal (`timing: scaled` scenario `nmos_bti`): the drills run the same way on `S...` runs;
   no record from them; say which records hardware drafts.

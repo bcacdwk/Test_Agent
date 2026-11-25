@@ -403,12 +403,15 @@ class StressSchedule(StrictModel):
 
 class SourcePlan(StrictModel):
     """The typed source part of a kind's program (``plan.program["sources"]``): pulse trains per channel, the
-    WGFMU waveform program and the DC stress of a stress-measure plan."""
+    WGFMU waveform program and the DC stress of a stress-measure plan. ``library``: the plan opens a WGFMU
+    instrument-library session without WGFMU roles (kind ``system``'s WGFMU self-test and self-calibration, WP10.7),
+    so R-WG-01 checks the library as for a WGFMU role."""
 
     pulses: dict[Channel, list[PulseTrain]] = Field(default_factory=dict)
     waveform: WaveformProgram | None = None
     stress: dict[Channel, DcStress] = Field(default_factory=dict)
     schedule: StressSchedule | None = None
+    library: bool = False
 
     def dc_stress(self, ch: int) -> DcStress | None:
         """The DC stress of channel ``ch`` (``None`` when it holds none)."""

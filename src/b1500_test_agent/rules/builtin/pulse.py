@@ -363,9 +363,13 @@ def wgfmu_access(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     instrument library is loadable (64-bit ``wgfmu.dll``, ``DllProbe.loadable``); the bound channels are among the
     library's ``WGFMU_getChannelIds``. The live parts are required before execution and checked at validation when a
     snapshot carries them: every visa snapshot carries the DLL probe, the pre-execute snapshot of a plan with WGFMU
-    roles also the channel ids (``Transaction.snapshot(wgfmu=True)``, WP10.2)."""
+    roles also the channel ids (``Transaction.snapshot(wgfmu=True)``, WP10.2). A plan that uses the library without
+    WGFMU roles (``SourcePlan.library``: the WGFMU self-test and self-calibration, WP10.7) needs the same loadable
+    library and, before execution, a library that lists at least one WGFMU channel."""
     roles = _wgfmu_roles(ctx)
-    if not roles:
+    sources, problem = source_plan_of(ctx)
+    library_only = not roles and problem is None and sources.library
+    if not roles and not library_only:
         return
     pin_map = ctx.plan.binding.pin_map
     for name, bound in roles:
@@ -403,6 +407,9 @@ def wgfmu_access(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
                         source=env.live("wgfmu_channels"),
                         observed=None, limit="the bound channels")
         return
+    if library_only and not channels:
+        yield block("the WGFMU instrument library lists no WGFMU channel: no B1530A answers on this mainframe",
+                    source=env.live("wgfmu_channels"), observed=0, limit="at least one channel")
     available = {norm_channel(c) for c in channels}
     for name, bound in roles:
         if bound is not None and bound.channel is not None and norm_channel(bound.channel) not in available:

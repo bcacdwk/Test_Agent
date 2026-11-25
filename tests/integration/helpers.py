@@ -153,3 +153,24 @@ def make_world(tmp_path: Path) -> World:
     cfg = tmp_path / "cfg"
     cfg.mkdir()
     return World(root=root, cfg=cfg, data=tmp_path / "data", recipes=REPO_ROOT / "recipes", clock=Clock())
+
+
+RESERVED_DEMO = "demo.reserved_slot"
+"""A test-only reserved recipe (WP10.7: the committed reserved slots are being implemented one by one, so the refusal
+tests bring their own ``not_implemented`` slot: ``reliability.bti_sms`` re-declared as a reserved slot)."""
+
+
+def with_reserved_slot(world: World, tmp_path: Path) -> str:
+    """Copy ``recipes/`` to ``tmp_path`` with one extra reserved slot ``RESERVED_DEMO`` (the BTI recipe as a
+    ``not_implemented`` slot) and point the world at it; returns the slot's id."""
+    recipes = tmp_path / "recipes"
+    if not recipes.exists():
+        shutil.copytree(REPO_ROOT / "recipes", recipes)
+    data = yaml.safe_load((recipes / "reliability" / "bti_sms.yaml").read_text(encoding="utf-8"))
+    data.update(id=RESERVED_DEMO, status="not_implemented", card=None, analysis_defaults=[],
+                preconditions=["a test-only slot that is never un-reserved"])
+    (recipes / "reserved").mkdir(exist_ok=True)
+    (recipes / "reserved" / f"{RESERVED_DEMO}.yaml").write_text(yaml.safe_dump(data, sort_keys=False),
+                                                                 encoding="utf-8")
+    world.recipes = recipes
+    return RESERVED_DEMO

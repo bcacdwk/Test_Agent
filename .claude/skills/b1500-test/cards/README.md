@@ -79,11 +79,10 @@ Stress-measure: BTI, HCI, SILC, TDDB, breakdown voltage, IGZO bias stress (destr
 
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
-| reliability | BTI, NBTI, PBTI, bias temperature instability, stress-measure-stress, Vth shift, dVth, power law, time exponent n, recovery | [bti-stress-measure](reliability/bti-stress-measure.md) | `reliability.bti_sms` | sim_validated | HRSMU, MPSMU, GNDU | L9 |
+| reliability | BTI, NBTI, PBTI, bias temperature instability, stress-measure-stress, fast BTI, ultra-fast BTI, WGFMU, Vth shift, dVth, power law, recovery | [bti-stress-measure](reliability/bti-stress-measure.md) | `reliability.bti_sms`, `wgfmu.fast_bti` | sim_validated | HRSMU, MPSMU, GNDU, WGFMU | L9 |
 | reliability | HCI, hot carrier, hot-carrier injection, drain degradation, dId/Id0, Idlin, SILC, stress-induced leakage, gate leakage growth, injected charge | [hci-silc](reliability/hci-silc.md) | `reliability.hci`, `reliability.silc` | sim_validated | HRSMU, MPSMU, GNDU | L9 |
 | reliability | IGZO, oxide TFT, bias stress, PBS, NBS, positive bias stress, negative bias stress, Vth shift, dVth(t), stretched exponential, tau, beta | [igzo-bias-stress](reliability/igzo-bias-stress.md) | `igzo.bias_stress` | sim_validated | HRSMU, MPSMU, GNDU | L9 |
 | reliability | TDDB, time to breakdown, t_bd, dielectric breakdown, gate oxide reliability, Weibull, constant voltage stress, BDV, breakdown voltage, V-ramp, junction breakdown, avalanche | [tddb-bdv](reliability/tddb-bdv.md) | `reliability.tddb_cvs`, `dielectric.bdv`, `basic.breakdown_search` | sim_validated | HRSMU, MPSMU, GNDU | L9 |
-| reliability | reserved: WGFMU fast BTI (stress with on-the-fly Vth monitoring) | [reserved](reserved/README.md) | `wgfmu.fast_bti` | not_implemented | - | - |
 
 ## system
 
@@ -91,5 +90,5 @@ Instrument maintenance: self-test, self-calibration, zero check.
 
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
-| system | self-test, self-calibration, \*TST?, \*CAL?, module check, recalibrate | [self-test-cal](system/self-test-cal.md) | `system.self_test`, `system.self_cal` | sim_validated | all installed | L1 |
+| system | self-test, self-calibration, \*TST?, \*CAL?, module check, recalibrate, WGFMU self-test, WGFMU self-calibration, instrument library | [self-test-cal](system/self-test-cal.md) | `system.self_test`, `system.self_cal`, `system.wgfmu_self_test`, `system.wgfmu_self_cal` | sim_validated | all installed | L1 |
 | system | zero check, noise floor, offset current, open terminals, SMU floor, baseline | [zero-check](system/zero-check.md) | `system.zero_check` | sim_validated | HRSMU, MPSMU | L1 |

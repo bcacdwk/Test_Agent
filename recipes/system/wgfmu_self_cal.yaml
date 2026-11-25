@@ -1,0 +1,27 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe).
+# Self-calibration of the mainframe and all modules through the WGFMU instrument library (blueprint v2 3.4 row
+# system.wgfmu_self_cal; WG Ed. 8 doSelfCalibration, PDF 91): kind system opens a WGFMU phase (FLEX exclusive lock
+# released, library session, initialize), runs the library's self-calibration after raising its timeout, and the phase
+# exit leaves every WGFMU channel disconnected and the session closed. Result 0 = pass, else 2^(N-1) for slot N and
+# 1024 for the mainframe. Open the measurement terminals and the RSU outputs first, so every run needs a human
+# confirmation (always_confirm). Rule R-WG-01 needs a loadable x64 wgfmu.dll on visa and a library that lists a WGFMU
+# channel before execution; on hardware every run also needs first_hw_run until a reviewed validation record exists
+# (stage L8). Rule R-CAL-01 reads the newest system.self_cal run only (the FLEX self-calibration).
+# status: sim_validated by tests/integration/test_recipes_wgfmu_system.py (WP10.7); the visa path by
+# tests/visa_loop/test_fast_bti_visa.py.
+id: system.wgfmu_self_cal
+version: 1
+title: Self-calibration of the mainframe and all modules through the WGFMU instrument library
+family: system
+kind: system
+status: sim_validated
+card: .agents/skills/b1500-test/cards/system/self-test-cal.md
+device_types: []
+roles: {}
+params:
+  operation: {type: enum, choices: [wgfmu_self_cal], default: wgfmu_self_cal, doc: Fixed operation of this recipe.}
+quality: {}
+always_confirm: [system_self_cal]
+provenance:
+  sources: ['WGFMU guide Ed. 8 WGFMU_doSelfCalibration (PDF 91); return codes (PDF 148)']
+  validation_runs: []

@@ -1,0 +1,89 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# WGFMU fast BTI (blueprint v2 3.4 row wgfmu.fast_bti, kind stress_measure, WGFMU path, builder fast_bti): the gate
+# WGFMU holds vg_stress (drain at vd_stress, normally 0 V; source on the GNDU) and is interrupted at log-spaced (or
+# listed) cumulative stress times by a sense of a few microseconds: the gate steps through vg_points levels
+# vg_start..vg_stop (read_kind staircase; spot: one step at vg_read) while the drain WGFMU holds vd and measures Id on
+# irange, then the gate returns to the stress level. The gate leaves its stress level for read_s = steps x (edge +
+# width) + edge only, so the shift hardly recovers before it is read (an SMU read takes seconds: reliability.bti_sms).
+# A reference read precedes the stress; with recovery_time > 0 the gate then rests at vg_recovery and is read at
+# log-spaced recovery times. The WGFMU runs the schedule in executions of up to 25 s of sequencer time (checkpoints
+# every 10 s; runs longer than max_sync_run_s are asynchronous, longer than long_run_confirm_s confirmed: long_run;
+# safe_shutdown cancels). The optional bulk role holds an SMU body bias through the whole run (WG Ex. 10; pin map
+# mosfet-wgfmu-body) and its current is read between two executions (an SMU measurement in the WGFMU session, WG
+# Ex. 11). The WGFMU has no compliance: a saturated drain or gate reading (status V) stops the run. DESTRUCTIVE (the
+# shift is permanent in part): every plan needs confirmation. Analysis: fast_bti_shift (dVth per read from the
+# microsecond senses, dVth = A t^n; bti_power_law reads the same table).
+# Implements the reserved id wgfmu.fast_bti (blueprint v2 3.4).
+# status: sim_validated by tests/integration/test_recipes_fast_bti.py (nmos_bti: n +-0.02, A +-10 %, dVth at every
+# read within 3 % of the model; recovery suppressed against a fast-recovering variant); hw_validated only through a
+# validation record (stage L9).
+id: wgfmu.fast_bti
+version: 1
+title: WGFMU fast BTI (gate stress, microsecond Id-Vg senses at log times, optional recovery; destructive)
+family: reliability
+kind: stress_measure
+status: sim_validated
+card: .agents/skills/b1500-test/cards/reliability/bti-stress-measure.md
+device_types: [nmos, pmos, igzo_tft]
+roles:
+  gate:
+    function: wgfmu
+    module_types: [WGFMU]
+    settings: {start: $vg_start, stop: $vg_stop, points: $vg_points, v: $vg_read, stress: $vg_stress,
+               recovery: $vg_recovery}
+  drain:
+    function: wgfmu
+    measure: [I]
+    module_types: [WGFMU]
+    settings: {v: $vd, stress: $vd_stress, recovery: 0.0, range: $irange}
+  source: {function: ground, allow_gndu: true}
+  bulk:
+    function: bias_v
+    optional: true
+    measure: [I]
+    module_types: [MPSMU, HRSMU]
+    settings: {v: $vb, icomp: $icomp_bulk}
+params:
+  vg_stress: {unit: V, range: [-10, 10],
+              doc: "Gate stress voltage (required; positive: nMOS PBTI, negative: pMOS NBTI; WGFMU at most 10 V)."}
+  stress_time: {unit: s, default: 1000.0, recommended: [10.0, 10000.0], range: [1.0e-4, 86400.0],
+                doc: "Total stress time (the last read)."}
+  schedule: {type: enum, choices: [log, list], default: log,
+             doc: "log: reads at first_read x 10^(k/reads_per_decade) and at stress_time; list: at read_times."}
+  first_read: {unit: s, default: 1.0e-3, recommended: [1.0e-4, 1.0e-2], range: [1.0e-5, 3600.0],
+               doc: "First read after this much stress (also the first recovery read); 10 ns grid."}
+  reads_per_decade: {type: int, default: 3, recommended: [2, 5], range: [1, 20], doc: Log schedule density.}
+  read_times: {type: float_list, unit: s, default: [1.0e-3, 1.0e-2, 0.1, 1.0, 10.0, 100.0, 1000.0],
+               range: [1.0e-5, 86400.0], doc: "Cumulative stress times of the reads when schedule is list."}
+  recovery_time: {unit: s, default: 0.0, recommended: [0.0, 3600.0], range: [0.0, 86400.0],
+                  doc: "Recovery after the stress, read at log times (0 = no recovery)."}
+  vg_recovery: {unit: V, default: 0.0, range: [-10, 10], doc: Gate level during the recovery.}
+  read_kind: {type: enum, choices: [staircase, spot], default: staircase,
+              doc: "staircase: a fast Id-Vg per read (Vth); spot: Id at vg_read only (shortest sense, dVth from the reference read's curve)."}
+  vg_start: {unit: V, default: 0.2, recommended: [0.0, 0.5], range: [-10, 10], doc: First gate sense level.}
+  vg_stop: {unit: V, default: 1.0, recommended: [0.8, 1.5], range: [-10, 10], doc: Last gate sense level.}
+  vg_points: {type: int, default: 17, recommended: [9, 33], range: [2, 201],
+              doc: "Gate sense levels of a staircase read (each edge + width long)."}
+  vg_read: {unit: V, default: 0.5, range: [-10, 10], doc: "Gate level of a spot read (near the reference Vth)."}
+  vd: {unit: V, default: 0.1, recommended: [0.05, 0.1], range: [-5, 5], doc: Drain level during the senses (linear region).}
+  vd_stress: {unit: V, default: 0.0, range: [-5, 5], doc: "Drain during the stress (0 V for BTI)."}
+  irange: {type: enum, choices: [1ua, 10ua, 100ua, 1ma, 10ma], default: 100ua,
+           doc: "Drain current range (full scale; no compliance: over-range reads saturate, status V, and stop the run)."}
+  edge: {unit: s, default: 1.0e-7, recommended: [5.0e-8, 1.0e-6], range: [1.0e-8, 1.0e-5],
+         doc: "Transition between levels (10 ns grid)."}
+  width: {unit: s, default: 1.0e-6, recommended: [5.0e-7, 1.0e-5], range: [2.0e-8, 1.0e-3],
+          doc: "Flat time of each sense step (10 ns grid)."}
+  settle: {unit: s, default: 5.0e-7, recommended: [1.0e-7, 5.0e-6], range: [0.0, 1.0e-3],
+           doc: "Start of each step left out of its average (the point averages width - settle)."}
+  vb: {unit: V, default: 0.0, range: [-2.0, 2.0], doc: Body bias of the optional SMU bulk role.}
+  icomp_bulk: {unit: A, default: 1.0e-4, range: [1.0e-12, 1.0e-3], doc: Compliance of the bulk SMU.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: fast_bti_shift}
+always_confirm: [destructive]
+provenance:
+  sources:
+    - blueprint v2 3.4 row wgfmu.fast_bti (reserved id), 2.7 kind stress_measure (WGFMU stress), 2.7.1 builder fast_bti
+    - WGFMU guide Ed. 8 Examples 10 and 11 (SMU with the WGFMU in one session, PDF 66-69), setMeasureEvent (PDF 125-126), RSU (PDF 19-20)
+    - Kaczer et al., IRPS 2008 (power-law BTI, recovery); ultra-fast BTI practice (microsecond senses; TODO(verify) per technology)
+  validation_runs: []

@@ -1,20 +1,20 @@
 ---
 id: bti-stress-measure
-title: BTI stress-measure-stress — dVth(t) = A t^n at log read times, recovery; destructive
+title: BTI stress-measure-stress — dVth(t) = A t^n at log read times (SMU reads or WGFMU µs reads), recovery; destructive
 family: reliability
-intent: [BTI, NBTI, PBTI, bias temperature instability, stress-measure-stress, Vth shift, dVth, power law, time exponent n, recovery]
-recipes: [reliability.bti_sms]
+intent: [BTI, NBTI, PBTI, bias temperature instability, stress-measure-stress, fast BTI, ultra-fast BTI, WGFMU, Vth shift, dVth, power law, recovery]
+recipes: [reliability.bti_sms, wgfmu.fast_bti]
 device_types: [nmos, pmos, igzo_tft]
-modules: [HRSMU, MPSMU, GNDU]
-routes: []
+modules: [HRSMU, MPSMU, GNDU, WGFMU]
+routes: [rsu:wgfmu]
 bringup_stage: L9
 status: sim_validated
 confirmation: always
-knowledge: [knowledge/05-reliability-defects.md#bti-stress-measure-stress, knowledge/05-reliability-defects.md#stress-measure-analysis, knowledge/06-analysis-extraction.md#vth-constant-current]
-manual: [PG p474-475 (4-156) "MT", PG p472-473 (4-154) "MSC", PG p568 (4-250) "WV", PG p396 (4-78) "DV"]
-debug: [stress-degradation-unexpected, vth-drift-igzo, compliance-hit, noisy-data, errx-codes, cleanup-failed-fault]
-sources: [blueprint v2 3.1 2.7 and 4.2, deck slide 14, Kaczer et al. IRPS 2008]
-version: 1
+knowledge: [knowledge/05-reliability-defects.md#bti-stress-measure-stress, knowledge/05-reliability-defects.md#stress-measure-analysis, knowledge/06-analysis-extraction.md#vth-constant-current, knowledge/11-switching-routing.md#rsu-of-the-wgfmu]
+manual: [PG p474-475 (4-156) "MT", PG p472-473 (4-154) "MSC", PG p396 (4-78) "DV", WG p125 (4-55) "setMeasureEvent", WG p66 (3-26) "Example 10", WG p19 (1-7) "SMU input"]
+debug: [stress-degradation-unexpected, vth-drift-igzo, compliance-hit, noisy-data, wgfmu-range-overflow, wgfmu-library-error, errx-codes, cleanup-failed-fault]
+sources: [blueprint v2 3.1 3.4 2.7 2.7.1 and 4.2, deck slide 14, Kaczer et al. IRPS 2008, WG Ex. 10 and 11]
+version: 2
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
@@ -22,96 +22,100 @@ version: 1
 
 ## 1. Purpose and applicable devices
 
-How fast does the threshold drift under a gate bias, and how much comes back? `reliability.bti_sms` reads an Id-Vg
-(reference), stresses the gate at `vg_stress` (drain, source, bulk at 0 V), interrupts the stress for an Id-Vg read
-at log-spaced cumulative stress times and, with `recovery_time`, reads again while the gate rests at `vg_recovery`.
-`bti_power_law` fits dVth = A t^n and the recovered fraction. DESTRUCTIVE (part of the shift is permanent).
+How fast does the threshold drift under a gate bias, and how much comes back? A reference read, then the gate at
+`vg_stress` (drain, source, bulk at 0 V) interrupted by reads at log-spaced stress times, then (`recovery_time`)
+reads at `vg_recovery`. DESTRUCTIVE (part of the shift is permanent). nMOS PBTI `vg_stress` > 0, pMOS NBTI < 0.
 
-- Applies to MOSFETs (nMOS PBTI: `vg_stress` > 0; pMOS NBTI: `vg_stress` < 0) and TFTs (prefer
-  [igzo-bias-stress](igzo-bias-stress.md) for the stretched-exponential IGZO law).
-- Not for: drain stress (HCI: [hci-silc](hci-silc.md)), leakage growth (SILC: [hci-silc](hci-silc.md)), breakdown
-  life ([tddb-bdv](tddb-bdv.md)), µs reads without recovery (`wgfmu.fast_bti`, reserved), a single Id-Vg
-  ([mosfet-idvg](../smu/mosfet-idvg.md)). Never imitate a stress with repeated sweeps.
+- `reliability.bti_sms` (SMUs): an Id-Vg per read (about a second; part of the shift recovers during it).
+- `wgfmu.fast_bti` (WGFMU on gate and drain via the RSUs): the WGFMU holds the stress and senses for ~20 µs
+  (`vg_points` x (`edge` + `width`)) or ~1 µs (`read_kind: spot`): read before it recovers; first reads from 10 µs.
+- Not for: HCI/SILC ([hci-silc](hci-silc.md)), breakdown ([tddb-bdv](tddb-bdv.md)), IGZO TFTs
+  ([igzo-bias-stress](igzo-bias-stress.md)), one Id-Vg ([mosfet-idvg](../smu/mosfet-idvg.md)); no sweeps as stress.
 
 ## 2. Wiring, pin map, modules
 
 | terminal | role | module | notes |
 |---|---|---|---|
-| gate | `gate`: read sweep `vg_start`..`vg_stop`; stress `vg_stress`; recovery `vg_recovery` | SMU4 (HRSMU) | measures Ig in every phase |
-| drain | `drain`: read `vd`; stress `vd_stress` (0 V) | SMU3 (HRSMU) | measures Id |
+| gate | `gate`: read sweep, `vg_stress`, `vg_recovery` | SMU4 (HRSMU) / WGFMU 201 via `RSU201.OUT` | SMU: measures Ig; WGFMU: no measurement |
+| drain | `drain`: read `vd`, `vd_stress` (0 V) | SMU3 (HRSMU) / WGFMU 202 via `RSU202.OUT` | measures Id (WGFMU: on `irange`) |
 | source | `source`: ground | GNDU | |
-| bulk | `bulk`: ground (optional) | GNDU | |
+| bulk | `bulk`: ground (SMU) / optional SMU bias `vb` (WGFMU) | GNDU / SMU5 (MPSMU) | WGFMU: body bias held, Ib read between executions |
 
-- Example pin map `mosfet-4t` with DUT profile `nmos-generic` (gate, drain ≤ 3 V, 1 mA). The pin map and the
-  profile are the human's: never invent them.
-- Routes: none in every phase (direct SMU and GNDU wiring); ASU-bound roles get the ASU path at the start.
+- SMU: pin map `mosfet-4t`, profile `nmos-generic`; WGFMU: `mosfet-wgfmu` (bulk SMU5: `mosfet-wgfmu-body`),
+  `nmos-wgfmu`. With SMU4/SMU3 on the RSUs' "From SMU" inputs a DC Id-Vg on `mosfet-4t` before and after a fast run
+  reaches the same device (the RSU's SMU path, ATV-32, stage L9). Never invent pin maps or profiles.
+- Routes per phase: WGFMU RSU20x.OUT -> wgfmu (`waveform`), then rest (`unverified_topology` until verified); SMU: none.
 
 ## 3. Pre-run checklist
 
-- A fresh, unstressed device: [contact-resistor-check](../smu/contact-resistor-check.md), then one
-  [mosfet-idvg](../smu/mosfet-idvg.md) so the read sweep spans the Vth criterion (100 nA by default) with margin for
-  the shift; check the gate leakage ([gate-leakage](../smu/gate-leakage.md)) below `icomp_gate` at `vg_stress`.
-- Record the temperature (BTI is thermally activated; the station has no chuck control in the kernel).
-- `station_status` clean; plan one device per stress condition.
+- A fresh, unstressed device: [contact-resistor-check](../smu/contact-resistor-check.md), one
+  [mosfet-idvg](../smu/mosfet-idvg.md) so the read sweep spans the Vth criterion (SMU 100 nA, WGFMU 1 µA) with margin
+  for the shift; gate leakage ([gate-leakage](../smu/gate-leakage.md)) below `icomp_gate` at `vg_stress`.
+- WGFMU: `irange` above Id at `vg_stop` (saturation stops the run; no compliance, <= 10 V). Record the temperature
+  (BTI is thermally activated); plan one device per stress condition.
 
 ## 4. Recipe and parameters
 
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
-| `vg_stress` | required | - | -10..10 V | gate stress | higher: faster shift (power of V); above the profile: confirmation |
-| `stress_time` | 1000 s | 100..10000 s | 0.1..86400 s | total stress (last read) | > 600 s `long_run`; > 300 s async |
+| `vg_stress` | required | - | -10..10 V | gate stress | higher: faster shift; above the profile: confirmation |
+| `stress_time` (reliability.bti_sms) | 1000 s | 100..10000 s | 0.1..86400 s | total stress | > 600 s `long_run`; > 300 s async |
+| `stress_time` (wgfmu.fast_bti) | 1000 s | 10..10000 s | 100 us..86400 s | total stress | as above |
 | `schedule` | `log` | `log` | `log`, `list` | read times | list = `read_times` |
-| `first_read` | 1 s | 0.1..10 s | 0.02..3600 s | first read (also recovery) | 10 ms grid |
-| `reads_per_decade` | 3 | 2..5 | 1..20 | log density | more reads: more recovery during reads |
-| `read_times` | [1, 10, 100, 1000] s | - | 0.02..86400 s | list schedule | ignored for `log` |
+| `first_read` (reliability.bti_sms) | 1 s | 0.1..10 s | 0.02..3600 s | first read (also recovery) | 10 ms grid |
+| `first_read` (wgfmu.fast_bti) | 1 ms | 0.1..10 ms | 10 us..3600 s | first read (also recovery) | 10 ns grid |
+| `reads_per_decade` | 3 | 2..5 | 1..20 | log density | SMU: more reads, more recovery |
 | `recovery_time` | 0 s | 0..3600 s | 0..86400 s | recovery after the stress | 0 = none |
 | `vg_recovery` | 0 V | - | -10..10 V | gate during recovery | |
-| `read_kind` | `staircase` | `staircase` | `staircase`, `spot` | Vth per read | spot: Id at `vg_read` (faster) |
-| `vg_start` | -0.2 V | -1..0 V | -10..10 V | read sweep start | |
-| `vg_stop` | 1.5 V | 1..3 V | -10..10 V | read sweep stop | |
-| `vg_points` | 35 | 21..61 | 11..401 | read points | fewer: a shorter read |
-| `vg_read` | 1 V | - | -10..10 V | spot read gate level | |
-| `vd` | 50 mV | 20..100 mV | -5..5 V | read drain bias | linear region |
+| `read_kind` | `staircase` | `staircase` | `staircase`, `spot` | Vth per read | spot: one level (shortest read) |
+| `vg_start` (reliability.bti_sms) | -0.2 V | -1..0 V | -10..10 V | read sweep start | |
+| `vg_stop` (reliability.bti_sms) | 1.5 V | 1..3 V | -10..10 V | read sweep stop | |
+| `vg_points` (reliability.bti_sms) | 35 | 21..61 | 11..401 | read points | fewer: a shorter read |
+| `vg_start` (wgfmu.fast_bti) | 0.2 V | 0..0.5 V | -10..10 V | sense staircase start | |
+| `vg_stop` (wgfmu.fast_bti) | 1 V | 0.8..1.5 V | -10..10 V | sense staircase stop | Id(vg_stop) < `irange` |
+| `vg_points` (wgfmu.fast_bti) | 17 | 9..33 | 2..201 | sense steps | read_s = steps x (edge + width) + edge |
+| `vg_read` (wgfmu.fast_bti) | 0.5 V | - | -10..10 V | spot sense level | near the reference Vth |
+| `vd` (reliability.bti_sms) | 50 mV | 20..100 mV | -5..5 V | read drain bias | linear region |
+| `vd` (wgfmu.fast_bti) | 100 mV | 50..100 mV | -5..5 V | sense drain bias | linear region |
 | `vd_stress` | 0 V | - | -5..5 V | drain during stress | 0 V for BTI |
-| `icomp_gate` | 1 uA | - | 1 pA..1 mA | gate limit, every phase | a breakdown stops the run |
-| `icomp_drain` | 1 mA | - | 1 pA..10 mA | drain limit | |
-| `samples` | 1 | - | 1..100 | spot samples per read | |
-| `integration` | `medium` | `short`, `medium` | `short`, `medium`, `long` | read ADC | `short`: shorter reads |
+| `irange` (wgfmu.fast_bti) | `100ua` | - | `1ua`, `10ua`, `100ua`, `1ma`, `10ma` | drain range | saturates (V) above it |
+| `width` (wgfmu.fast_bti) | 1 us | 0.5..10 us | 20 ns..1 ms | flat time per sense step | longer: less noise, more recovery |
+| `edge` (wgfmu.fast_bti) | 100 ns | 50 ns..1 us | 10 ns..10 us | between levels | |
+| `settle` (wgfmu.fast_bti) | 500 ns | 100 ns..5 us | 0..1 ms | left out of each average | |
+| `icomp_gate` (reliability.bti_sms) | 1 uA | - | 1 pA..1 mA | gate limit, every phase | a breakdown stops the run |
 
 Example plan (validated on the simulator by `b1500 dev lint-skills`):
 
 ```yaml
-recipe_id: reliability.bti_sms
-params: {vg_stress: 2.0, stress_time: 1800}
-pin_map: mosfet-4t
-dut_profile: nmos-generic
+recipe_id: wgfmu.fast_bti
+params: {vg_stress: 2.0, stress_time: 100}
+pin_map: mosfet-wgfmu
+dut_profile: nmos-wgfmu
 sim_scenario: nmos_bti
 ```
 
 ## 5. Limits and confirmation
 
-- `destructive` (R-ALWAYS-01) on every plan; `long_run` above 600 s; asynchronous above `max_sync_run_s` (300 s):
-  `running`, poll `get_run` with `include: [progress]`; `safe_shutdown` cancels within one 25 s hold block (outputs
-  zeroed and verified, rows kept as PARTIAL). Blocked above 24 h or 10001 points (R-RUN-01/02).
-- The summary shows the read levels, `stress <V> V` per channel and `stress <time> x<n> reads`: read it back.
-- `dut_envelope` (R-DUT-01) when `vg_stress` or a read level exceeds the profile; hard limits 42 V / 100 mA.
-- A compliance, overflow or oscillation in a hold block or a read stops the run (`kind_result.stop_reason`).
+- `destructive` (R-ALWAYS-01) always; WGFMU also `unverified_topology`; `long_run` > 600 s; async > 300 s: poll
+  `get_run` (`include: [progress]`); `safe_shutdown` cancels (SMU: one 25 s hold block, WGFMU: one 1 s poll; outputs
+  zeroed and verified, rows kept as PARTIAL). The summary shows `stress <V> V` per channel and `stress <t> x<n> reads`.
+- `dut_envelope` (R-DUT-01) above the profile; hard limits 42 V / 100 mA; WGFMU levels R-WG-02.
+- A compliance, overflow or oscillation (SMU) or a saturated WGFMU reading (`V`) stops the run (`stop_reason`).
 
 ## 6. Quality criteria
 
-- Every read all `N`; a read with `C`/`T` stops the run (widen the compliance only after asking the human).
-- `kind_result`: `reads_done`/`reads_planned`, `holds_done`, `stress_s_done`, `stopped_early`.
-- The constant-current crossing must stay inside the read sweep for every read (a shift past `vg_stop` fails it).
-- The hold rows' gate current should stay flat; a rising Ig is SILC or soft breakdown (stop and report).
+- Every read all `N`; `C`/`T`/`V` stops the run (widen a compliance or range only after asking the human).
+- `kind_result`: `reads_done`/`reads_planned`, `holds_done`, `stress_s_done`, `stopped_early` (+ WGFMU `read_s`).
+- The Vth criterion stays inside every read sweep; a rising hold-row Ig is SILC or soft breakdown (stop, report).
 
 ## 7. Analysis method
 
-- Default `bti_power_law` (`vth_method: constant_current`, 100 nA; `linear_extrapolation` uses `vd`): `n`, `a`
-  (|dVth| at 1 s), `dvth` (signed, last stress read); with recovery reads `recovery`, `recovery_rate`.
-  `min_change` (1 mV) drops reads lost in the noise; `t_min`/`t_max` restrict the fit.
-- `degradation_vs_time` (`quantity: id`, `at_v`) for the drain current loss; `plot_timeseries` (`log_time: true`).
-- Report: stress V, time, read times and read duration; `n` and `A` as `bti_power_law` results (name the method,
-  Vth criterion, r2, reads used); measured status counts.
+- SMU: `bti_power_law` (`constant_current` 100 nA or `linear_extrapolation`): `n`, `a` (|dVth| at 1 s), `dvth`,
+  with recovery reads `recovery`, `recovery_rate`; `min_change` (1 mV) drops reads lost in the noise.
+- WGFMU: `fast_bti_shift` (`auto`: own staircase at 1 µA, spot reads against the reference read's curve): the
+  same results, `fit.read_s` and `fit.read_fraction` (warning above 2 % of the first stress interval).
+- `degradation_vs_time` (`quantity: id`), `plot_timeseries` (`log_time: true`). Report stress V and time, read times
+  and duration; `n`, `A` as results of the named method (Vth criterion, r2, reads used); status counts; backend.
 - After a stop (`safe_shutdown`): run id, outcome (`cancelled`, or `aborted` when a recovery finalized it), "cleanup
   verified" (or not, from the `cleanup` result) and the rows so far as partial data.
 
@@ -121,26 +125,26 @@ sim_scenario: nmos_bti
 |---|---|---|
 | nMOS PBTI (SiO2/HfO2) | dVth > 0, n 0.1-0.3 `TODO(verify)` | n > 0.5 (charging, temperature drift) |
 | pMOS NBTI | dVth < 0 (Vth more negative), n 0.1-0.25 | no shift at a high field (contact, wiring) |
-| recovery | fast first decades, log-like | negative recovery (still stressing) |
+| fast vs SMU reads | fast dVth >= SMU dVth | fast < SMU (wrong landing, range) |
 
 ## 9. Common failures → debug
 
 | symptom | likely cause | first safe check | runbook |
 |---|---|---|---|
-| stopped: read with `C` on the drain | `icomp_drain` too low for the read | Id at `vg_stop` from the reference read | `compliance-hit` |
-| stopped: hold block `C` on the gate | gate breakdown / leaky stack | low-voltage gate leakage | `current-too-high` |
-| dVth scattered, n off | noisy reads, recovery during reads | fewer points, `short` | `noisy-data` |
-| no shift, wrong sign, huge shift | stress too weak, recovery, polarity, breakdown | reference read, Ig trend | `stress-degradation-unexpected` |
-| Vth drifts without stress | trapping, temperature | rest the device, repeat the reference read | `vth-drift-igzo` |
-| run `failed`, fault latched | instrument error, unverified cleanup | `safe_shutdown`, skill `b1500-debug` | `errx-codes`, `cleanup-failed-fault` |
+| stopped: `C` (SMU) or `V` (WGFMU) on the drain | compliance or `irange` below the read current | Id at `vg_stop` in the reference read | `compliance-hit`, `wgfmu-range-overflow` |
+| stopped: gate `C` in a hold | gate breakdown / leaky stack | low-voltage gate leakage | `current-too-high` |
+| dVth scattered, n off | noise, recovery during reads | fewer points, longer `width` (WGFMU) | `noisy-data` |
+| no shift, wrong sign, huge shift | stress too weak, polarity, breakdown | reference read, Ig trend | `stress-degradation-unexpected` |
+| WGFMU library error; run `failed`, fault latched | library, RSU; unverified cleanup | `safe_shutdown`, `b1500 doctor` | `wgfmu-library-error`, `errx-codes`, `cleanup-failed-fault` |
 
 ## 10. Validation record
 
 | backend | date | scenario or station | DUT | run_id | result | reviewer |
 |---|---|---|---|---|---|---|
-| sim | 2026-11-20 | nmos_bti | nmos-generic | S20261120T041646Z-6a34 | destructive + long_run, async; 2 V, 1800 s, 11 reads: n 0.199 vs 0.2, A 20.2 mV vs 20 mV | - |
+| sim | 2026-11-20 | nmos_bti | nmos-generic | S20261120T041646Z-6a34 | bti_sms on mosfet-4t, 2 V, 1800 s, 11 reads: n 0.199 vs 0.2, A 20.2 mV vs 20 mV | - |
+| sim | 2026-11-24 | nmos_bti | nmos-wgfmu | S20261124T103806Z-d763 | fast_bti 2 V, 100 s, 16 reads: n 0.202, A 19.6 mV, dVth(100 s) 50.3 vs 50.2 mV | - |
 | hw | pending (bring-up stage L9) | - | - | - | - | - |
 
-Sim rows: the example plan run through `B1500Service` with temporary `B1500_CONFIG_DIR`/`B1500_DATA_DIR`; that run
-folder was not kept. Hardware record: `validation/hw/reliability.bti_sms.yaml` (reviewed by a human after bring-up
-stage L9, skill `b1500-bringup`; drafts only from hardware `H...` runs, never from simulator `S...` runs).
+Sim rows: example plans via `B1500Service`, temporary config and data (run folders not kept). Hardware records
+`validation/hw/reliability.bti_sms.yaml`, `validation/hw/wgfmu.fast_bti.yaml`: reviewed by a human after stage L9
+(skill `b1500-bringup`), drafted only from hardware `H...` runs, never from `S...` runs.

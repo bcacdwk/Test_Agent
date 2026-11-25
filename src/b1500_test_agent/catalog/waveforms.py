@@ -11,7 +11,8 @@ channel gets the smallest force range that holds every level it outputs (3 V, 5 
 (4-53)), a voltage-measuring channel the 5 V or 10 V measurement range, a current-measuring channel the recipe's
 range (Table 4-9, WG p142 (4-72)).
 
-Builders (``BUILDERS``; ``pund``, ``program_read`` and ``fast_bti`` of blueprint 2.7.1 arrive with WP10.6-10.7):
+Builders (``BUILDERS``; ``fast_bti`` lives in ``catalog/fast_bti.py``, WP10.7; ``pund`` and ``program_read`` of
+blueprint 2.7.1 arrive with WP10.6):
 
 - ``pulsed_iv``: one pulse per level on the pulsed channel (base -> level in ``edge``, ``width`` flat top, back to
   base in ``edge``, rest of the ``period`` at base), the other channels hold their bias; every measuring channel takes
@@ -80,9 +81,9 @@ from b1500_test_agent.models.sources import (
     WgfmuVoltageRange,
 )
 
-BUILDERS: Final = ("pulse_train", "pulsed_iv", "fast_iv_ramp", "dc_spot", "dc_sample", "table")
-"""The builders this module implements (blueprint v2 2.7.1 lists ``pund``, ``program_read`` and ``fast_bti`` too:
-WP10.6-10.7)."""
+BUILDERS: Final = ("pulse_train", "pulsed_iv", "fast_iv_ramp", "dc_spot", "dc_sample", "table", "fast_bti")
+"""The builders of kind ``wgfmu_waveform`` (``fast_bti``: ``catalog/fast_bti.py``, WP10.7; blueprint v2 2.7.1 lists
+``pund`` and ``program_read`` too: WP10.6)."""
 
 TICK_S: Final = WGFMU_GRID_S
 GAP_HOLD_TICKS: Final = 1

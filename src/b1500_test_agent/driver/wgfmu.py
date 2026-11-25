@@ -27,6 +27,11 @@ refusal (``EnvelopeViolation``) means nothing of that operation reached the libr
 - ``force_dc(ch, v)``/``measure_dc(ch)``: DC mode output (level through ``check_waveform`` as a pattern without
   vectors) and spot measurement (WG p89-90 (4-19, 4-20)).
 - ``abort()``: stop every sequencer (WG p79 (4-9)).
+- ``maintenance(operation)`` (WP10.7): the library's self-test or self-calibration of the mainframe and all modules
+  (``WGFMU_doSelfTest``/``WGFMU_doSelfCalibration``, WG p91-92 (4-21, 4-22); the library raises its session timeout to
+  600 s for the call by itself, WG p129 (4-59) "600 s"); returns the result bitmask (0 pass, ``2^(N-1)`` slot N, 1024
+  mainframe). No level reaches the DUT (the terminals are open: the recipe's confirmation), so no guard check
+  applies; the modules end reset.
 - ``safe_state(channels)``: the WGFMU part of cleanup step 3 (blueprint v2 2.6): ``abort`` -> ``initialize`` (every
   channel reset: SMU mode, disconnected, 0 V; WG p120 (4-50)) -> ``disconnect`` each connected channel (and each of
   ``channels``). Every step runs whatever happened before; never raises (an interrupt caught meanwhile comes back in
@@ -425,6 +430,21 @@ class WgfmuDriver:
         empty = np.zeros(0, dtype=float)
         return WgfmuTrace(channel=ch, quantity=quantity, time_s=np.concatenate(times) if times else empty,
                           value=np.concatenate(values) if values else empty)
+
+    # -- maintenance ---------------------------------------------------------------------------------------------------
+
+    def maintenance(self, operation: Literal["self_test", "self_calibration"]) -> int:
+        """Self-test or self-calibration through the library (module docstring); the result bitmask.
+
+        Raises:
+            ValueError: For another operation.
+            WgfmuError: If the library fails (a failed unit is a result, not an error).
+        """
+        if operation not in ("self_test", "self_calibration"):
+            raise ValueError(f"maintenance operation must be self_test or self_calibration, got {operation!r}")
+        result = self.api.self_test() if operation == "self_test" else self.api.self_calibration()
+        self._tracked.setups.clear()  # the modules are reset (WG p92 (4-22)); the software setup stays
+        return int(result)
 
     # -- stop and safe state -------------------------------------------------------------------------------------------
 

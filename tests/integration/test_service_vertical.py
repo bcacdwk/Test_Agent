@@ -5,6 +5,7 @@ cleanup is unverified, and the recipe index (overview by family, family listings
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 import yaml
@@ -17,7 +18,7 @@ from b1500_test_agent.models.recipe import RecipeSummary
 from b1500_test_agent.service import TOOL_NAMES, B1500Admin, approx_tokens, args_digest
 from b1500_test_agent.service.common import TRIM_TARGET
 from b1500_test_agent.service.core import RECIPE_FAMILIES
-from tests.integration.helpers import IDVG, World
+from tests.integration.helpers import IDVG, World, with_reserved_slot
 
 VTH0 = 0.42
 """Truth of config/sim/scenarios/nmos_basic.yaml."""
@@ -104,12 +105,13 @@ def test_needs_confirmation_flow_and_summary_echo(world: World) -> None:
     assert manifest.confirmed_via == "run_confirmed_plan" and manifest.confirmed_summary == plan.summary
 
 
-def test_blocked_and_not_implemented_plans(world: World) -> None:
+def test_blocked_and_not_implemented_plans(world: World, tmp_path: Path) -> None:
+    reserved_id = with_reserved_slot(world, tmp_path)  # WP10.7: wgfmu.fast_bti is implemented now
     service = world.service()
     blocked = service.validate_plan(**IDVG, params={"vg_stop": 60.0})
     assert not blocked.ok and (blocked.status, blocked.error_code) == ("blocked", "blocked_by_rules")
     assert {f.rule_id for f in blocked.findings if f.severity == "block"} >= {"R-PARAM-01", "R-LIM-02"}
-    reserved = service.validate_plan(recipe_id="wgfmu.fast_bti", pin_map="mosfet-4t", dut_profile="nmos-generic")
+    reserved = service.validate_plan(recipe_id=reserved_id, pin_map="mosfet-4t", dut_profile="nmos-generic")
     assert (reserved.status, reserved.error_code, reserved.tier) == ("not_implemented", "not_implemented", "blocked")
     both = service.validate_plan(recipe_id="mosfet.idvg", plan_id=blocked.plan_id)
     assert (both.status, both.error_code) == ("refused", "invalid_input")

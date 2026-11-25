@@ -14,7 +14,7 @@ from b1500_test_agent.analysis import load_run
 from b1500_test_agent.models.run import LockHolder
 from b1500_test_agent.session import FaultLatch, InstrumentLock
 from b1500_test_agent.transport.audit import NullAuditSink
-from tests.integration.helpers import CLI, MCP, REPO_ROOT, World, plan, run
+from tests.integration.helpers import CLI, MCP, REPO_ROOT, World, plan, run, with_reserved_slot
 
 CONFIRM = {"vg_stop": 3.5}
 """Above the nmos-generic gate envelope (3 V): needs_confirmation (dut_envelope), within every hard limit."""
@@ -30,15 +30,15 @@ def assert_refused(world: World, before: tuple[int, int, int, bool], result, *, 
 def test_not_implemented_recipes_never_touch_the_instrument(world: World, tmp_path: Path) -> None:
     # A draft recipe outside reserved/ whose kind has no implementation (wgfmu_pulse_sequence), next to two reserved
     # slots.
+    reserved = with_reserved_slot(world, tmp_path)  # WP10.7: wgfmu.fast_bti is implemented now
     recipes = tmp_path / "recipes"
-    shutil.copytree(REPO_ROOT / "recipes", recipes)
     spot = (recipes / "mosfet" / "idvg.yaml").read_text(encoding="utf-8").replace("id: mosfet.idvg", "id: mosfet.spot")
     spot = spot.replace("kind: smu_staircase", "kind: wgfmu_pulse_sequence").replace("status: sim_validated",
                                                                                    "status: draft")
     (recipes / "mosfet" / "spot.yaml").write_text(spot, encoding="utf-8")
     world.recipes = recipes
     executor = world.executor()
-    for recipe_id, dut in (("wgfmu.fast_bti", "nmos-generic"), ("mosfet.spot", "nmos-generic"),
+    for recipe_id, dut in ((reserved, "nmos-generic"), ("mosfet.spot", "nmos-generic"),
                            ("fecap.pund", None)):
         record = plan(executor, recipe_id=recipe_id, dut_profile=dut)
         assert record.tier == "blocked"

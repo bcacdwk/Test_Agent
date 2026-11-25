@@ -434,6 +434,22 @@ checked with the whole program at `load` and again at each `force_dc`. Residuals
 short at a terminal draws up to the full scale of its range (10 mA range; PG mode about 100 mA into a short), which
 R-GNDU-01 budgets; an over-range reading saturates and is flagged `V`, never trusted.
 
+**WGFMU stress and fast BTI (`stress_measure` WGFMU path, WP10.7).** A `stress_measure` recipe with `wgfmu` roles
+(`wgfmu.fast_bti`) compiles the whole schedule into one `fast_bti` `WaveformProgram` (`catalog/fast_bti.py`: the
+reference read, then per cycle a stress hold and a microsecond sense, then the tail to 0 V), which R-WG-02 checks and
+the guard admits as a whole (`WgfmuDriver.check_program` before the first pattern reaches the library), then runs it in
+WGFMU executions of at most 25 s of sequencer time (the reference read alone first, so a saturated reference stops the
+run before any stress). The WGFMU holds the stress level between executions; no execution starts after one whose
+WGFMU reading saturated (`V`, the WGFMU has no compliance) or whose SMU monitor reading reported a limit. The summary
+names the stress level of each WGFMU channel and the schedule; every plan is `destructive`. SMU bias roles are switched
+on and set inside the WGFMU phase after `WGFMU_initialize` (WG Ex. 10's order, the ATV-17 fallback order), `ERRX?` is
+drained after every execution and the bulk is read between executions (WG Ex. 11). Cancel: within one 1 s status poll
+(the abort ends the execution; the phase exit aborts, initializes and disconnects). Residuals: a run boundary adds the
+host's readback and setup time (milliseconds) at the stress level, unrecorded in `t_s`; on hardware TODO(verify) at L9
+that the next execution's `WGFMU_update` leaves the output at the stress level. The kind `system`'s WGFMU self-test
+and self-calibration (`system.wgfmu_*`) open the same phase without any level (`SourcePlan.library`: R-WG-01 needs a
+loadable library and a listed WGFMU channel) and always need the human's confirmation with open terminals.
+
 **`LOP?` positive control (hardware, WP6.2; v1 ATV-1, ATV-23).** On hardware the verification is `LOP?` reading `00`
 for every slot. An all-`00` answer proves the outputs off only if `LOP?` reports this instrument's output switches at
 all, so every run that switches outputs on reads `LOP?` once right after `CN`, before any level is applied (the

@@ -54,7 +54,8 @@ def test_status_on_the_simulator(cli_world: World) -> None:
     status = BringupStatus.model_validate(as_json(invoke("bringup", "status", "--json")))
     assert status.next_stage == "S0" and status.simulated and len(status.stages) == 12
     l1 = next(s for s in status.stages if s.stage == "L1")
-    assert [r.recipe_id for r in l1.records] == ["system.self_test", "system.self_cal", None]
+    assert [r.recipe_id for r in l1.records] == ["system.self_test", "system.self_cal", "system.wgfmu_self_test",
+                                                 "system.wgfmu_self_cal", None]
     assert _tool_calls(cli_world, "bringup_status")[-1]["status"] == "ok"
 
 

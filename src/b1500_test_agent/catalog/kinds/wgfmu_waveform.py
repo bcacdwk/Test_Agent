@@ -19,6 +19,10 @@ parameters read by name, never from a step language:
 - ``table``: each WGFMU role's setting ``wave`` references a ``file`` parameter (its waveform CSV); the ``file``
   parameter ``events`` holds the measurement rows (lab layout, ``catalog/waveforms.py``). The kind reads the bytes
   through the planner's ``ParamFiles`` (``read_param_file``: sha256 re-verified; ``reads_files``).
+- ``fast_bti`` (WP10.7): the whole fast-BTI schedule of kind ``stress_measure``'s WGFMU path (settings ``stress``,
+  ``recovery``, the swept role's ``start``/``stop``/``points``, ``v``; the schedule and sense-timing parameters;
+  ``stress_wgfmu.build``) in ONE execution: a raw view (``event`` = ``sense``/``monitor``) without that kind's
+  per-read checkpoints; recipe ``wgfmu.fast_bti`` runs it in ``stress_measure``.
 
 Every other WGFMU role of a pulse/ramp builder holds setting ``v`` (default 0 V). A WGFMU role measures what its
 ``measure`` lists (``[I]`` or ``[V]``, one quantity per channel; ``[]`` = measurement off); a current-measuring role
@@ -341,6 +345,10 @@ def _build(builder: str, recipe: Recipe, params: Mapping[str, Quantity],
                  for name, (role, spec) in roles.items()]
         events = wf.parse_events_csv(files.read("events"), name="events", channels=len(waves))
         return wf.table(waves, events)
+    if builder == "fast_bti":
+        from b1500_test_agent.catalog.kinds import stress_wgfmu
+
+        return stress_wgfmu.build(roles, params)[0]
     raise CompileError(f"{KIND_ID}: {BUILDER_PARAM} must be one of {list(WAVEFORM_BUILDERS)}, got {builder!r}")
 
 

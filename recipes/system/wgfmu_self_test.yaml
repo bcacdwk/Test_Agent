@@ -1,0 +1,28 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe).
+# Self-test of the mainframe and all modules through the WGFMU instrument library (blueprint v2 3.4 row
+# system.wgfmu_self_test; WG Ed. 8 doSelfTest, PDF 92; To Perform Self-Test, PDF 36): kind system opens a WGFMU phase
+# (FLEX exclusive lock released, library session, initialize), runs the library's self-test after raising its timeout,
+# and the phase exit leaves every WGFMU channel disconnected and the session closed. Result 0 = pass, else 2^(N-1) for
+# slot N and 1024 for the mainframe (failed modules stay disabled until the human decides). Open the measurement
+# terminals and the RSU outputs first, so every run needs a human confirmation (always_confirm). Rule R-WG-01 needs a
+# loadable x64 wgfmu.dll on visa and a library that lists a WGFMU channel before execution; on hardware every run also
+# needs first_hw_run until a reviewed validation record exists (stage L8).
+# Any existing pin map may be named in the request; no DUT profile is needed (no DUT roles).
+# status: sim_validated by tests/integration/test_recipes_wgfmu_system.py (WP10.7); the visa path by
+# tests/visa_loop/test_fast_bti_visa.py.
+id: system.wgfmu_self_test
+version: 1
+title: Self-test of the mainframe and all modules through the WGFMU instrument library
+family: system
+kind: system
+status: sim_validated
+card: .agents/skills/b1500-test/cards/system/self-test-cal.md
+device_types: []
+roles: {}
+params:
+  operation: {type: enum, choices: [wgfmu_self_test], default: wgfmu_self_test, doc: Fixed operation of this recipe.}
+quality: {}
+always_confirm: [system_self_test]
+provenance:
+  sources: ['WGFMU guide Ed. 8 WGFMU_doSelfTest (PDF 92) and To Perform Self-Test (PDF 36); return codes (PDF 148)']
+  validation_runs: []

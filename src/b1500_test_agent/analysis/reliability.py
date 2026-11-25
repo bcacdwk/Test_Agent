@@ -1,7 +1,7 @@
 """Reliability and time-domain analysis (blueprint v2 2.10 ``reliability.py``): the time-series plot
 ``plot_timeseries`` (WP5.7), the sampling methods ``sampling_summary`` and ``time_to_breakdown`` and the library helper
-``weibull_fit`` over a run list (WP7.4); the stress-measure methods of WP7.6 (``bti_power_law``,
-``degradation_vs_time``, ``silc``, ``fast_bti_shift``) join this module.
+``weibull_fit`` over a run list (WP7.4); the stress-measure methods of WP7.6 and WP10.7 (``bti_power_law``,
+``degradation_vs_time``, ``silc``, ``fast_bti_shift``) live in ``stress.py``.
 
 ``plot_timeseries`` (definition; the source of knowledge file ``06-analysis-extraction.md``): one figure per scale
 (``linear``, the default; ``log``: absolute values on a log axis; ``both`` = the two), one panel per value column

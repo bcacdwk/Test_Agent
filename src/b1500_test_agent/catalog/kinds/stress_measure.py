@@ -1,7 +1,12 @@
 """``stress_measure``: composite stress -> reads at log or list times -> optional recovery reads, built from the shared
 blocks of ``catalog/blocks.py`` (blueprint v2 2.7, decision table row 5; 3.1 rows ``reliability.bti_sms``,
-``igzo.bias_stress``, ``reliability.hci``, ``reliability.silc``). No step language: recipes choose the read, the
-schedule and the levels by parameters only.
+``igzo.bias_stress``, ``reliability.hci``, ``reliability.silc``; 3.4 row ``wgfmu.fast_bti``). No step language:
+recipes choose the read, the schedule and the levels by parameters only.
+
+Two paths share the schedule, the table contract and the analyses: the SMU path below (holds timed by ``MM 10``
+blocks, SMU reads) and, for a recipe with ``wgfmu`` roles, the WGFMU path of ``stress_wgfmu.py`` (WP10.7: the WGFMU
+holds the stress and senses in microseconds between the holds, builder ``fast_bti``; SMU roles hold a DC bias around
+it, WG Ex. 10). ``compile``, ``acquire``, ``to_table`` and ``checkpoint_total`` hand a WGFMU plan to that module.
 
 Roles (bound through the pin map; every role is an SMU forcing voltage, each measured role measures one quantity):
 
@@ -13,7 +18,8 @@ Roles (bound through the pin map; every role is an SMU forcing voltage, each mea
   the recovery holds); the compliance ``icomp`` holds in every phase;
 - ``ground`` / ``measure_only``: the GNDU or an SMU at 0 V in every phase (compliance ``icomp`` or the sum of the
   sourcing compliances, as ``smu_staircase``);
-- every other function is refused (pulse, WGFMU and current-forcing stress arrive with their kinds).
+- every other function is refused here (pulse and current-forcing stress arrive with their kinds; ``wgfmu`` roles
+  select the WGFMU path).
 
 Recipe parameters read by name: ``read_kind`` (``staircase``, the default with a ``sweep_v`` role: one Id-Vg-like
 sweep per read, compiled exactly as ``smu_staircase``; ``spot``: ``samples`` spot measurements per read at the read
@@ -22,7 +28,8 @@ levels, compiled as ``smu_spot`` with the sweep role at its ``v``), ``schedule``
 times ``read_times``, plus ``stress_time`` when it is later), ``stress_time`` (s), ``first_read`` (s, at least
 ``MIN_READ_S``), ``reads_per_decade``, ``read_times`` (s), ``recovery_time`` (s, 0 = no recovery; recovery reads
 log-spaced from ``first_read`` to it), ``integration`` and ``samples`` (the read kinds' parameters). Times lie on the
-10 ms grid of the instrument's hold timer; at most ``MAX_READS`` reads after the reference read.
+10 ms grid of the instrument's hold timer (the WGFMU path: the 10 ns grid, first reads from 10 us); at most
+``MAX_READS`` reads after the reference read.
 
 Run (one transaction, guarded driver only, blocks of ``catalog/blocks.py``): ``apply_routes`` (the routes of roles
 bound through an ASU or a 16440A selector, one ``setup`` phase: guarded, read back; WP9.2), ``open_outputs``
@@ -218,35 +225,45 @@ def _grid(value: float) -> float:
     return round(round(value / HOLD_GRID_S) * HOLD_GRID_S, 2)
 
 
-def _seconds(params: dict[str, Quantity], name: str, default: float | None = None, *, minimum: float) -> float:
+def _snap(value: float, grid: float) -> float:
+    """``value`` on ``grid`` (the 10 ms hold grid exactly as ``_grid``; finer grids rounded to 1e-12 s)."""
+    if grid == HOLD_GRID_S:
+        return _grid(value)
+    return round(round(value / grid) * grid, 12)
+
+
+def _seconds(params: dict[str, Quantity], name: str, default: float | None = None, *, minimum: float,
+             grid: float = HOLD_GRID_S) -> float:
     value = _number(_param(params, name, default), name)
     if value < minimum:
         raise CompileError(f"{name} must be at least {minimum:g} s, got {value:g}")
-    return _grid(value)
+    return _snap(value, grid)
 
 
-def log_times(first: float, last: float, per_decade: int) -> list[float]:
-    """Read times ``first x 10^(k/per_decade)`` below ``last``, then ``last``; on the 10 ms grid, increasing."""
+def log_times(first: float, last: float, per_decade: int, *, grid: float = HOLD_GRID_S) -> list[float]:
+    """Read times ``first x 10^(k/per_decade)`` below ``last``, then ``last``; on ``grid`` (10 ms), increasing."""
     times: list[float] = []
     k = 0
     while True:
-        t = _grid(first * 10.0 ** (k / per_decade))
-        if t >= last - 1e-9:
+        t = _snap(first * 10.0 ** (k / per_decade), grid)
+        if t >= last - grid * 1e-7:
             break
         if t > 0 and (not times or t > times[-1]):
             times.append(t)
         k += 1
-    times.append(_grid(last))
+    times.append(_snap(last, grid))
     return times
 
 
-def schedule(params: dict[str, Quantity]) -> tuple[list[float], list[float]]:
-    """``(stress read times, recovery read times)``: cumulative stress times, then cumulative recovery times (s)."""
+def schedule(params: dict[str, Quantity], *, grid: float = HOLD_GRID_S,
+             min_read: float = MIN_READ_S) -> tuple[list[float], list[float]]:
+    """``(stress read times, recovery read times)``: cumulative stress times, then cumulative recovery times (s), on
+    ``grid`` (the SMU hold grid of 10 ms by default; the WGFMU path passes its 10 ns grid and its shortest read)."""
     mode = _param(params, SCHEDULE_PARAM, "log")
     if mode not in SCHEDULES:
         raise CompileError(f"{SCHEDULE_PARAM} must be one of {list(SCHEDULES)}, got {mode!r}")
-    stress_time = _seconds(params, STRESS_TIME_PARAM, minimum=MIN_READ_S)
-    first = _seconds(params, FIRST_READ_PARAM, 1.0, minimum=MIN_READ_S)
+    stress_time = _seconds(params, STRESS_TIME_PARAM, minimum=min_read, grid=grid)
+    first = _seconds(params, FIRST_READ_PARAM, 1.0, minimum=min_read, grid=grid)
     per_decade = _param(params, READS_PER_DECADE_PARAM, 3)
     if isinstance(per_decade, float) and per_decade.is_integer():
         per_decade = int(per_decade)
@@ -254,15 +271,16 @@ def schedule(params: dict[str, Quantity]) -> tuple[list[float], list[float]]:
         raise CompileError(f"{READS_PER_DECADE_PARAM} must be an integer 1 to {MAX_READS_PER_DECADE}, got "
                            f"{per_decade!r}")
     if mode == "log":
-        stress = log_times(first, stress_time, per_decade)
+        stress = log_times(first, stress_time, per_decade, grid=grid)
     else:
         listed = _param(params, READ_TIMES_PARAM)
         if not isinstance(listed, list) or not listed:
             raise CompileError(f"{SCHEDULE_PARAM} list needs {READ_TIMES_PARAM} (cumulative stress times, s)")
-        stress = [_grid(_number(v, f"{READ_TIMES_PARAM}[{i}]")) for i, v in enumerate(listed)]
-        if any(t < MIN_READ_S for t in stress) or any(b <= a for a, b in pairwise(stress)):
-            raise CompileError(f"{READ_TIMES_PARAM} must increase strictly from at least {MIN_READ_S:g} s on the "
-                               f"10 ms grid, got {listed}")
+        stress = [_snap(_number(v, f"{READ_TIMES_PARAM}[{i}]"), grid) for i, v in enumerate(listed)]
+        if any(t < min_read for t in stress) or any(b <= a for a, b in pairwise(stress)):
+            unit = "10 ms" if grid == HOLD_GRID_S else f"{grid:g} s"
+            raise CompileError(f"{READ_TIMES_PARAM} must increase strictly from at least {min_read:g} s on the "
+                               f"{unit} grid, got {listed}")
         if stress[-1] > stress_time + 1e-9:
             raise CompileError(f"{READ_TIMES_PARAM} ends at {stress[-1]:g} s, after {STRESS_TIME_PARAM} "
                                f"{stress_time:g} s")
@@ -271,22 +289,24 @@ def schedule(params: dict[str, Quantity]) -> tuple[list[float], list[float]]:
     recovery_time = _number(_param(params, RECOVERY_TIME_PARAM, 0.0), RECOVERY_TIME_PARAM)
     if recovery_time < 0:
         raise CompileError(f"{RECOVERY_TIME_PARAM} must be >= 0 s, got {recovery_time:g}")
-    recovery = log_times(first, _grid(recovery_time), per_decade) if recovery_time > 0 else []
-    if recovery and recovery[-1] < MIN_READ_S:
-        raise CompileError(f"{RECOVERY_TIME_PARAM} must be 0 or at least {MIN_READ_S:g} s")
+    recovery = log_times(first, _snap(recovery_time, grid), per_decade, grid=grid) if recovery_time > 0 else []
+    if recovery and recovery[-1] < min_read:
+        raise CompileError(f"{RECOVERY_TIME_PARAM} must be 0 or at least {min_read:g} s")
     if len(stress) + len(recovery) > MAX_READS:
         raise CompileError(f"{len(stress) + len(recovery)} reads exceed {MAX_READS}; use fewer "
                            f"{READS_PER_DECADE_PARAM} or a shorter list")
     return stress, recovery
 
 
-def segments_of(stress: Sequence[float], recovery: Sequence[float]) -> list[HoldSegment]:
-    """The holds between consecutive reads (cumulative times -> lengths)."""
+def segments_of(stress: Sequence[float], recovery: Sequence[float], *,
+                grid: float = HOLD_GRID_S) -> list[HoldSegment]:
+    """The holds between consecutive reads (cumulative times -> lengths, on ``grid``)."""
     out: list[HoldSegment] = []
     for phase, times in (("stress", stress), ("recovery", recovery)):
         previous = 0.0
         for t in times:
-            out.append(HoldSegment(cycle=len(out) + 1, phase=phase, seconds=_grid(t - previous)))  # type: ignore[arg-type]
+            out.append(HoldSegment(cycle=len(out) + 1, phase=phase,  # type: ignore[arg-type]
+                                   seconds=_snap(t - previous, grid)))
             previous = t
     return out
 
@@ -340,7 +360,12 @@ class StressMeasureKind:
 
     def compile(self, recipe: Recipe, params: dict[str, Quantity], binding: ChannelBinding,
                 station: StationProfile) -> CompiledKindPlan:
-        """Envelope (every phase), estimate, FLEX preview and program; see the module docstring."""
+        """Envelope (every phase), estimate, FLEX preview and program; see the module docstring (a recipe with
+        ``wgfmu`` roles: ``stress_wgfmu.compile_plan``)."""
+        if any(role.function == "wgfmu" for role in recipe.roles.values()):
+            from b1500_test_agent.catalog.kinds import stress_wgfmu
+
+            return stress_wgfmu.compile_plan(self.kind_id, recipe, params, binding, station)
         sweeps = self._check_roles(recipe)
         read_kind = _param(params, READ_KIND_PARAM, "staircase" if sweeps else "spot")
         if read_kind not in READ_KINDS:
@@ -521,8 +546,15 @@ class StressMeasureKind:
 
     @staticmethod
     def checkpoint_total(plan: PlanRecord) -> int:
-        """Checkpoints ``acquire`` reports: one per read and one per hold block (fewer when the run stops early)."""
-        return len(StressProgram.model_validate(plan.program).timeline()) if plan.program else 0
+        """Checkpoints ``acquire`` reports: one per read and one per hold block (fewer when the run stops early); a
+        WGFMU plan: its reads and holds (``stress_wgfmu.checkpoint_total``)."""
+        if not plan.program:
+            return 0
+        if _wgfmu_plan(plan):
+            from b1500_test_agent.catalog.kinds import stress_wgfmu
+
+            return stress_wgfmu.checkpoint_total(plan)
+        return len(StressProgram.model_validate(plan.program).timeline())
 
     # acquire -----------------------------------------------------------------------------------------------------
 
@@ -530,6 +562,10 @@ class StressMeasureKind:
         """Execute the stored program (module docstring); every source command passes the guard."""
         if not plan.program:
             raise CompileError(f"plan {plan.plan_id} has no compiled {self.kind_id} program")
+        if _wgfmu_plan(plan):
+            from b1500_test_agent.catalog.kinds import stress_wgfmu
+
+            return stress_wgfmu.acquire(self.kind_id, tx, plan)
         program = StressProgram.model_validate(plan.program)
         ops = program.timeline()
         total = len(ops)
@@ -600,6 +636,10 @@ class StressMeasureKind:
         Raises:
             ValueError: If the blocks do not end at a read or hold boundary or do not hold the programmed elements.
         """
+        if _wgfmu_plan(plan):
+            from b1500_test_agent.catalog.kinds import stress_wgfmu
+
+            return stress_wgfmu.to_table(raw, plan)
         program = StressProgram.model_validate(plan.program)
         ops = program.timeline()
         rows = _Rows(program)
@@ -613,6 +653,11 @@ class StressMeasureKind:
         if not table:
             raise ValueError(f"{self.kind_id}: no data block")
         return pd.DataFrame(table)
+
+
+def _wgfmu_plan(plan: PlanRecord) -> bool:
+    """Whether ``plan`` holds a program of the WGFMU path (``stress_wgfmu.PATH``)."""
+    return plan.program.get("path") == "wgfmu"
 
 
 def _replay(program: StressProgram, ops: list[Op], blocks: int) -> list[Op]:

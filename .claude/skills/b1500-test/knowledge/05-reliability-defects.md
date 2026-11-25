@@ -6,7 +6,8 @@ sources:
   - deck text PPT_slides_content.md (domain 5 page; BTI log-spaced read times, TDDB Weibull)
   - deck slide 17 (IGZO Vth drift case)
   - recipes/reliability/tddb_cvs.yaml (WP7.4); recipes/reliability/{bti_sms,hci,silc}.yaml, recipes/igzo/bias_stress.yaml
-    and src/b1500_test_agent/analysis/stress.py (WP7.6); recipes/reserved (wgfmu.fast_bti)
+    and src/b1500_test_agent/analysis/stress.py (WP7.6); recipes/wgfmu/fast_bti.yaml and catalog/kinds/stress_wgfmu.py
+    (WP10.7)
   - "Kaczer et al., IRPS 2008 (BTI power law and recovery); Takeda & Suzuki, IEEE EDL 4, 111, 1983 (HCI)"
   - "DiMaria & Cartier, J. Appl. Phys. 78, 3883, 1995 (SILC)"
   - "D. K. Schroder, Semiconductor Material and Device Characterization, 3rd ed. (not page-checked)"
@@ -30,7 +31,7 @@ optional recovery reads. Numbers marked `TODO(verify)` are literature typicals, 
 |---|---|---|
 | Gate leakage Ig(Vg), non-destructive | yes | `mosfet.gate_leakage` (card `gate-leakage`) |
 | BTI stress-measure-stress (SMU) | yes (WP7.6, destructive) | `reliability.bti_sms` (card `bti-stress-measure`) |
-| Fast BTI (WGFMU, µs reads) | reserved | `wgfmu.fast_bti` (M10) |
+| Fast BTI (WGFMU, µs reads) | yes (WP10.7, destructive) | `wgfmu.fast_bti` (card `bti-stress-measure`) |
 | HCI | yes (WP7.6, destructive) | `reliability.hci` (card `hci-silc`) |
 | SILC | yes (WP7.6, destructive) | `reliability.silc` (card `hci-silc`) |
 | TDDB constant-voltage stress | yes (WP7.4, destructive) | `reliability.tddb_cvs` (card `tddb-bdv`) |
@@ -78,8 +79,8 @@ The gate-leakage card measures Ig(Vg) with drain and source grounded; it must no
 
 ## BTI stress-measure-stress
 
-Implemented (`reliability.bti_sms`, kind `stress_measure`, card `bti-stress-measure`; WP7.6). Seeded from deck
-slide 14 and the deck text.
+Implemented (`reliability.bti_sms` and `wgfmu.fast_bti`, kind `stress_measure`, card `bti-stress-measure`; WP7.6,
+WP10.7). Seeded from deck slide 14 and the deck text.
 
 - Bias temperature instability: gate stress (negative for PMOS NBTI, positive for NMOS PBTI) with drain and source
   grounded, usually at elevated temperature; Vth shifts by charge trapping and interface-state generation.
@@ -88,8 +89,12 @@ slide 14 and the deck text.
   1, 3, 10, 30 ... s), resume. The stress clock (`t_s`) excludes the reads.
 - Delta Vth(t) usually follows a power law A t^n (n about 0.1-0.3) `TODO(verify)`. Recovery starts the moment the
   stress is removed: every read and its setup lets the device relax, so slow SMU reads underestimate the shift
-  (fewer points, `short` integration and spot reads shorten the read; the µs reads need the WGFMU,
-  `wgfmu.fast_bti`). Report the read duration with n.
+  (fewer points, `short` integration and spot reads shorten the read). Report the read duration with n.
+- Fast BTI (`wgfmu.fast_bti`): the WGFMU on gate and drain (through the RSUs) holds the stress itself and senses
+  for `read_s` = steps x (edge + width) + edge (~20 µs for 17 steps, ~1 µs for a spot read), so the device has no
+  time to relax: first reads from 10 µs, the full shift of the fast traps. The schedule runs in WGFMU executions of
+  at most 25 s; between two the WGFMU keeps the stress level. A spot read (one gate level) gives dVth through the
+  reference read's Id-Vg (a rigid shift); `fast_bti_shift` warns when `read_s` exceeds 2 % of the first interval.
 - The kind holds the stress with instrument-timed sampling blocks (one gate/drain current sample each, 25 s per
   block at most): the gate leakage during the stress is recorded too, and a gate breakdown (compliance) stops the
   run.
@@ -221,6 +226,10 @@ Implemented (`analysis/stress.py`, WP7.6; the docstring there is the definition,
 - Recovery: `recovery` = 1 - dX(last recovery read)/dX(last stress read); `recovery_rate` = minus the slope of
   dX/dX_end against log10(t_rec) (fraction per decade).
 - `bti_power_law`: `n`, `a` (V, |dVth| at 1 s), `dvth` (signed, last stress read) [+ `recovery`, `recovery_rate`].
+  `fast_bti_shift` (WGFMU runs): the same results with `vth_method` `constant_current` (each read's own staircase, 1 µA
+  default: a µs sense averages little) or `reference_curve` (each trusted row mapped onto the reference read's
+  log-current curve, dX = x - x_ref(|y|), averaged; spot reads); `auto` picks by whether the reads sweep; `fit` adds
+  `read_s` and `read_fraction` (read_s / first stress time; warning above 2 %).
   `degradation_vs_time`: `quantity` `id` (relative, default; HCI), `vth` or `ig`; `delta` + `b`, `m` (power law) or
   `tau`, `beta`, `delta_inf` (stretched) [+ `recovery`]. `silc`: |Ig| at `v_sense`; `silc_ratio` (last stress read),
   `silc_exponent` (reads above max(`min_ratio` 2 %, 3 sqrt2 x the reference read's standard error)), `ig0`, `q_inj`

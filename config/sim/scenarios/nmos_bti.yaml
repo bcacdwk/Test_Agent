@@ -1,11 +1,17 @@
 # Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario. Name = file name.
 # An n-channel MOSFET that ages under stress (blueprint v2 4.2 `mosfet` + `bti`/`hci`, 3.1 rows reliability.bti_sms,
-# reliability.hci and reliability.silc; acceptance S14/S15) on the lab mainframe, wired like pin map mosfet-4t (gate
-# SMU4, drain SMU3, both HRSMU, source and bulk on the GNDU). Two devices share the gate: `dut` (model `mosfet`, the
-# channel: EKV + BTI + HCI) and `gox` (model `dielectric`, the gate oxide to the bulk: leakage, SILC and TDDB).
+# reliability.hci and reliability.silc, 3.4 row wgfmu.fast_bti; acceptance S14/S15) on the lab mainframe. Two devices
+# share the gate: `dut` (model `mosfet`, the channel: EKV + BTI + HCI) and `gox` (model `dielectric`, the gate oxide to
+# the bulk: leakage, SILC and TDDB).
+# Wiring (WP10.7, as nmos_wgfmu): gate on WGFMU 201 and drain on WGFMU 202, each through its RSU, whose "From SMU"
+# inputs are cabled to SMU4 (gate) and SMU3 (drain) (WG p20 (1-8)); source on the GNDU, bulk on SMU5 (off unless a
+# recipe body-biases it: then it floats at the source potential, as on the GNDU). While an RSU is not on its WGFMU path
+# its terminal sees that SMU (the RSU's normal path, WG p19 (1-7)), so the SMU recipes on pin map mosfet-4t (gate SMU4,
+# drain SMU3) and the WGFMU fast BTI on pin maps mosfet-wgfmu(-body) stress and read the same transistor (ATV-32 on
+# hardware: TODO(verify) at bring-up L8/L9; fallback: separate SMU wiring in the pin map).
 #
 # Truth (tests/integration/test_recipes_stress.py asserts the default analyses against it; models/sim_devices.py):
-# - BTI (reliability.bti_sms): above a gate-source bias of bti_v_min = 1.5 V the threshold rises as
+# - BTI (reliability.bti_sms, wgfmu.fast_bti): above a gate-source bias of bti_v_min = 1.5 V the threshold rises as
 #   dVth = bti_a x Vgs^bti_gamma x t^bti_n (A = 20 mV at 2 V and 1 s; n = 0.2, so +90 mV after 30 min at 2 V); at
 #   lower gate bias it recovers as dVth0 x (1 - 0.1 log10(1 + t/1 s)). Targets (4.2): n +-0.02, A +-10 %.
 # - HCI (reliability.hci): with the channel on and the drain biased, beta falls as |dId/Id0| = hci_b x
@@ -17,15 +23,20 @@
 #   for this site (seed 77, Weibull W 1.13), so a 1000 s stress at 2.8 V gives D = 0.046 and a SILC ratio of about
 #   2.8 at 1.5 V (exponent 1: D grows linearly at constant stress). BTI and HCI stresses (2 V, 1.2 V) leave the oxide
 #   practically undamaged (t_bd(2 V) about 1.3e7 s). Breakdown would put r_bd_ohm between gate and bulk.
+# Recovery during reads: the simulator ages devices only in timed holds (MM 10) and WGFMU executions; its SMU
+# sweeps and spot reads are quasi-static, so reliability.bti_sms shows no read-induced recovery here (on hardware a
+# slow read does lose part of the shift); wgfmu.fast_bti's reads are WGFMU executions and do age the device.
 # Device values are typical of a bulk NMOS (Vth 0.45 V, SS about 77 mV/dec, beta 2 mA/V^2), not a measured device;
 # the ageing constants are chosen so a 30-minute stress shows every effect clearly (real BTI/HCI/SILC magnitudes
 # depend on the technology and the temperature: TODO(verify) M12 per device). No self-heating (rth 0).
 # Noise: HRSMU floor 1e-13 A and 0.02 % relative noise, so a 1 s BTI shift (20 mV) and a 1 s HCI change (0.7 %) are
-# far above the read noise.
+# far above the read noise; the WGFMU's white noise per 5 ns sample on the 10 mA range (as nmos_wgfmu, averaged as
+# 1/sqrt(n) over a point's samples), so a 1 us sense point on the 1 mA range reads about 14 nA rms.
 
 description: >-
-  n-channel MOSFET with BTI (n 0.2), HCI (m 0.45) and a gate oxide with SILC/TDDB on the lab mainframe, wired as pin
-  map mosfet-4t (gate SMU4, drain SMU3, source and bulk GNDU); instant timing.
+  n-channel MOSFET with BTI (n 0.2), HCI (m 0.45) and a gate oxide with SILC/TDDB on the lab mainframe; gate WGFMU 201
+  and drain WGFMU 202 through their RSUs, whose SMU inputs carry SMU4 (gate) and SMU3 (drain), so pin map mosfet-4t
+  reaches the same device; source GNDU, bulk SMU5; instant timing.
 idn: Agilent Technologies,B1500A,0,A.06.02.2023.0401
 slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
   - {slot: 1, model: B1525A}
@@ -36,14 +47,15 @@ slots:                          # lab layout (config/station.example.yaml): SPGU
   - {slot: 6, model: B1511B}
   - {slot: 7, model: B1520A}
 interlock_closed: false
+rsu_smu: {201: 4, 202: 3}       # RSU "From SMU" inputs: SMU4 -> RSU201 (gate), SMU3 -> RSU202 (drain)
 wiring:
   dut:
-    gate: 4
-    drain: 3
+    gate: 201
+    drain: 202
     source: GNDU
-    bulk: GNDU
+    bulk: 5
   gox:
-    top: 4                      # the gate electrode
+    top: 201                    # the gate electrode (RSU201: WGFMU 201, or SMU4 on the RSU's SMU path)
     bottom: GNDU                # the substrate (bulk)
 models:
   dut:
@@ -84,7 +96,7 @@ models:
       seed: 77                  # site 0: W = 1.13, t_bd(2.8 V) = 21.7 ks
       r_bd_ohm: 1.0e4
 noise:
-  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13, WGFMU: 2.0e-6}
   rel: 2.0e-4
   seed: 76
 faults: null

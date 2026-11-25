@@ -78,6 +78,11 @@ The code is split per instrument family (blueprint §9), so a family's work pack
 4. `rules/builtin/<family>.py`, imported in `rules/builtin/__init__.py` at its place in the rule table (import order
    = registration order = finding order).
 5. The kind (`catalog/kinds/`), recipes, the card folder, knowledge and the bring-up stage.
+6. Its safety and visa-loop rows (WP11.3): a body per family path of the new kind in `tests/safety/global_matrix.py`
+   (`BODIES`; the matrix test fails while a registered kind has none or a fault/position cell has neither a running
+   body nor a written reason; new simulator faults join `models.sim.FAULT_KINDS` and the fault table there), and a
+   `..._on_backend_visa...` run test parametrized over each new recipe's case (`tests/visa_loop/cases.py` collects
+   them; the registry coverage test fails for a recipe without one).
 
 ## A measurement, end to end (M1)
 

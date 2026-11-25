@@ -500,6 +500,18 @@ command reached the transport, zero and disconnect follow the last one and the s
 fault latch is set. No source command outside the compiled envelope ever reaches the transport, and `blocked`
 (including a recipe not runnable on the backend) and unconfirmed plans never open it.
 
+Since WP11.3 the global invariant v2 (blueprint v2 2.6) is checked by one enumerated matrix,
+`tests/safety/test_global_matrix.py`: every registered kind (one body per family path, e.g. `pulse_read` with an
+HV-SPGU, an SMU-pulse and a WGFMU source) x every simulator fault (blueprint v2 4.3 and the v1 union, plus recoverable
+second forms), a Ctrl-C, a buggy body and a cancel request x the positions configure, route, pulse/AC on, execute,
+readback, checkpoint and cleanup, with spies on the FLEX link and the WGFMU library. Every cell runs or carries the
+written reason it cannot occur; afterwards every SMU is at 0 V and off, the MFCMU at DC 0 V and AC off, the HV-SPGU
+stopped, every WGFMU channel disconnected with the library session closed, every selector at rest, or the fault latch
+is set with `cleanup_unverified`; faults the cleanup can recover from must not latch, and a latch needs a real unsafe
+state or a fault that keeps the cleanup from verifying. `tests/safety/test_refusals_open_no_bus.py` shows for every
+recipe of the registry that unconfirmed and blocked plans (including a consented plan once the latch is set) open
+neither the VISA session nor the WGFMU library.
+
 ## What is protected and what is not (owner decision D3)
 
 Human approval is the coding harness's own tool confirmation. This keeps the system simple; the owner accepted the

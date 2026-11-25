@@ -90,9 +90,10 @@ def run_on_visa(world: VisaWorld, case: dict[str, Any], lock_state: list[tuple[s
     return bus, result, manifest
 
 
-def test_fast_bti_runs_on_backend_visa_with_cleanup_verified(world: VisaWorld, tmp_path: Path,
+@pytest.mark.parametrize("case", [FAST], ids=[FAST["recipe_id"]])  # the registry coverage reads the case
+def test_fast_bti_runs_on_backend_visa_with_cleanup_verified(case: dict[str, Any], world: VisaWorld, tmp_path: Path,
                                                             lock_state: list[tuple[str, bool]]) -> None:
-    bus, result, manifest = run_on_visa(world, FAST, lock_state,
+    bus, result, manifest = run_on_visa(world, case, lock_state,
                                         {"destructive", "first_hw_run", "unverified_topology"})
     names = [name for name, _ in lock_state]
     runs = manifest["kind_result"]["runs_done"]
@@ -104,7 +105,7 @@ def test_fast_bti_runs_on_backend_visa_with_cleanup_verified(world: VisaWorld, t
     assert set(rsu) == {"RSU201.OUT", "RSU202.OUT"} and set(rsu.values()) == {"open"}
     visa = load_run(result.run_id or "", data_root=world.data).table
     assert len(visa) == 14 * 17 + 13  # the reference and 13 reads (1 ms .. 10 s, 3 per decade), 13 holds
-    assert visa.equals(sim_table(FAST, tmp_path / "sim"))
+    assert visa.equals(sim_table(case, tmp_path / "sim"))
 
 
 def test_an_smu_bias_and_the_wgfmu_interleave_in_one_run_on_visa(world: VisaWorld, tmp_path: Path,

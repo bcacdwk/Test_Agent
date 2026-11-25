@@ -33,7 +33,7 @@ params:
   sequence: {type: enum, choices: [erase_program, program_erase, program, erase], default: erase_program, doc: Sequence.}
   cycles: {type: int, default: 1, range: [1, 200], doc: Cycles.}
   initial_read: {type: bool, default: true, doc: Reference read.}
-  read_kind: {type: enum, choices: [staircase, spot, wgfmu], default: staircase, doc: "Read (wgfmu: refused, WP10.6)."}
+  read_kind: {type: enum, choices: [staircase, spot, wgfmu], default: staircase, doc: "Read (wgfmu: refused, it needs the WGFMU source)."}
   vg_start: {unit: V, default: -0.5, range: [-5.0, 5.0], doc: Read sweep start.}
   vg_stop: {unit: V, default: 1.8, range: [-5.0, 5.0], doc: Read sweep stop.}
   vg_points: {type: int, default: 47, range: [11, 401], doc: Read sweep points.}

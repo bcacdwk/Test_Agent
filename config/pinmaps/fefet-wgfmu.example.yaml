@@ -1,0 +1,18 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# FeFET whose gate and drain are on the two WGFMU channels through their RSUs (as lwp LFN_noise_meas.cpp connects
+# 201/202): microsecond program/erase pulses and fast reads on one landing (fefet.fast_program_read; blueprint v2 3.4,
+# scenario fefet_lab, device `wg`). Gate on RSU201.OUT (WGFMU 201), drain on RSU202.OUT (WGFMU 202), source on the
+# GNDU. A wgfmu role binds through the route RSU20x.OUT -> wgfmu.
+#
+# certainty: unverified (every plan needs confirmation, unverified_pin_map); the RSUs are unverified switches too.
+# The visa backend never reads this example file.
+
+description: FeFET; gate RSU201.OUT (WGFMU 201), drain RSU202.OUT (WGFMU 202), source GNDU.
+certainty: unverified
+terminals:
+  gate: RSU201.OUT
+  drain: RSU202.OUT
+  source: GNDU
+notes:
+  - The WGFMU has no compliance; the drain current range bounds the reading (status V at full scale), not the current.
+  - Program pulses and reads share the gate channel; keep the read sweep below the coercive voltage.

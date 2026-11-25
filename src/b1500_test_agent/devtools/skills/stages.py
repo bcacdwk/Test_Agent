@@ -139,8 +139,9 @@ def missing_stage_notes(cards: list[Card], stages: dict[str, StageFrontmatter]) 
     """One note per bring-up stage that cards name but that has no stage file yet."""
     waiting: dict[str, list[str]] = {}
     for card in cards:
-        if card.front.bringup_stage not in stages:
-            waiting.setdefault(card.front.bringup_stage, []).append(card.front.id)
+        for stage in card.front.stages:
+            if stage not in stages:
+                waiting.setdefault(stage, []).append(card.front.id)
     order = list(STAGES)
     return [f"bring-up stage {stage} has no stage file yet ({SOURCE_DIR}/{BRINGUP_SKILL}/{STAGES_DIR}/"
             f"{STAGES[stage][0]}.md); cards waiting: {', '.join(sorted(ids))}"

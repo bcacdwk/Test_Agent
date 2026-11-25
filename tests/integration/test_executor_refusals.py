@@ -28,9 +28,9 @@ def assert_refused(world: World, before: tuple[int, int, int, bool], result, *, 
 
 
 def test_not_implemented_recipes_never_touch_the_instrument(world: World, tmp_path: Path) -> None:
-    # A draft recipe outside reserved/ whose kind has no implementation (wgfmu_pulse_sequence), next to two reserved
-    # slots.
-    reserved = with_reserved_slot(world, tmp_path)  # WP10.7: wgfmu.fast_bti is implemented now
+    # A draft recipe outside reserved/ whose kind has no implementation (wgfmu_pulse_sequence), next to a reserved
+    # slot (WP10.7 implemented wgfmu.fast_bti, WP10.6 fecap.pund: the test brings its own slot).
+    reserved = with_reserved_slot(world, tmp_path)
     recipes = tmp_path / "recipes"
     spot = (recipes / "mosfet" / "idvg.yaml").read_text(encoding="utf-8").replace("id: mosfet.idvg", "id: mosfet.spot")
     spot = spot.replace("kind: smu_staircase", "kind: wgfmu_pulse_sequence").replace("status: sim_validated",
@@ -38,8 +38,7 @@ def test_not_implemented_recipes_never_touch_the_instrument(world: World, tmp_pa
     (recipes / "mosfet" / "spot.yaml").write_text(spot, encoding="utf-8")
     world.recipes = recipes
     executor = world.executor()
-    for recipe_id, dut in ((reserved, "nmos-generic"), ("mosfet.spot", "nmos-generic"),
-                           ("fecap.pund", None)):
+    for recipe_id, dut in ((reserved, "nmos-generic"), ("mosfet.spot", "nmos-generic"), (reserved, None)):
         record = plan(executor, recipe_id=recipe_id, dut_profile=dut)
         assert record.tier == "blocked"
         assert any(f.rule_id == "R-REC-01" and f.severity == "block" for f in record.rules.findings)

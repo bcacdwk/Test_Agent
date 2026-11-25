@@ -14,6 +14,13 @@
 #   peaks at +Vc and a descending one at -Vc (FecapDevice.butterfly_truth).
 # Both: 50 um x 50 um (2500 um2, the DUT profile fecap-generic's geometry), 10 nm film, Pr 20 uC/cm2, Ps 25 uC/cm2,
 # Ec 1 MV/cm (Vc = 1.0 V), eps_r 30 (C_lin = 66.4 pF), k_rev 0.05, no leakage; initial state P = 0 (virgin).
+# WP10.6: the WGFMU landing `dut` also wakes up and fatigues with bipolar cycles (models/sim_devices.py
+# EnduranceParams; the switchable polarization scales by s(N) = (1 - 0.15 exp(-N/100)) / (1 + sqrt(N/1e6)): a
+# pristine film switches 85 % of the woken Pr, Pr peaks near 1e3 cycles and halves near 1e6), so the endurance PUND
+# (fecap.endurance_pund) has a wake-up/fatigue truth; FecapDevice.pund_truth reports the PUND truth at the present
+# scale (a single PUND moves the scale by well under 1 %). The `cv` landing keeps no cycle count. The WGFMU's white
+# noise (per 5 ns sample on the 10 mA range, averaged as 1/sqrt(n)) as nmos_wgfmu: on the 1 mA range a 100 ns point
+# reads about 45 nA rms against a switching current of about 200 uA at the default 10 us ramps.
 
 description: >-
   Two ferroelectric capacitors (10 nm HfZrO-like film, 50 um x 50 um, Pr 20 uC/cm2, Ec 1 MV/cm): `dut` between WGFMU
@@ -41,24 +48,37 @@ wiring:
 models:
   dut:
     model: fecap
-    params: &fecap
+    params:
       area_um2: 2500.0
       thickness_nm: 10.0
-      pr_uc_cm2: 20.0           # truth of PUND Pr (+-5 %)
+      pr_uc_cm2: 20.0           # truth of PUND Pr (+-5 %) once woken up (x s(N))
+      ps_uc_cm2: 25.0
+      ec_mv_cm: 1.0             # Vc = Ec x t = 1.0 V: the switching current peaks at +-1.0 V (+-5 %)
+      eps_r: 30.0
+      k_rev: 0.05
+      leak_s: 0.0
+      p_init: 0.0
+      wake_frac: 0.15           # endurance (WP10.6): wake-up over ~100 cycles ...
+      wake_cycles: 100.0
+      fatigue_cycles: 1.0e+6    # ... and fatigue: the switchable polarization halves near 1e6 cycles
+      fatigue_exp: 0.5
+  cv:
+    model: fecap
+    params:
+      area_um2: 2500.0
+      thickness_nm: 10.0
+      pr_uc_cm2: 20.0
       ps_uc_cm2: 25.0
       ec_mv_cm: 1.0             # Vc = Ec x t = 1.0 V: the butterfly peaks at +-1.0 V (+-5 %)
       eps_r: 30.0
       k_rev: 0.05
       leak_s: 0.0
       p_init: 0.0
-  cv:
-    model: fecap
-    params: *fecap
   path:
     model: fixture
     params: {}                  # blueprint 4.2 defaults (models.sim_devices.FixtureParams); TODO(verify) at M12 L6
 noise:
-  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13, WGFMU: 2.0e-6}
   rel: 2.0e-4
   seed: 23
 faults: null

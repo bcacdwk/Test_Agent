@@ -59,6 +59,12 @@ HEADER = ("| family | intent keywords | card | recipes | status | modules | stag
           "|---|---|---|---|---|---|---|")
 
 
+def _stages(front: CardFrontmatter) -> str:
+    """The card's bring-up stage, plus the recipes another stage validates (``recipe_stages``)."""
+    extra = "; ".join(f"`{recipe}`: {stage}" for recipe, stage in front.recipe_stages.items())
+    return f"{front.bringup_stage} ({extra})" if extra else front.bringup_stage
+
+
 def _cell(text: str) -> str:
     """Table-cell text: one line, ``|`` and ``*`` escaped (``*TST?`` is no emphasis)."""
     return " ".join(text.split()).replace("|", "\\|").replace("*", "\\*")
@@ -91,7 +97,7 @@ def render_index(cards: list[tuple[str, CardFrontmatter]], registry: RecipeRegis
             recipes = _codes(front.recipes) if front.recipes else f"analysis only: {_codes(front.analysis)}"
             rows.append(f"| {family} | {_cell(', '.join(front.intent))} | [{front.id}]({rel}) | "
                         f"{recipes} | {', '.join(statuses)} | "
-                        f"{', '.join(front.modules) or 'all installed'} | {front.bringup_stage} |")
+                        f"{', '.join(front.modules) or 'all installed'} | {_stages(front)} |")
         others = [registry.get(r) for r in registry.ids() if r not in carded and registry.get(r).family == family]
         for recipe in sorted((r for r in others if r.status != "not_implemented"), key=lambda r: r.id):
             reason = "no card by design: ask the human first" if recipe.id in CARDLESS_RECIPES else "no card yet"

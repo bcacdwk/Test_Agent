@@ -315,7 +315,7 @@ SPGU and two WGFMU channels) the bound stays near 2.2 A; the rule protects added
 station profiles.
 
 **Program/read (`pulse_read`, WP9.4).** The composite kind pulses one terminal (HV-SPGU or SMU pulse source; the
-WGFMU source is refused at plan time until WP10.6) and reads it with SMUs after every operation. A read SMU on the
+WGFMU source: its own path, below) and reads it with SMUs after every operation. A read SMU on the
 pulsed pad is a second recipe role naming that terminal (`RoleSpec.terminal`): it binds through the switch input of
 its own resource, so the DUT profile's envelope of that pad bounds both roles and R-PIN-01 still allows one role per
 channel. Every SPGU program it starts is stored and checked like `spgu_pulse`'s; the SMU pulses pass `check` and
@@ -449,6 +449,24 @@ host's readback and setup time (milliseconds) at the stress level, unrecorded in
 that the next execution's `WGFMU_update` leaves the output at the stress level. The kind `system`'s WGFMU self-test
 and self-calibration (`system.wgfmu_*`) open the same phase without any level (`SourcePlan.library`: R-WG-01 needs a
 loadable library and a listed WGFMU channel) and always need the human's confirmation with open terminals.
+
+**WGFMU program/read, PUND and endurance by PUND (`pulse_read` WGFMU path, `wgfmu_waveform` builders `pund` and
+`program_read`, WP10.6).** A `pulse_read` recipe with `wgfmu` roles pulses and reads through the WGFMU only (an SMU
+read through an RSU's SMU input is refused: no kind routes it; SMU roles may only hold a bias inside the phase, WG Ex.
+10). Its plan stores a *catalog* `WaveformProgram` holding each distinct sequence entry once (the operations, the
+bipolar cycling bursts with their counts, the read, the retention holds); R-WG-02 checks it and the guard admits it as
+a whole (`WgfmuDriver.check_program`) before the first pattern reaches the library; every execution is the catalog
+restricted to one step's entry, so nothing runs that was not checked, and the channel's `WaveformLimits` are the
+catalog's totals (an execution never exceeds them). The pulse role's pulse envelope covers the operations, both
+polarities of the cycling bursts (count per burst at most 1,000,000) and the PUND pulses, so R-PULSE-01..03 and the
+DUT's `pulse` envelope (`max_count`: `dut_envelope`) see what runs; the plan totals reach `soft_pulse` and long
+endurance plans `long_run` (asynchronous; cancel within one 1 s status poll). A PUND read presets and switches the film
+itself, so it cannot read a written state (schedules `grid`, `retention` refused) and every WGFMU channel must rest at
+0 V. A read whose WGFMU value saturates (`V`) stops the run; the phase exit always aborts, initializes (0 V) and
+disconnects. Residuals: between two executions the output holds its rest level for the host's readback and setup time
+(milliseconds; TODO(verify) at L8 that `WGFMU_update` keeps it there); the WGFMU has no compliance, so the DUT
+profile's limits and the current range are the only bounds of a short. The builders `pund` and `program_read` run one
+execution like every other `wgfmu_waveform` builder.
 
 **`LOP?` positive control (hardware, WP6.2; v1 ATV-1, ATV-23).** On hardware the verification is `LOP?` reading `00`
 for every slot. An all-`00` answer proves the outputs off only if `LOP?` reports this instrument's output switches at

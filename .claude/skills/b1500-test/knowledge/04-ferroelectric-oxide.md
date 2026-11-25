@@ -26,8 +26,10 @@ typical literature value marked `TODO(verify)`, never a limit. Limits come from 
 - Pulse programming with the HV-SPGU through the 16440A selector and SMU reads: `fefet.pulse_write_read` (memory
   window from program/erase pulses) and `spgu.program_smu_read` (generic), card `fefet-pulse-write-read` (WP9.4);
   `fefet.switching_kinetics` (amplitude x width grid or ISPP, card `fefet-switching-kinetics`), `fefet.endurance`
-  and `fefet.retention` (card `fefet-endurance-retention`) (WP9.5). WGFMU fast program/read and FeCap PUND
-  (`fecap.pund`, reserved, `not_implemented`) follow. Never emulate them with sweep recipes.
+  and `fefet.retention` (card `fefet-endurance-retention`) (WP9.5). Through the WGFMU (WP10.6):
+  `fefet.fast_program_read` (microsecond pulses and fast Id-Vg reads in one sequencer run, card
+  `fefet-pulse-write-read`), FeCap PUND `fecap.pund` and its endurance `fecap.endurance_pund` (card `fecap-pund`).
+  Never emulate them with sweep recipes.
 - Oxide TFTs use the MOSFET recipes (`mosfet.idvg` lists `igzo_tft`); their quirks are below.
 
 ## Ferroelectric basics Ec Pr Ps
@@ -149,16 +151,26 @@ Recipe `fefet.retention` (WP9.5, card `fefet-endurance-retention`); fit definiti
 
 ## FeCap P-V and PUND
 
-Reserved (`fecap.pund`, `not_implemented`). Seeded from deck slide 13. The coercive voltage is measurable now by the
-MFCMU C-V butterfly (`fecap.cv_butterfly`, card `fecap-pund`; [08](08-capacitance-cv.md#fecap-c-v-butterfly)).
+Implemented (WP10.6): `fecap.pund` and `fecap.endurance_pund` (card `fecap-pund`); the small-signal coercive voltage
+also by the MFCMU C-V butterfly (`fecap.cv_butterfly`, card `fecap-cv-butterfly`;
+[08](08-capacitance-cv.md#fecap-c-v-butterfly)).
 
 - P-V loop: apply a triangular voltage across the capacitor and integrate the current: P = (1/A) integral of I dt.
   Leakage and linear (dielectric) displacement current distort the loop and fake extra polarization.
-- PUND (positive-up-negative-down): four pulses P, U, N, D. P and N switch the polarization, U and D (same sign as
-  the pulse before) do not. Switching charge = Q(P) - Q(U) and Q(N) - Q(D); this removes non-switching current, so
-  2 Pr is about (Q(P) - Q(U)) / A `TODO(verify)` convention.
-- Wiring: top electrode to a WGFMU channel (pulse and fast current sampling), bottom electrode to the second
-  channel or ground; short leads, as the switching current lasts microseconds or less.
+- PUND (positive-up-negative-down): a negative preset pulse poles the film, then four pulses P, U, N, D. P and N
+  switch the polarization, U and D (same sign as the pulse before) do not. Switching charge = Q(P) - Q(U) and Q(N) -
+  Q(D) = 2 Pr A; the U/D charge below the coercive field is the linear dielectric (C_lin). Definitions:
+  [06b](06b-analysis-time-pulse.md#pund).
+- Wiring (pin map `fecap-wgfmu`): top electrode on WGFMU 201 (forces the pulses), bottom electrode on WGFMU 202 at
+  0 V (the current: the virtual ground), both through their RSUs; short leads, the switching current lasts the ramp.
+- Choosing the waveform: amplitude 2-3 x Vc saturates the loop (within the DUT envelope; thin hafnia breaks down a
+  few times Ec). The ramp sets dV/dt and so the current: peak switching current about A Ps dV/dt / (2 delta) plus
+  C_lin dV/dt (10 us ramps to 3 V on 2500 um^2, Ps 25 uC/cm^2: about 0.2 mA, range 1 mA; 1 us ramps: 10 mA range).
+  A triangle (`plateau` 0) resolves Vc best; `interval` 100 ns gives 200 points per 10 us ramp pair. Faster ramps
+  raise the apparent Ec (switching kinetics) `TODO(verify)` on the lab's films.
+- Every PUND cycles the film about 1.5 times; a pristine film wakes up (Pr grows over 10-1000 cycles) and fatigues
+  later (Pr falls). Endurance by PUND: bipolar WGFMU cycling (`cycle_period`, `width`) with PUND reads at log-spaced
+  cycle counts; the read is itself a cycle (no separate reference read). Record the cycle history of every device.
 
 ## IGZO and oxide TFT specifics
 

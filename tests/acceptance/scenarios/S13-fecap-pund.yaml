@@ -22,6 +22,9 @@ touches:
   - src/b1500_test_agent/catalog/kinds/wgfmu_waveform.py
   - src/b1500_test_agent/catalog/waveforms.py
   - src/b1500_test_agent/analysis/nvm.py
+  - src/b1500_test_agent/analysis/pund.py
+  - src/b1500_test_agent/catalog/ferro_waveforms.py
+  - src/b1500_test_agent/catalog/kinds/pulse_wgfmu.py
   - config/pinmaps/fecap-wgfmu.example.yaml
   - config/duts/fecap-generic.example.yaml
   - config/sim/scenarios/fecap_basic.yaml

@@ -1,11 +1,17 @@
 """``pulse_read``: composite program/read kind (blueprint v2 2.7, decision table row 5; 3.3 rows
-``fefet.pulse_write_read``, ``spgu.program_smu_read``; WP9.4): route -> pulse source -> route back -> read, per cycle,
-built from the shared blocks of ``catalog/blocks.py`` and the sources of ``catalog/kinds/pulse_sources.py``. No step
-language: recipes choose the source (by the pulse role's function), the operations, the read and the schedule by
-parameters only.
+``fefet.pulse_write_read``, ``spgu.program_smu_read``; WP9.4; 3.4 row ``fecap.endurance_pund``, WP10.6): route -> pulse
+source -> route back -> read, per cycle, built from the shared blocks of ``catalog/blocks.py`` and the sources of
+``catalog/kinds/pulse_sources.py``. No step language: recipes choose the source (by the pulse role's function), the
+operations, the read and the schedule by parameters only.
 
-**Roles.** Exactly one pulse role: ``pgu`` (HV-SPGU source), ``pulse_v`` (SMU pulse source) or ``wgfmu`` (the WGFMU
-source arrives in WP10.6: refused at plan time, ``pulse_sources.source_for``); its settings give the operations
+**Two paths.** A recipe with ``wgfmu`` roles takes the WGFMU path of ``catalog/kinds/pulse_wgfmu.py`` (WP10.6: the
+WGFMU source, WGFMU reads ``read_kind: wgfmu`` (a staircase or a PUND), one WGFMU execution per step in one library
+phase); ``compile``, ``acquire``, ``to_table`` and ``checkpoint_total`` hand such a plan to that module. Everything
+below is the FLEX path (HV-SPGU or SMU pulse source, SMU reads); ``read_kind: wgfmu`` needs the WGFMU source (the
+read runs in its library phase) and is refused with the others.
+
+**Roles.** Exactly one pulse role: ``pgu`` (HV-SPGU source) or ``pulse_v`` (SMU pulse source); its settings give the
+operations
 (``pulse_sources`` docstring: ``program``, ``erase``, ``base``, ``width``, ``erase_width``, and per source ``lead``,
 ``trail``, ``load_ohm`` or ``icomp``, ``meas_time``). The read roles are SMU roles ``sweep_v`` (the read sweep:
 ``start``, ``stop``, ``points``, ``icomp``, optional ``scale``, ``hold``, ``delay``; a spot read holds it at its ``v``),
@@ -21,7 +27,7 @@ parameters (``catalog/kinds/pulse_schedules.py``: ``sequence``, ``cycles``, ``cy
 ``read_cycles``, ``cycle_period``, ``precycles``, ``amplitudes``, ``widths``, ``grid_mode``, ``reset_read``,
 ``retention_time``, ``first_read``, ``initial_read``: a reference read before the first pulse, default true),
 ``read_kind`` (``staircase``, the default with a sweep: one single sweep per read, compiled by ``smu_staircase``;
-``spot``: ``samples`` spot measurements per read, compiled by ``smu_spot``; ``wgfmu`` arrives in WP10.6), ``settle``
+``spot``: ``samples`` spot measurements per read, compiled by ``smu_spot``; ``wgfmu``: the WGFMU path), ``settle``
 (s, default 0: the wait between the route back and the read, in segments of at most ``WAIT_SEGMENT_S`` with a
 checkpoint after each and abort checks every second; schedule ``retention`` times its reads by holds instead),
 ``integration``, ``samples``, and the sources' ``period`` and ``count``.
@@ -108,13 +114,13 @@ from b1500_test_agent.catalog.kinds.pulse_schedules import (
     parse_schedule,
 )
 from b1500_test_agent.catalog.kinds.pulse_sources import (
-    SOURCES,
+    FLEX_SOURCES,
     WAIT_SEGMENT_S,
     CompiledSource,
+    FlexSourceKind,
     OpName,
     OpResult,
     PulseOp,
-    PulseSourceKind,
     SourceRequest,
     source_for,
 )
@@ -149,14 +155,14 @@ if TYPE_CHECKING:
 __all__ = ["MAX_CYCLES", "MAX_STRESS_CYCLES", "PulseReadKind", "PulseReadProgram", "ReadStep", "stored_program"]
 
 PULSE_FUNCTIONS: Final = frozenset({"pgu", "pulse_v", "wgfmu"})
-"""Role functions of a pulse role (one per plan): HV-SPGU, SMU pulse, WGFMU (WP10.6)."""
+"""Role functions of a pulse role (one per plan): HV-SPGU, SMU pulse, WGFMU (WP10.6: the WGFMU path)."""
 
 READ_FUNCTIONS: Final = frozenset({"sweep_v", "bias_v", "ground", "measure_only"})
 """Role functions of the read roles."""
 
-READ_KINDS: Final = ("staircase", "spot")
-PENDING_READ_KINDS: Final[dict[str, str]] = {"wgfmu": "WP10.6"}
-"""Read kinds of the blueprint's row that arrive with a later work package (refused at plan time)."""
+READ_KINDS: Final = ("staircase", "spot", "wgfmu")
+"""Read kinds: SMU staircase and spot reads (FLEX path); ``wgfmu``: the WGFMU path's read (``pulse_wgfmu``)."""
+WGFMU_FUNCTION: Final = "wgfmu"
 
 READ_KIND_PARAM, SETTLE_PARAM = "read_kind", "settle"
 PULSE_BIAS_SETTING, READ_LEVEL_SETTING = "pulse_bias", "v"
@@ -239,8 +245,8 @@ class PulseReadProgram(StrictModel):
         return sum(1 for s in self.steps() if s.action == "read")
 
     @property
-    def pulse_source(self) -> PulseSourceKind:
-        return next(s for s in SOURCES.values() if s.family == self.source)
+    def pulse_source(self) -> FlexSourceKind:
+        return next(s for s in FLEX_SOURCES.values() if s.family == self.source)
 
     @property
     def enable(self) -> list[Channel]:
@@ -275,12 +281,8 @@ def _number(value: object, what: str) -> float:
     return float(value)
 
 
-def _choice(params: dict[str, Quantity], name: str, choices: Sequence[str], default: str,
-            pending: dict[str, str] | None = None) -> str:
+def _choice(params: dict[str, Quantity], name: str, choices: Sequence[str], default: str) -> str:
     value = _param(params, name, default)
-    if pending and value in pending:
-        raise CompileError(f"pulse_read: {name} {value} arrives in {pending[value]} (blueprint v2 10.6); use one of "
-                           f"{list(choices)}")
     if value not in choices:
         raise CompileError(f"{name} must be one of {list(choices)}, got {value!r}")
     return str(value)
@@ -370,7 +372,12 @@ class PulseReadKind:
 
     def compile(self, recipe: Recipe, params: dict[str, Quantity], binding: ChannelBinding,
                 station: StationProfile) -> CompiledKindPlan:
-        """Envelope, estimate, FLEX preview, program and routes per phase; see the module docstring."""
+        """Envelope, estimate, FLEX preview, program and routes per phase; see the module docstring (a recipe with
+        ``wgfmu`` roles: ``pulse_wgfmu.compile_plan``)."""
+        if any(role.function == WGFMU_FUNCTION for role in recipe.roles.values()):
+            from b1500_test_agent.catalog.kinds import pulse_wgfmu
+
+            return pulse_wgfmu.compile_plan(self.kind_id, recipe, params, binding, station)
         pulse_role, reads = self._check_roles(recipe)
         spec = recipe.roles[pulse_role]
         source = source_for(pulse_role, spec.function, self.kind_id)
@@ -378,8 +385,11 @@ class PulseReadKind:
         plan = parse_schedule(params, source=source.family)
         sweeps = [n for n in reads if recipe.roles[n].function == "sweep_v"]
         sweeps += [pulse_role] if smu_source and "start" in spec.settings else []
-        read_kind = _choice(params, READ_KIND_PARAM, READ_KINDS, "staircase" if sweeps else "spot",
-                            PENDING_READ_KINDS)
+        read_kind = _choice(params, READ_KIND_PARAM, READ_KINDS, "staircase" if sweeps else "spot")
+        if read_kind == "wgfmu":
+            raise CompileError(f"{READ_KIND_PARAM} wgfmu reads inside the WGFMU source's library phase: pulse with a "
+                               f"wgfmu role (pulse role {pulse_role} is {spec.function}); SMU reads are staircase or "
+                               "spot")
         settle = _number(_param(params, SETTLE_PARAM, 0.0), SETTLE_PARAM)
         if settle < 0:
             raise CompileError(f"{SETTLE_PARAM} must not be negative, got {settle:g}")
@@ -504,6 +514,7 @@ class PulseReadKind:
         """The read envelope, widened by the bias roles' pulse levels, plus the pulse channel (an SMU pulse role's
         entry merges its read and its pulses)."""
         channels = dict(read_channels)
+        assert compiled.pulse is not None  # every FLEX plan pulses
         for channel, entry in read_channels.items():
             role = recipe.roles.get(entry.role)
             if role is not None and role.function == "bias_v":
@@ -607,7 +618,13 @@ class PulseReadKind:
     @staticmethod
     def checkpoint_total(plan: PlanRecord) -> int:
         """Checkpoints ``acquire`` reports: one per read and one per pulse chunk (fewer when the run stops early)."""
-        return sum(s.chunks for s in stored_program(plan)[0].steps()) if plan.program else 0
+        if not plan.program:
+            return 0
+        from b1500_test_agent.catalog.kinds import pulse_wgfmu
+
+        if pulse_wgfmu.is_wgfmu_plan(plan):
+            return pulse_wgfmu.checkpoint_total(plan)
+        return sum(s.chunks for s in stored_program(plan)[0].steps())
 
     # acquire -----------------------------------------------------------------------------------------------------
 
@@ -615,6 +632,10 @@ class PulseReadKind:
         """Execute the stored program (module docstring); every source, pulse and route passes the guard."""
         if not plan.program:
             raise CompileError(f"plan {plan.plan_id} has no compiled {self.kind_id} program")
+        from b1500_test_agent.catalog.kinds import pulse_wgfmu
+
+        if pulse_wgfmu.is_wgfmu_plan(plan):
+            return pulse_wgfmu.acquire(self.kind_id, tx, plan)
         program, programs = stored_program(plan)
         driver = tx.driver
         if program.source == "spgu" and driver.pulse_output_active():
@@ -662,6 +683,10 @@ class PulseReadKind:
         Raises:
             ValueError: If the blocks are not whole reads of the plan or do not hold the programmed elements.
         """
+        from b1500_test_agent.catalog.kinds import pulse_wgfmu
+
+        if pulse_wgfmu.is_wgfmu_plan(plan):
+            return pulse_wgfmu.to_table(raw, plan)
         program, _ = stored_program(plan)
         reads = [s for s in program.steps() if s.action == "read"]
         width = program.read.blocks

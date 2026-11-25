@@ -1,16 +1,16 @@
 """Pulse sources of kind ``pulse_read`` (blueprint v2 2.7: route -> pulse source (SPGU / SMU pulse / WGFMU) -> route
 back -> read), one class per source family behind one small interface, so a source is added without touching the
-kind's schedules, routes, reads or table (WP9.4 builds the HV-SPGU and SMU pulse sources; WP10.6 adds the WGFMU source
-by registering a class in ``SOURCES``; until then a plan whose pulse role is a ``wgfmu`` role is refused at plan time:
-``source_for``).
+kind's schedules, routes, reads or table (WP9.4 builds the HV-SPGU and SMU pulse sources, WP10.6 the WGFMU source).
 
 **Interface** (``PulseSourceKind``): ``family`` (the ``ProgramSource`` it drives: ``spgu``, ``smu``, ``wgfmu``),
 ``function`` (the pulse role function it serves: ``pgu``, ``pulse_v``, ``wgfmu``), ``compile(request)`` (pure: one
 compiled ``op`` per ``OpRequest`` of the request, keyed by the request's ``key``; the channel's pulse trains for the
-``SourcePlan``, its pulse envelope, extra program keys), ``seconds(op)``/``segment_s(op)`` (estimate: the whole
-operation, the longest stretch between two checkpoints), ``preview(op, programs)`` (the FLEX writes of one operation)
-and ``run(tx, op, programs, on_chunk, label)`` (one operation through the guarded driver: it calls ``on_chunk`` after
-every intermediate checkpoint unit and returns an ``OpResult``; the caller records the operation's last unit).
+``SourcePlan``, its pulse envelope, extra program keys) and ``seconds(op)``/``segment_s(op)`` (estimate: the whole
+operation, the longest stretch between two checkpoints). The FLEX sources (``FlexSourceKind``: HV-SPGU, SMU pulse)
+add ``preview(op, programs)`` (the FLEX writes of one operation) and ``run(tx, op, programs, on_chunk, label)`` (one
+operation through the guarded driver: it calls ``on_chunk`` after every intermediate checkpoint unit and returns an
+``OpResult``; the caller records the operation's last unit). The WGFMU source's operations are patterns of WGFMU
+executions that the kind's WGFMU path loads and runs in its library phase (``catalog/kinds/pulse_wgfmu.py``).
 
 **Operations** (``OpRequest``, built by the kind's schedule, WP9.5): ``name`` (``program`` or ``erase``: the table phase
 of the read that follows), the peak set ``level`` and ``width``, how often the plan ``runs`` it, and optionally its own
@@ -43,6 +43,15 @@ pulse count (free run cannot be expressed).
   2 s, R-PULSE-01). The SMU stays the pulsed terminal's read source (``pulse_read``), so the kind merges the read's
   DC envelope into the channel's entry. An SMU has no cycling burst (one trigger per pulse would take hours for 10^6
   cycles): a plan that needs one is refused at plan time.
+- **WGFMU** (role function ``wgfmu``, WP10.6): settings ``lead``/``trail`` (s, default ``WGFMU_EDGE_S`` / the leading
+  time) and ``base`` (V, default 0). One ``WgfmuOp`` per operation: ``count`` periods of one trapezoid pulse
+  (``ferro_waveforms.op_vectors``: ``lead`` to the level, ``width`` flat, ``trail`` back to the base, the rest of the
+  period at the base) as one sequence entry, the pattern repeated by the sequence count; a **bipolar cycling burst**
+  is ``count`` periods of one cycle pattern (``burst_vectors``: the second pulse half a period after the first; one
+  entry whatever its length). Pulse trains per operation: one per polarity, repeated as often as the plan runs the
+  operation; envelope from ``pulse_envelope`` without a source resistance (Fast IV; the short-circuit bound is the
+  module's ``max_output_a``). No compliance (the WGFMU covers the full scale of its current range): the channel's
+  envelope has none.
 """
 
 from __future__ import annotations
@@ -55,13 +64,14 @@ from typing import TYPE_CHECKING, Annotated, Any, Final, Literal, Protocol
 from pydantic import Field, ValidationError
 
 from b1500_test_agent.catalog.blocks import smu_pulse_burst, smu_pulse_s, spgu_burst, spgu_poll_s
+from b1500_test_agent.catalog.ferro_waveforms import PulseShape, burst_vectors, duration_ticks, op_vectors
 from b1500_test_agent.catalog.kinds.pulsed_roles import DEFAULT_MEAS_FRACTION, MAX_MEAS_TIME_S
 from b1500_test_agent.catalog.kinds.spgu_train import CONFIGURE_OVERHEAD_S, DEFAULT_LEAD_S, WAIT_SEGMENT_S
 from b1500_test_agent.catalog.schema import CompileError, setting_value
 from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.b1500 import B1500Driver, PulsedSetup, RawBlock
 from b1500_test_agent.driver.b1500 import PulseSource as SmuPulse
-from b1500_test_agent.driver.modules import SPGU_SPEC
+from b1500_test_agent.driver.modules import SPGU_SPEC, WGFMU_SPEC
 from b1500_test_agent.models.analysis import Quantity
 from b1500_test_agent.models.common import StrictModel
 from b1500_test_agent.models.plan import PulseEnvelope
@@ -74,12 +84,17 @@ if TYPE_CHECKING:
     from b1500_test_agent.session.transaction import Transaction
 
 __all__ = [
+    "FLEX_SOURCES",
     "MAX_COUNT",
     "OP_NAMES",
-    "PENDING_SOURCES",
     "SOURCES",
     "WAIT_SEGMENT_S",
+    "WGFMU_CHECKPOINT_S",
+    "WGFMU_EDGE_S",
+    "WGFMU_RUN_OVERHEAD_S",
+    "AnyOp",
     "CompiledSource",
+    "FlexSourceKind",
     "OpName",
     "OpRequest",
     "OpResult",
@@ -90,6 +105,8 @@ __all__ = [
     "SourceRequest",
     "SpguOp",
     "SpguSourceKind",
+    "WgfmuOp",
+    "WgfmuSourceKind",
     "other_op",
     "setting_op",
     "source_for",
@@ -112,6 +129,15 @@ MAX_COUNT: Final = 1_000_000
 
 SMU_SETUP_OVERHEAD_S: Final = 0.05
 """Estimated bus time of one SMU pulse setup (``FMT``, ``AIT``, ``MM``, ``CMM``, ``PT``, ``PV``, the drain)."""
+
+WGFMU_EDGE_S: Final = 1e-7
+"""Default leading/trailing time of a WGFMU pulse (Fast IV; the WGFMU's 10 ns vectors would allow less)."""
+
+WGFMU_RUN_OVERHEAD_S: Final = 0.5
+"""Estimated host time of one WGFMU execution (load, update, connect, status polls; TODO(verify) at bring-up L8)."""
+
+WGFMU_CHECKPOINT_S: Final = 10.0
+"""Sequencer time between two progress checkpoints inside one WGFMU execution (cancel latency is the 1 s poll)."""
 
 
 # -- operations ------------------------------------------------------------------------------------------------------
@@ -148,8 +174,32 @@ class SmuOp(StrictModel):
     chunks: int = Field(ge=1)
 
 
-PulseOp = Annotated[SpguOp | SmuOp, Field(discriminator="source")]
-"""A compiled operation of any source (WP10.6 adds the WGFMU operation to this union)."""
+class WgfmuOp(StrictModel):
+    """One WGFMU operation (module docstring): ``count`` periods of ``period`` from the shape's base, each one pulse at
+    ``level`` of ``width`` (flat) with the shape's edges, or (``then`` = the second pulse's ``(level, width)``) one
+    bipolar cycle; ``output_s`` = ``count x period`` (the period on the 10 ns grid)."""
+
+    source: Literal["wgfmu"] = "wgfmu"
+    name: OpName
+    level: float
+    width: float = Field(gt=0)
+    count: int = Field(ge=1, le=MAX_COUNT)
+    period: float = Field(gt=0)
+    shape: PulseShape
+    then: tuple[float, float] | None = None
+    output_s: float = Field(gt=0)
+    chunks: int = Field(default=1, ge=1)
+
+    def vectors(self) -> list[tuple[float, float]]:
+        """The pattern of one period (``ferro_waveforms.op_vectors`` / ``burst_vectors``)."""
+        if self.then is None:
+            return op_vectors(self.level, self.width, self.period, self.shape)
+        return burst_vectors((self.level, self.width), self.then, self.period, self.shape)
+
+
+AnyOp = SpguOp | SmuOp | WgfmuOp
+PulseOp = Annotated[AnyOp, Field(discriminator="source")]
+"""A compiled operation of any source."""
 
 
 @dataclass(frozen=True)
@@ -190,12 +240,13 @@ class SourceRequest:
 
 @dataclass
 class CompiledSource:
-    """A source's compiled part: the operations by key, the channel's pulse trains and envelope, the most |V| and
-    |I| (``None``: no compliance) the channel outputs, and extra program keys (``spgu_programs``)."""
+    """A source's compiled part: the operations by key, the channel's pulse trains and envelope (``None`` without a
+    train: a WGFMU plan whose reads are its only pulses), the most |V| and |I| (``None``: no compliance) the channel
+    outputs, and extra program keys (``spgu_programs``)."""
 
-    ops: dict[str, SpguOp | SmuOp]
+    ops: dict[str, AnyOp]
     trains: list[PulseTrain]
-    pulse: PulseEnvelope
+    pulse: PulseEnvelope | None
     max_abs_v: float
     max_abs_i: float | None
     extra: dict[str, Any] = field(default_factory=dict)
@@ -223,13 +274,17 @@ class PulseSourceKind(Protocol):
 
     def compile(self, request: SourceRequest) -> CompiledSource: ...
 
-    def seconds(self, op: SpguOp | SmuOp) -> float: ...
+    def seconds(self, op: AnyOp) -> float: ...
 
-    def segment_s(self, op: SpguOp | SmuOp) -> float: ...
+    def segment_s(self, op: AnyOp) -> float: ...
 
-    def preview(self, op: SpguOp | SmuOp, programs: Sequence[SpguProgram]) -> list[str]: ...
 
-    def run(self, tx: Transaction, op: SpguOp | SmuOp, programs: Sequence[SpguProgram], *,
+class FlexSourceKind(PulseSourceKind, Protocol):
+    """A pulse source driven over FLEX (HV-SPGU, SMU pulse): it also previews and runs one operation."""
+
+    def preview(self, op: AnyOp, programs: Sequence[SpguProgram]) -> list[str]: ...
+
+    def run(self, tx: Transaction, op: AnyOp, programs: Sequence[SpguProgram], *,
             on_chunk: Callable[[], None], label: str) -> OpResult: ...
 
 
@@ -319,7 +374,7 @@ class SpguSourceKind:
             raise CompileError(f"role {request.role}: setting load_ohm (the SER load, Ohm) is required for an HV-SPGU "
                                "pulse (R-SPGU-01)")
         load_ohm = _real(load, f"{request.role}.load_ohm")
-        ops: dict[str, SpguOp | SmuOp] = {}
+        ops: dict[str, AnyOp] = {}
         programs: list[SpguPulseProgram] = []
         trains: list[PulseTrain] = []
         for req in request.ops:
@@ -374,19 +429,19 @@ class SpguSourceKind:
                             base_v=0.0, peak_v=round(level2 - base, 9))
         return SpguChannel(load_ohm=load_ohm, levels="three_level", sources={1: first, 2: second})
 
-    def seconds(self, op: SpguOp | SmuOp) -> float:
+    def seconds(self, op: AnyOp) -> float:
         assert isinstance(op, SpguOp)
         return CONFIGURE_OVERHEAD_S + op.output_s + spgu_poll_s(op.output_s)
 
-    def segment_s(self, op: SpguOp | SmuOp) -> float:
+    def segment_s(self, op: AnyOp) -> float:
         assert isinstance(op, SpguOp)
         return CONFIGURE_OVERHEAD_S + min(op.output_s, WAIT_SEGMENT_S) + spgu_poll_s(op.output_s)
 
-    def preview(self, op: SpguOp | SmuOp, programs: Sequence[SpguProgram]) -> list[str]:
+    def preview(self, op: AnyOp, programs: Sequence[SpguProgram]) -> list[str]:
         assert isinstance(op, SpguOp)
         return B1500Driver.spgu_preview(programs[op.program])
 
-    def run(self, tx: Transaction, op: SpguOp | SmuOp, programs: Sequence[SpguProgram], *,
+    def run(self, tx: Transaction, op: AnyOp, programs: Sequence[SpguProgram], *,
             on_chunk: Callable[[], None], label: str) -> OpResult:
         assert isinstance(op, SpguOp)
         result = OpResult(pulses=op.count)
@@ -417,7 +472,7 @@ class SmuPulseSourceKind:
         if icomp is None:
             raise CompileError(f"role {request.role}: setting icomp (A) is required for an SMU pulse (R-COMP-01)")
         comp = _real(icomp, f"{request.role}.icomp")
-        ops: dict[str, SpguOp | SmuOp] = {}
+        ops: dict[str, AnyOp] = {}
         trains: list[PulseTrain] = []
         for req in request.ops:
             if req.then is not None:
@@ -453,19 +508,19 @@ class SmuPulseSourceKind:
         levels = [abs(base), *(abs(t.peak_v) for t in trains)]
         return CompiledSource(ops=ops, trains=trains, pulse=envelope, max_abs_v=max(levels), max_abs_i=abs(comp))
 
-    def seconds(self, op: SpguOp | SmuOp) -> float:
+    def seconds(self, op: AnyOp) -> float:
         assert isinstance(op, SmuOp)
         return SMU_SETUP_OVERHEAD_S + op.count * smu_pulse_s(op.setup)
 
-    def segment_s(self, op: SpguOp | SmuOp) -> float:
+    def segment_s(self, op: AnyOp) -> float:
         assert isinstance(op, SmuOp)
         return SMU_SETUP_OVERHEAD_S + min(op.chunk, op.count) * smu_pulse_s(op.setup)
 
-    def preview(self, op: SpguOp | SmuOp, programs: Sequence[SpguProgram]) -> list[str]:
+    def preview(self, op: AnyOp, programs: Sequence[SpguProgram]) -> list[str]:
         assert isinstance(op, SmuOp)
         return [flex.fmt(1, op.setup.format_mode), *op.setup.commands(), *([flex.XE] * op.count)]
 
-    def run(self, tx: Transaction, op: SpguOp | SmuOp, programs: Sequence[SpguProgram], *,
+    def run(self, tx: Transaction, op: AnyOp, programs: Sequence[SpguProgram], *,
             on_chunk: Callable[[], None], label: str) -> OpResult:
         assert isinstance(op, SmuOp)
         result = OpResult()
@@ -481,29 +536,77 @@ class SmuPulseSourceKind:
         return result
 
 
+# -- WGFMU -----------------------------------------------------------------------------------------------------------
+
+
+class WgfmuSourceKind:
+    """WGFMU pulses as sequence entries of the kind's WGFMU executions (module docstring)."""
+
+    family: ProgramSource = "wgfmu"
+    function = "wgfmu"
+
+    def compile(self, request: SourceRequest) -> CompiledSource:
+        base = _real(request.setting(BASE_SETTING, 0.0), f"{request.role}.{BASE_SETTING}")
+        lead = _real(request.setting("lead", WGFMU_EDGE_S), f"{request.role}.lead")
+        trail = _real(request.setting("trail", lead), f"{request.role}.trail")
+        if lead <= 0 or trail <= 0:
+            raise CompileError(f"role {request.role}: lead and trail must be positive, got {lead:g} / {trail:g} s")
+        shape = PulseShape(base=base, lead=lead, trail=trail)
+        ops: dict[str, AnyOp] = {}
+        trains: list[PulseTrain] = []
+        for req in request.ops:
+            count, period = _count(request, req), _period(request, req)
+            draft = WgfmuOp(name=req.name, level=req.level, width=req.width, count=count, period=period, shape=shape,
+                            then=req.then, output_s=count * period)
+            ticks = duration_ticks(draft.vectors())  # the timing checks; the period on the 10 ns grid
+            grid = round(ticks * 1e-8, 12)
+            op = draft.model_copy(update={"period": grid, "output_s": round(count * grid, 12)})
+            ops[req.key] = op
+            second = round((ticks // 2) * 1e-8, 12)  # burst_vectors: the second pulse starts at half the period
+            pulses = [(req.level, req.width, 0.0)] + ([(req.then[0], req.then[1], second)] if req.then else [])
+            for level, width, delay in pulses:
+                try:
+                    train = PulseTrain(base_v=base, peak_v=level, width_s=width, period_s=grid, lead_s=lead,
+                                       trail_s=trail, delay_s=delay, count=count, repeat=req.runs)
+                except ValidationError as exc:
+                    raise CompileError(f"role {request.role}: the {req.key} pulse is not a valid pulse train "
+                                       f"({exc.errors()[0]['msg']})") from None
+                same = next((i for i, t in enumerate(trains) if t.model_copy(update={"repeat": 1})
+                             == train.model_copy(update={"repeat": 1})), None)
+                if same is None:
+                    trains.append(train)
+                else:
+                    trains[same] = trains[same].model_copy(update={"repeat": trains[same].repeat + train.repeat})
+        envelope = pulse_envelope(trains, source_ohm=None, short_circuit_a=WGFMU_SPEC.max_output_a) if trains else None
+        levels = [abs(base), *(abs(t.peak_v) for t in trains)]
+        return CompiledSource(ops=ops, trains=trains, pulse=envelope, max_abs_v=max(levels), max_abs_i=None)
+
+    def seconds(self, op: AnyOp) -> float:
+        assert isinstance(op, WgfmuOp)
+        return WGFMU_RUN_OVERHEAD_S + op.output_s
+
+    def segment_s(self, op: AnyOp) -> float:
+        assert isinstance(op, WgfmuOp)
+        return WGFMU_RUN_OVERHEAD_S + min(op.output_s, WGFMU_CHECKPOINT_S)
+
+
 # -- registry --------------------------------------------------------------------------------------------------------
 
-SOURCES: Final[dict[str, PulseSourceKind]] = {"pgu": SpguSourceKind(), "pulse_v": SmuPulseSourceKind()}
-"""The implemented sources by the pulse role function they serve."""
+FLEX_SOURCES: Final[dict[str, FlexSourceKind]] = {"pgu": SpguSourceKind(), "pulse_v": SmuPulseSourceKind()}
+"""The FLEX sources by the pulse role function they serve."""
 
-PENDING_SOURCES: Final[dict[str, str]] = {"wgfmu": "WP10.6"}
-"""Pulse role functions of the blueprint's ``pulse_read`` row whose source arrives with a later work package: a plan
-naming one is refused at plan time (``source_for``), never run by a stand-in."""
+SOURCES: Final[dict[str, PulseSourceKind]] = {**FLEX_SOURCES, "wgfmu": WgfmuSourceKind()}
+"""Every source by the pulse role function it serves (HV-SPGU, SMU pulse, WGFMU)."""
 
 
 def source_for(role: str, function: str, kind_id: str) -> PulseSourceKind:
     """The source that serves pulse role ``role`` of ``function``.
 
     Raises:
-        CompileError: For a source that arrives with a later work package (the WGFMU source: WP10.6) or a function no
-            source serves.
+        CompileError: For a function no source serves.
     """
     source = SOURCES.get(function)
     if source is not None:
         return source
-    if function in PENDING_SOURCES:
-        raise CompileError(f"{kind_id}: role {role} ({function}) selects the WGFMU pulse source; the WGFMU source "
-                           f"arrives in {PENDING_SOURCES[function]} (blueprint v2 10.6). Until then pulse with the "
-                           "HV-SPGU (a pgu role) or an SMU (a pulse_v role)")
     raise CompileError(f"{kind_id}: no pulse source serves role {role} ({function}); sources: "
                        f"{', '.join(sorted(SOURCES))}")

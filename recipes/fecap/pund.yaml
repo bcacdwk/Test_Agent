@@ -1,0 +1,56 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Ferroelectric capacitor PUND (card nvm/fecap-pund, bring-up stage L8; blueprint v2 3.4, implements the reserved id
+# fecap.pund): kind wgfmu_waveform, builder pund (catalog/ferro_waveforms.py). The top electrode (WGFMU 201 through
+# RSU201, Fast IV) outputs from 0 V a preset pulse of -v_max (poles the film negative), then P (+v_max), U (+v_max),
+# N (-v_max), D (-v_max): each a ramp of `rise` to the level, `plateau` flat (0 = triangular), `rise` back to 0 V and
+# `delay` at 0 V. The bottom electrode (WGFMU 202 through RSU202) holds 0 V and samples its current through each of
+# P, U, N, D contiguously (`interval`, averaged over the whole interval; the pulse 2 rise + plateau must be a whole
+# number of intervals): event P/U/N/D rows. P and U see the same voltage, so I_P - I_U is the switching current.
+# The WGFMU has no compliance: a current at the full scale of `irange` reads status V (the analysis refuses it).
+# Default analysis pund_polarization: Pr = (Q_P - Q_U)/2A (and N - D), Ps with the linear dielectric (U/D slope)
+# removed, Vc/Ec from the switching-current peaks, imprint (needs the DUT geometry: area_um2, tox_nm). Every run
+# switches the film (about 1.5 cycles): wake-up and fatigue add up over runs.
+# status: sim_validated by tests/integration/test_recipes_pund.py (fecap_basic: Pr, Ps, Ec within 5 % of the model's
+# pund_truth); hw_validated only through a validation record (stage L8).
+id: fecap.pund
+version: 1
+title: Ferroelectric capacitor PUND through the WGFMU (P, U, N, D on the top electrode; Pr, Ps, Ec)
+family: nvm
+kind: wgfmu_waveform
+status: sim_validated
+card: .agents/skills/b1500-test/cards/nvm/fecap-pund.md
+device_types: [fecap]
+roles:
+  top:
+    function: wgfmu
+    module_types: [WGFMU]
+    settings: {amplitude: $v_max}
+  bottom:
+    function: wgfmu
+    measure: [I]
+    module_types: [WGFMU]
+    settings: {range: $irange}
+params:
+  builder: {type: enum, choices: [pund], default: pund, doc: Fixed waveform builder.}
+  v_max: {unit: V, default: 3.0, recommended: [2.0, 4.0], range: [0.1, 10.0],
+          doc: "PUND pulse amplitude (about 2-3 x the coercive voltage saturates the loop; within the DUT envelope)."}
+  rise: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-4], range: [1.0e-7, 1.0e-2],
+         doc: "Ramp time 0 V -> v_max (and back): sets dV/dt, so the displacement and switching currents."}
+  plateau: {unit: s, default: 0.0, recommended: [0.0, 1.0e-5], range: [0.0, 1.0e-2],
+            doc: "Flat top of each pulse (0 = triangular pulses)."}
+  delay: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-3], range: [1.0e-7, 1.0],
+          doc: "Time at 0 V after each pulse (relaxation before the next one)."}
+  interval: {unit: s, default: 1.0e-7, recommended: [1.0e-8, 1.0e-6], range: [1.0e-8, 1.0e-3],
+             doc: "Sampling interval (each point averaged over it); 2 rise + plateau must be a whole number of them."}
+  preset: {type: bool, default: true, doc: "A negative preset pulse first (P then switches from the negative state)."}
+  irange: {type: enum, choices: [1ua, 10ua, 100ua, 1ma, 10ma], default: 1ma,
+           doc: "Bottom-electrode current range (full scale; no compliance: above it reads saturate, status V)."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: pund_polarization, options: {}}
+provenance:
+  sources:
+    - blueprint v2 2.7.1 (builder pund), 2.10 (pund_polarization), 3.4 (fecap.pund), 4.2 ferro FeCap target (Pr, Ps, Ec +-5 %)
+    - Keysight Advanced NVM Application Tests User's Guide (AN-NVM; PUND with the B1530A; TODO(verify) the page at L8)
+    - WGFMU guide Ed. 8 setMeasureEvent (PDF 125-126), addSequence (PDF 80), Fast IV mode and ranges (PDF 16, 123, 142)
+  validation_runs: []

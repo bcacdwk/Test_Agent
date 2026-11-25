@@ -6,6 +6,7 @@ sources:
   - src/b1500_test_agent/analysis/pulse.py (pulsed_vs_dc, pulse_plateau; WP7.3; vth_search_value, breakdown_voltage; WP7.5)
   - src/b1500_test_agent/analysis/nvm.py (memory_window_pulse; WP9.4; switching_kinetics_fit, endurance_summary, retention_fit; WP9.5)
   - src/b1500_test_agent/analysis/nls.py (NLS fit core; WP9.5)
+  - src/b1500_test_agent/analysis/pund.py (pund_polarization, plot_pund; WP10.6)
   - src/b1500_test_agent/analysis/registry.py (two-run methods, options.reference_run)
   - docs/design/blueprint.md sections 2.9 (analyze_run reference_run) and 2.10 (pulse.py)
 last_reviewed: null
@@ -16,7 +17,7 @@ last_reviewed: null
 Split from [06](06-analysis-extraction.md) when it reached 300 lines (WP7.3); trust classes, the quality gate and the
 reporting rules there apply here too. Definitions here are identical to the docstrings of
 `src/b1500_test_agent/analysis/reliability.py`, `pulse.py` and `nvm.py`; the code wins on any difference and a change
-to either must change both.
+to either must change both. PUND: `pund.py` (section [PUND](#pund)).
 
 ## Sampling summary and relaxation fit
 
@@ -152,6 +153,30 @@ Implemented (`retention_fit`, WP9.5; `fefet.retention`, schedule `retention`).
   `memory_window_at_target` (V at `target_time_s`, default 10 years; warning when more than two decades beyond the
   last read), `retention_time` (s: the fit reaches `mw_min` V or `fail_fraction` x the first MW, default 0.5; a
   window that does not decay: lower bound at the target). Extrapolations are derived values: say so in the report.
+
+## PUND
+
+Implemented (`pund_polarization`, `plot_pund`, WP10.6; `fecap.pund`, `fecap.endurance_pund`; physics in
+[04](04-ferroelectric-oxide.md#fecap-p-v-and-pund)).
+
+- Data: per read (a `cycle` group) the rows of events `P`, `U`, `N`, `D`: `t_s`, forcing voltage `v` (default the
+  varying `_V` source column, the programmed top level) and current `i` (default the only measured `_I` column).
+  Each sample is the current averaged over one interval dt, so charge Q(k) = s sum I dt; the sign s makes the U
+  pulse's charge follow its voltage (either electrode may be measured).
+- `pr` (uC/cm^2) = mean of (Q_P - Q_U) / 2A and -(Q_N - Q_D) / 2A, whole-pulse charges (`fit`: `pr_pos`, `pr_neg`,
+  `q_switch_c`); `q_switch` (C) = 2 Pr A, needs no area. Area: `geometry.area_um2` (or option `area_um2`).
+- `c_lin` (F): slope of Q against V of U and D on their rise between `c_window` (10 %, 50 %) of the peak |V|.
+- `ps` (uC/cm^2): ((Qmax_P + Qmax_U) / 2 - C_lin V_peak) / A, and likewise for N/D: the polarization at the peak
+  field, dielectric removed (Qmax: the largest charge, at the end of the rise or flat top).
+- `vc` (V) = (Vc+ - Vc-) / 2 with Vc+ the voltage at the peak of s (I_P - I_U) and Vc- of s (I_N - I_D) (a parabola
+  through five samples); `v_imprint` = (Vc+ + Vc-) / 2; `ec` (MV/cm) = vc / `geometry.tox_nm` (or option
+  `thickness_nm`). A peak at a ramp end is flagged (step pulses, or an amplitude below Vc).
+- Trust: every sample enters the integrals, so a read with an untrusted or limited sample (WGFMU `V`: saturated
+  range) is refused unless `force`.
+- Several reads (endurance): the values of the last read, plus `pr_initial`, `pr_max`, `wake_up` = pr_max /
+  pr_initial - 1, `fatigue` = 1 - pr_final / pr_max, `cycles_to_failure` (Pr below `fail_fraction` x pr_max after the
+  maximum, log10 N interpolation; never: a lower bound at the last read). Window: the forcing-voltage span.
+- `plot_pund`: currents against time, polarization (incl. dielectric) against voltage per pulse, Pr against cycles.
 
 ## SMU method index
 

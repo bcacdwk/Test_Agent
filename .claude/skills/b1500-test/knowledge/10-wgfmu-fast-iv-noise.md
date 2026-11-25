@@ -16,7 +16,8 @@ last_reviewed: null
 
 What the B1530A WGFMU measures fast, how a constant-bias record becomes random telegraph noise (RTN) and
 low-frequency noise (LFN) numbers, and how to choose range, sampling and record length. Cards: `wgfmu-rtn-noise`
-(recipes `wgfmu.rtn`, `wgfmu.lfn`), `wgfmu-pulsed-iv`, `wgfmu-custom-waveform`. Definitions of the analysis methods
+(recipes `wgfmu.rtn`, `wgfmu.lfn`), `wgfmu-pulsed-iv`, `wgfmu-custom-waveform`; PUND and fast program/read:
+`fecap-pund`, `fefet-pulse-write-read`. Definitions of the analysis methods
 here are identical to the docstrings of `src/b1500_test_agent/analysis/noise.py` (fit numerics in `spectrum.py`);
 the code wins on any difference and a change to either must change both.
 
@@ -25,6 +26,7 @@ the code wins on any difference and a change to either must change both.
 - [WGFMU and RSU in one page](#wgfmu-and-rsu-in-one-page)
 - [Fast I-V pulses ramps and timing](#fast-i-v-pulses-ramps-and-timing)
 - [Constant-bias sampling dc_sample](#constant-bias-sampling-dc_sample)
+- [PUND program read and the pulse_read WGFMU path](#pund-program-read-and-the-pulse_read-wgfmu-path)
 - [Random telegraph noise physics](#random-telegraph-noise-physics)
 - [Low-frequency noise physics](#low-frequency-noise-physics)
 - [Choosing range sampling and record length](#choosing-range-sampling-and-record-length)
@@ -71,6 +73,20 @@ the code wins on any difference and a change to either must change both.
   `wgfmu.rtn` measures only the drain current (400,000 points at 10 us).
 - Above 200,000 rows the run table is `data.npz` + `preview.csv`; the raw readback is `raw/wgfmu-<ch>-000.npz`;
   `get_run` shows at most 200 rows. Analyse with `analyze_run` (the server reads the whole record).
+
+## PUND program read and the pulse_read WGFMU path
+
+- Builders `pund` and `program_read` (`catalog/ferro_waveforms.py`, kind `wgfmu_waveform`): ONE sequencer run.
+  `pund`: preset, P, U, N, D ramps on the top channel, the bottom channel at 0 V sampling each pulse contiguously
+  (events P/U/N/D). `program_read`: per cycle the erase pulse, a gate staircase read (drain at `v`), the program
+  pulse, a read; the read follows its pulse after the rest of the period (microseconds), events `erase`/`program`.
+- Kind `pulse_read` with a `wgfmu` pulse role (`pulse_wgfmu.py`): the schedules of the SPGU path (cycles, endurance
+  checkpoints, grid, retention) with WGFMU pulses, bipolar cycling bursts (one cycle pattern repeated up to 10^6 times
+  per entry) and WGFMU reads (`wgfmu_read` `sweep` or `pund`), one execution per step inside one library phase (the
+  output stays at its rest level between executions; TODO(verify) at L8 that `WGFMU_update` keeps it there).
+- Simulator: a vertex step holds the level at its end, so a pulse's leading edge counts as time at the level for
+  switching kinetics; long unmeasured repeats (cycling) are stepped in aggregated chunks with the devices' cycle
+  counter (wake-up/fatigue exact, retention between pulses approximate).
 
 ## Random telegraph noise physics
 

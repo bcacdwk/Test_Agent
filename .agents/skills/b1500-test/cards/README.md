@@ -65,12 +65,12 @@ Ferroelectric memory: FeFET memory window, program/read, switching kinetics, end
 
 | family | intent keywords | card | recipes | status | modules | stage |
 |---|---|---|---|---|---|---|
-| nvm | FeCap, ferroelectric capacitor, C-V butterfly, coercive voltage, coercive field, Ec, Vc, imprint, HZO, PUND, remanent polarization, Pr | [fecap-pund](nvm/fecap-pund.md) | `fecap.cv_butterfly` | sim_validated | MFCMU | L6 |
+| nvm | FeCap, ferroelectric capacitor, C-V butterfly, coercive voltage, coercive field, Ec, Vc, imprint, HZO, small-signal C-V | [fecap-cv-butterfly](nvm/fecap-cv-butterfly.md) | `fecap.cv_butterfly` | sim_validated | MFCMU | L6 |
+| nvm | FeCap, PUND, remanent polarization, Pr, Ps, coercive field, Ec, switching charge, P-V loop, endurance, fatigue, wake-up | [fecap-pund](nvm/fecap-pund.md) | `fecap.pund`, `fecap.endurance_pund` | sim_validated | WGFMU | L8 |
 | nvm | FeFET, memory window, hysteresis, dual sweep, Vth_fwd/Vth_rev | [fefet-dual-sweep-mw](nvm/fefet-dual-sweep-mw.md) | `fefet.dual_sweep_mw` | sim_validated | HRSMU, MPSMU, GNDU | L7 |
 | nvm | FeFET, endurance, cycling, program erase cycles, wake-up, fatigue, retention, data retention, memory window versus cycles, memory window versus time, 10 years | [fefet-endurance-retention](nvm/fefet-endurance-retention.md) | `fefet.endurance`, `fefet.retention` | sim_validated | HVSPGU, HRSMU, MPSMU, GNDU | L9 |
-| nvm | FeFET, memory window from pulses, program pulse, erase pulse, write read, program verify, pulse then read, SPGU program SMU read | [fefet-pulse-write-read](nvm/fefet-pulse-write-read.md) | `fefet.pulse_write_read`, `spgu.program_smu_read` | sim_validated | HVSPGU, HRSMU, MPSMU, GNDU | L7 |
+| nvm | FeFET, memory window from pulses, program pulse, erase pulse, write read, program verify, pulse then read, SPGU program SMU read, fast read, WGFMU program read | [fefet-pulse-write-read](nvm/fefet-pulse-write-read.md) | `fefet.pulse_write_read`, `spgu.program_smu_read`, `fefet.fast_program_read` | sim_validated | HVSPGU, HRSMU, MPSMU, GNDU, WGFMU | L7 (`fefet.fast_program_read`: L8) |
 | nvm | FeFET, switching kinetics, switching time, NLS, nucleation limited switching, pulse amplitude width map, ISPP, incremental step pulse, tau0, Merz law | [fefet-switching-kinetics](nvm/fefet-switching-kinetics.md) | `fefet.switching_kinetics` | sim_validated | HVSPGU, HRSMU, MPSMU, GNDU | L7 |
-| nvm | reserved: Ferroelectric capacitor PUND (positive-up-negative-down) | [reserved](reserved/README.md) | `fecap.pund` | not_implemented | - | - |
 
 ## reliability
 

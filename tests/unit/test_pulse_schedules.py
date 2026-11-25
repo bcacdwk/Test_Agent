@@ -103,7 +103,7 @@ def test_retention_schedule_reads_at_log_times() -> None:
     ({"schedule": "retention", "retention_time": 10.0, "first_read": 0.01}, "first_read"),
     ({"schedule": "retention", "retention_time": 10.0, "settle": 1.0}, "settle must be 0"),
     ({"schedule": "retention", "retention_time": 10.0, "cycles": 3}, "applies to schedule cycles only"),
-    ({"precycles": 10, "cycle_period": 1e-5}, "need the HV-SPGU source"),
+    ({"precycles": 10, "cycle_period": 1e-5}, "need the HV-SPGU"),
 ])
 def test_schedule_parameters_that_are_refused(params: dict[str, Any], message: str) -> None:
     with pytest.raises(CompileError, match=message):
@@ -207,7 +207,7 @@ def test_an_smu_pulse_source_cannot_cycle_in_bursts(tmp_path: Path) -> None:
         "  cycle_reads: {type: enum, choices: [every, log], default: every, doc: Reads.}\n"
         "  cycle_period: {unit: s, default: 1.0e-2, range: [1.0e-3, 1.0], doc: Cycle period.}")
     recipe.write_text(text, encoding="utf-8")
-    with pytest.raises(InvalidInputError, match="need the HV-SPGU source"):
+    with pytest.raises(InvalidInputError, match="need the HV-SPGU .a pgu pulse role. or the WGFMU"):
         pr_plan(tmp_path, SMU_PULSE_READ, cycle_reads="log", cycles=100)
 
 

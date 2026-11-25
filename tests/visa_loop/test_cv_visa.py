@@ -55,7 +55,7 @@ CV_CASES: list[dict[str, Any]] = [
     {"recipe_id": "moscap.cv_multi_freq", "scenario": "moscap_dit", "source": "card moscap-dit", "scuu": True,
      "request": {"params": {"points": 41}, "pin_map": "moscap-scuu",
                  "dut_profile": "moscap-generic"}},
-    {"recipe_id": "fecap.cv_butterfly", "scenario": "fecap_basic", "source": "card fecap-pund",
+    {"recipe_id": "fecap.cv_butterfly", "scenario": "fecap_basic", "source": "card fecap-cv-butterfly",
      "request": {"params": {"points": 41}, "pin_map": "fecap-cmu", "dut_profile": "fecap-generic"}},
 ]
 """The WP8.3 recipes, the WP8.4 C-V variants and WP8.5's multi-frequency C-V with their card example requests (fewer

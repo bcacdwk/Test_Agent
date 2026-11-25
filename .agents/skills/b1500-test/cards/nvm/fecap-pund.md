@@ -1,126 +1,143 @@
 ---
 id: fecap-pund
-title: Ferroelectric capacitor — C-V butterfly (coercive voltage, imprint, Ec); PUND (Pr, Ps, Ec) via the WGFMU
+title: Ferroelectric capacitor PUND through the WGFMU — Pr, Ps, Ec; endurance by PUND (Pr versus cycles)
 family: nvm
-intent: [FeCap, ferroelectric capacitor, C-V butterfly, coercive voltage, coercive field, Ec, Vc, imprint, HZO, PUND, remanent polarization, Pr]
-recipes: [fecap.cv_butterfly]
+intent: [FeCap, PUND, remanent polarization, Pr, Ps, coercive field, Ec, switching charge, P-V loop, endurance, fatigue, wake-up]
+recipes: [fecap.pund, fecap.endurance_pund]
+analysis: [pund_polarization, plot_pund]
 device_types: [fecap]
-modules: [MFCMU]
-routes: []
-bringup_stage: L6
+modules: [WGFMU]
+routes: [rsu:wgfmu]
+bringup_stage: L8
 status: sim_validated
 confirmation: always
-knowledge: [knowledge/08-capacitance-cv.md#fecap-c-v-butterfly, knowledge/04-ferroelectric-oxide.md#ferroelectric-basics-ec-pr-ps, knowledge/04-ferroelectric-oxide.md#fecap-p-v-and-pund, knowledge/08-capacitance-cv.md#corrections-and-the-measurement-path]
-manual: ['PG p256 (3-76) "CV (DC Bias) Sweep"', 'PG p549 (4-231) "WDCV"', 'PG p554 (4-236) "WMDCV"']
-debug: [cmu-correction-stale, cmu-cv-distortion, noisy-data, errx-codes, cleanup-failed-fault]
-sources: [blueprint v2 3.2 (fecap.cv_butterfly), blueprint v2 3.4 (fecap.pund, fecap.endurance_pund), blueprint v2 4.2 (ferro FeCap), blueprint v2 6.3 (fecap-pund)]
+knowledge: [knowledge/04-ferroelectric-oxide.md#fecap-p-v-and-pund, knowledge/06b-analysis-time-pulse.md#pund, knowledge/04-ferroelectric-oxide.md#ferroelectric-basics-ec-pr-ps, knowledge/10-wgfmu-fast-iv-noise.md#pund-program-read-and-the-pulse_read-wgfmu-path, knowledge/11-switching-routing.md#rsu-of-the-wgfmu]
+manual: [WG p125 (4-55) "setMeasureEvent", WG p126 (4-56) "average", WG p80 (4-10) "addSequence", WG p142 (4-72) "6003", WG p16 (1-4) "full scale"]
+debug: [wgfmu-range-overflow, wgfmu-library-error, wgfmu-memory-budget, noisy-data, cleanup-failed-fault]
+sources: [blueprint v2 3.4 (fecap.pund, fecap.endurance_pund), blueprint v2 2.7.1 (builder pund), blueprint v2 2.10 (pund_polarization), blueprint v2 4.2 (ferro FeCap), blueprint v2 6.3 (fecap-pund)]
 version: 1
 ---
 
-# Ferroelectric capacitor: C-V butterfly and PUND
+# Ferroelectric capacitor PUND and endurance by PUND
 
 ## 1. Purpose and applicable devices
 
-A ferroelectric capacitor (FeCap, e.g. HfZrO between two electrodes) characterised two ways:
+The switching (remanent) polarization Pr, the saturation polarization Ps and the coercive field Ec of a ferroelectric
+capacitor (FeCap, e.g. HfZrO between two electrodes) from switching currents, and how Pr changes with cycling.
 
-- **C-V butterfly** (`fecap.cv_butterfly`, MFCMU, MM 18 double sweep): the small-signal capacitance is the
-  dielectric part plus the reversible polarization response of the branch being travelled, so it peaks near +Vc
-  while the bias rises and near -Vc while it falls. Gives Vc (and Ec with the film thickness) and the imprint
-  (shift of the loop centre) without switching-current integration. The sweep itself poles the film.
-- **PUND** (`fecap.pund`, `fecap.endurance_pund`): switching charge from four pulses through the WGFMU, Pr/Ps/Ec.
-  These recipes are reserved until the WGFMU FeCap work package (`not_implemented` now; [reserved](../reserved/README.md)).
-- Not for: a FeFET (`fefet-dual-sweep-mw`), a MOS capacitor (`moscap-cv`), leakage (`gate-leakage`).
+- `fecap.pund`: a negative preset, then P, U, N, D ramps on the top electrode, the current sampled on the bottom
+  electrode (one WGFMU run): Pr = (Q_P - Q_U) / 2A, Ps, Vc and Ec from the switching-current peaks, imprint.
+- `fecap.endurance_pund`: bipolar WGFMU cycling with a PUND read at log-spaced cycle counts (a long, asynchronous
+  run): Pr per checkpoint, wake-up, fatigue, cycles to failure.
+- Not for: the small-signal coercive voltage ([fecap-cv-butterfly](fecap-cv-butterfly.md), MFCMU), a FeFET
+  ([fefet-pulse-write-read](fefet-pulse-write-read.md)), leakage (`gate-leakage`).
 
 ## 2. Wiring, pin map, modules
 
 | terminal | role | module | notes |
 |---|---|---|---|
-| top | `top` (cmu_high) | MFCMU High (`7H`) | DC bias sweep and AC drive |
-| bottom | `bottom` (cmu_low) | MFCMU Low (`7L`) | measuring point |
+| top | `top` (wgfmu): PUND and cycling pulses | WGFMU 201 via `RSU201.OUT` | Fast IV, no compliance |
+| bottom | `bottom` (wgfmu, measure I): the current | WGFMU 202 via `RSU202.OUT` | 0 V: the virtual ground |
 
-Example pin map `fecap-cmu`, DUT `fecap-generic` (`geometry.tox_nm` = the film thickness for Ec, `area_um2`). PUND
-lands the same film on the WGFMU channels (pin map `fecap-wgfmu`); corrections belong to the MFCMU landing.
-
-- Routes: none in every phase (MFCMU sides directly).
+- Pin map `fecap-wgfmu`, DUT `fecap-generic` (`geometry.area_um2` for Pr/Ps, `geometry.tox_nm` for Ec; the pulse
+  envelope bounds amplitude, width, duty and count). Routes per phase: `waveform`: `RSU201.OUT -> wgfmu`, `RSU202.OUT ->
+  wgfmu`; `rest`: both `-> open` (the cleanup's WGFMU safe state disconnects them, verified).
 
 ## 3. Pre-run checklist
 
-- Corrections fresh with `fecap-cmu` at every frequency (`station_status.corrections`; card `cmu-correction`).
-- Ask: film thickness and expected Ec (DUT profile); the sweep must exceed +-Vc by about 2x to saturate but stay
-  within the terminals' `max_abs_v` (breakdown of thin hafnia is a few times Ec).
-- A virgin film may need wake-up cycles before its loop opens: record the cycle history in the run label.
+- `station_status` clean (no fault, no active run). Ask the film thickness, area and expected Ec (DUT profile);
+  never invent geometry: without it Pr/Ps/Ec are refused (`q_switch` and Vc still come out).
+- Amplitude about 2-3 x Vc within the terminals' pulse `max_abs_v`; a C-V butterfly first shows where Vc is.
+- Each PUND cycles the film (~1.5 cycles); a pristine film wakes up: record the device's cycle history.
 
 ## 4. Recipe and parameters
 
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
-| `freqs_hz` | [100] kHz | 10 kHz..1 MHz | 1 kHz..5 MHz | a few kOhm of reactance | one double sweep each |
-| `ac_vrms` | 30 mV | 10..50 mV | 10..250 mV | small against Vc | above 50 mV: `soft_cmu` |
-| `v_start` | -3 V | -4..4 V | -25..25 V | one saturated polarity | the hold poles the film |
-| `v_stop` | 3 V | -4..4 V | -25..25 V | the other polarity | turning point |
-| `points` | 121 | 61..241 | 21..1001 | >= 5 points across each peak | step = span/(points-1) |
-| `sweep_mode` | double | double | single, double | both branches for Vc | 2 x points |
-| `hold_s` | 1 s | 0.5..5 s | 0..60 s | pole at `v_start` | WTDCV hold |
-| `delay_s` | 0 s | 0..0.1 s | 0..10 s | slow switching | per step |
-| `integration` | medium | medium | short, medium, long | averaging | long for small C |
+| `builder` | pund | - | pund | the PUND waveform | - |
+| `v_max` | 3 V | 2..4 V | 0.1..10 V | PUND amplitude, beyond Vc | too low: Pr under-read |
+| `rise` | 10 us | 1..100 us | 100 ns..10 ms | ramp 0 V -> v_max | current ~ dV/dt |
+| `plateau` | 0 s | 0..10 us | 0..10 ms | flat top (0 = triangle) | triangle resolves Vc best |
+| `delay` | 10 us | 1 us..1 ms | 100 ns..1 s | at 0 V after each pulse | relaxation |
+| `interval` | 100 ns | 10 ns..1 us | 10 ns..1 ms | sampling = averaging | 2 rise + plateau = n x interval |
+| `preset` | true | - | - | negative preset first | P switches from -Pr |
+| `irange` | 1ma | - | 1ua, 10ua, 100ua, 1ma, 10ma | bottom current range | saturates above: status V |
+| `cycles` | 10000000 | 100000..1000000000 | 1..1000000000 | total cycles (last read) | time = cycles x cycle_period |
+| `cycle_reads` | log | - | log, list | read placement | list: `read_cycles` |
+| `reads_per_decade` | 3 | 2..5 | 1..20 | PUND reads per decade | more: longer run |
+| `read_cycles` | [1, 10, 100, 1000, 10000, 100000, 1000000] | - | 1..1000000000 | listed reads | integers |
+| `cycle_period` | 100 us | 10 us..1 ms | 100 ns..1 s | one bipolar cycle | sets the run time |
+| `v_program` | 3 V | 2..4 V | -10..10 V | first cycling pulse | positive polarization |
+| `v_erase` | -3 V | -4..-2 V | -10..10 V | second cycling pulse | negative polarization |
+| `width` | 10 us | 1..100 us | 10 ns..1 ms | flat time per cycling pulse | duty = width / cycle_period |
+| `t_edge` | 1 us | 100 ns..10 us | 10 ns..1 ms | cycling edges | half period > 2 t_edge + width |
+| `sequence` | program_erase | - | program_erase, erase_program | cycling polarity order | - |
+| `initial_read` | false | - | - | must stay false | the first read is cycle 1 |
+| `schedule` | cycles | - | cycles | cycles with PUND reads | - |
+| `read_kind` | wgfmu | - | wgfmu | the WGFMU reads | - |
+| `wgfmu_read` | pund | - | pund | a PUND at each read | - |
 
 Example plan (validated on the simulator by `b1500 dev lint-skills`):
 
 ```yaml
-recipe_id: fecap.cv_butterfly
+recipe_id: fecap.pund
 params: {}
-pin_map: fecap-cmu
+pin_map: fecap-wgfmu
 dut_profile: fecap-generic
 sim_scenario: fecap_basic
 ```
 
 ## 5. Limits and confirmation
 
-- R-CMU-01 (1 kHz..5 MHz, 10..250 mVrms, |DC| <= 25 V, DUT `ac.max_vrms`; `soft_cmu` above 10 V or 50 mVrms);
-  R-DUT-01: the sweep within `max_abs_v` of both terminals. The sweep switches the film repeatedly (one cycle per
-  double sweep): not destructive, but it changes the device state (wake-up, fatigue): say so.
-- R-CORR-01 blocks without fresh corrections (next step card `cmu-correction`); `unverified_pin_map`; on hardware
-  `first_hw_run`.
+- The guard admits every WGFMU pattern before the first library call (levels within the channel envelope, 10 ns
+  grid, vector and value counts); the RSUs connect only on the plan's routes; no compliance: the range bounds the
+  reading, not the current, so the DUT envelope must be right.
+- Blocked: timing off the 10 ns grid or a pulse that does not fit its period (R-WG-02, R-PULSE-01), no terminal
+  `pulse` envelope (R-PULSE-02), above 4,000,000 values per execution, a run longer than 24 h (R-RUN-02).
+- Confirm: unverified pin map/topology (always on the example), `dut_envelope` (pulses beyond the profile's count),
+  `soft_pulse` (> 10,000 pulses or 60 s on-time), `long_run` (endurance: async above 5 min, confirm above 10 min);
+  on hardware `first_hw_run`. Endurance wears the film out: cycle a spare capacitor first.
 
 ## 6. Quality criteria
 
-- MFCMU status `N` only; `U`/`D`/`V` untrusted; G/w small against C (a leaky film adds G and distorts C).
-- Shape: two peaks of similar height, one per branch, at opposite polarity; a flat curve means no switching in the
-  swept range (too small a span, or a dead film).
+- WGFMU status `N` ok; `V` = the range saturated: the read is refused (every sample enters the integrals); a
+  saturated read stops an endurance run (`stop_reason`). P and U (N and D) must differ: no difference = no switching.
+- `kind_result` (endurance): `cycles_done`, `burst_cycles_done`, `reads_done` = `reads_planned`, `executions`;
+  cancelled rows are PARTIAL; cleanup verified (WGFMU disconnected, session closed, RSUs at rest).
 
 ## 7. Analysis method
 
-`cv_butterfly`: per branch the maximum of C refined by a parabola through five points: `v_peak_up`, `v_peak_down`,
-`vc` = half their distance, `v_imprint` = their mean, `c_peak`, `ec` = vc / `geometry.tox_nm` (MV/cm; refused
-without it, naming the field). A peak at a branch end fails: widen the sweep. The butterfly Vc is a small-signal
-estimate; PUND (WGFMU) gives the switching Ec and Pr. `plot_cv` shows both branches. Report as derived; SIMULATED.
+- `pund_polarization` (default): `pr`, `ps` (uC/cm^2), `ec` (MV/cm), `vc`, `v_imprint` (V), `c_lin` (F), `q_switch`
+  (C); several reads add `pr_initial`, `pr_max`, `wake_up`, `fatigue`, `cycles_to_failure`
+  ([06b](../../knowledge/06b-analysis-time-pulse.md#pund)). `plot_pund`: currents, P-V, Pr versus cycles.
+- Report Pr, Ps, Ec as derived values with the method and the window (the forcing-voltage span), the cycle count,
+  status counts and the SIMULATED flag.
 
 ## 8. Expected result shape
 
-| quantity | typical (10 nm HZO, 1 MV/cm) | red flags |
+| device | typical | red flags |
 |---|---|---|
-| `vc` | 0.8..1.5 V | peaks not separated: paraelectric or dead film |
-| `v_imprint` | -0.2..0.2 V | larger: imprint from a long hold in one state |
-| `c_peak` / C(+-3 V) | 1.2..2 | < 1.05: weak switching; leakage-dominated |
-| `ec` | 0.8..1.5 MV/cm | >> 2 MV/cm: thickness wrong in the DUT profile |
+| 10 nm HZO, +-3 V, 10 us ramps | Pr 10-25 uC/cm^2, Ec 1-1.5 MV/cm, imprint < 0.2 V | Pr ~ 0 (paraelectric, dead film, wrong path) |
+| endurance | Pr rises 10-20 % (wake-up), falls after 10^5-10^7 cycles | sudden drop with large U current: breakdown |
 
 ## 9. Common failures → debug
 
 | symptom | likely cause | first safe check | runbook |
 |---|---|---|---|
-| blocked by R-CORR-01 | corrections missing, stale, other pin map | `station_status.corrections` | `cmu-correction-stale` |
-| `cv_butterfly` failed: peak at a branch end | sweep too narrow | widen within the DUT envelope | `noisy-data` |
-| large G, drifting C | leaky film | gate leakage check first | `cmu-cv-distortion` |
-| `U`/`D` status, sweep aborted | range, contact | `get_run` audit | `errx-codes` |
-| fault latched | interrupted cleanup | `safe_shutdown`, skill `b1500-debug` | `cleanup-failed-fault` |
+| `V` samples, read refused | range below the switching current | `irange` vs A Ps dV/dt | `wgfmu-range-overflow` |
+| Pr ~ 0, P equals U | no switching: amplitude below Vc, wrong path | `kind_result`, RSU states | `noisy-data` |
+| large U/D charge, leaky loop | leakage, broken film | `c_lin`, gate-leakage card | `noisy-data` |
+| library error, run stopped | WGFMU session or RSU | the error text | `wgfmu-library-error` |
+| plan blocked: too many values | interval too fine for the read | points per read | `wgfmu-memory-budget` |
+| fault latched | stuck RSU relay, interrupted cleanup | keep the fault; human checks | `cleanup-failed-fault` |
 
 ## 10. Validation record
 
 | backend | date | scenario or station | DUT | run_id | result | reviewer |
 |---|---|---|---|---|---|---|
-| sim | 2026-11-24 | fecap_basic | fecap-generic | S20261124T054020Z-403b | `fecap.cv_butterfly`: peaks +1.001 V / -1.001 V, Vc +0.08 %, Ec +0.08 % of the model | - |
-| hw | pending (bring-up stage L6) | - | - | - | - | - |
+| sim | 2026-11-25 | fecap_basic | fecap-generic | S20261125T112520Z-5096 | fecap.pund: needs_confirmation (unverified_pin_map, unverified_topology); Pr 17.01 vs truth 17.01 uC/cm^2 (pristine wake-up scale), Ps 20.75 vs 20.75, Ec 1.006 vs 1.000 MV/cm (+0.6 %), C_lin 66.4 pF; N=800 | - |
+| sim | 2026-11-25 | fecap_basic | fecap-generic | S20261125T112520Z-2b80 | fecap.endurance_pund: needs_confirmation (dut_envelope, long_run, soft_pulse, unverified_pin_map, unverified_topology), async ~17 min; 10^7 cycles, 22 PUND reads; Pr 17.03 -> 19.55 (wake-up, 464 cycles) -> 4.81 uC/cm^2 (truth 4.81); cycles to failure 1.10e6; N=17600 | - |
+| hw | pending (bring-up stage L8) | - | - | - | - | - |
 
-Sim row: after the corrections through `B1500Service` (`tests/integration/test_recipes_cv_variants.py`). Hardware
-record: `validation/hw/fecap.cv_butterfly.yaml` (reviewed by a human after stage L6, skill `b1500-bringup`; drafts
-only from hardware `H...` runs, never from simulator `S...` runs).
+Sim rows: the example plan and the endurance defaults through `B1500Service` (folders not kept). Hardware records:
+`validation/hw/fecap.pund.yaml`, `validation/hw/fecap.endurance_pund.yaml` (human-reviewed after L8).

@@ -1,5 +1,5 @@
 # Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
-# Ferroelectric capacitor C-V butterfly (kind cmu_measure, MM 18 double sweep; card fecap-pund; blueprint v2 3.2,
+# Ferroelectric capacitor C-V butterfly (kind cmu_measure, MM 18 double sweep; card fecap-cv-butterfly; blueprint v2 3.2,
 # bring-up stage L6): the MFCMU DC bias on the top electrode (High) sweeps v_start -> v_stop -> v_start (double) at
 # every frequency of freqs_hz, Cp-G (IMP 100), bottom electrode on the Low side (pin map fecap-cmu). The small-signal
 # capacitance (dielectric plus the reversible polarization response) peaks near the coercive voltage of the branch
@@ -17,7 +17,7 @@ title: Ferroelectric capacitor C-V butterfly (Cp-G double DC bias sweep) for the
 family: nvm
 kind: cmu_measure
 status: sim_validated
-card: .agents/skills/b1500-test/cards/nvm/fecap-pund.md
+card: .agents/skills/b1500-test/cards/nvm/fecap-cv-butterfly.md
 device_types: [fecap]
 roles:
   top:

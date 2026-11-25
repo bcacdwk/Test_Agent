@@ -9,6 +9,7 @@ device_types: [<types>]            # lint: subset of the recipes' device_types (
 modules: [<HRSMU, MPSMU, MFCMU, HVSPGU, WGFMU, GNDU ...>]   # lint: subset of the module types the recipe roles use
 routes: [<switch kind:state, e.g. selector_16440a:pgu>]   # lint: subset of the routes the roles' resources need
 bringup_stage: <S0|L0..L10>        # lint: a blueprint 7.4 stage; once its stage file exists it runs these recipes
+recipe_stages: {}                  # optional: {<recipe.id>: <stage>} for a recipe another stage validates
 status: <draft|sim_validated|hw_validated>   # lint: = the recipe's effective status on the simulator
 confirmation: <never|conditional|always>     # lint: never = example plan tier ok; always = needs_confirmation
 knowledge: [<knowledge/NN-file.md#heading-id>]   # lint: file and heading id exist

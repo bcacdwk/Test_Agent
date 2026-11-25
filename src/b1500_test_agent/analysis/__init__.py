@@ -17,6 +17,7 @@ Ad-hoc use from agent scripts in ``work/``::
     ekv = compact_model_fit(d)                 # EKV vth, n, beta, theta (+ lambda, rs); level 1 with model="level1"
     files = write_spice_files(export_spice_netlist(d), run_id=d.run_id)   # .lib + .sp under work/<run_id>/spice/
     mw_n = endurance_curve(load_run(endurance_run_id))  # endurance checkpoints: MW per cumulative cycle count
+    pund = pund_polarization(load_run(pund_run_id))  # FeCap PUND: Pr, Ps, Ec (+ plot_pund(d))
     out_dir = work_dir_for(d.run_id)           # never write into the run folder
 
 Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_for(family)``; definitions in the
@@ -29,7 +30,8 @@ Methods (registry ``ANALYSIS_METHODS``, tagged with recipe families, ``methods_f
 ``cv_doping_profile``, ``cv_vth``, ``cv_hysteresis``, ``impedance_convert``, ``plot_cv``; ``convert_table`` converts a
 whole run), the C-V variants of ``cv_variants.py`` (``cf_dispersion``, ``ct_recovery``, ``cv_ac_dependence``,
 ``cv_butterfly``, the two-run ``cv_pulsed_vs_dc``), ``memory_window_pulse``, ``switching_kinetics_fit``,
-``endurance_summary``, ``retention_fit`` (``nvm.py``, the NLS core in ``nls.py``), the compact models
+``endurance_summary``, ``retention_fit`` (``nvm.py``, the NLS core in ``nls.py``), ``pund_polarization`` and
+``plot_pund`` (``pund.py``), the compact models
 ``compact_model_fit``, ``model_compare`` and ``export_spice_netlist`` (``model.py``, ``spice.py``), the noise methods
 ``it_statistics``, ``psd_welch``, ``rtn_levels`` and ``plot_psd`` (``noise.py``; Welch PSD and fit in ``spectrum.py``);
 library helpers: ``weibull_fit`` (over a run list), ``endurance_curve`` (MW per endurance checkpoint).
@@ -119,6 +121,7 @@ from b1500_test_agent.analysis.nvm import (
     switching_kinetics_fit,
 )
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv, render_iv
+from b1500_test_agent.analysis.pund import plot_pund, pund_polarization, render_pund
 from b1500_test_agent.analysis.qscv import quasi_static_role, render_qscv
 from b1500_test_agent.analysis.quality import MIN_SNR, assess_quality, noise_sigma, signal_to_noise
 from b1500_test_agent.analysis.registry import ANALYSIS_METHODS, AnalysisMethod, methods_for, run_method
@@ -208,13 +211,16 @@ __all__ = [
     "plot_cv",
     "plot_iv",
     "plot_psd",
+    "plot_pund",
     "plot_timeseries",
     "psd_welch",
     "pulse_reads",
+    "pund_polarization",
     "quasi_static_role",
     "read_table",
     "read_table_excerpt",
     "render_iv",
+    "render_pund",
     "render_qscv",
     "render_timeseries",
     "resistance",

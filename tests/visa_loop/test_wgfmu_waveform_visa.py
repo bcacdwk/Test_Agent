@@ -80,7 +80,7 @@ def run_on_visa(world: VisaWorld, case: dict[str, Any], lock_state: list[tuple[s
     service = world.service(bus)
     validation, result = run_to_end(service, case)
     assert (validation.backend, validation.simulated, validation.tier) == ("visa", False, "needs_confirmation")
-    assert set(validation.confirm_reasons) == {"first_hw_run", "unverified_topology"}
+    assert set(validation.confirm_reasons) == set(case.get("reasons", {"first_hw_run", "unverified_topology"}))
     assert result.ok and result.outcome == "completed", result.message
     assert (result.backend, result.simulated) == ("visa", False) and (result.run_id or "").startswith("H")
     assert result.cleanup_verified == "lop"

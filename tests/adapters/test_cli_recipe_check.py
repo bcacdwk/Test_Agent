@@ -33,7 +33,7 @@ def clone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_committed_recipes_are_clean(clone: Path) -> None:
     result = runner.invoke(app, ["dev", "recipe-check"])
     assert result.exit_code == 0, result.output
-    assert result.output.startswith("recipes: clean (66 loaded")  # 24 (WP7.4) + five WP7.2 sweeps + three WP7.1
+    assert result.output.startswith("recipes: clean (68 loaded")  # 24 (WP7.4) + five WP7.2 sweeps + three WP7.1
 # + WP7.6: bti_sms and hci leave recipes/reserved, igzo.bias_stress and reliability.silc are new
 # + WP8.2: the four cmu.* correction recipes, the reserved cmu.correction retired
 # + WP9.3: spgu.pulse_train, spgu.alwg_sequence, mosfet.charge_pumping
@@ -48,6 +48,7 @@ def test_committed_recipes_are_clean(clone: Path) -> None:
 # + WP8.5: moscap.qscv leaves recipes/reserved, moscap.cv_multi_freq is new
 # + WP10.5: wgfmu.rtn, wgfmu.lfn
 # + WP10.7: system.wgfmu_self_test, system.wgfmu_self_cal; wgfmu.fast_bti leaves recipes/reserved
+# + WP10.6: fecap.endurance_pund, fefet.fast_program_read; fecap.pund leaves recipes/reserved
     assert "mosfet.idvg" in result.output and "sim:sim_validated" in result.output
 
 

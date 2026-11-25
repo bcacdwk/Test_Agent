@@ -31,6 +31,14 @@ the kind compiles the operations this module requests (``Schedule.op_requests``)
 
 ``precycles`` (any schedule, default 0): bipolar cycling bursts before the first read (wake-up of a pristine film).
 At most ``MAX_READS`` reads per plan.
+
+**Switching reads** (WP10.6: the WGFMU PUND read of ``fecap.endurance_pund``, ``catalog/kinds/pulse_wgfmu.py``): a
+read that switches the film itself (a preset pulse, then P, U, N, D: one full bipolar cycle) is its cycle. Schedule
+``cycles`` then runs no operation of its own: every cycle is one read (``cycle_reads`` ``every``), or at each
+checkpoint ``c`` the ``c - c_prev - 1`` cycles before it run as cycling bursts (the sequence's first operation, then
+the opposite one) and the read is cycle ``c`` (``log``/``list``; any sequence). The reads carry phase ``read``.
+There is no separate reference read (``initial_read`` false: the first read reads the pristine film and is cycle 1),
+and schedules ``grid`` and ``retention`` are refused (a switching read would erase the state they read).
 """
 
 from __future__ import annotations
@@ -207,6 +215,7 @@ class Schedule:
     read_times: list[float] = field(default_factory=list)
     precycles: int = 0
     initial_read: bool = True
+    switching_read: bool = False
 
     @property
     def grid_op(self) -> OpName | None:
@@ -227,7 +236,7 @@ class Schedule:
         first = 1 if self.initial_read else 0
         if self.kind == "cycles":
             per = self.checkpoints if self.cycle_reads != "every" else range(self.cycles)
-            return first + len(per) * len(self.sequence)
+            return first + len(per) * (1 if self.switching_read else len(self.sequence))
         if self.kind == "grid":
             resets = len(self.grid) if self.grid_mode == "reset" else len({p.row for p in self.grid})
             return first + len(self.grid) + (resets if self.reset_read else 0)
@@ -243,7 +252,7 @@ class Schedule:
         uses: dict[OpName, int] = {}
         if self.kind == "cycles":
             per = len(self.checkpoints) if self.cycle_reads != "every" else self.cycles
-            uses = {name: per for name in self.sequence}
+            uses = {} if self.switching_read else {name: per for name in self.sequence}
         elif self.kind == "grid":
             reset = self.sequence[0]
             uses = {reset: len(self.grid) if self.grid_mode == "reset" else len({p.row for p in self.grid})}
@@ -283,21 +292,34 @@ def _per_decade(params: Mapping[str, Quantity]) -> int:
     return _integer(_value(params, READS_PER_DECADE_PARAM, 3), READS_PER_DECADE_PARAM, 1, MAX_READS_PER_DECADE)
 
 
-def parse_schedule(params: dict[str, Quantity], *, source: str) -> Schedule:
+CYCLING_SOURCES: Final = frozenset({"spgu", "wgfmu"})
+"""Pulse source families with bipolar cycling bursts (HV-SPGU three-level programs; WGFMU cycle patterns)."""
+
+
+def parse_schedule(params: dict[str, Quantity], *, source: str, switching_read: bool = False) -> Schedule:
     """The schedule a plan's parameters ask for (module docstring); ``source`` is the pulse source family (cycling
-    bursts need the HV-SPGU, ``spgu``).
+    bursts need the HV-SPGU, ``spgu``, or the WGFMU, ``wgfmu``); ``switching_read``: the read switches the film
+    itself (a PUND read; module docstring).
 
     Raises:
         CompileError: For an unknown schedule or choice, a bound exceeded, a schedule that needs a two-operation
-            sequence, cycling with another source, or too many reads.
+            sequence, cycling with another source, too many reads, or a switching read with a reference read or a
+            schedule other than ``cycles``.
     """
     kind = _choice(params, SCHEDULE_PARAM, SCHEDULES, "cycles")
     sequence = _sequence(params)
-    initial = _value(params, INITIAL_READ_PARAM, True)
+    initial = _value(params, INITIAL_READ_PARAM, not switching_read)
     if not isinstance(initial, bool):
         raise CompileError(f"{INITIAL_READ_PARAM} must be a bool, got {initial!r}")
+    if switching_read and kind != "cycles":
+        raise CompileError(f"a switching read (PUND: preset, then P, U, N, D) erases the state that schedule {kind} "
+                           "reads; use schedule cycles (repeated reads or endurance checkpoints)")
+    if switching_read and initial:
+        raise CompileError(f"a switching read is itself a program/erase cycle: there is no separate reference read "
+                           f"({INITIAL_READ_PARAM} must be false; the first read reads the pristine film)")
     precycles = _integer(_value(params, PRECYCLES_PARAM, 0), PRECYCLES_PARAM, 0, MAX_STRESS_CYCLES)
-    out = Schedule(kind=kind, sequence=sequence, precycles=precycles, initial_read=initial)  # type: ignore[arg-type]
+    out = Schedule(kind=kind, sequence=sequence, precycles=precycles, initial_read=initial,  # type: ignore[arg-type]
+                   switching_read=switching_read)
     cycles = _value(params, CYCLES_PARAM, 1)
     if kind != "cycles" and cycles not in (1, 1.0):
         raise CompileError(f"{CYCLES_PARAM} applies to schedule cycles only (schedule {kind} got {cycles!r})")
@@ -310,9 +332,10 @@ def parse_schedule(params: dict[str, Quantity], *, source: str) -> Schedule:
     needs_cycling = bool(out.bursts())
     if needs_cycling:
         out.cycle_period = _cycle_period(params, "the bipolar cycling bursts (endurance gaps, precycles)")
-        if source != "spgu":
+        if source not in CYCLING_SOURCES:
             raise CompileError("bipolar cycling bursts (endurance gaps between checkpoints, precycles) need the "
-                               "HV-SPGU source (a pgu pulse role); an SMU pulses once per trigger")
+                               "HV-SPGU (a pgu pulse role) or the WGFMU (a wgfmu pulse role); an SMU pulses once "
+                               "per trigger")
     reads = out.reads()
     if reads > MAX_READS:
         raise CompileError(f"the plan has {reads} reads, more than {MAX_READS}; use fewer cycles, checkpoints, grid "
@@ -326,7 +349,7 @@ def _cycles(out: Schedule, params: dict[str, Quantity], cycles: object) -> None:
         out.cycles = _integer(cycles, CYCLES_PARAM, 1, MAX_CYCLES)
         return
     out.cycles = _integer(cycles, CYCLES_PARAM, 1, MAX_STRESS_CYCLES)
-    if len(out.sequence) != 2:
+    if len(out.sequence) != 2 and not out.switching_read:
         raise CompileError(f"{CYCLE_READS_PARAM} {out.cycle_reads} (endurance) cycles program and erase: it needs a "
                            f"two-operation sequence (erase_program or program_erase), got {'_'.join(out.sequence)}")
     if out.cycle_reads == "log":
@@ -416,6 +439,7 @@ class ScheduledProgram(Protocol):
     precycles: int
     initial_read: bool
     monitor: Monitor | None
+    """Retention holds of the SMU path (``None``: holds count one checkpoint unit each, the WGFMU path)."""
 
     @property
     def settle_chunks(self) -> int: ...
@@ -454,13 +478,13 @@ def build_steps(p: ScheduledProgram) -> list[ReadStep]:
             pulse(point.op, point.cycle, grid_op)
             add("read", point.cycle, grid_op)
     else:
-        assert p.monitor is not None
         for name in p.sequence:
             pulse(name, 0, name)
             previous = 0.0
             for k, t in enumerate(p.read_times, 1):
                 seconds = round(t - previous, 2)
-                add("hold", k, RETENTION_PHASE, seconds=seconds, chunks=len(hold_chunks(seconds, p.monitor.period)))
+                chunks = len(hold_chunks(seconds, p.monitor.period)) if p.monitor is not None else 1
+                add("hold", k, RETENTION_PHASE, seconds=seconds, chunks=chunks)
                 add("read", k, name, t_s=t)
                 previous = t
     return out
@@ -468,6 +492,14 @@ def build_steps(p: ScheduledProgram) -> list[ReadStep]:
 
 def _cycle_steps(p: ScheduledProgram, pulse: Callable[[str, int, str], None], bursts: Callable[[int, int], None],
                  add: Callable[..., None]) -> None:
+    if getattr(p, "switching_read", False):  # the read is the cycle (module docstring; the FLEX program has none)
+        counts = range(1, p.cycles + 1) if p.cycle_reads == "every" else p.checkpoints
+        previous = 0
+        for cycle in counts:
+            bursts(cycle - previous - 1, cycle)
+            add("read", cycle, "read")
+            previous = cycle
+        return
     if p.cycle_reads == "every":
         for cycle in range(1, p.cycles + 1):
             for name in p.sequence:

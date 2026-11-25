@@ -11,8 +11,8 @@ channel gets the smallest force range that holds every level it outputs (3 V, 5 
 (4-53)), a voltage-measuring channel the 5 V or 10 V measurement range, a current-measuring channel the recipe's
 range (Table 4-9, WG p142 (4-72)).
 
-Builders (``BUILDERS``; ``fast_bti`` lives in ``catalog/fast_bti.py``, WP10.7; ``pund`` and ``program_read`` of
-blueprint 2.7.1 arrive with WP10.6):
+Builders (``BUILDERS``; ``fast_bti`` lives in ``catalog/fast_bti.py``, WP10.7; ``pund`` and ``program_read`` in
+``catalog/ferro_waveforms.py``, WP10.6):
 
 - ``pulsed_iv``: one pulse per level on the pulsed channel (base -> level in ``edge``, ``width`` flat top, back to
   base in ``edge``, rest of the ``period`` at base), the other channels hold their bias; every measuring channel takes
@@ -81,9 +81,10 @@ from b1500_test_agent.models.sources import (
     WgfmuVoltageRange,
 )
 
-BUILDERS: Final = ("pulse_train", "pulsed_iv", "fast_iv_ramp", "dc_spot", "dc_sample", "table", "fast_bti")
-"""The builders of kind ``wgfmu_waveform`` (``fast_bti``: ``catalog/fast_bti.py``, WP10.7; blueprint v2 2.7.1 lists
-``pund`` and ``program_read`` too: WP10.6)."""
+BUILDERS: Final = ("pulse_train", "pulsed_iv", "fast_iv_ramp", "dc_spot", "dc_sample", "table", "fast_bti", "pund",
+                   "program_read")
+"""The builders of kind ``wgfmu_waveform`` (``fast_bti``: ``catalog/fast_bti.py``, WP10.7; ``pund``,
+``program_read``: ``catalog/ferro_waveforms.py``, WP10.6)."""
 
 TICK_S: Final = WGFMU_GRID_S
 GAP_HOLD_TICKS: Final = 1
@@ -108,7 +109,7 @@ TABLE_MAX_ROWS: Final = 4096
 """Most rows of one waveform or events file (a pattern holds at most 2,048 vectors; R-WG-02 blocks longer ones)."""
 
 Quantity = Literal["V", "I"]
-CycleBy = Literal["repeat", "point", "none"]
+CycleBy = Literal["repeat", "point", "none", "op"]
 
 
 def ticks(seconds: float) -> int:
@@ -167,13 +168,16 @@ class WgRole(StrictModel):
 
 class BuiltWaveform(StrictModel):
     """What a builder returns: the program, the nominal pulse trains of its pulse channels (``SourcePlan.pulses``),
-    the sweep segment of each measure event (``fwd``/``rev``; ``fast_iv_ramp``) and what the table's ``cycle`` column
-    counts (``repeat``: the sequence repeat of a pattern, ``point``: the point of an event, one per pulse; ``none``)."""
+    the sweep segment of each measure event (``fwd``/``rev``; ``fast_iv_ramp``), what the table's ``cycle`` column
+    counts (``repeat``: the sequence repeat of a pattern, ``point``: the point of an event, one per pulse; ``op``: 0
+    for the rows of phase ``read``, else the repeat + 1, ``program_read``; ``none``) and the table ``phase`` of each
+    measure event (``phases``; ``program_read``: ``read``, ``program``, ``erase``)."""
 
     program: WaveformProgram
     pulses: dict[Channel, list[PulseTrain]] = Field(default_factory=dict)
     segments: dict[str, Literal["fwd", "rev"]] = Field(default_factory=dict)
     cycle_by: CycleBy = "none"
+    phases: dict[str, str] = Field(default_factory=dict)
 
 
 def _force_range(role: WgRole, levels: Sequence[float]) -> WgfmuForceRange:

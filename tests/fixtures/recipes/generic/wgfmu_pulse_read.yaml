@@ -1,0 +1,62 @@
+# Test-only recipe (tests/integration/test_recipes_pund.py, tests/safety/test_pulse_read_wgfmu_matrix.py; WP10.6): kind
+# pulse_read through its WGFMU path with staircase reads (wgfmu_read sweep) on the FeFET landing `wg` of fefet_lab
+# (pin map fefet-wgfmu: gate WGFMU 201, drain WGFMU 202, source GNDU): the WGFMU source pulses the gate, the gate's own
+# staircase reads Id at the drain, every schedule (cycles, grid, retention). The optional bias role holds an SMU
+# (pin map fefet-wgfmu-bias: SMU5 on the bulk) through the run (FLEX inside the WGFMU phase, WG Ex. 10).
+id: generic.wgfmu_pulse_read
+version: 1
+title: WGFMU program/read with staircase reads (test recipe, kind pulse_read WGFMU path)
+family: nvm
+kind: pulse_read
+status: draft
+card: null
+device_types: [fefet]
+roles:
+  gate:
+    function: wgfmu
+    module_types: [WGFMU]
+    settings: {program: $v_program, erase: $v_erase, width: $width, lead: 1.0e-7, start: $vg_start, stop: $vg_stop,
+               points: $vg_points}
+  drain:
+    function: wgfmu
+    measure: [I]
+    module_types: [WGFMU]
+    settings: {v: $vd, range: 100ua}
+  source: {function: ground, allow_gndu: true}
+  bias:
+    function: bias_v
+    optional: true
+    module_types: [MPSMU, HRSMU]
+    settings: {v: $vb, icomp: 1.0e-4}
+params:
+  v_program: {unit: V, default: 4.0, range: [-10.0, 10.0], doc: Program level.}
+  v_erase: {unit: V, default: -4.0, range: [-10.0, 10.0], doc: Erase level.}
+  width: {unit: s, default: 1.0e-6, range: [1.0e-8, 1.0e-3], doc: Pulse width.}
+  period: {unit: s, default: 1.0e-5, range: [1.0e-8, 1.0], doc: Pulse period.}
+  vg_start: {unit: V, default: -0.5, range: [-5.0, 5.0], doc: Read start.}
+  vg_stop: {unit: V, default: 1.8, range: [-5.0, 5.0], doc: Read stop.}
+  vg_points: {type: int, default: 47, range: [1, 401], doc: Read levels.}
+  vd: {unit: V, default: 0.05, range: [-1.0, 1.0], doc: Drain read level.}
+  vb: {unit: V, default: 0.0, range: [-1.0, 1.0], doc: Bias of the optional SMU role.}
+  cycles: {type: int, default: 2, range: [1, 200], doc: Cycles.}
+  sequence: {type: enum, choices: [erase_program, program_erase, program, erase], default: erase_program, doc: Sequence.}
+  schedule: {type: enum, choices: [cycles, grid, retention], default: cycles, doc: Schedule.}
+  read_kind: {type: enum, choices: [wgfmu], default: wgfmu, doc: The WGFMU reads.}
+  wgfmu_read: {type: enum, choices: [sweep], default: sweep, doc: Staircase reads.}
+  amplitudes: {type: float_list, default: [3.0, 3.5, 4.0], range: [-10.0, 10.0], doc: Grid amplitudes.}
+  widths: {type: float_list, unit: s, default: [1.0e-7, 1.0e-6, 1.0e-5], range: [1.0e-8, 1.0e-3], doc: Grid widths.}
+  grid_mode: {type: enum, choices: [reset, ispp], default: reset, doc: Grid mode.}
+  retention_time: {unit: s, default: 10.0, range: [0.02, 1000.0], doc: Last retention read.}
+  first_read: {unit: s, default: 0.1, range: [0.02, 100.0], doc: First retention read.}
+  reads_per_decade: {type: int, default: 2, range: [1, 20], doc: Retention reads per decade.}
+  settle: {unit: s, default: 0.0, range: [0.0, 10.0], doc: Host wait after each pulse.}
+  initial_read: {type: bool, default: true, doc: Reference read.}
+  read_edge: {unit: s, default: 1.0e-7, range: [1.0e-8, 1.0e-4], doc: Read edge.}
+  read_width: {unit: s, default: 1.0e-6, range: [2.0e-8, 1.0e-2], doc: Read width.}
+  read_settle: {unit: s, default: 5.0e-7, range: [0.0, 1.0e-2], doc: Read settle.}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: memory_window_pulse, options: {vth_method: constant_current, i_crit_a: 1.0e-7}}
+provenance:
+  sources: [WP10.6 test recipe]
+  validation_runs: []

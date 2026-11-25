@@ -49,7 +49,8 @@ def test_status(cli_world: World) -> None:
     assert human.exit_code == 0, human.output
     assert human.stdout.startswith("[SIMULATED] ok: SIMULATED station (scenario nmos_basic)")
     assert ("pin maps: capacitor-cmu (unverified), diode-2t (verified), fecap-cmu (unverified), fecap-wgfmu "
-            "(unverified), fefet-sel (unverified), moscap-cmu (unverified), moscap-scuu (unverified), mosfet-3t-lab "
+            "(unverified), fefet-sel (unverified), fefet-wgfmu (unverified), moscap-cmu (unverified), moscap-scuu "
+            "(unverified), mosfet-3t-lab "
             "(unverified), mosfet-4t (verified), mosfet-4t-body (verified), mosfet-cp (unverified), mosfet-split-cv "
             "(unverified), mosfet-wgfmu (verified), mosfet-wgfmu-body (verified), open-smus (verified), resistor-2t "
             "(verified), resistor-4w (verified), resistor-wgfmu (verified)") in human.stdout
@@ -60,7 +61,7 @@ def test_status(cli_world: World) -> None:
 
 def test_recipes(cli_world: World) -> None:
     index = invoke("recipes")
-    assert index.exit_code == 0 and "mosfet.idvg" in index.stdout and "not_implemented" in index.stdout
+    assert index.exit_code == 0 and "mosfet.idvg" in index.stdout  # WP10.6: no reserved (not_implemented) slot left
     assert "\nsmu: " in index.stdout and " runnable: " in index.stdout  # one line per family (WP7.3)
     one = invoke("recipes", "mosfet.idvg")
     assert one.exit_code == 0 and "vg_start" in one.stdout and "analysis defaults: vth_linear_extrapolation" in \

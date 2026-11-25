@@ -23,6 +23,15 @@ parameters read by name, never from a step language:
   ``recovery``, the swept role's ``start``/``stop``/``points``, ``v``; the schedule and sense-timing parameters;
   ``stress_wgfmu.build``) in ONE execution: a raw view (``event`` = ``sense``/``monitor``) without that kind's
   per-read checkpoints; recipe ``wgfmu.fast_bti`` runs it in ``stress_measure``.
+- ``pund`` (WP10.6, ``fecap.pund``): the WGFMU role with setting ``amplitude`` (V) outputs the PUND sequence (preset,
+  P, U, N, D: ``catalog/ferro_waveforms.py``), every other WGFMU role holds 0 V; parameters ``rise``, ``plateau``,
+  ``delay``, ``interval``, ``preset`` (``pulse_wgfmu.pund_timing``); ``event`` = ``P``/``U``/``N``/``D``.
+- ``program_read`` (WP10.6, ``fefet.fast_program_read``): the WGFMU role with setting ``program`` and/or ``erase``
+  (``width``, ``erase_width``, ``base``, ``lead``, ``trail``) pulses and reads with its ``start``/``stop``/``points``
+  staircase; every other WGFMU role reads at ``v`` and pulses at ``pulse_bias``; parameters ``sequence``, ``cycles``,
+  ``count``, ``period``, ``initial_read``, ``read_edge``, ``read_width``, ``read_settle``
+  (``pulse_wgfmu.build_waveform``): erase, read, program, read in ONE execution, the reads microseconds after the
+  pulses; ``cycle`` = 0 for the reference read, else the cycle; ``phase`` = ``read``, ``erase`` or ``program``.
 
 Every other WGFMU role of a pulse/ramp builder holds setting ``v`` (default 0 V). A WGFMU role measures what its
 ``measure`` lists (``[I]`` or ``[V]``, one quantity per channel; ``[]`` = measurement off); a current-measuring role
@@ -57,8 +66,10 @@ A last checkpoint ``readback`` carries the rows (tables up to 200,000 rows; larg
 
 **Table** (``analysis/dataset.py`` contract): one row per stored value (sequencer builders; the measuring channels
 store values at the same times) or per DC reading: ``step``, ``t_s`` (library time stamp: the centre of the averaging
-window, WG p126 (4-56)), ``cycle`` (``pulse_train``/``fast_iv_ramp``: the pattern repeat; ``pulsed_iv``: the pulse),
-``segment`` (``fast_iv_ramp`` double: ``fwd`` up, ``rev`` down), ``event`` (measure event), ``<role>_range`` (current
+window, WG p126 (4-56)), ``cycle`` (``pulse_train``/``fast_iv_ramp``: the pattern repeat; ``pulsed_iv``: the pulse;
+``program_read``: 0 for the reference read, else the cycle), ``phase`` (``program_read``: ``read``, ``erase``,
+``program``), ``segment`` (``fast_iv_ramp`` double: ``fwd`` up, ``rev`` down), ``event`` (measure event; ``pund``:
+``P``, ``U``, ``N``, ``D``), ``<role>_range`` (current
 range of a current-measuring role at the point), per WGFMU role ``<role>_V`` (measured with a status letter when it
 measures voltage, else the programmed level at the point's time, a source column) and ``<role>_I`` + status for a
 current-measuring role, ``<role>_V`` of each SMU bias role (programmed). Status: ``V`` when the reading sits at the
@@ -166,6 +177,8 @@ class WaveformKindProgram(StrictModel):
     """SMU outputs (bias and grounded SMUs) held around the WGFMU phase."""
     cycle_by: wf.CycleBy = "none"
     segments: dict[str, Literal["fwd", "rev"]] = Field(default_factory=dict)
+    phases: dict[str, str] = Field(default_factory=dict)
+    """Table ``phase`` of each measure event (``program_read``)."""
     samples: int = Field(default=1, ge=1)
     """``dc_spot``: readings per DC step."""
     settle_s: float = Field(default=0.0, ge=0)
@@ -349,6 +362,10 @@ def _build(builder: str, recipe: Recipe, params: Mapping[str, Quantity],
         from b1500_test_agent.catalog.kinds import stress_wgfmu
 
         return stress_wgfmu.build(roles, params)[0]
+    if builder in ("pund", "program_read"):
+        from b1500_test_agent.catalog.kinds import pulse_wgfmu
+
+        return pulse_wgfmu.build_waveform(builder, roles, params)
     raise CompileError(f"{KIND_ID}: {BUILDER_PARAM} must be one of {list(WAVEFORM_BUILDERS)}, got {builder!r}")
 
 
@@ -439,7 +456,8 @@ class WgfmuWaveformKind:
         chunks = max(1, math.ceil(total / CHECKPOINT_S))
         stored_program = WaveformKindProgram(builder=str(builder), roles=[r for r, _ in roles.values()],
                                              biases=biases, cycle_by=built.cycle_by, segments=built.segments,
-                                             samples=samples, settle_s=settle, chunks=chunks, rows=rows)
+                                             phases=built.phases, samples=samples, settle_s=settle, chunks=chunks,
+                                             rows=rows)
         data: dict[str, Any] = stored_program.model_dump(mode="json")
         data[SOURCE_PLAN_KEY] = SourcePlan(pulses=built.pulses, waveform=program).model_dump(mode="json")
         ordered = sorted(set(routes), key=Route.sort_key)
@@ -637,6 +655,11 @@ def waveform_table(program: WaveformKindProgram, waveform: WaveformProgram,
         columns["cycle"] = layout.repeat.astype(np.int64)
     elif program.cycle_by == "point":
         columns["cycle"] = layout.point.astype(np.int64)
+    if program.phases:
+        phase = np.asarray([program.phases.get(str(e), str(e)) for e in layout.event], dtype=object)
+        if program.cycle_by == "op":
+            columns["cycle"] = np.where(phase == "read", 0, layout.repeat + 1).astype(np.int64)
+        columns["phase"] = phase
     if program.segments:
         columns["segment"] = np.asarray([program.segments.get(str(e), "fwd") for e in layout.event], dtype=object)
     columns["event"] = layout.event

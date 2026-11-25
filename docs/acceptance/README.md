@@ -223,7 +223,7 @@ rely on (recipe ids and parameters, analysis quantities and units, simulator dev
 | S3 rewritten: SPGU overdrive, blocked, in-envelope offer (replaced v1's reserved-slot S3 in WP9.6) | ★ | spgu | `test_v2_scenarios.py` (genuine ideal, forged violation) | WP9.4 (`spgu.pulse_train`, `fefet.pulse_write_read`); run at WP9.6 |
 | S11 MOS-cap C-V: R-CORR-01, corrections by the human's steps, C-V | ★ | cmu | forged | WP8.6 (`cmu.*` corrections, `moscap.cv`) |
 | S12 FeFET MW from pulses: confirmation, PGU → SMU routes | ★ | spgu, nvm | genuine ideal, forged violation | WP9.4 (`fefet.pulse_write_read`); run at WP9.6 |
-| S13 FeCap PUND: Pr, Ec derived, no library code | functional | wgfmu, nvm | forged | WP10.8 (`fecap.pund`) |
+| S13 FeCap PUND: Pr, Ec derived, no library code | functional | wgfmu, nvm | forged | WP10.6 (`fecap.pund`, scenario `fecap_basic`); run at WP10.8 |
 | S14 BTI 30 min: long_run, async, polling, n | functional | smu, reliability | forged | WP7.7 (`reliability.bti_sms`) |
 | S15 BTI "stop it now": safe_shutdown, cancelled, verified cleanup | ★ | smu, reliability | forged | WP7.7 |
 | S16 Manual question (ERSSP status 3) with a page citation | functional | manual, spgu | real `b1500 manual` CLI | WP6.6 |

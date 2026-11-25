@@ -11,7 +11,8 @@ AC: tier, run, default analysis vs the 4.2 fidelity target). These tests set ``s
 - ``spgu.program_smu_read``: always confirmed (``adhoc_recipe``); its spot read currents after program and erase are
   within 5 % of the model's currents.
 - The SMU pulse source (test-only ``generic.smu_pulse_read``): one SMU pulses and reads the gate, MW within 10 %.
-- The WGFMU source and read are refused at plan time (WP10.6) with zero instrument I/O.
+- A WGFMU read with the SMU pulse source, and the WGFMU source with SMU read roles, are refused at plan time with zero
+  instrument I/O (the WGFMU path itself: ``test_recipes_pund.py``, WP10.6).
 - Async runs and cancel: a long plan runs asynchronously; an abort seen at any checkpoint cancels there with the
   selector back at rest and the cleanup verified; a read in compliance stops the run (rest still applied).
 """
@@ -254,14 +255,15 @@ def test_the_smu_pulse_source_programs_and_reads_with_one_smu(world: World) -> N
     assert selector_ports(world) == {0: 0, 1: 0, 2: 0, 3: 0}
 
 
-# -- WGFMU source: refused at plan time ------------------------------------------------------------------------------
+# -- WGFMU read and source outside the WGFMU path: refused at plan time --------------------------------------------
 
 
-def test_the_wgfmu_read_and_source_are_refused_at_plan_time_without_io(world: World, tmp_path: Path) -> None:
+def test_a_wgfmu_read_without_the_wgfmu_source_is_refused_without_io(world: World, tmp_path: Path) -> None:
     fixture_world(world).use_scenario(SCENARIO)
     service = world.service()
     read = service.validate_plan(**SMU_PULSE_READ, params={"read_kind": "wgfmu"})
-    assert not read.ok and read.error_code == "invalid_input" and "arrives in WP10.6" in read.message
+    assert not read.ok and read.error_code == "invalid_input"
+    assert "read_kind wgfmu reads inside the WGFMU source's library phase" in read.message
     recipe = world.recipes / "generic" / "smu_pulse_read.yaml"
     text = recipe.read_text(encoding="utf-8").replace("function: pulse_v\n    measure: [I]\n    module_types: [MPSMU, "
                                                       "HRSMU, HPSMU]", "function: wgfmu\n    module_types: [WGFMU]")
@@ -269,7 +271,7 @@ def test_the_wgfmu_read_and_source_are_refused_at_plan_time_without_io(world: Wo
                       encoding="utf-8")
     source = world.service().validate_plan(**SMU_PULSE_READ)
     assert not source.ok and source.error_code == "invalid_input"
-    assert "WGFMU source arrives in WP10.6" in source.message
+    assert "with the WGFMU source cannot execute role(s)" in source.message and "probe (measure_only)" in source.message
     assert not sim_state_file(world.state_dir, SCENARIO).exists() and world.run_dirs() == []
 
 

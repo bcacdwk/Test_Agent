@@ -332,15 +332,16 @@ def check_modules_and_routes(lint: Lint, path: Path, front: CardFrontmatter, rec
 
 def check_stage(lint: Lint, path: Path, front: CardFrontmatter, recipes: list[Recipe],
                 stages: dict[str, StageFrontmatter]) -> None:
-    """When the card's bring-up stage file exists, it runs every recipe of the card (a missing stage file is a note
-    of the lint run, see ``lint.py``)."""
-    stage = stages.get(front.bringup_stage)
-    if stage is None:
-        return
-    missing = [r.id for r in recipes if r.id not in stage.recipes]
-    if missing:
-        lint.add("card_stage", path, f"bring-up stage {front.bringup_stage} does not run {missing}: add them to the "
-                                     "stage file's recipes (or name the stage that does)", 1)
+    """When a recipe's bring-up stage file exists (the card's ``bringup_stage``, or the recipe's ``recipe_stages``
+    entry), it runs that recipe (a missing stage file is a note of the lint run, see ``lint.py``)."""
+    for stage_id in front.stages:
+        stage = stages.get(stage_id)
+        if stage is None:
+            continue
+        missing = [r.id for r in recipes if front.stage_of(r.id) == stage_id and r.id not in stage.recipes]
+        if missing:
+            lint.add("card_stage", path, f"bring-up stage {stage_id} does not run {missing}: add them to the stage "
+                                         "file's recipes (or name the stage that does)", 1)
 
 
 def check_manual(lint: Lint, path: Path, front: CardFrontmatter, catalog_ids: set[str] | None) -> None:

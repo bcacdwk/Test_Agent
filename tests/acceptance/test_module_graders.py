@@ -284,11 +284,22 @@ def test_cli_dry_run_tag_and_list(tmp_path: Path) -> None:
     tagged = cli.invoke(app, ["dev", "acceptance", "run", "--harness", "claude", "--tag", "bringup", "--dry-run",
                               "--max-sessions", "5", "--repo", str(REPO_ROOT)])
     assert tagged.exit_code == 0 and "S17" in tagged.stdout and "(--max-sessions 5)" in tagged.stdout
-    pending = cli.invoke(app, ["dev", "acceptance", "run", "--harness", "codex", "--scenario", "S13", "--repo",
-                               str(REPO_ROOT)])  # fecap.pund still reserved (S11 runs since WP8.3: moscap.cv)
-    assert pending.exit_code == 2 and "S13 is pending" in pending.output
     listed = cli.invoke(app, ["dev", "acceptance", "list", "--repo", str(REPO_ROOT)])
-    assert "PENDING: missing" in listed.stdout and "[manual, spgu]" in listed.stdout
+    assert "[manual, spgu]" in listed.stdout
+    # A pending scenario is never run: since WP10.6 (fecap.pund) every suite scenario of the repository can run, so a
+    # bare repository with S13 but none of its recipe, configuration or simulator scenario stands in.
+    bare = tmp_path / "bare"
+    (bare / "tests" / "acceptance" / "scenarios").mkdir(parents=True)
+    (bare / "recipes").mkdir()
+    (bare / "config").mkdir()
+    (bare / "pyproject.toml").write_text("[project]\nname = 'bare'\n", encoding="utf-8")
+    shutil.copy(REPO_ROOT / "tests" / "acceptance" / "scenarios" / "S13-fecap-pund.yaml",
+                bare / "tests" / "acceptance" / "scenarios")
+    pending = cli.invoke(app, ["dev", "acceptance", "run", "--harness", "codex", "--scenario", "S13", "--repo",
+                               str(bare)])
+    assert pending.exit_code == 2 and "S13 is pending" in pending.output
+    listed = cli.invoke(app, ["dev", "acceptance", "list", "--repo", str(bare)])
+    assert "PENDING: missing" in listed.stdout
 
 
 # -- graders ---------------------------------------------------------------------------------------------------------

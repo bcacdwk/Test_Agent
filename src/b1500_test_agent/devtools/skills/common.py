@@ -113,8 +113,10 @@ class SkillFrontmatter(StrictModel):
 class CardFrontmatter(StrictModel):
     """Test-card frontmatter v2 (blueprint v2 6.1, 6.3): v1 fields plus ``family`` (= the card's folder),
     ``intent`` (keywords of the generated index), ``modules`` (module types, checked against the recipes' roles),
-    ``routes`` (switch routes, checked against the roles' resources), ``bringup_stage`` (7.4 stage id) and
-    ``manual`` (canonical manual citations, checked by the citation lint). ``device_types`` and ``modules`` may be
+    ``routes`` (switch routes, checked against the roles' resources), ``bringup_stage`` (7.4 stage id; optional
+    ``recipe_stages``: a recipe of the card that another stage validates, WP10.6, e.g. the WGFMU recipe of a card
+    whose other recipes are SPGU recipes) and ``manual`` (canonical manual citations, checked by the citation
+    lint). ``device_types`` and ``modules`` may be
     empty only for recipes without device types / roles (system recipes). ``analysis`` names registered analysis
     methods the card documents; a card with no ``recipes`` is an analysis-only card (WP7.7, blueprint v2 6.3
     ``compact-model-spice``): its section 4 lists the methods' options and its example plan is a measurement the
@@ -130,6 +132,7 @@ class CardFrontmatter(StrictModel):
     modules: list[CardModule]
     routes: list[RouteToken]
     bringup_stage: StageId
+    recipe_stages: dict[RecipeId, StageId] = Field(default_factory=dict)
     status: Literal["draft", "sim_validated", "hw_validated"]
     confirmation: Literal["never", "conditional", "always"]
     knowledge: list[KnowledgeRef]
@@ -146,7 +149,21 @@ class CardFrontmatter(StrictModel):
                 raise ValueError(f"{name} lists an entry twice")
         if not self.recipes and not self.analysis:
             raise ValueError("recipes is empty: a card lists its recipes (or, analysis only, its analysis methods)")
+        stray = sorted(set(self.recipe_stages) - set(self.recipes))
+        if stray:
+            raise ValueError(f"recipe_stages names recipes the card does not list: {stray}")
+        if any(stage == self.bringup_stage for stage in self.recipe_stages.values()):
+            raise ValueError("recipe_stages repeats the card's bringup_stage (list only the recipes of other stages)")
         return self
+
+    def stage_of(self, recipe_id: str) -> str:
+        """The bring-up stage that validates ``recipe_id`` (its ``recipe_stages`` entry, else ``bringup_stage``)."""
+        return self.recipe_stages.get(recipe_id, self.bringup_stage)
+
+    @property
+    def stages(self) -> list[str]:
+        """Every stage the card names: ``bringup_stage`` first, then the other stages of ``recipe_stages``."""
+        return list(dict.fromkeys([self.bringup_stage, *self.recipe_stages.values()]))
 
 
 class KnowledgeFrontmatter(StrictModel):

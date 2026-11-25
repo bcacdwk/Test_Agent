@@ -16,13 +16,14 @@ from tests.unit.helpers import REPO_ROOT
 
 RECIPES = REPO_ROOT / "recipes"
 CORRECTION_RECIPES = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short", "cmu.correction_load")
-RESERVED_SLOTS = {"fecap.pund"}  # WP8.5: moscap.qscv implemented; WP10.7: wgfmu.fast_bti implemented
+RESERVED_SLOTS: set[str] = set()  # WP8.5: moscap.qscv; WP10.7: wgfmu.fast_bti; WP10.6: fecap.pund implemented
 """Reserved ids still waiting for their kinds (WP7.6 implemented reliability.bti_sms and reliability.hci; WP8.2 retired
 cmu.correction for the four cmu.* correction recipes; WP8.3 implemented moscap.cv and mosfet.cgd_cv; WP9.4
 implemented fefet.pulse_write_read and spgu.program_smu_read with kind pulse_read; WP7.7 retired hspice.compare:
 compact models are the analysis methods compact_model_fit, model_compare and export_spice_netlist, card
 smu/compact-model-spice; WP10.4 implemented wgfmu.pulsed_iv; WP8.5 implemented moscap.qscv with kind
-smu_qscv)."""
+smu_qscv; WP10.7 implemented wgfmu.fast_bti, WP10.6 fecap.pund: no committed reserved slot is left, the refusal tests
+bring their own, tests/integration/helpers.with_reserved_slot)."""
 WGFMU_RECIPES = ("wgfmu.pulsed_iv", "wgfmu.fast_iv", "wgfmu.pulse_train", "wgfmu.custom_waveform", "wgfmu.dc_spot",
                  "wgfmu.rtn", "wgfmu.lfn")
 """Kind wgfmu_waveform (WP10.4; tests/integration/test_recipes_wgfmu.py; WP10.5 rtn, lfn:
@@ -143,6 +144,11 @@ def test_committed_statuses() -> None:
                                                                              "system_self_cal")):
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
         assert registry.get(recipe_id).kind == "system" and registry.get(recipe_id).always_confirm == [reason]
+    # WP10.6: tests/integration/test_recipes_pund.py
+    for recipe_id, kind in (("fecap.pund", "wgfmu_waveform"), ("fefet.fast_program_read", "wgfmu_waveform"),
+                            ("fecap.endurance_pund", "pulse_read")):
+        assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
+        assert registry.get(recipe_id).kind == kind and registry.get(recipe_id).family == "nvm"
     # WP10.4: kind wgfmu_waveform (tests/integration/test_recipes_wgfmu.py)
     for recipe_id in WGFMU_RECIPES:
         assert status[recipe_id] == ("sim_validated", "sim_validated"), recipe_id
@@ -174,7 +180,7 @@ def test_committed_statuses() -> None:
          "fefet.pulse_write_read": "nvm/fefet-pulse-write-read",
          "spgu.program_smu_read": "nvm/fefet-pulse-write-read",  # WP9.4
          "moscap.cv_ac_level": "cmu/moscap-cv", "moscap.pulsed_cv": "cmu/moscap-cv", "moscap.cf": "cmu/moscap-cf-ct",
-         "moscap.ct": "cmu/moscap-cf-ct", "fecap.cv_butterfly": "nvm/fecap-pund",  # WP8.4
+         "moscap.ct": "cmu/moscap-cf-ct", "fecap.cv_butterfly": "nvm/fecap-cv-butterfly",  # WP8.4 (WP10.6 split)
          **{r: "wgfmu/wgfmu-pulsed-iv" for r in ("wgfmu.pulsed_iv", "wgfmu.fast_iv", "wgfmu.pulse_train")},
          "wgfmu.custom_waveform": "wgfmu/wgfmu-custom-waveform",
          "wgfmu.dc_spot": "wgfmu/wgfmu-custom-waveform",  # WP10.4
@@ -184,7 +190,9 @@ def test_committed_statuses() -> None:
          "moscap.qscv": "cmu/moscap-dit", "moscap.cv_multi_freq": "cmu/moscap-dit",  # WP8.5
          "wgfmu.rtn": "wgfmu/wgfmu-rtn-noise", "wgfmu.lfn": "wgfmu/wgfmu-rtn-noise",  # WP10.5
          "wgfmu.fast_bti": "reliability/bti-stress-measure", "system.wgfmu_self_test": "system/self-test-cal",
-         "system.wgfmu_self_cal": "system/self-test-cal"}  # WP10.7
+         "system.wgfmu_self_cal": "system/self-test-cal",  # WP10.7
+         "fecap.pund": "nvm/fecap-pund", "fecap.endurance_pund": "nvm/fecap-pund",
+         "fefet.fast_program_read": "nvm/fefet-pulse-write-read"}  # WP10.6
     # WP2.5: the six first test cards; WP5.10: family folders + the system card; WP7.2: the sweep recipes
     for recipe_id in ("basic.iv_force_i", "mosfet.idvg_family", "mosfet.idvg_sync", "mosfet.body_effect",
                       "generic.smu_multi_sweep"):

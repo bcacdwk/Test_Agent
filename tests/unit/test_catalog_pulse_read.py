@@ -1,7 +1,8 @@
 """Kind ``pulse_read`` compile (WP9.4; blueprint v2 2.7): roles and binding (a read role on the pulsed pad through
 ``RoleSpec.terminal``), the HV-SPGU and SMU pulse sources, routes per phase in the S12 contract order, the source plan
 and SPGU programs R-PULSE-01 checks, the envelope, steps/checkpoints, the FLEX preview, the estimate, and the refusals
-(the WGFMU source and read arrive in WP10.6, unknown schedules, unsupported roles)."""
+(a WGFMU read without the WGFMU source, the WGFMU source with SMU reads, unknown schedules, unsupported roles; the
+WGFMU path itself: ``tests/unit/test_pulse_wgfmu.py``)."""
 
 from __future__ import annotations
 
@@ -12,7 +13,14 @@ import pytest
 
 from b1500_test_agent.catalog.kinds import PulseReadKind, default_kinds
 from b1500_test_agent.catalog.kinds.pulse_read import MAX_CYCLES, PulseReadProgram, stored_program
-from b1500_test_agent.catalog.kinds.pulse_sources import PENDING_SOURCES, SOURCES, SmuOp, SpguOp, source_for
+from b1500_test_agent.catalog.kinds.pulse_sources import (
+    FLEX_SOURCES,
+    SOURCES,
+    SmuOp,
+    SpguOp,
+    WgfmuSourceKind,
+    source_for,
+)
 from b1500_test_agent.catalog.planner import bind_roles, planning_station
 from b1500_test_agent.catalog.schema import CompileError
 from b1500_test_agent.errors import InvalidInputError
@@ -178,22 +186,25 @@ def test_smu_pulse_outside_the_pt_table_is_blocked(tmp_path: Path) -> None:
 # -- refusals --------------------------------------------------------------------------------------------------------
 
 
-def test_the_wgfmu_source_is_refused_at_plan_time(tmp_path: Path) -> None:
-    """No stub that pretends to run: a wgfmu pulse role is a compile error naming WP10.6."""
-    assert PENDING_SOURCES == {"wgfmu": "WP10.6"} and "wgfmu" not in SOURCES
-    with pytest.raises(CompileError, match="WGFMU source arrives in WP10.6"):
-        source_for("gate", "wgfmu", "pulse_read")
+def test_the_wgfmu_source_serves_wgfmu_roles_and_reads_with_the_wgfmu(tmp_path: Path) -> None:
+    """WP10.6: the WGFMU source is registered (not a FLEX source); a wgfmu pulse role takes the WGFMU path, whose reads
+    are WGFMU reads: SMU read roles on the same plan are refused at plan time, naming the roles and the reason."""
+    assert isinstance(SOURCES["wgfmu"], WgfmuSourceKind) and "wgfmu" not in FLEX_SOURCES
+    assert source_for("gate", "wgfmu", "pulse_read") is SOURCES["wgfmu"]
+    with pytest.raises(CompileError, match="no pulse source serves role gate"):
+        source_for("gate", "sweep_v", "pulse_read")
     recipe = tmp_path / "recipes" / "fefet" / "pulse_write_read.yaml"
     registry(tmp_path)
     text = recipe.read_text(encoding="utf-8").replace("    function: pgu\n    module_types: [HVSPGU]",
                                                       "    function: wgfmu\n    module_types: [WGFMU]")
     recipe.write_text(text, encoding="utf-8")
-    with pytest.raises(InvalidInputError, match="WGFMU source arrives in WP10.6"):
+    with pytest.raises(InvalidInputError, match=r"WGFMU source cannot execute role\(s\) gate_read \(sweep_v\)"):
         pr_plan(tmp_path, WRITE_READ)
 
 
-def test_the_wgfmu_read_is_refused_at_plan_time(tmp_path: Path) -> None:
-    with pytest.raises(InvalidInputError, match="read_kind wgfmu arrives in WP10.6"):
+def test_a_wgfmu_read_needs_the_wgfmu_source(tmp_path: Path) -> None:
+    """``read_kind: wgfmu`` runs inside the WGFMU source's library phase: with an SMU pulse source it is refused."""
+    with pytest.raises(InvalidInputError, match="read_kind wgfmu reads inside the WGFMU source's library phase"):
         pr_plan(tmp_path, SMU_PULSE_READ, read_kind="wgfmu")
 
 

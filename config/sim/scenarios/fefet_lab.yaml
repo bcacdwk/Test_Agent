@@ -11,6 +11,9 @@
 # of the written polarization while the gate rests) and wake-up/fatigue over bipolar cycles, so kinetics, endurance
 # and retention runs have a truth (models/sim_devices.py FerroKineticsParams; values are examples, TODO(verify) at
 # L7/L9 against the lab's devices). Noise and timing as nmos_basic.yaml.
+# WP10.6: a second, identical FeFET `wg` on the WGFMU landing (pin map fefet-wgfmu: gate WGFMU 201 through RSU201,
+# drain WGFMU 202 through RSU202, source and bulk on the GNDU) for the microsecond program and fast read
+# (fefet.fast_program_read); the WGFMU's white noise as nmos_wgfmu (per 5 ns sample on the 10 mA range).
 
 description: >-
   Lab FeFET behind selector SEL1 (port 0: SMU 3 / SPGU 101), drain SMU4, source/bulk GNDU, on the lab mainframe;
@@ -36,10 +39,15 @@ wiring:
     drain: 4
     source: GNDU
     bulk: GNDU
+  wg:
+    gate: 201
+    drain: 202
+    source: GNDU
+    bulk: GNDU
 models:
   dut:
     model: fefet
-    params:
+    params: &fefet
       polarity: n
       vth0: 0.6                 # V; threshold at zero polarization (Vth = vth0 - k_v * P)
       k_v: 0.5                  # V; a saturated loop gives a memory window of about 2 * k_v = 1 V
@@ -63,8 +71,11 @@ models:
       wake_cycles: 100.0        # ... recovered over ~100 bipolar cycles
       fatigue_cycles: 1.0e+5    # fatigue: the switchable polarization halves at 1e5 cycles
       fatigue_exp: 1.0
+  wg:
+    model: fefet
+    params: *fefet
 noise:
-  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13, WGFMU: 2.0e-6}
   rel: 1.0e-3
   seed: 3
 faults: null

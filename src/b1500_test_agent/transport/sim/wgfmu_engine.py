@@ -20,7 +20,9 @@ the arithmetic it needs and the circuit wrapper the whole instrument uses:
   evaluated at the point times (one circuit solve per distinct set of channel levels); circuits with time-dependent
   devices (``DynamicDevice``: FeCap/FeFET polarization, traps, ageing) are stepped with ``Circuit.advance`` over every
   waveform vertex and every averaging window, so displacement currents (``I = A dP/dt + C dV/dt``) and kinetics
-  appear in the data; constant-level stretches are stepped in blocks (``DYNAMIC_STEP_BUDGET``). Current readings
+  appear in the data; constant-level stretches are stepped in blocks (``DYNAMIC_STEP_BUDGET``); an entry repeated
+  many times without measurement points (bipolar cycling) is stepped in aggregated chunks with the device models'
+  bulk-cycle hook (``wgfmu_bulk.py``, WP10.6). Current readings
   saturate at +-full scale of the range active at the point (range events), the WGFMU's "no compliance, covers the
   full scale" behaviour (WG p16 (1-4)); voltage readings at +-the voltage range. PG mode divides the output by its
   50 Ohm and the load (WG p139 (4-69)). Noise: white noise of rms ``noise.floor_a["WGFMU"]`` per 5 ns sample on the
@@ -521,6 +523,7 @@ class Evaluator:
         self._cum: dict[int, list[np.ndarray]] = {ch: [np.zeros(1)] for ch in programs}
         self._levels_cache: dict[tuple[float, ...], dict[int, float]] = {}
         self._noise_cache: dict[tuple[int, ...], tuple[np.ndarray, int]] = {}
+        self._bulk_cycles: dict[tuple[int, int], dict[str, float]] = {}
 
     # -- levels ----------------------------------------------------------------------------------------------------
 
@@ -729,6 +732,70 @@ class Evaluator:
     # -- dynamic devices ---------------------------------------------------------------------------------------------
 
     def _step_dynamic(self, t0: float, t1: float, targets: Mapping[int, int]) -> None:
+        """Advance the circuit from run tick ``t0`` to ``t1``: bulk windows (``wgfmu_bulk``) in aggregated chunks
+        after their exact repeats, everything else exactly (``_step_exact``)."""
+        from b1500_test_agent.transport.sim import wgfmu_bulk as bulk
+
+        cursor = t0
+        while cursor < t1:
+            window = bulk.window_at(self.programs, cursor)
+            if window is None or window.start >= t1:
+                self._step_exact(cursor, t1, targets)
+                return
+            if cursor < window.start:
+                self._step_exact(cursor, window.start, targets)
+                cursor = float(window.start)
+            stop = min(t1, float(window.end))
+            key = (window.start, window.period)
+            counted = bulk.counters(self.circuit.stateful)
+            while cursor < stop and (key not in self._bulk_cycles or window.repeat_at(cursor) < bulk.EXACT_REPEATS):
+                r = math.floor(window.repeat_at(cursor) + 1e-9)
+                repeat_start, repeat_end = window.start + r * window.period, window.start + (r + 1) * window.period
+                end = min(stop, float(repeat_end))
+                before = {name: float(dev.cycles) for name, dev in counted.items()}
+                self._step_exact(cursor, end, targets)
+                if cursor == repeat_start and end == repeat_end and r >= bulk.EXACT_REPEATS - 1:
+                    self._bulk_cycles[key] = {name: float(dev.cycles) - before[name] for name, dev in counted.items()}
+                cursor = end
+            boundary = window.start + math.ceil(window.repeat_at(cursor) - 1e-9) * window.period
+            if cursor < min(stop, boundary):  # the rest of a repeat a previous evaluation stopped inside
+                self._step_exact(cursor, min(stop, float(boundary)), targets)
+                cursor = min(stop, float(boundary))
+            whole = math.floor(window.repeat_at(stop) + 1e-9) - round(window.repeat_at(cursor))
+            if cursor < stop and whole > 0:
+                cursor = self._step_bulk(window, round(window.repeat_at(cursor)), whole, self._bulk_cycles[key],
+                                         counted)
+            if cursor < stop:
+                self._step_exact(cursor, stop, targets)
+                cursor = stop
+
+    def _step_bulk(self, window: object, first: int, repeats: int, per_repeat: Mapping[str, float],
+                   counted: Mapping[str, object]) -> float:
+        """``repeats`` whole repeats of a bulk window from repeat ``first`` in aggregated chunks (``wgfmu_bulk``);
+        returns the tick reached."""
+        from b1500_test_agent.transport.sim import wgfmu_bulk as bulk
+
+        assert isinstance(window, bulk.BulkWindow)
+        rel = bulk.repeat_marks(self.programs, window)
+        base = window.start + first * window.period
+        levels = self.driven_levels(base + rel)
+        chans = sorted(levels)
+        widths = np.diff(np.concatenate([[0.0], rel]))
+        rows = [self._solve_pg({**self.fixed, **{c: float(levels[c][j]) for c in chans}}) for j in range(len(rel))]
+        for k in bulk.chunks(repeats):
+            for width, applied in zip(widths, rows, strict=True):
+                self.circuit.raw_advance(float(width) * k * TICK_S, applied)
+            for name, delta in per_repeat.items():
+                if delta > 0 and k > 1:
+                    counted[name].add_cycles((k - 1) * delta)  # type: ignore[attr-defined]
+        end = float(base + repeats * window.period)
+        self._steps_t.append(np.asarray([end]))
+        for ch in self.programs:
+            self._steps_i[ch].append(np.zeros(1))
+            self._cum[ch].append(np.asarray([self._cum[ch][-1][-1]]))
+        return end
+
+    def _step_exact(self, t0: float, t1: float, targets: Mapping[int, int]) -> None:
         """Advance the circuit from run tick ``t0`` to ``t1`` over vertices and averaging windows."""
         marks = [np.asarray([t1])]
         for ch, prog in self.programs.items():

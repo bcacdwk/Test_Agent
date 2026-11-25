@@ -52,7 +52,7 @@ version: 1
 The MFCMU on hardware: phase compensation and open/short corrections (card `cmu-correction`) with the human lifting,
 shorting and landing the probes, the known-capacitor check (`cmu-spot`), then a MOS capacitor (`moscap-cv`,
 `moscap-cf-ct`, `moscap-dit`), the split C-V of the L4 MOSFET (`mosfet-split-cv`) and a FeCap if the lab has one
-(`fecap-pund`). Corrections belong to one pin map and landing: every new pin map gets its own phase, open and
+(`fecap-cv-butterfly`). Corrections belong to one pin map and landing: every new pin map gets its own phase, open and
 short. Every hardware plan needs consent (`first_hw_run`); each correction also `physical_setup`.
 
 ## 1. Preconditions

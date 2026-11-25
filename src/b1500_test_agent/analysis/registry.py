@@ -75,6 +75,7 @@ from b1500_test_agent.analysis.noise import it_statistics, plot_psd_method, psd_
 from b1500_test_agent.analysis.nvm import endurance_summary, memory_window_pulse, retention_fit, switching_kinetics_fit
 from b1500_test_agent.analysis.plots import PlotSet, plot_iv_method
 from b1500_test_agent.analysis.pulse import breakdown_voltage, pulse_plateau, pulsed_vs_dc, vth_search_value
+from b1500_test_agent.analysis.pund import plot_pund_method, pund_polarization
 from b1500_test_agent.analysis.quality import assess_quality
 from b1500_test_agent.analysis.reliability import plot_timeseries_method, sampling_summary, time_to_breakdown
 from b1500_test_agent.analysis.resistor import kelvin_resistance, resistance
@@ -391,8 +392,8 @@ _METHODS += [
     _method("memory_window_pulse", "extraction", memory_window_pulse,
             "Program/read runs: memory window Vth(erase) - Vth(program) of the reads after the pulses (or the read "
             "currents and their ratio for spot reads), per state mean and spread.",
-            ("fefet.pulse_write_read", "spgu.program_smu_read", "generic.*"), ("pulse_read",), families=("nvm",),
-            milestone="M9"),
+            ("fefet.pulse_write_read", "spgu.program_smu_read", "fefet.fast_program_read", "generic.*"),
+            ("pulse_read", "wgfmu_waveform"), families=("nvm",), milestone="M9"),
     _method("switching_kinetics_fit", "extraction", switching_kinetics_fit,
             "Switching kinetics of an amplitude x width grid run: NLS fit tau0, Va, beta (alpha) of "
             "1 - exp(-(w/tau(V))^beta); ISPP runs: v50 and the step slope; reset-read consistency.",
@@ -401,6 +402,16 @@ _METHODS += [
             "Endurance run: memory window per checkpoint cycle count; initial, maximum and final window, wake-up, "
             "fatigue and cycles to failure (window below a criterion).",
             ("fefet.endurance", "generic.*"), ("pulse_read",), families=("nvm",), milestone="M9"),
+    _method("pund_polarization", "extraction", pund_polarization,
+            "PUND of a ferroelectric capacitor: Pr from the switched charge (P - U, N - D), Ps with the linear "
+            "dielectric removed, Vc and Ec from the switching-current peaks, imprint; per read over endurance "
+            "checkpoints: Pr initial/max, wake-up, fatigue, cycles to failure.",
+            ("fecap.pund", "fecap.endurance_pund", "generic.*"), ("wgfmu_waveform", "pulse_read"),
+            families=("nvm",), milestone="M10"),
+    _method("plot_pund", "plots", plot_pund_method,
+            "PUND plots: currents of P, U, N, D against time, polarization against voltage, Pr against cycles; PNG "
+            "under plots/.", ("fecap.pund", "fecap.endurance_pund", "generic.*"), ("wgfmu_waveform", "pulse_read"),
+            families=("nvm",), milestone="M10"),
     _method("retention_fit", "extraction", retention_fit,
             "Retention run: Vth of each written state and the memory window versus log10(t), slopes per decade, the "
             "window extrapolated to a target time and the time it reaches a criterion.",

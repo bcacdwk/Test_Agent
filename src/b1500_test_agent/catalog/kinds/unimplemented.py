@@ -21,7 +21,9 @@ if TYPE_CHECKING:
     from b1500_test_agent.session.transaction import Transaction
 
 UNIMPLEMENTED_KINDS: dict[str, str] = {
-    "wgfmu_pulse_sequence": "WGFMU pulse write + read sequences (FeFET endurance/retention, FeCap PUND)",
+    "wgfmu_pulse_sequence": "no recipe uses this id any more (WP10.6 runs FeCap PUND with wgfmu_waveform and WGFMU "
+                            "program/read sequences with pulse_read); kept as the declared-only kind of the "
+                            "not_implemented path until WP11.2 removes it",
 }
 """Declared kind ids and what each is waiting for."""
 

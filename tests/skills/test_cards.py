@@ -50,8 +50,10 @@ CARDS = {  # card path under cards/ -> recipes (v1 blueprint 6.4 + the v2 system
     "spgu/spgu-pulse-train": ["spgu.pulse_train", "spgu.alwg_sequence"],  # WP9.3
     "spgu/charge-pumping": ["mosfet.charge_pumping"],  # WP9.3
     "smu/smu-search": ["mosfet.vth_search"],  # WP7.5
-    "nvm/fefet-pulse-write-read": ["fefet.pulse_write_read", "spgu.program_smu_read"],  # WP9.4
-    "cmu/moscap-cf-ct": ["moscap.cf", "moscap.ct"], "nvm/fecap-pund": ["fecap.cv_butterfly"],  # WP8.4
+    "nvm/fefet-pulse-write-read": ["fefet.pulse_write_read", "spgu.program_smu_read",
+                                   "fefet.fast_program_read"],  # WP9.4; WP10.6: the WGFMU section
+    "cmu/moscap-cf-ct": ["moscap.cf", "moscap.ct"], "nvm/fecap-cv-butterfly": ["fecap.cv_butterfly"],  # WP8.4
+    "nvm/fecap-pund": ["fecap.pund", "fecap.endurance_pund"],  # WP10.6 (the butterfly split into its own card)
     "smu/compact-model-spice": [],  # WP7.7: analysis only (compact_model_fit, model_compare, export_spice_netlist)
     "wgfmu/wgfmu-pulsed-iv": ["wgfmu.pulsed_iv", "wgfmu.fast_iv", "wgfmu.pulse_train"],  # WP10.4
     "wgfmu/wgfmu-custom-waveform": ["wgfmu.custom_waveform", "wgfmu.dc_spot"],  # WP10.4
@@ -64,8 +66,9 @@ CARDS["cmu/moscap-cv"] = ["moscap.cv", "moscap.cv_ac_level", "moscap.pulsed_cv"]
 ROUTES = {"spgu/selector-check": ["selector_16440a:smu", "selector_16440a:pgu", "selector_16440a:pgu_open"],
           "spgu/spgu-pulse-train": ["selector_16440a:pgu"], "spgu/charge-pumping": ["selector_16440a:pgu"],
           "cmu/cmu-correction": ["scuu:cmu"], "cmu/moscap-cv": ["scuu:cmu"], "cmu/mosfet-split-cv": ["scuu:cmu"],
-          "nvm/fefet-pulse-write-read": ["selector_16440a:pgu", "selector_16440a:smu"],
+          "nvm/fefet-pulse-write-read": ["selector_16440a:pgu", "selector_16440a:smu", "rsu:wgfmu"],  # +WP10.6
           "cmu/moscap-cf-ct": ["scuu:cmu"],  # WP8.4
+          "nvm/fecap-pund": ["rsu:wgfmu"],  # WP10.6
           "wgfmu/wgfmu-pulsed-iv": ["rsu:wgfmu"], "wgfmu/wgfmu-custom-waveform": ["rsu:wgfmu"],
           "nvm/fefet-switching-kinetics": ["selector_16440a:pgu", "selector_16440a:smu"],  # WP9.5
           "nvm/fefet-endurance-retention": ["selector_16440a:pgu", "selector_16440a:smu"],
@@ -84,13 +87,16 @@ STAGE_OF = {"smu/contact-resistor-check": "L2", "smu/diode-iv": "L3", "smu/mosfe
             "smu/smu-search": "L5",  # WP7.5
             "cmu/cmu-spot": "L6", "cmu/moscap-cv": "L6", "cmu/mosfet-split-cv": "L6",  # WP8.3
             "nvm/fefet-pulse-write-read": "L7",  # WP9.4
-            "cmu/moscap-cf-ct": "L6", "nvm/fecap-pund": "L6",  # WP8.4
+            "cmu/moscap-cf-ct": "L6", "nvm/fecap-cv-butterfly": "L6",  # WP8.4
+            "nvm/fecap-pund": "L8",  # WP10.6 (fefet-pulse-write-read: fefet.fast_program_read at L8, recipe_stages)
             "smu/compact-model-spice": "L4",  # WP7.7
             "wgfmu/wgfmu-pulsed-iv": "L8", "wgfmu/wgfmu-custom-waveform": "L8",  # WP10.4
             "nvm/fefet-switching-kinetics": "L7", "nvm/fefet-endurance-retention": "L9",  # WP9.5
             "cmu/moscap-dit": "L6",  # WP8.5
             "wgfmu/wgfmu-rtn-noise": "L8"}  # WP10.5
 """Blueprint v2 7.4 / 3.1: the stage that validates each card's recipes on hardware."""
+RECIPE_STAGES = {"nvm/fefet-pulse-write-read": {"fefet.fast_program_read": "L8"}}
+"""Recipes another stage validates than their card's (frontmatter ``recipe_stages``; WP10.6)."""
 RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo", "errx-codes", "visa-no-connection",
             "interlock-open", "cleanup-failed-fault", "cmu-correction-stale",  # WP8.2: the first v2 runbook
             "spgu-selector-state", "spgu-pulse-no-effect", "spgu-load-mismatch",  # WP9.3
@@ -181,7 +187,8 @@ def test_generated_index_has_a_row_per_card_and_recipe(registry: RecipeRegistry)
         row = next(line for line in text.splitlines() if f"]({card}.md)" in line)
         family = card.split("/")[0]
         assert row.startswith(f"| {family} |") and all(f"`{r}`" in row for r in recipes)
-        assert f"| {_card(card).front['status']} |" in row and row.endswith(f"| {STAGE_OF[card]} |")
+        stage = STAGE_OF[card] + "".join(f" (`{r}`: {s})" for r, s in RECIPE_STAGES.get(card, {}).items())
+        assert f"| {_card(card).front['status']} |" in row and row.endswith(f"| {stage} |")
     for recipe in CARDLESS_RECIPES:
         assert f"| `{recipe}` |" in text and "no card by design" in text
     for recipe in registry.ids():
@@ -192,7 +199,9 @@ def test_generated_index_has_a_row_per_card_and_recipe(registry: RecipeRegistry)
 def test_reserved_readme_lists_every_reserved_recipe_with_preconditions(registry: RecipeRegistry) -> None:
     text = (SKILL_DIR / "cards" / "reserved" / "README.md").read_text(encoding="utf-8")
     reserved = sorted(p.stem for p in (ROOT / "recipes" / "reserved").glob("*.yaml"))
-    assert reserved and all(registry.get(r).status == "not_implemented" for r in reserved)
+    assert all(registry.get(r).status == "not_implemented" for r in reserved)
+    if not reserved:  # WP10.6 implemented the last slot (fecap.pund): the README says so until WP11.2 deletes it
+        assert "No reserved slot is left" in text and "`fecap.pund` (WP10.6" in text
     for recipe in reserved:
         assert f"| `{recipe}` |" in text, recipe
         assert f"- `{recipe}`:" in text, recipe  # its preconditions bullet

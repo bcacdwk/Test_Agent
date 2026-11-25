@@ -1,0 +1,80 @@
+# Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
+# Ferroelectric capacitor endurance by PUND (card nvm/fecap-pund, bring-up stage L8 (+ L9 long runs); blueprint v2
+# 3.4): kind pulse_read, WGFMU path (catalog/kinds/pulse_wgfmu.py), schedule cycles with checkpoint reads. The top
+# electrode (WGFMU 201 through RSU201) cycles the film with bipolar pulses (v_program, then v_erase half a
+# `cycle_period` later; `width` flat, `t_edge` edges; one cycle pattern repeated by the WGFMU sequence count, at most
+# 1,000,000 cycles per burst) and at log-spaced cumulative cycle counts (`reads_per_decade`, or the listed
+# `read_cycles`) reads a PUND (preset, P, U, N, D of v_max; the bottom electrode, WGFMU 202, samples its current). A
+# PUND read is itself a program/erase cycle: the checkpoint's read is its cycle (no separate reference read; the first
+# read reads the pristine film). Each step is one WGFMU execution; long plans run asynchronously (R-RUN-02: `running`,
+# progress via get_run, safe_shutdown cancels within one status poll; long_run confirms above 10 minutes).
+# Default analysis pund_polarization: Pr, Ps, Ec of the last read and over the reads Pr initial/max, wake-up,
+# fatigue and cycles to failure (Pr below half its maximum).
+# status: sim_validated by tests/integration/test_recipes_pund.py (fecap_basic: Pr at every checkpoint within 5 % of
+# the model's wake-up/fatigue truth; asynchronous with checkpoints and cancel, both buses clean); hw_validated only
+# through a validation record.
+id: fecap.endurance_pund
+version: 1
+title: Ferroelectric capacitor endurance - bipolar WGFMU cycling with PUND reads at log-spaced cycle counts, Pr(N)
+family: nvm
+kind: pulse_read
+status: sim_validated
+card: .agents/skills/b1500-test/cards/nvm/fecap-pund.md
+device_types: [fecap]
+roles:
+  top:
+    function: wgfmu
+    module_types: [WGFMU]
+    settings: {program: $v_program, erase: $v_erase, base: 0.0, width: $width, lead: $t_edge, trail: $t_edge,
+               amplitude: $v_max}
+  bottom:
+    function: wgfmu
+    measure: [I]
+    module_types: [WGFMU]
+    settings: {range: $irange}
+params:
+  cycles: {type: int, default: 10000000, recommended: [100000, 1000000000], range: [1, 1000000000],
+           doc: "Program/erase cycles in total (the last checkpoint)."}
+  cycle_reads: {type: enum, choices: [log, list], default: log,
+                doc: "log: PUND reads at round(10^(k/reads_per_decade)) cycles; list: at read_cycles."}
+  reads_per_decade: {type: int, default: 3, recommended: [2, 5], range: [1, 20], doc: Checkpoints per decade (log).}
+  read_cycles: {type: float_list, default: [1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1000000.0],
+                range: [1.0, 1.0e+9], doc: "Cumulative cycle counts of the reads when cycle_reads is list (integers)."}
+  cycle_period: {unit: s, default: 1.0e-4, recommended: [1.0e-5, 1.0e-3], range: [1.0e-7, 1.0],
+                 doc: "Period of one bipolar cycle (v_program pulse, v_erase pulse half a period later)."}
+  v_program: {unit: V, default: 3.0, recommended: [2.0, 4.0], range: [-10.0, 10.0],
+              doc: Cycling level of the first pulse of each cycle (positive polarization).}
+  v_erase: {unit: V, default: -3.0, recommended: [-4.0, -2.0], range: [-10.0, 10.0],
+            doc: Cycling level of the second pulse of each cycle (negative polarization).}
+  width: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-4], range: [1.0e-8, 1.0e-3],
+          doc: Flat time of each cycling pulse.}
+  t_edge: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-5], range: [1.0e-8, 1.0e-3],
+           doc: "Leading and trailing time of the cycling pulses (each half period > 2 t_edge + width)."}
+  sequence: {type: enum, choices: [program_erase, erase_program], default: program_erase,
+             doc: "Polarity order of the cycling pulses."}
+  initial_read: {type: bool, default: false,
+                 doc: "Must stay false: the first PUND read reads the pristine film (it is cycle 1)."}
+  schedule: {type: enum, choices: [cycles], default: cycles, doc: "Schedule (cycles with checkpoint reads)."}
+  read_kind: {type: enum, choices: [wgfmu], default: wgfmu, doc: "The WGFMU reads (a PUND)."}
+  wgfmu_read: {type: enum, choices: [pund], default: pund, doc: "The read at each checkpoint: a PUND sequence."}
+  v_max: {unit: V, default: 3.0, recommended: [2.0, 4.0], range: [0.1, 10.0], doc: PUND read amplitude.}
+  rise: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-4], range: [1.0e-7, 1.0e-2],
+         doc: PUND ramp time 0 V -> v_max (and back).}
+  plateau: {unit: s, default: 0.0, recommended: [0.0, 1.0e-5], range: [0.0, 1.0e-2],
+            doc: "Flat top of each PUND pulse (0 = triangular)."}
+  delay: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-3], range: [1.0e-7, 1.0],
+          doc: Time at 0 V after each PUND pulse.}
+  interval: {unit: s, default: 1.0e-7, recommended: [1.0e-8, 1.0e-6], range: [1.0e-8, 1.0e-3],
+             doc: "PUND sampling interval; 2 rise + plateau must be a whole number of them."}
+  preset: {type: bool, default: true, doc: A negative preset pulse before each PUND.}
+  irange: {type: enum, choices: [1ua, 10ua, 100ua, 1ma, 10ma], default: 1ma,
+           doc: "Bottom-electrode current range (full scale; no compliance: above it reads saturate, status V)."}
+quality: {limited: [C, T], untrusted: [V, X, F, D, G, S, U], max_limited_fraction_in_fit: 0.05}
+analysis_defaults:
+  - {method: pund_polarization, options: {}}
+provenance:
+  sources:
+    - blueprint v2 2.7 (kind pulse_read, WGFMU source and read), 2.10 (pund_polarization), 3.4 (fecap.endurance_pund), 4.2 ferro FeCap (wake-up/fatigue)
+    - Keysight Advanced NVM Application Tests User's Guide (AN-NVM; FeRAM endurance with PUND checkpoints; TODO(verify) the page at L9)
+    - WGFMU guide Ed. 8 addSequence count limits (PDF 80), setMeasureEvent (PDF 125-126)
+  validation_runs: []

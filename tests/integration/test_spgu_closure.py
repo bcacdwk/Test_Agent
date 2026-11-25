@@ -38,6 +38,9 @@ SPGU_METHODS = ("charge_pumping", "memory_window_pulse", "switching_kinetics_fit
                 "retention_fit")
 """Analysis methods of the module's recipes (WP9.3-9.5)."""
 
+WGFMU_PULSE_READ = {"fecap.endurance_pund"}
+"""``nvm`` recipes of kind ``pulse_read`` whose source is the WGFMU (WP10.6, blueprint v2 3.4)."""
+
 
 @pytest.fixture(scope="module")
 def registry() -> RecipeRegistry:
@@ -74,7 +77,8 @@ def test_the_nvm_pulse_rows_of_section_3_3_are_sim_validated(world: World, monke
     pulse_rows = {r for r, (kind, _card, _stage) in SECTION_3_3.items() if kind == "pulse_read"}
     assert pulse_rows <= set(listing)
     assert {r: listing[r]["status"] for r in pulse_rows} == {r: "sim_validated" for r in pulse_rows}
-    assert {r for r, entry in listing.items() if entry["kind"] == "pulse_read"} == pulse_rows
+    # WP10.6: fecap.endurance_pund is the WGFMU path of pulse_read (blueprint v2 3.4, not an HV-SPGU row)
+    assert {r for r, entry in listing.items() if entry["kind"] == "pulse_read"} == pulse_rows | WGFMU_PULSE_READ
 
 
 def test_cards_sit_on_their_section_3_3_stage_and_the_stage_runs_them(registry: RecipeRegistry) -> None:
@@ -88,7 +92,8 @@ def test_cards_sit_on_their_section_3_3_stage_and_the_stage_runs_them(registry: 
 
 
 def test_stage_l7_runs_every_recipe_of_the_cards_that_name_it() -> None:
-    """Every card on L7 (the SPGU cards plus the DC FeFET loop, the reference of the pulse memory window)."""
+    """Every recipe a card puts on L7 (the SPGU cards plus the DC FeFET loop, the reference of the pulse memory window);
+    a card's ``recipe_stages`` moves single recipes to another stage (WP10.6: ``fefet.fast_program_read`` on L8)."""
     _path, front, problem = load_stage(REPO_ROOT, "L7")
     assert front is not None, problem
     named: set[str] = set()
@@ -96,10 +101,10 @@ def test_stage_l7_runs_every_recipe_of_the_cards_that_name_it() -> None:
         text = path.read_text(encoding="utf-8")
         if text.startswith("---"):
             card = yaml.safe_load(text.split("---")[1]) or {}
-            if card.get("bringup_stage") == "L7":
-                named |= set(card.get("recipes") or [])
+            stages = card.get("recipe_stages") or {}
+            named |= {r for r in card.get("recipes") or [] if stages.get(r, card.get("bringup_stage")) == "L7"}
     assert named == set(front.recipes)
-    assert "fefet.dual_sweep_mw" in named
+    assert "fefet.dual_sweep_mw" in named and "fefet.fast_program_read" not in named
 
 
 def test_spgu_analysis_methods_are_implemented() -> None:

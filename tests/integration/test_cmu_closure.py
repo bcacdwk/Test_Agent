@@ -65,7 +65,7 @@ def test_recipes_family_cmu_lists_only_sim_validated_recipes(world: World, monke
     listing = yaml.safe_load(result.stdout)
     statuses = {entry["id"]: entry["status"] for entry in listing["recipes"]}
     assert statuses and set(statuses.values()) == {"sim_validated"}, statuses
-    assert set(statuses) == set(SECTION_3_2) - {"fecap.cv_butterfly"}  # family nvm (card nvm/fecap-pund)
+    assert set(statuses) == set(SECTION_3_2) - {"fecap.cv_butterfly"}  # family nvm (card nvm/fecap-cv-butterfly)
 
 
 def test_every_card_sits_on_l6_and_the_stage_runs_and_checks_its_recipes(registry: RecipeRegistry) -> None:

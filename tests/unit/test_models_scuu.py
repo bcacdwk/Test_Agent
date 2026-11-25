@@ -13,6 +13,8 @@ from pydantic import ValidationError
 from b1500_test_agent.models.sim import CmuCorrectionLost, CmuOverload, parse_fault
 from b1500_test_agent.models.station import SimScenario, StationProfile, scuu_side
 
+pytestmark = pytest.mark.cmu
+
 ROOT = Path(__file__).resolve().parents[2]
 
 

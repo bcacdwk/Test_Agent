@@ -179,9 +179,10 @@ def test_repository_lint_notes_stages_without_files() -> None:
     assert not any(n.startswith(("bring-up stage S0 ", "bring-up stage L1 ", "bring-up stage L4 "))
                    for n in stage_notes)  # WP6.3 wrote S0, L0-L4 and L10
     assert not any(n.startswith(("bring-up stage L5 ", "bring-up stage L9 ")) for n in stage_notes)  # WP7.7
+    assert not any(n.startswith("bring-up stage L6 ") for n in stage_notes)  # WP8.6
     assert report.stages == [f".agents/skills/b1500-bringup/stages/{stem}.md" for stem in sorted(
         ("s0-physical", "l0-probe-config", "l1-smu-zero", "l2-resistors", "l3-diode", "l4-mosfet",
-         "l5-smu-advanced", "l9-long-runs", "l10-harness-handoff"))]
+         "l5-smu-advanced", "l6-cmu", "l9-long-runs", "l10-harness-handoff"))]
     assert "recipes without a card by design: generic.smu_staircase" in report.notes
     assert report.skills == ["b1500-bringup", "b1500-debug", "b1500-test"]
 

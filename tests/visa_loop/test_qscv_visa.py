@@ -23,6 +23,8 @@ from tests.integration.helpers import make_world
 from tests.visa_loop.helpers import SWITCH_LEARN, SWITCH_MNEMONICS, VisaWorld, bus_events, run_case
 from tests.visa_loop.test_cv_visa import scuu_station
 
+pytestmark = pytest.mark.cmu
+
 CHUNK = 64
 CASE: dict[str, Any] = {"recipe_id": "moscap.qscv", "scenario": "moscap_dit", "source": "card moscap-dit",
                         "request": {"params": {}, "pin_map": "moscap-scuu", "dut_profile": "moscap-generic"}}

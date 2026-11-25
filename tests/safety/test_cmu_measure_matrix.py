@@ -52,6 +52,8 @@ from tests.safety.test_cmu_matrix import assert_cmu_within_envelope
 from tests.sim.helpers import load_scenario, noiseless
 from tests.unit.rules_factory import T0
 
+pytestmark = pytest.mark.cmu
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 KIND = CmuMeasureKind()
 CMU = 7

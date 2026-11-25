@@ -22,6 +22,8 @@ from b1500_test_agent.driver.parser import parse_fmt1
 from b1500_test_agent.driver.qscv import parse_qscv, parse_qscv_offset
 from b1500_test_agent.models.plan import ChannelEnvelope, CompiledEnvelope
 
+pytestmark = pytest.mark.cmu
+
 
 class Recorder:
     """A transport stand-in that records writes."""

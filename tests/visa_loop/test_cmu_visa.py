@@ -17,6 +17,8 @@ from b1500_test_agent.transport.visa import VisaTransport
 from tests.sim.helpers import load_scenario, noiseless
 from tests.visa_loop.loop import DEFAULT_RESOURCE, LoopBus
 
+pytestmark = pytest.mark.cmu
+
 CMU = 7
 ENVELOPE = CompiledEnvelope(channels={CMU: ChannelEnvelope(
     role="a", max_abs_v=2.0, max_abs_i=1e-3, function="cmu_high",

@@ -87,7 +87,7 @@ def test_status_follows_drafts_and_reviewed_records(stages: VisaWorld) -> None:
     status = bringup.bringup_status(service)
     assert status.ok and not status.simulated and status.next_stage == "S0"
     states = {s.stage: s.state for s in status.stages}
-    assert states["S0"] == "open" and states["L6"] == "no_stage_file" and states["L10"] == "open"  # L5: WP7.7
+    assert states["S0"] == "open" and states["L8"] == "no_stage_file" and states["L10"] == "open"  # L6: WP8.6
     run_id = _hardware_run(world, service)
     draft = bringup.record(service, "L2", [run_id], references=[f"r_dmm={_resistance(world, run_id)}"])
     assert draft.ok and draft.record is not None
@@ -180,7 +180,7 @@ def test_record_rules_for_recipe_and_stage_records(stages: VisaWorld) -> None:
     assert "no check(s) ['vth']" in bringup.record(service, "L2", [run_id], references=["vth=0.4"]).message
     assert "not CHECK=VALUE" in bringup.record(service, "L2", [run_id], references=["r_dmm"]).message
     assert "unknown stage" in bringup.record(service, "L11", [run_id]).message
-    assert "has no stage file yet" in bringup.record(service, "L6", [run_id]).message  # L5 exists since WP7.7
+    assert "has no stage file yet" in bringup.record(service, "L8", [run_id]).message  # L6 exists since WP8.6
     assert "does not run basic.contact_resistor" in bringup.record(service, "L1", [run_id],
                                                                    recipe_id="basic.contact_resistor").message
 

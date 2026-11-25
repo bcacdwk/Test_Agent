@@ -34,6 +34,8 @@ from b1500_test_agent.models.sim import MoscapParams
 from b1500_test_agent.transport.sim.devices.moscap import MoscapDevice
 from tests.unit.analysis_helpers import manifest
 
+pytestmark = pytest.mark.cmu
+
 CRITERIA = QualityCriteria(limited=[], untrusted=["U", "D", "V", "X", "C", "T", "F", "G", "S"])
 GEOMETRY = DutGeometry(area_um2=1.0e4, tox_nm=5.0)
 Q = 1.602176634e-19

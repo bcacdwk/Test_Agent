@@ -214,6 +214,7 @@ ERROR_QUEUE_SIZE = 30
 QUERIES = frozenset({
     "*IDN?", "UNT?", "ERRX?", "*STB?", "*OPC?", "LOP?", "*TST?", "*CAL?", "NUB?", "*LRN?",
     "ERMOD?", "ERSSP?", "SPST?", "CORRST?", "ADJ?", "CORR?", "CORRSER?", "CORRL?", "DCORR?",
+    "CORRDT?",
 })  # fmt: skip
 """Commands that put a response into the query buffer."""
 
@@ -238,7 +239,7 @@ CMU_COMMANDS = frozenset({
     "WMACV", "PDCV", "PTDCV", "PWDCV", "MDCV", "MTDCV", "ADJ", "CORRL", "CLCORR", "DCORR", "CORRDT", "CORRST",
 })  # fmt: skip
 """MFCMU setting commands (WP8.1, blueprint v2 4.1; their queries ``ADJ?``, ``CORR?``, ``CORRST?`` and, WP8.2,
-``CORRL?``, ``DCORR?`` are in ``QUERIES``)."""
+``CORRL?``, ``DCORR?``, WP8.6, ``CORRDT?`` are in ``QUERIES``)."""
 
 SUPPORTED = (QUERIES | SAMPLING_COMMANDS | PULSED_COMMANDS | SEARCH_COMMANDS | QSCV_COMMANDS | CMU_COMMANDS
              | frozenset({

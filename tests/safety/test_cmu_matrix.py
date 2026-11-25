@@ -39,6 +39,8 @@ from b1500_test_agent.transport.sim.state import CommandRecord
 from tests.safety.helpers import Harness, HookTransport, assert_cleanup_order, make_harness
 from tests.sim.helpers import load_scenario, noiseless
 
+pytestmark = pytest.mark.cmu
+
 CMU = 7
 AC = AcEnvelope(max_vrms=0.05, max_dc_v=2.0, f_min_hz=1e4, f_max_hz=1e6)
 ENVELOPE = CompiledEnvelope(channels={CMU: ChannelEnvelope(role="a", max_abs_v=2.0, max_abs_i=1e-3,

@@ -17,6 +17,8 @@ from b1500_test_agent.transport.sim import SimTransport
 from tests.sim.helpers import load_scenario, noiseless, run
 from tests.unit.flex_fixtures import FlexFixture, all_fixtures
 
+pytestmark = pytest.mark.cmu
+
 CMU = 7
 FIXTURES = [f for f in all_fixtures("fmt1") if f.name.startswith("fmt1_cmu_")]
 

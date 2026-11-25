@@ -36,7 +36,7 @@ plans; the human does every physical step. Backend `sim`: symptoms and fixes are
 | `transport_error`, timeouts, no identity on the visa backend | [visa-no-connection](runbooks/visa-no-connection.md) |
 | Interlock OPEN or unknown, errors 202, 203, 310 | [interlock-open](runbooks/interlock-open.md) |
 | `fault`, `fault_latched`, `cleanup_unverified`, fault latch set | [cleanup-failed-fault](runbooks/cleanup-failed-fault.md) |
-| C-V blocked or refused by R-CORR-01, MFCMU corrections missing, stale or lost | [cmu-correction-stale](runbooks/cmu-correction-stale.md) |
+| MFCMU: C-V blocked or refused by R-CORR-01, corrections missing, stale or lost; C-V shape wrong (Cmax above Cox, stretch-out, deep depletion, branches apart, status U/D); Cp falls with frequency, large D or `rs` | [cmu-correction-stale](runbooks/cmu-correction-stale.md), [cmu-cv-distortion](runbooks/cmu-cv-distortion.md), [cmu-series-resistance](runbooks/cmu-series-resistance.md) |
 | Selector off rest, SPGU output running, SPP fallback (`spp_fallbacks`) | [spgu-selector-state](runbooks/spgu-selector-state.md) |
 | SPGU pulses did nothing (no switching, no charge-pumping current) | [spgu-pulse-no-effect](runbooks/spgu-pulse-no-effect.md) |
 | Pulse level at the pad not the set level, R-SPGU-01 SER/high_z block | [spgu-load-mismatch](runbooks/spgu-load-mismatch.md) |

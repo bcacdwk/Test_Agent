@@ -32,6 +32,8 @@ from b1500_test_agent.transport.sim.devices.mosfet import Mosfet
 from b1500_test_agent.transport.sim.units.cmu_engine import AC_QUADRATURE
 from tests.integration.helpers import REPO_ROOT, World
 
+pytestmark = pytest.mark.cmu
+
 CORRECTIONS = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short")
 MOSCAP = {"recipe_id": "moscap.cv", "pin_map": "moscap-cmu", "dut_profile": "moscap-generic"}
 SPLIT = {"pin_map": "mosfet-split-cv", "dut_profile": "nmos-cv"}

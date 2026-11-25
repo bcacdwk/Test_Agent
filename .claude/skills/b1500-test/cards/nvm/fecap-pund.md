@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/08-capacitance-cv.md#fecap-c-v-butterfly, knowledge/04-ferroelectric-oxide.md#ferroelectric-basics-ec-pr-ps, knowledge/04-ferroelectric-oxide.md#fecap-p-v-and-pund, knowledge/08-capacitance-cv.md#corrections-and-the-measurement-path]
 manual: ['PG p256 (3-76) "CV (DC Bias) Sweep"', 'PG p549 (4-231) "WDCV"', 'PG p554 (4-236) "WMDCV"']
-debug: [cmu-correction-stale, noisy-data, errx-codes, cleanup-failed-fault]
+debug: [cmu-correction-stale, cmu-cv-distortion, noisy-data, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 3.2 (fecap.cv_butterfly), blueprint v2 3.4 (fecap.pund, fecap.endurance_pund), blueprint v2 4.2 (ferro FeCap), blueprint v2 6.3 (fecap-pund)]
 version: 1
 ---
@@ -111,7 +111,7 @@ estimate; PUND (WGFMU) gives the switching Ec and Pr. `plot_cv` shows both branc
 |---|---|---|---|
 | blocked by R-CORR-01 | corrections missing, stale, other pin map | `station_status.corrections` | `cmu-correction-stale` |
 | `cv_butterfly` failed: peak at a branch end | sweep too narrow | widen within the DUT envelope | `noisy-data` |
-| large G, drifting C | leaky film | gate leakage check first | `noisy-data` |
+| large G, drifting C | leaky film | gate leakage check first | `cmu-cv-distortion` |
 | `U`/`D` status, sweep aborted | range, contact | `get_run` audit | `errx-codes` |
 | fault latched | interrupted cleanup | `safe_shutdown`, skill `b1500-debug` | `cleanup-failed-fault` |
 

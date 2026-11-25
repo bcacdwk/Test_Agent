@@ -21,6 +21,8 @@ import yaml
 from b1500_test_agent.archive.corrections import CorrectionStore
 from tests.visa_loop.helpers import CORRECTION_CASES, REPO_ROOT, VisaWorld, bus_events, run_case
 
+pytestmark = pytest.mark.cmu
+
 CMU = 7
 LOAD = {"ls_h": 0.0, "rs_ohm": 100.0}
 

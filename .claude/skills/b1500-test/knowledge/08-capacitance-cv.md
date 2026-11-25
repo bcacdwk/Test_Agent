@@ -12,6 +12,7 @@ sources:
   - Zerbst, Z. Angew. Phys. 22, 30 (1966) (C-t recovery); Miller et al., J. Appl. Phys. 68, 6463 (1990) (FeCap C-V)
   - src/b1500_test_agent/analysis/qscv.py, dit.py, catalog/kinds/smu_qscv.py (v2 WP8.5; QSCV, Dit over the gap)
   - Castagne & Vapaille, Surf. Sci. 28, 157 (1971) (high-low); Nicollian & Goetzberger, BSTJ 46, 1055 (1967)
+  - CMU closure (v2 WP8.6) - correction data read-back (CORRDT?), bring-up stage L6, runbooks cmu-cv-distortion and cmu-series-resistance
 last_reviewed: null
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
@@ -21,7 +22,8 @@ last_reviewed: null
 What the MFCMU measures, how a C-V curve becomes Cox, doping, flatband and threshold voltage, what the split C-V of
 a MOSFET adds, the variants (AC level, pulsed, C-f, C-t, FeCap butterfly), the SMU's quasi-static C-V and Dit over the
 band gap. The definitions are those of `analysis/cv.py`, `cv_variants.py`, `qscv.py` and `dit.py` (their module
-docstrings are the source); every value they return is derived. Debugging (distortion, series resistance, stale corrections) is skill `b1500-debug`.
+docstrings are the source); every value they return is derived. Debugging is skill `b1500-debug`: runbooks
+`cmu-cv-distortion`, `cmu-series-resistance`, `cmu-correction-stale`.
 
 ## Contents
 
@@ -56,6 +58,9 @@ docstrings are the source); every value they return is derived. Debugging (disto
   `dit_conductance` (card `cmu/moscap-dit`).
 - Every C-V run needs fresh phase, open and short corrections of the same pin map (rule R-CORR-01; card
   `cmu/cmu-correction`).
+- All 15 MFCMU recipes are `sim_validated` (the module closed with WP8.6); on hardware they are validated at bring-up
+  stage L6 (skill `b1500-bringup`: corrections, a reference capacitor within 1 %, MOS-C against EasyEXPERT, QSCV
+  against the HF Cox of the same landing), until then every hardware plan needs `first_hw_run` confirmation.
 
 ## Impedance models Cp-G Cs-Rs Z-theta
 
@@ -64,7 +69,8 @@ docstrings are the source); every value they return is derived. Debugging (disto
 - Parallel and series forms describe the same admittance `Y = G + jwCp`, `Z = 1/Y = Rs - j/(wCs)`: `Cs = Cp (1 +
   D^2)`, `D = G/(wCp) = Rs w Cs`. For a good capacitor (D < 0.01) Cp and Cs agree within 0.01 %.
 - A MOS capacitor is a parallel network (oxide, depletion, traps, leakage), so C-V uses Cp-G; a series resistance
-  (substrate, back contact, probe) adds to Z and makes Cp fall at high frequency in accumulation.
+  (substrate, back contact, probe) adds to Z and makes Cp fall at high frequency in accumulation: `Cp = C / (1 +
+  (w Rs C)^2)`, 1 % at `w Rs C` = 0.1 (69 pF at 1 MHz: Rs = 230 Ohm).
 - `impedance_convert` reports a run in another pair at one point per frequency and can remove a series resistance:
   given (`series_r: value`, `rs_ohm`) or estimated in strong accumulation (`series_r: accumulation`): `Rs =
   G_ma / (G_ma^2 + w^2 C_ma^2)` from the parallel values at the largest capacitance (Nicollian & Brews eq. 5.12).
@@ -81,6 +87,10 @@ docstrings are the source); every value they return is derived. Debugging (disto
   23 default frequencies cover 1 kHz to 5 MHz in 1-2-5 steps). A C-f sweep's list (4 per decade, log) is not in
   them: run open and short with `freqs_hz` = the C-f list (plus the C-V frequencies); the new list clears the old
   corrections of that MFCMU, so all are measured again (phase, open, short).
+- Each data correction reads its data back (`CORRDT?`, medians over the list in the run's `kind_result`): the open's
+  stray capacitance `open_cp_f` (lifted probes: below a few pF; tens of pF = the probes were on a device) and the
+  short's `short_rs_ohm`/`short_ls_h` (cable and probe: below about 1 Ohm, tens of nH). Implausible values mean the
+  human's probe state was wrong: repeat that correction before any C-V.
 - Known-capacitor check: `cmu.spot` on a reference capacitor reads its value within its tolerance after the
   corrections (bring-up stage L6).
 
@@ -263,7 +273,8 @@ docstrings are the source); every value they return is derived. Debugging (disto
 
 ## Reporting C-V results
 
-- Measured: the C-V table (pair, frequency, AC level, DC bias), status counts, correction ages (summary `corr`).
+- Measured: the C-V table (pair, frequency, AC level, DC bias), status counts, correction ages (summary `corr`)
+  and, when asked, the correction runs' data read-back (`open_cp_f`, `short_rs_ohm`).
 - Derived (method, window, options): Cox (and EOT), Nsub (depth window), Vfb (C_FB), Vth (method), hysteresis,
   plateau Cox W L and floor; Dit, tau and the Cox used (C-f); tau_recovery (C-t); C0 and ac_limit; Vc, Ec, imprint;
   QSCV Cox and the offset mode; Dit(E) (method, energy window, both run ids of high-low).

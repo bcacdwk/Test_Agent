@@ -26,6 +26,8 @@ from b1500_test_agent.rules import RulesEngine
 from tests.unit.helpers import REPO_ROOT
 from tests.unit.rules_factory import T0
 
+pytestmark = pytest.mark.cmu
+
 KIND = CmuMeasureKind()
 REGISTRY = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)
 

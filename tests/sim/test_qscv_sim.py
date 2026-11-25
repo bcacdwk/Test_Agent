@@ -18,6 +18,8 @@ from b1500_test_agent.transport.sim.devices.moscap import MoscapDevice
 from b1500_test_agent.transport.sim.units.qscv import QSCV_STRAY_F
 from tests.sim.helpers import errx_all, load_scenario, noiseless, run, scenario_with
 
+pytestmark = pytest.mark.cmu
+
 C100 = 100e-12
 SETUP = ("FMT 1,1", "CN 3", "MM 13,3", "QSC 0", "QSO 0", "QSL 1,1", "QSM 2,1", "QSR -11",
          "QST 0.1,0.1,0,0,0")

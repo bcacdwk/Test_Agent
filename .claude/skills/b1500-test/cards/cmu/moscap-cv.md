@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/08-capacitance-cv.md#high-frequency-c-v-of-a-mos-capacitor, knowledge/08-capacitance-cv.md#oxide-capacitance-and-eot, knowledge/08-capacitance-cv.md#doping-from-1c2, knowledge/08-capacitance-cv.md#flatband-voltage, knowledge/08-capacitance-cv.md#scuu-same-landing-i-v-and-c-v, knowledge/08-capacitance-cv.md#ac-level-dependence, knowledge/08-capacitance-cv.md#pulsed-c-v]
 manual: ['PG p256 (3-76) "CV (DC Bias) Sweep"', 'PG p549 (4-231) "WDCV"', 'PG p554 (4-236) "WMDCV"', 'PG p520 (4-202) "SSP"', 'AN-CV p6 (6) "SCUU"', 'PG p270 (3-90) "CV (AC Level) Sweep"', 'PG p547 (4-229) "WACV"', 'PG p265 (3-85) "Pulsed Sweep CV"', 'PG p487 (4-169) "PTDCV"', 'PG p489 (4-171) "PWDCV"']
-debug: [cmu-correction-stale, noisy-data, errx-codes, cleanup-failed-fault]
+debug: [cmu-correction-stale, cmu-cv-distortion, cmu-series-resistance, noisy-data, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 2.7, blueprint v2 2.10 (cv.py), blueprint v2 3.2 (moscap.cv, cv_ac_level, pulsed_cv), blueprint v2 4.2 (moscap)]
 version: 1
 ---
@@ -112,11 +112,11 @@ sim_scenario: moscap_basic
 
 ## 7. Analysis method
 
-`moscap.cv`: `cv_cox` (accumulation extrapolation, EOT), `cv_doping_profile` (1/C^2), `cv_flatband`, `cv_vth`; double
-sweep `cv_hysteresis`; series R `impedance_convert` (`series_r: accumulation`), then `rs_ohm`. `moscap.cv_ac_level`:
-`cv_ac_dependence` (C0, curvature, `ac_limit` at 1 %). `moscap.pulsed_cv`: `cv_cox`, `cv_flatband`,
-`cv_doping_profile`, and `cv_pulsed_vs_dc` with `options.reference_run` = a `moscap.cv` swept from accumulation
-(`delta_vfb`, `cox_ratio`, `c_ratio_inversion`). `plot_cv` for any. Report values as derived; Cmax is not Cox.
+`moscap.cv`: Cox and EOT `cv_cox` (accumulation extrapolation), Nsub `cv_doping_profile` (1/C^2), Vfb `cv_flatband`
+(flatband capacitance), Vth `cv_vth`; double sweep `cv_hysteresis`; series R `impedance_convert` (`series_r:
+accumulation`), then `rs_ohm`. `moscap.cv_ac_level`: `cv_ac_dependence` (`ac_limit`). `moscap.pulsed_cv`: as
+`moscap.cv` plus `cv_pulsed_vs_dc` (`options.reference_run`: a `moscap.cv` from accumulation). `plot_cv` for any.
+Name the method id with every derived value (`Vfb = -0.83 V; cv_flatband; window ...`); Cmax is not Cox.
 
 ## 8. Expected result shape
 
@@ -133,7 +133,7 @@ sweep `cv_hysteresis`; series R `impedance_convert` (`series_r: accumulation`), 
 | symptom | likely cause | first safe check | runbook |
 |---|---|---|---|
 | blocked by R-CORR-01 | corrections missing, stale, other pin map, frequency | `station_status.corrections` | `cmu-correction-stale` |
-| stretched or humped curve | interface traps, leakage, series R | G/w plot, leakage, `impedance_convert` | `noisy-data` |
+| stretched or humped curve, Cp low at 1 MHz | traps, leakage, series R | `plot_cv` G/w, `impedance_convert` | `cmu-cv-distortion`, `cmu-series-resistance` |
 | `U`/`D` status, sweep aborted; invalid pulse width | range, contact, leakage; width < 8/10/50 ms | `get_run` audit; `width_s` | `errx-codes` |
 | fault latched, SCUU not at rest | interrupted run, SSP failure | `safe_shutdown`, skill `b1500-debug` | `cleanup-failed-fault` |
 

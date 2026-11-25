@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/08-capacitance-cv.md#c-f-and-frequency-dispersion, knowledge/08-capacitance-cv.md#c-t-and-deep-depletion-recovery, knowledge/08-capacitance-cv.md#corrections-and-the-measurement-path, knowledge/08-capacitance-cv.md#high-frequency-c-v-of-a-mos-capacitor]
 manual: ['PG p275 (3-95) "C-f Sweep"', 'PG p550 (4-232) "WFC"', 'PG p126 (2-38) "C-f Sweep"', 'PG p280 (3-100) "C-t Sampling"', 'PG p467 (4-149) "MDCV"', 'PG p476 (4-158) "MTDCV"', 'PG p348 (4-30) "Setting resolution"']
-debug: [cmu-correction-stale, noisy-data, errx-codes, cleanup-failed-fault]
+debug: [cmu-correction-stale, cmu-series-resistance, cmu-cv-distortion, noisy-data, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 2.7 (kind cmu_measure MM 22/26), blueprint v2 2.10 (cf_dispersion), blueprint v2 3.2 (moscap.cf, moscap.ct), blueprint v2 4.2 (moscap Dit, deep depletion)]
 version: 1
 ---
@@ -128,7 +128,8 @@ fails: move the bias. `moscap.ct`: `ct_recovery` (1/C^2 relaxation): `tau_recove
 | blocked by R-CORR-01 "does not cover" | correction list lacks a C-f point | run open/short with the C-f list | `cmu-correction-stale` |
 | invalid plan "equally spaced" | the list is not one log/linear stair | rebuild the list (section 4) | `errx-codes` |
 | `dit` failed: peak outside | bias too near midgap or flatband | `moscap.cv`, pick a depletion bias | `noisy-data` |
-| scattered G/w, negative G | noise, uncorrected path | integration long, corrections | `noisy-data` |
+| scattered G/w, negative G | noise, uncorrected path | integration long, corrections | `cmu-cv-distortion` |
+| C and Dit drift at the top frequencies | series resistance | `impedance_convert` (`series_r`) | `cmu-series-resistance` |
 | fault latched after a cancel | interrupted cleanup | `safe_shutdown`, skill `b1500-debug` | `cleanup-failed-fault` |
 
 ## 10. Validation record

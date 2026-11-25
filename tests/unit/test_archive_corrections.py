@@ -20,6 +20,8 @@ from b1500_test_agent.paths import ENV_DATA_DIR
 from tests.unit.rules_factory import T0, ZERO_SHA, engine
 from tests.unit.test_rules_builtin import cmu, corr
 
+pytestmark = pytest.mark.cmu
+
 IDN = "Keysight Technologies,B1500A,SIM1,A.06"
 OTHER = "d" * 64
 POLICY = CorrectionPolicy()

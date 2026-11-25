@@ -82,6 +82,7 @@ DRIVER_METHODS = (
     "search_setup", "quasi_pulse_setup",
     "set_filter", "set_series_resistor", "set_adc_zero", "set_averaging", "set_range_mode", "clear_sweep_sources",
     "qscv_setup", "measure_qscv_offset",
+    "correction_data", "correction_data_list",
 )  # fmt: skip
 COMMAND_BUILDERS = (
     "cn", "cl", "dz", "fmt", "mm", "cmm", "aad", "ait", "ri", "rv", "wt", "wm", "dv", "wv", "cm", "lrn_q",
@@ -99,6 +100,7 @@ COMMAND_BUILDERS = (
     "bssv", "bssi", "bsvm", "bdv", "bdt", "bdm",
     "fl", "ssr", "az", "av", "rm", "wncc",
     "qsv", "qst", "qsm", "qsl", "qso", "qsc", "qsr", "qsz",
+    "corrdt_q",
 )  # fmt: skip
 DRIVER_TARGETS = tuple(f"B1500Driver.{m}" for m in DRIVER_METHODS) + tuple(f"flex.{b}" for b in COMMAND_BUILDERS)
 
@@ -242,6 +244,8 @@ COMMAND_TARGETS: dict[str, CommandTarget] = {
                             "rewrite, which would clear the other corrections (WP8.2)"),
     "DCORR?": CommandTarget("correction_standard", "dcorr_q", "standards read back by the correction recipes (WP8.2)"),
     "CORRDT": CommandTarget("set_correction_data", "corrdt"),
+    "CORRDT?": CommandTarget("correction_data", "corrdt_q", "the correction recipes read the data just measured "
+                             "back (correction_data_list: CORRL? count, CORRDT? per frequency; WP8.6)"),
     "CORRST": CommandTarget("set_correction", "corrst"),
     "SSP": CommandTarget("scuu_route", "ssp", "OutputGuard.check_route per output; resets the SMUs (ATV-27); path "
                          "read back with *LRN? 81 (no SSP? exists)"),
@@ -396,6 +400,7 @@ GROUPED_PAGES: dict[str, tuple[list[int], list[str]]] = {
     "DCORR": ([389], ["4-71"]),
     "CORRL?": ([385], ["4-67"]),
     "DCORR?": ([389, 390], ["4-71 to 4-72"]),
+    "CORRDT?": ([384], ["4-66"]),
     "CORRDT": ([383, 384], ["4-65 to 4-66"]),
     "SSP": ([519, 520, 521], ["4-201 to 4-203"]),
     "SSL": ([519], ["4-201"]),
@@ -541,7 +546,7 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
     "D_atom_ingest_request_build_expectation": ("catalog planner: PlanRecord.estimate", "m1"),
     "D_atom_ingest_smu_build_dataset": ("kind.to_table + analysis.load_run", "m1"),
     "D_atom_ingest_easyexpert_build_dataset": (None, "later"),
-    "D_atom_ingest_cmu_build_dataset": (None, "later"),
+    "D_atom_ingest_cmu_build_dataset": ("cmu_measure/smu_qscv to_table + analysis.load_run (WP8.3-8.5)", "later"),
     "D_atom_ingest_wgfmu_build_series": (("kind wgfmu_waveform: waveform_table (point_layout, program_levels) + "
                                           "analysis.load_run of data.npz; raw/wgfmu-<ch>-<n>.npz (WP10.4)"), "later"),
     "D_atom_qualify_dataset_classify_status": ("analysis.assess_quality (per-column status)", "m1"),
@@ -553,7 +558,8 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
     "D_atom_qualify_iv_check_source_tracking": (
         "analysis.assess_quality (C/T: a source that left its set value; status letters per point)", "m1"),
     "D_atom_qualify_dataset_check_continuity": ("smu_sampling kind_result index_gaps, time_source (WP7.4)", "later"),
-    "D_atom_qualify_cv_check_correction": (None, "later"),
+    "D_atom_qualify_cv_check_correction": ("rule R-CORR-01 + live CORRST?/ADJ? check (catalog/corrections.py; WP8.2)",
+                                           "later"),
     "D_atom_qualify_timeseries_check_events": ("analysis.time_to_breakdown (WP7.4)", "later"),
     "D_atom_shape_dataset_split_segments": ("segment fwd/rev option of the Vth extractors", "m2"),
     "D_atom_shape_dataset_stack_family": ("smu_stepped table (Id-Vd family)", "m2"),
@@ -573,8 +579,8 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
     "D_atom_extract_transfer_voltage_shift": ("analysis.memory_window", "m2"),
     "D_atom_extract_output_ron": ("analysis.output_metrics", "m2"),
     "D_atom_extract_leakage_breakdown_voltage": ("analysis.breakdown_voltage (WP7.5)", "m1"),
-    "D_atom_extract_cv_cox": (None, "later"),
-    "D_atom_extract_cv_vfb": (None, "later"),
+    "D_atom_extract_cv_cox": ("analysis.cv_cox (accumulation extrapolation; WP8.3)", "later"),
+    "D_atom_extract_cv_vfb": ("analysis.cv_flatband (flatband capacitance; WP8.3)", "later"),
     "D_atom_assess_value_check_limits": (None, "later"),
     "D_atom_assess_dataset_check_envelope": (None, "later"),
     "D_atom_assess_dataset_compare_reference": (
@@ -591,9 +597,10 @@ D_SUCCESSORS: dict[str, tuple[str | None, str]] = {
 # --- Coverage ledger (blueprint v2 0 row 1, 9 "Driver map v2 = coverage ledger"; WP7.7 closes the SMU rows) ----------
 # Every atom, flow and command belongs to one family; an entry is `mapped` (a driver target, a D-atom successor or a
 # flow target), `out_of_scope` (a reason from OUT_OF_SCOPE) or `open`. `--check` fails on an `open` entry of a closed
-# family. The module closures add theirs (8.6 cmu, 9.6 spgu, 10.8 wgfmu); WP11.2 closes `system` and maps the rest.
+# family. The module closures add theirs (8.6 cmu: done, 9.6 spgu, 10.8 wgfmu); WP11.2 closes `system` and maps the
+# rest.
 LEDGER_FAMILIES = ("smu", "cmu", "spgu", "wgfmu", "system")
-CLOSED_FAMILIES = ("smu",)
+CLOSED_FAMILIES = ("smu", "cmu")
 """Families whose every entry is mapped or out of scope (`--check` enforces it)."""
 
 COMMAND_CATEGORY_FAMILY: dict[str, str] = {
@@ -630,6 +637,11 @@ _EXPANDER = ("HV/HC/UHC units, expanders and their selectors/fixtures (N1258A/N1
 _HCSMU = "HCSMU dual (parallel) channel: no HCSMU in this station (blueprint v2 1.1)"
 _TRIGGER = ("external trigger input/output to other instruments: out of scope (blueprint v2 1.2); the kinds trigger "
             "with XE and poll")
+_CMU_HIGH_SPEED_SPOT = ("MFCMU high-speed spot C (TC/TTC) and its AC level/DC bias monitor commands (TMACV/TMDCV): the "
+                        "CMU counterpart of the SMU high-speed spot, out of scope by blueprint v2 1.2 (MFCMU in-scope "
+                        "list); the MM 17 spot C (cmu_measure, recipe cmu.spot) with LMN monitors covers single points")
+_CMU_TIMER_START = ("timer-start MFCMU AC/DC output (TACV/TDCV): the CMU counterpart of TDV/TDI, out of scope by "
+                    "blueprint v2 1.2; ACV/DCV set the signal and the C-t sampling (MM 26) carries the time stamps")
 OUT_OF_SCOPE: dict[str, str] = {
     # commands of family smu
     **{c: _HIGH_SPEED_SPOT for c in ("TI", "TV", "TIV", "TTI", "TTV", "TTIV", "HSS")},
@@ -664,6 +676,15 @@ OUT_OF_SCOPE: dict[str, str] = {
     "B_atom_output_smu_set_compliance_limit": "LIM: " + _EXPANDER,
     **{a: _EXPANDER for a in ("C_atom_hvsmu_set_operation_mode", "C_atom_hvsmu_execute_iv", "C_atom_hcsmu_execute_iv",
                               "C_atom_uhcu_execute_iv", "C_atom_hvmcu_execute_iv", "C_atom_uhvu_execute_iv")},
+    # commands of family cmu
+    **{c: _CMU_HIGH_SPEED_SPOT for c in ("TC", "TTC", "TMACV", "TMDCV")},
+    "TACV": _CMU_TIMER_START, "TDCV": _CMU_TIMER_START,
+    # atoms of family cmu
+    "C_atom_cmu_measure_high_speed_spot": _CMU_HIGH_SPEED_SPOT,
+    "C_atom_cmu_measure_timer_start_ac_voltage": _CMU_TIMER_START,
+    "C_atom_cmu_measure_timer_start_dc_voltage": _CMU_TIMER_START,
+    # flows of family cmu
+    "C_flow_spot_cmu_high_speed": _CMU_HIGH_SPEED_SPOT,
     # flows of family smu
     "C_flow_spot_smu_high_speed": _HIGH_SPEED_SPOT,
     "C_flow_sampling_smu_signal_monitor": _SIGNAL_MONITOR,
@@ -696,6 +717,31 @@ FLOW_TARGETS: dict[str, list[str]] = {
     "CD_flow_qualify_iv_dataset": ["recipe:mosfet.idvg", "analysis:quality_report"],
     "CD_flow_screen_iv_leakage": ["recipe:mosfet.gate_leakage", "analysis:leakage_at"],
     "CD_flow_analyze_iv_transfer": ["recipe:mosfet.idvg", "analysis:vth_linear_extrapolation"],
+    # family cmu (WP8.6)
+    "B_flow_preparation_scuu_signal_path": ["B1500Driver.scuu_route", "kind:cmu_measure", "kind:smu_qscv",
+                                            "kind:cmu_correction"],
+    "AB_flow_preparation_scuu_signal_path": ["B1500Driver.scuu_route", "kind:cmu_measure", "kind:smu_qscv",
+                                             "kind:cmu_correction"],
+    "B_flow_correction_cmu_phase_compensation": ["recipe:cmu.phase_compensation", "kind:cmu_correction"],
+    "AB_flow_correction_cmu_phase_compensation": ["recipe:cmu.phase_compensation", "kind:cmu_correction"],
+    "B_flow_correction_cmu_open_short_load": ["recipe:cmu.correction_open", "recipe:cmu.correction_short",
+                                              "recipe:cmu.correction_load", "kind:cmu_correction"],
+    "AB_flow_correction_cmu_open_short_load": ["recipe:cmu.correction_open", "recipe:cmu.correction_short",
+                                               "recipe:cmu.correction_load", "kind:cmu_correction"],
+    "B_flow_correction_qscv_offset_cancel": ["recipe:moscap.qscv", "kind:smu_qscv", "B1500Driver.measure_qscv_offset"],
+    "AB_flow_correction_qscv_offset_cancel": ["recipe:moscap.qscv", "kind:smu_qscv",
+                                              "B1500Driver.measure_qscv_offset"],
+    "C_flow_spot_cmu_impedance": ["recipe:cmu.spot", "kind:cmu_measure", "analysis:impedance_convert"],
+    "C_flow_sweep_smu_qscv": ["recipe:moscap.qscv", "kind:smu_qscv", "analysis:cv_cox", "analysis:dit_high_low"],
+    "C_flow_sweep_cmu_cv": ["recipe:moscap.cv", "recipe:mosfet.cgc_cv", "recipe:mosfet.cgd_cv",
+                            "recipe:moscap.cv_multi_freq", "recipe:fecap.cv_butterfly", "kind:cmu_measure"],
+    "C_flow_sweep_cmu_cf": ["recipe:moscap.cf", "kind:cmu_measure", "analysis:cf_dispersion"],
+    "C_flow_sweep_cmu_ac_level": ["recipe:moscap.cv_ac_level", "kind:cmu_measure", "analysis:cv_ac_dependence"],
+    "C_flow_pulse_cmu_spot": ["recipe:moscap.pulsed_cv", "kind:cmu_measure"],
+    "C_flow_pulse_cmu_cv": ["recipe:moscap.pulsed_cv", "kind:cmu_measure", "analysis:cv_pulsed_vs_dc"],
+    "C_flow_sampling_cmu_ct": ["recipe:moscap.ct", "kind:cmu_measure", "analysis:ct_recovery"],
+    "D_flow_qualify_cv_dataset": ["analysis:quality_report", "analysis:cv_cox", "analysis:cv_flatband"],
+    "CD_flow_qualify_cv_dataset": ["recipe:moscap.cv", "analysis:quality_report", "analysis:cv_cox"],
 }
 """v2 successors of the legacy flows (recipes, kinds, analysis methods, driver methods): a flow is a recipe now."""
 

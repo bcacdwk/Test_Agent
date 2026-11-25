@@ -2,7 +2,8 @@
 # do not exist yet (CMU work packages), so their plans, runs and analyses are forged with the real models (`forge`
 # actions, tests/acceptance/forge.py); station_status is real. Turn 1: moscap.cv blocked by R-CORR-01, phase/open
 # correction plans (physical_setup) shown, stop. Turn 2: both run with the exact summaries, short plan shown. Turn 3:
-# short correction, C-V plan shown (unverified pin map), asks to land on the MOS cap. Turn 4: C-V, Cox and Vfb from
+# short correction, C-V plan shown (unverified pin map, dut_envelope: the MFCMU's AC current against the 1 uA terminal
+# limit of moscap-generic; WP8.6), asks to land on the MOS cap. Turn 4: C-V, Cox and Vfb from
 # the simulator truth (so the session stays ideal on the real moscap_basic scenario too), SIMULATED.
 turns:
   1:
@@ -69,11 +70,13 @@ turns:
       channels: {7: {role: high, terminal: gate, function: cmu_high, cmu_side: H, max_abs_v: 2.0, max_abs_i: 1.0e-6}}
       findings:
         - {rule_id: R-PIN-02, severity: confirm, reason: unverified_pin_map, message: "pin map moscap-cmu is unverified"}
-      summary: "moscap.cv@1 | high=CMU7(MFCMU) dc -2..2 V ac 30 mV 100 kHz | DUT moscap-generic | pins moscap-cmu | sim | R-PIN-02 unverified_pin_map"
+        - {rule_id: R-DUT-01, severity: confirm, reason: dut_envelope, message: "gate: MFCMU AC current 0.85 mA above max_abs_i 1 uA"}
+      summary: "moscap.cv@1 | high=CMU7(MFCMU) dc -2..2 V ac 30 mV 100 kHz | DUT moscap-generic | pins moscap-cmu | sim | R-PIN-02 unverified_pin_map, R-DUT-01 dut_envelope"
       save: cv
     - say: |-
         Short correction done ({{rps.run_id}}), SIMULATED. Please land the probes on the MOS cap again. The C-V needs
-        your confirmation (unverified pin map), plan {{cv.plan_id}}: {{cv.summary}}
+        your confirmation (unverified pin map; dut_envelope: the MFCMU's nominal AC current is above the 1 uA terminal
+        limit, an intact oxide draws only leakage), plan {{cv.plan_id}}: {{cv.summary}}
   4:
     - {forge: run, tool: run_confirmed_plan, plan_id: "{{cv.plan_id}}", summary: "{{cv.summary}}", save: rcv}
     - forge: analyze

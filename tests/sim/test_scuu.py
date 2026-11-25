@@ -15,6 +15,8 @@ from b1500_test_agent.models.station import SimScenario
 from b1500_test_agent.transport.sim import SimTransport
 from tests.sim.helpers import errx_all, load_scenario, noiseless, run
 
+pytestmark = pytest.mark.cmu
+
 LAB_SLOTS = [{"slot": 1, "model": "B1525A"}, {"slot": 2, "model": "B1530A"}, {"slot": 3, "model": "B1517A"},
              {"slot": 4, "model": "B1517A"}, {"slot": 5, "model": "B1511B"}, {"slot": 6, "model": "B1511B"},
              {"slot": 7, "model": "B1520A"}]

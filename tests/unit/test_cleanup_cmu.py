@@ -4,11 +4,15 @@ fails the step, so the retry repeats both; a driver that drove no MFCMU sends ex
 
 from __future__ import annotations
 
+import pytest
+
 from b1500_test_agent.driver.b1500 import B1500Driver, CmuSignal
 from b1500_test_agent.driver.guard import OutputGuard
 from b1500_test_agent.models.plan import AcEnvelope, ChannelEnvelope, CompiledEnvelope
 from b1500_test_agent.session.transaction import run_cleanup
 from tests.unit.driver_helpers import ReadTimeout, SpyTransport
+
+pytestmark = pytest.mark.cmu
 
 CMU = 7
 ENVELOPE = CompiledEnvelope(channels={CMU: ChannelEnvelope(

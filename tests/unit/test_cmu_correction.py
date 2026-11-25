@@ -44,6 +44,8 @@ from tests.sim.helpers import load_scenario, noiseless
 from tests.unit import rules_factory_v2 as v2
 from tests.unit.rules_factory import T0, bundle, dut, engine, example_station, pin_map_exact
 
+pytestmark = pytest.mark.cmu
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)
 KIND = CmuCorrectionKind()

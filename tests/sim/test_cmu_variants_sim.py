@@ -22,6 +22,8 @@ from b1500_test_agent.transport.sim.devices.moscap import GAP_HALF_EV, MoscapDev
 from b1500_test_agent.transport.sim.units.cmu_engine import AC_QUADRATURE
 from tests.sim.helpers import load_scenario, noiseless, run
 
+pytestmark = pytest.mark.cmu
+
 CMU = 7
 DIT = {"dit_cm2_ev": 2.0e11, "dit_edge_cm2_ev": 1.0e10, "dit_width_ev": 0.1}
 

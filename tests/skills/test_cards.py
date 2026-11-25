@@ -95,7 +95,8 @@ RUNBOOKS = {"current-too-high", "noisy-data", "compliance-hit", "vth-drift-igzo"
             "interlock-open", "cleanup-failed-fault", "cmu-correction-stale",  # WP8.2: the first v2 runbook
             "spgu-selector-state", "spgu-pulse-no-effect", "spgu-load-mismatch",  # WP9.3
             "smu-sampling-skips", "stress-degradation-unexpected",  # WP7.7
-            "wgfmu-library-error", "wgfmu-range-overflow", "wgfmu-memory-budget"}  # WP10.4
+            "wgfmu-library-error", "wgfmu-range-overflow", "wgfmu-memory-budget",  # WP10.4
+            "cmu-cv-distortion", "cmu-series-resistance"}  # WP8.6
 RUN_ID = re.compile(r"\bS\d{8}T\d{6}Z-[0-9a-f]{4}\b")
 SCENARIOS = sorted(p.stem for p in (ROOT / "config" / "sim" / "scenarios").glob("*.yaml"))
 

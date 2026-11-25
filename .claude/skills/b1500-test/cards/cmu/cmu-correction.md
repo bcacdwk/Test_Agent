@@ -11,8 +11,8 @@ bringup_stage: L6
 status: sim_validated
 confirmation: always
 knowledge: [knowledge/02-b1500-instrument.md#mfcmu-phase-compensation-and-correction, knowledge/03-probe-station-wiring.md#signal-path-from-smu-to-pad]
-manual: ['PG p251 (3-71) "Data Correction"', 'PG p355 (4-37) "ADJ"', 'PG p382 (4-64) "CORR?"', 'PG p379 (4-61) "CLCORR"', 'PG p389 (4-71) "DCORR"', 'PG p175 (2-87) "device clear"']
-debug: [cmu-correction-stale, errx-codes, cleanup-failed-fault]
+manual: ['PG p251 (3-71) "Data Correction"', 'PG p355 (4-37) "ADJ"', 'PG p382 (4-64) "CORR?"', 'PG p379 (4-61) "CLCORR"', 'PG p389 (4-71) "DCORR"', 'PG p384 (4-66) "CORRDT?"', 'PG p175 (2-87) "device clear"']
+debug: [cmu-correction-stale, cmu-cv-distortion, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 0 (decision 11), blueprint v2 2.6, blueprint v2 3.2, blueprint v2 4.2]
 version: 1
 ---
@@ -53,7 +53,12 @@ blocks it otherwise and points here. The recipes measure the cables and probes, 
     them lifted until I report the run done."
   - short: "Please land both probes on a short (shorting bar or one metal pad) and keep them there."
   - load: "Please connect the load standard (station profile `corrections.<alias>.load`) at the device end."
-- After the last correction: "Please land the probes on the device again" before the C-V.
+- After the last correction, in the same answer: validate the measurement plan (R-CORR-01 now passes), show its
+  summary and ask "Please land the probes on the device again; reply go ahead to run this plan". It needs
+  confirmation too: `unverified_pin_map` (example pin maps) and, on `moscap-generic`, `dut_envelope` (the MFCMU has
+  no compliance: its nominal AC current `sqrt(2) x Vac / 50 Ohm` exceeds the 1 uA terminal limit; an intact oxide
+  draws only leakage). A reply that confirms the landing and says go ahead is the consent for that summary; a reply
+  with the landing only: ask for the consent. Never run a C-V while the probes are lifted or on the short.
 
 ## 4. Recipe and parameters
 
@@ -84,8 +89,9 @@ sim_scenario: capacitor_100p
 ## 5. Limits and confirmation
 
 - Always `needs_confirmation`: `physical_setup` (R-ALWAYS-01; the finding names the probe state). Show the summary
-  verbatim with the physical step, stop the turn; one consent per run. Unverified pin maps add
-  `unverified_pin_map`; on hardware `first_hw_run` until `hw_validated`.
+  verbatim with the physical step, stop the turn; every run needs consent to its shown summary. Phase compensation
+  and open share the lifted state: show both summaries together; one reply (lifted, go ahead) consents to both, run
+  them in order. Unverified pin maps add `unverified_pin_map`; on hardware `first_hw_run` until `hw_validated`.
 - AC level within 10..250 mVrms and the MFCMU's 1 kHz..5 MHz (R-CMU-01), DC bias 0 V; no compliance on the MFCMU.
 - `cmu.correction_load` cannot be planned without the load standard in the station profile (`invalid_input`;
   only a human records it). Not destructive; sync runs (phase about 35 s, data corrections about 0.5 s per
@@ -98,19 +104,23 @@ sim_scenario: capacitor_100p
 - `completed_with_flags` with "record(s) were discarded": another correction was invalidated (new phase
   compensation, or a rewritten frequency list). Run the named recipes again in order.
 - Result 1 (failed) or 2 (aborted): the physical state was wrong; ask the human, re-run once.
+- Data read back (`CORRDT?`, medians over the list): `open_cp_f` is the stray capacitance of the lifted probes
+  (simulator 0.3 pF; a probe pair about 0.1..2 pF, TODO(verify) at L6): tens of pF means the probes were on a device.
+  `short_rs_ohm` (cable and probe, below about 1 Ohm) and `short_ls_h` (tens of nH): hundreds of Ohm means they
+  were not on the short. Either: ask the human, repeat the correction in the right state (runbook `cmu-cv-distortion`).
 
 ## 7. Analysis method
 
-No `analyze_run` method. Report from `get_run` (summary, audit): result per correction, frequencies, AC level,
-`station_status.corrections` afterwards. Check the corrections with a known capacitor (card `cmu-spot`) at L6.
+No `analyze_run` method. Report from `get_run` (summary, audit, `kind_result`): result per correction,
+frequencies, AC level, the data read back (`open_cp_f`, `short_rs_ohm`), `station_status.corrections` afterwards. Check the corrections with a known capacitor (card `cmu-spot`) at L6.
 
 ## 8. Expected result shape
 
 | correction | typical | red flags |
 |---|---|---|
 | phase | result 0 after about 30 s; `after_phase` true | result 1: something touches the probes |
-| open | result 0; `after_open` true | result 1/2: probes still on the DUT |
-| short | result 0; `after_short` true, `after_open` still true | open record discarded: the list or standards changed |
+| open | result 0; `after_open` true; `open_cp_f` below a few pF | result 1/2 or `open_cp_f` of tens of pF: probes on the DUT |
+| short | result 0; `after_short` true, `after_open` still true; `short_rs_ohm` below 1 Ohm | open record discarded: the list or standards changed; `short_rs_ohm` of 100s of Ohm |
 | any | a fresh record in `station_status.corrections` | records missing after a device clear, `*RST` or power cycle |
 
 ## 9. Common failures → debug
@@ -120,6 +130,7 @@ No `analyze_run` method. Report from `get_run` (summary, audit): result per corr
 | C-V blocked by R-CORR-01 | missing, stale, other pin map, frequency not listed | `station_status.corrections` | `cmu-correction-stale` |
 | corrections lost before a run | `*RST`, device clear, power cycle | pre-execute finding, `station_status` | `cmu-correction-stale` |
 | result 1 or 2, errors 680-685 | wrong probe state, AC 0, no load reference | `get_run` audit, ask the human | `errx-codes` |
+| `open_cp_f` tens of pF, `short_rs_ohm` 100s of Ohm | probes not lifted / not on the short | ask the human, repeat | `cmu-cv-distortion` |
 | fault latched, cleanup unverified | interrupted run | `safe_shutdown`, skill `b1500-debug` | `cleanup-failed-fault` |
 
 ## 10. Validation record

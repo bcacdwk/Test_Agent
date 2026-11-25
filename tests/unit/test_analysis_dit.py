@@ -26,6 +26,8 @@ from b1500_test_agent.transport.sim.devices.moscap import MoscapDevice
 from tests.unit.analysis_helpers import manifest
 from tests.unit.helpers import REPO_ROOT
 
+pytestmark = pytest.mark.cmu
+
 CRITERIA = QualityCriteria(limited=[], untrusted=["U", "D", "V", "X", "C", "T", "F", "G", "S"])
 GEOMETRY = DutGeometry(area_um2=1.0e4, tox_nm=5.0)
 FREQS = [1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5, 2e5, 5e5, 1e6]

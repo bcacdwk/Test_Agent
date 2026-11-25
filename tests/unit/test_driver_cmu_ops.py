@@ -29,6 +29,8 @@ from b1500_test_agent.transport.sim import SimTransport
 from tests.sim.helpers import load_scenario, noiseless
 from tests.unit.driver_helpers import SpyTransport
 
+pytestmark = pytest.mark.cmu
+
 CMU = 7
 AC = AcEnvelope(max_vrms=0.05, max_dc_v=3.0, f_min_hz=1e3, f_max_hz=1e6)
 ENVELOPE = CompiledEnvelope(channels={CMU: ChannelEnvelope(role="a", max_abs_v=3.0, max_abs_i=1e-3,

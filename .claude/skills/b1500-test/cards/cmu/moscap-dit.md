@@ -13,7 +13,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/08-capacitance-cv.md#quasi-static-c-v, knowledge/08-capacitance-cv.md#dit-over-the-band-gap, knowledge/08-capacitance-cv.md#scuu-same-landing-i-v-and-c-v, knowledge/02b-smu-modes.md#quasi-static-c-v-mm-13]
 manual: ['PG p115 (2-27) "Quasi-static CV"', 'PG p497 (4-179) "QSV"', 'PG p496 (4-178) "QST"', 'PG p493 (4-175) "QSL"', 'PG p499 (4-181) "QSZ"', 'PG p520 (4-202) "SSP"']
-debug: [noisy-data, compliance-hit, cmu-correction-stale, errx-codes, cleanup-failed-fault]
+debug: [noisy-data, compliance-hit, cmu-correction-stale, cmu-series-resistance, cmu-cv-distortion, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 2.7 (kind smu_qscv), blueprint v2 2.10 (dit_high_low, dit_conductance), blueprint v2 3.2 (moscap.qscv, moscap.cv_multi_freq), blueprint v2 4.2 (moscap Dit)]
 version: 1
 ---
@@ -131,7 +131,7 @@ in `fit` (`e<k>`, `dit<k>`, window `psi_min`..`psi_max`; options `cox_f`, `psi_m
 | QSCV status V, error 242 | range too small for charge + leak | `irange_a` up one decade | `compliance-hit` |
 | QSCV status C | Icomp below the charging current | `icomp_a` within the DUT envelope | `compliance-hit` |
 | C-V blocked by R-CORR-01 | corrections of another pin map | corrections with `moscap-scuu` | `cmu-correction-stale` |
-| scattered Dit | noise in C_LF | longer `cinteg_s`, `offset: cancel` | `noisy-data` |
+| scattered Dit; QSCV and HF Cox apart | noise in C_LF; series R, two states | longer `cinteg_s`, `offset: cancel`; `impedance_convert` | `noisy-data`, `cmu-series-resistance` |
 | plan invalid "whole number" | span not a multiple of the step | adjust `step_v` | `errx-codes` |
 | fault after cancel | interrupted cleanup | `safe_shutdown`, skill `b1500-debug` | `cleanup-failed-fault` |
 

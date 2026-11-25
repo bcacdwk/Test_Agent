@@ -21,9 +21,9 @@ from b1500_test_agent.models.validation import STAGE_FILES_DIR, STAGES, StageFro
 
 ROOT = Path(__file__).resolve().parents[2]
 STAGE_DIR = ROOT.joinpath(*STAGE_FILES_DIR)
-WRITTEN = ("S0", "L0", "L1", "L2", "L3", "L4", "L5", "L9", "L10")
-"""Stages of WP6.3 and the SMU closure (WP7.7: L5, the SMU part of L9; WP9.5 adds L9's FeFET endurance and retention);
-L6-L8 arrive with their module work packages (L9's WGFMU part with WP10.8)."""
+WRITTEN = ("S0", "L0", "L1", "L2", "L3", "L4", "L5", "L6", "L9", "L10")
+"""Stages of WP6.3, the SMU closure (WP7.7: L5, the SMU part of L9; WP9.5 adds L9's FeFET endurance and retention)
+and the CMU closure (WP8.6: L6); L7 and L8 arrive with their module work packages (L9's WGFMU part with WP10.8)."""
 HUMAN_ONLY = ("con" + "fig init", "con" + "fig adopt", "run " + "--confirm", "fa" + "ult clear")
 """Human-only CLI verbs, assembled at run time (the harness guard blocks shell commands that spell them)."""
 RECIPES = {
@@ -35,7 +35,10 @@ RECIPES = {
     "L4": ["mosfet.idvg", "mosfet.idvd", "mosfet.gate_leakage", "mosfet.idvg_family", "mosfet.idvg_sync",
            "mosfet.body_effect"],
     "L5": ["mosfet.idvg_pulsed", "mosfet.idvd_pulsed", "basic.pulsed_spot", "generic.smu_multi_pulsed",
-           "mosfet.id_t_sampling", "generic.smu_sampling", "mosfet.vth_search"],  # WP7.7 (QSCV leakage: M8)
+           "mosfet.id_t_sampling", "generic.smu_sampling", "mosfet.vth_search"],  # WP7.7 (QSCV leakage: L6)
+    "L6": ["cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short", "cmu.correction_load", "cmu.spot",
+           "moscap.cv", "moscap.cv_ac_level", "moscap.pulsed_cv", "moscap.cf", "moscap.ct", "moscap.cv_multi_freq",
+           "moscap.qscv", "mosfet.cgc_cv", "mosfet.cgd_cv", "fecap.cv_butterfly"],  # WP8.6: every 3.2 recipe
     "L9": ["reliability.bti_sms", "igzo.bias_stress", "reliability.hci", "reliability.silc", "reliability.tddb_cvs",
            "dielectric.bdv", "basic.breakdown_search",  # WP7.7: the SMU part
            "fefet.endurance", "fefet.retention",  # WP9.5: the HV-SPGU part
@@ -177,3 +180,24 @@ def test_l5_and_l9_pass_criteria_follow_the_blueprint() -> None:
     physical = _section("L9", "Physical steps (human)")
     assert "uv run b1500 shutdown" in physical and "b1500-mcp" in physical
 
+
+
+def test_l6_pass_criteria_follow_the_blueprint() -> None:
+    """Blueprint v2 7.4 L6: phase compensation, open/short with the human lifting and landing the probes, known C
+    +-1 %, `CORRST?` on, store written; MOS-C, QSCV offset and leakage, the SCUU same-landing check (WP8.5 handoff)."""
+    known = _check("L6", "known_c")
+    assert (known.recipe, known.quantity, known.method, known.tolerance and known.tolerance.rel) == (
+        "cmu.spot", "cp", "impedance_convert", 0.01)
+    for check in ("corrst_on", "store_written", "scuu_rest"):
+        assert _check("L6", check).recipe is None, check  # stage-record checks
+    for check, quantity in (("phase_result", "result_code"), ("open_stray_c", "open_cp_f"), ("short_r", "short_rs_ohm"),
+                            ("qscv_offset", "offset_f"), ("qscv_leakage", "leakage_max_a")):
+        assert (_check("L6", check).quantity, _check("L6", check).method) == (quantity, "kind_result"), check
+    assert _check("L6", "phase_result").tolerance.check(0, None)  # type: ignore[union-attr]
+    assert not _check("L6", "open_stray_c").tolerance.check(69e-12, None)  # type: ignore[union-attr]
+    assert _check("L6", "qscv_cox").tolerance.rel == 0.02  # type: ignore[union-attr]
+    physical = _section("L6", "Physical steps (human)")
+    assert "lifted" in physical and "on a short" in physical
+    agent = _section("L6", "Agent steps")
+    assert "`moscap-scuu`" in agent and "`dit_high_low`" in agent and "`offset: measure`" in agent
+    assert "TODO(verify)" in _section("L6", "Expected values")

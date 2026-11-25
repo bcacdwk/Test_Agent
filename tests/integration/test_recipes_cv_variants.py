@@ -34,6 +34,8 @@ from b1500_test_agent.transport.sim.devices.ferro import FecapDevice
 from b1500_test_agent.transport.sim.devices.moscap import MoscapDevice
 from tests.integration.helpers import REPO_ROOT, World
 
+pytestmark = pytest.mark.cmu
+
 CORRECTIONS = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short")
 MOSCAP = {"pin_map": "moscap-cmu", "dut_profile": "moscap-generic"}
 DIT = {"pin_map": "moscap-scuu", "dut_profile": "moscap-generic"}

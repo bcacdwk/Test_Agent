@@ -48,6 +48,8 @@ from tests.safety.helpers import Harness, HookTransport, assert_cleanup_order, a
 from tests.sim.helpers import load_scenario, noiseless
 from tests.unit.rules_factory import T0
 
+pytestmark = pytest.mark.cmu
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 KIND = SmuQscvKind()
 REGISTRY = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)

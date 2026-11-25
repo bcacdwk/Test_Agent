@@ -13,6 +13,8 @@ import yaml
 
 from b1500_test_agent.driver import flex
 
+pytestmark = pytest.mark.cmu
+
 GOLDEN = Path(__file__).resolve().parents[1] / "fixtures" / "flex" / "cmu" / "builders.yaml"
 ENTRIES: list[dict[str, Any]] = yaml.safe_load(GOLDEN.read_text(encoding="utf-8"))
 
@@ -40,7 +42,7 @@ def test_every_mfcmu_and_scuu_builder_has_a_golden_string() -> None:
     covered = {entry["builder"] for entry in ENTRIES}
     cmu = {"imp", "fc", "acv", "dcv", "rc", "act", "lmn", "wdcv", "wtdcv", "wmdcv", "wfc", "wtfc", "wmfc", "wacv",
            "wtacv", "wmacv", "pdcv", "ptdcv", "pwdcv", "mdcv", "mtdcv", "adj", "adj_q", "corrl", "clcorr", "corr_q",
-           "dcorr", "corrdt", "corrst", "corrst_q", "ssp", "ssl"}
+           "dcorr", "corrdt", "corrdt_q", "corrst", "corrst_q", "ssp", "ssl"}
     assert cmu <= covered
 
 
@@ -99,6 +101,7 @@ def test_every_mfcmu_and_scuu_builder_has_a_golden_string() -> None:
         lambda: flex.dcorr(7, "short", 100, 0, 0),
         lambda: flex.dcorr(7, "load", 400, float("inf"), 0),
         lambda: flex.corrdt(7, 500, 0, 0, 0, 0, 0, 0),
+        lambda: flex.corrdt_q(7, 0),  # the list index starts at 1
         lambda: flex.ssp(7, 5),  # paths 1-4
         lambda: flex.ssp(7, 0),  # no SSP path opens the outputs
         lambda: flex.ssp(2, 4),  # an SCUU MFCMU needs two SMU slots below it

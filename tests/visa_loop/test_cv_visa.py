@@ -28,6 +28,8 @@ from b1500_test_agent.service import B1500Service
 from tests.integration.helpers import REPO_ROOT, make_world
 from tests.visa_loop.helpers import SWITCH_LEARN, SWITCH_MNEMONICS, VisaWorld, bus_events, run_case
 
+pytestmark = pytest.mark.cmu
+
 CHUNK = 64
 """Small VISA chunks: an MFCMU block (about 35 bytes per element) needs several reads."""
 

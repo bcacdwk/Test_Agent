@@ -243,7 +243,9 @@ Measurement status letter `A` of each data element (PG Table 1-10, PDF 53):
   (standard). Recipes `cmu.phase_compensation`, `cmu.correction_open|short|load`, card `cmu/cmu-correction`.
 - `CLCORR`, `CORRL` (frequency list) and `DCORR` (standard values) clear the data of every correction (PG PDF 379,
   384, 389): the recipes read the list and standards back and rewrite them only when they differ. `*RST`, a device
-  clear or a power cycle switch every correction off (PG PDF 175, 388).
+  clear or a power cycle switch every correction off (PG PDF 175, 388). `CORRDT?` (PG PDF 384) reads the data
+  of a listed frequency back (open G, B; short and load R, X): each data correction reports their medians
+  (`open_cp_f`, `short_rs_ohm`, ...) as a plausibility check of the probe state (v2 WP8.6).
 - The server keeps a record per correction (`data/state/corrections/<alias>.json`: frequencies, time, `*IDN?`, pin
   map and station hashes). Rule R-CORR-01 blocks a capacitance plan without fresh phase/open/short records for its
   pin map and frequencies (`policy.corrections.max_age_h`, default 8 h) and, before the run, when `CORRST?`/`ADJ?`

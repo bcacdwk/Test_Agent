@@ -22,6 +22,8 @@ from b1500_test_agent.models.routing import Route
 from tests.unit.helpers import REPO_ROOT
 from tests.unit.rules_factory import example_station, pin_map_exact, recipe
 
+pytestmark = pytest.mark.cmu
+
 REGISTRY = RecipeRegistry.load(REPO_ROOT / "recipes", repo_root=REPO_ROOT)
 STATION = example_station()
 KIND = SmuQscvKind()

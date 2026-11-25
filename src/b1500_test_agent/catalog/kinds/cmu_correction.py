@@ -27,7 +27,12 @@ Sequence (PG p251 (3-71) "Data Correction"; every command through the guarded dr
   so an unchanged set-up is never rewritten and the open data survive the short run. Then ``FC``/``ACV``/``DCV`` (the
   first listed frequency, the plan's AC level, DC 0 V; ``OutputGuard.check_ac``), ``CORR? ch,corr`` (the guard
   checks the AC level at every listed frequency first), ``CORRST ch,corr,1`` and the read-back. A rewritten set-up
-  cleared the other corrections, whose records the executor then discards (the run is flagged).
+  cleared the other corrections, whose records the executor then discards (the run is flagged). After the read-back,
+  when it shows the correction in effect, ``CORRL?`` and ``CORRDT?`` per listed frequency (PG p384 (4-66); WP8.6)
+  read the data just measured back: ``kind_result`` keeps their medians over the list (open: the stray capacitance
+  ``open_cp_f`` = B/w and ``open_g_s``; short: ``short_rs_ohm`` and ``short_ls_h`` = X/w; load: ``load_rs_ohm``,
+  ``load_ls_h``), the plausibility check of the human's physical state (an open of tens of pF means the probes were
+  on a device, a short of hundreds of Ohm that they were not on the short).
 
 Through an SCUU (WP8.3; pin map targets ``SCUU1.OUT1``/``OUT2``, ``kinds/cmu_routes.py``): the ``measure`` routes
 connect both SCUU outputs to the MFCMU first (``Transaction.apply_routes``: ``SSP chnum,4``, read back; the SSP
@@ -35,8 +40,9 @@ switches the MFCMU on, so it takes no ``CN``), the corrections then include the 
 routes return the outputs to the switch's rest state at the end (the cleanup restores and verifies it on every exit).
 
 The FLEX preview lists the worst case (set-up rewritten); the run's audit has the exact commands. No measurement
-table (``to_table`` returns ``None``): ``kind_result`` holds the result code (``ADJ?``/``CORR?``), the set-up action
-and the read-back correction state (``after_phase``, ``after_open``, ``after_short``, ``after_load``).
+table (``to_table`` returns ``None``): ``kind_result`` holds the result code (``ADJ?``/``CORR?``), the set-up action,
+the read-back correction state (``after_phase``, ``after_open``, ``after_short``, ``after_load``) and, for a data
+correction, the medians of its ``CORRDT?`` data (``data_freqs`` frequencies read).
 
 Hardware-bound (blueprint v2 7.6 item 7, ATV-21; TODO(verify) at bring-up L6): the ``CORR?`` duration per frequency
 (estimate ``CORR_POINT_S``, read timeout ``CORR_TIMEOUT_BASE_S + CORR_TIMEOUT_PER_FREQ_S`` per frequency), the
@@ -48,6 +54,7 @@ catches every loss).
 from __future__ import annotations
 
 import math
+import statistics
 from typing import TYPE_CHECKING, Final, Literal
 
 from pydantic import JsonValue
@@ -180,6 +187,26 @@ def live_after(kind_result: dict[str, object]) -> CmuCorrectionLive | None:
     return CmuCorrectionLive(corr_state=corr_state, phase=phase if isinstance(phase, bool) else None)
 
 
+def correction_data_summary(tx: Transaction, ch: int, correction: CorrectionFunction) -> dict[str, JsonScalar]:
+    """``CORRL? ch`` and ``CORRDT? ch,1..n`` (queries, once the read-back shows the correction in effect) -> the
+    medians over the listed frequencies of the data ``correction`` has just measured (module docstring):
+    ``open_cp_f``/``open_g_s``, ``short_rs_ohm``/``short_ls_h`` or ``load_rs_ohm``/``load_ls_h``, and
+    ``data_freqs``."""
+    data = tx.driver.correction_data_list(ch)
+    if not data:
+        return {"data_freqs": 0}
+    if correction == "open":
+        values = {"open_cp_f": [d.open_cp_f for d in data], "open_g_s": [d.open_g for d in data]}
+    elif correction == "short":
+        values = {"short_rs_ohm": [d.short_r for d in data], "short_ls_h": [d.short_ls_h for d in data]}
+    else:
+        values = {"load_rs_ohm": [d.load_r for d in data], "load_ls_h": [d.load_ls_h for d in data]}
+    medians = {key: float(statistics.median(v)) for key, v in values.items()}
+    shown = ", ".join(f"{key} {value:.4g}" for key, value in medians.items())
+    tx.mark(f"{correction} correction data read back at {len(data)} frequencies (medians): {shown}")
+    return {**medians, "data_freqs": len(data)}
+
+
 def _data_program(program: dict[str, JsonValue]) -> tuple[list[float], float, dict[CorrectionFunction, list[float]]]:
     """Frequencies, AC level and standards of a stored data-correction program."""
     freqs, vrms, standards = program.get("freqs_hz"), program.get("ac_vrms"), program.get("standards")
@@ -228,6 +255,7 @@ class CmuCorrectionKind:
             preview = [*connect, *(flex.corrst(ch, k, False) for k in DATA_CORRECTIONS),
                        flex.adj(ch, flex.ADJ_MANUAL), flex.adj_q(ch, flex.ADJ_MEASURE)]
             duration = PHASE_ESTIMATE_S
+            data_readback: list[str] = []
         else:
             freqs = _frequencies(params)
             vrms = _number(params, AC_PARAM)
@@ -253,8 +281,10 @@ class CmuCorrectionKind:
                        flex.acv(ch, vrms), flex.dcv(ch, 0.0), flex.corr_q(ch, correction),
                        flex.corrst(ch, correction, True)]
             duration = SETUP_S + CORR_POINT_S * len(freqs)
+            data_readback = [flex.corrl_q(ch), *(flex.corrdt_q(ch, i + 1) for i in range(len(freqs)))]
         readback = [*(flex.corrst_q(ch, k) for k in DATA_CORRECTIONS), flex.adj_q(ch, flex.ADJ_READ_LAST),
                     flex.lrn_q(flex.LRN_ADJ_MODE)]
+        readback += data_readback
         envelope = CompiledEnvelope(channels={ch: ChannelEnvelope(
             role=high[0], max_abs_v=0.0, max_abs_i=current, function="cmu_high", v_start=0.0, v_stop=0.0, ac=ac)},
             routes=frozenset(path.routes))
@@ -282,6 +312,7 @@ class CmuCorrectionKind:
         alias = program.get("alias")
         result: dict[str, JsonScalar] = {"correction": correction, "alias": alias if isinstance(alias, str) else None,
                                          "channel": ch}
+        measured: CorrectionFunction | None = None
         if correction == "phase":
             for corr in DATA_CORRECTIONS:
                 driver.set_correction(ch, corr, False)
@@ -291,6 +322,7 @@ class CmuCorrectionKind:
             text = flex.ADJ_RESULTS.get(code, str(code))
         else:
             data: CorrectionFunction = correction  # type: ignore[assignment]
+            measured = data
             freqs, vrms, standards = _data_program(program)
             result["setup"] = self._set_up(tx, ch, freqs, standards, default=program.get("default_list") is True)
             driver.apply_cmu_signal(ch, CmuSignal(freq_hz=freqs[0], ac_vrms=vrms, dc_v=0.0))
@@ -304,6 +336,8 @@ class CmuCorrectionKind:
         result["after_phase"] = after.phase
         for corr in DATA_CORRECTIONS:
             result[f"after_{corr}"] = after.corr_state.get(corr)
+        if measured is not None and code == 0 and after.corr_state.get(measured) is True:
+            result.update(correction_data_summary(tx, ch, measured))
         tx.mark(f"{correction}: result {code} ({text})")
         rest = [Route.model_validate(r) for r in program.get("rest_routes") or []]  # type: ignore[union-attr]
         if rest:

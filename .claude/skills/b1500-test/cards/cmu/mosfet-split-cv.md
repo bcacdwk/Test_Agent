@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/08-capacitance-cv.md#split-c-v-cgc-and-cgd, knowledge/08-capacitance-cv.md#threshold-voltage-from-c-v, knowledge/08-capacitance-cv.md#scuu-same-landing-i-v-and-c-v]
 manual: ['PG p256 (3-76) "CV (DC Bias) Sweep"', 'PG p470 (4-152) "MM"', 'PG p549 (4-231) "WDCV"', 'PG p396 (4-78) "DV"', 'PG p520 (4-202) "SSP"']
-debug: [cmu-correction-stale, noisy-data, errx-codes, cleanup-failed-fault]
+debug: [cmu-correction-stale, cmu-series-resistance, cmu-cv-distortion, noisy-data, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 2.7, blueprint v2 3.2 (mosfet.cgc_cv, mosfet.cgd_cv), blueprint v2 4.2 (mosfet +cv), Koomen 1973]
 version: 1
 ---
@@ -109,8 +109,8 @@ an ad-hoc analysis in `work/`.
 | symptom | likely cause | first safe check | runbook |
 |---|---|---|---|
 | blocked by R-CORR-01 | corrections missing or stale for this pin map | `station_status.corrections` | `cmu-correction-stale` |
-| plateau sagging near Vth, frequency-dependent | channel resistance (long L, high f) | repeat at 10 kHz | `noisy-data` |
-| `U`/`D` status, source SMU in compliance | contact, gate leakage, short | `get_run` audit; `gate-leakage` | `errx-codes` |
+| plateau sagging near Vth, frequency-dependent | channel resistance (long L, high f) | repeat at 10 kHz | `cmu-series-resistance` |
+| `U`/`D` status, source SMU in compliance | contact, gate leakage, short | `get_run` audit; `gate-leakage` | `cmu-cv-distortion`, `errx-codes` |
 | fault latched | interrupted run | `safe_shutdown`, skill `b1500-debug` | `cleanup-failed-fault` |
 
 ## 10. Validation record

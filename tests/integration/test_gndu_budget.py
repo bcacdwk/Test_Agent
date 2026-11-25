@@ -19,6 +19,8 @@ from b1500_test_agent.transport.sim.devices.circuit import GNDU_MAX_A
 from b1500_test_agent.transport.sim.state import load_state_file, sim_state_file
 from tests.integration.helpers import World
 
+pytestmark = pytest.mark.cmu
+
 ROWS: list[tuple[str, str, str, str | None, dict[str, Any]]] = [
     ("mosfet.idvg", "nmos_basic", "mosfet-4t", "nmos-generic", {}),
     ("basic.diode_iv", "diode_basic", "diode-2t", "diode-generic", {}),

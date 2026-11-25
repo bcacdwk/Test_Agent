@@ -47,6 +47,7 @@
 - {builder: dcorr, args: [9, open, 100, 0, 0], expect: "DCORR 9,1,100,0,0", source: "PDF 254 example (ref_cp = ref_g = 0)"}
 - {builder: dcorr_q, args: [9, load], expect: "DCORR? 9,3", source: "PDF 390 example"}
 - {builder: corrdt, args: [9, 3000000, 0, 0, 0, 0, 0, 0], expect: "CORRDT 9,3000000,0,0,0,0,0,0", source: "PDF 384 example"}
+- {builder: corrdt_q, args: [9, 1], expect: "CORRDT? 9,1", source: "PDF 384 example"}
 - {builder: corrst, args: [9, load, true], expect: "CORRST 9,3,1", source: "PDF 388 example"}
 - {builder: corrst, args: [9, short, false], expect: "CORRST 9,2,0", source: "PDF 254 example"}
 - {builder: corrst_q, args: [9, load], expect: "CORRST? 9,3", source: "PDF 388 example"}

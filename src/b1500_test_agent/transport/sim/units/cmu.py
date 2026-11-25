@@ -14,7 +14,8 @@
   ``ADJ?`` mode 1 needs the manual mode, error 680, takes 30 s and initializes the MFCMU), the frequency list
   (``CORRL``, ``CLCORR``), the standards' reference values (``DCORR``, error 682 for a wrong mode) and the data
   (``CORR?`` reads every listed frequency with the standard the human connected, error 684 at AC 0 V; ``CORRDT``
-  sets data directly); ``CORRL?`` and ``DCORR?`` read the list and the references back (WP8.2). ``CORRL``,
+  sets data directly); ``CORRL?`` and ``DCORR?`` read the list and the references back (WP8.2), ``CORRDT?``
+  the data of one listed frequency (WP8.6). ``CORRL``,
   ``CLCORR`` and ``DCORR`` switch the functions off and clear the data (PG PDF 379, 382, 384, 389). ``*RST`` and a
   device clear switch every function off and the compensation mode back to auto; the data, list, references and
   compensation results stay (PG PDF 382, 388; Table 2-13). The ``cmu_correction_lost`` fault clears all of it, as a
@@ -498,6 +499,28 @@ class CmuUnit(CmuEngine):
         if reference is not None:
             ref = complex(reference[2], 2 * math.pi * freq * reference[1])
             point.load_ref = [ref.real, ref.imag]
+
+    @handles("CORRDT?")
+    def _cmd_corrdt_q(self, cmd: flex.Command) -> str:
+        """``CORRDT? chnum,index``: ``freq,open_r,open_i,short_r,short_i,load_r,load_i`` of the ``index``-th listed
+        frequency (open as G, B; short and load as R, X; PG PDF 384; error 120 outside the list). Simulator
+        convention (TODO(verify) at bring-up L6): a correction never measured at that frequency answers 0, 0 and
+        numbers are answered as plain decimals."""
+        flex.arity(cmd, 2, 2)
+        channel = self._cmu_channel(cmd.args[0])
+        freqs = self._cmu_persistent(channel).freqs
+        index = flex.integer(cmd.args[1])
+        if not 1 <= index <= len(freqs):
+            raise flex.FlexError(flex.ERR_PARAMETER, f"CORRDT? index {index} (list of {len(freqs)})")
+        freq = freqs[index - 1]
+        point = self._correction_point(channel, freq)
+        y_open = 0j
+        if point is not None and point.open is not None and complex(*point.open) != 0:
+            y_open = 1.0 / complex(*point.open)
+        short = point.short if point is not None and point.short is not None else [0.0, 0.0]
+        load = point.load if point is not None and point.load is not None else [0.0, 0.0]
+        values = (freq, y_open.real, y_open.imag, short[0], short[1], load[0], load[1])
+        return ",".join(format(v, ".7g") for v in values)
 
     @handles("CORRST")
     def _cmd_corrst(self, cmd: flex.Command) -> None:

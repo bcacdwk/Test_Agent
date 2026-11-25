@@ -12,7 +12,7 @@ status: sim_validated
 confirmation: always
 knowledge: [knowledge/08-capacitance-cv.md#impedance-models-cp-g-cs-rs-z-theta, knowledge/08-capacitance-cv.md#corrections-and-the-measurement-path]
 manual: ['PG p252 (3-72) "Spot C"', 'PG p470 (4-152) "MM"', 'PG p441 (4-123) "IMP"', 'PG p354 (4-36) "ACT"', 'PG p347 (4-29) "Cp"']
-debug: [cmu-correction-stale, noisy-data, errx-codes, cleanup-failed-fault]
+debug: [cmu-correction-stale, cmu-series-resistance, cmu-cv-distortion, noisy-data, errx-codes, cleanup-failed-fault]
 sources: [blueprint v2 2.7 (kind cmu_measure), blueprint v2 3.2 (cmu.spot), blueprint v2 4.2 (fixture + capacitor)]
 version: 1
 ---
@@ -103,7 +103,8 @@ frequency, the correction ages and the deviation from the standard's nominal val
 |---|---|---|---|
 | blocked by R-CORR-01 | corrections missing, stale or another pin map | `station_status.corrections` | `cmu-correction-stale` |
 | reading off by about +0.3 pF | correction lost (power cycle, `*RST`) or not at this frequency | correction list vs `freqs_hz` | `cmu-correction-stale` |
-| status `U`/`D`, scattered readings | contact, range, AC level | repeat once; `quality_report` | `noisy-data` |
+| status `U`/`D`, scattered readings | contact, range, AC level | repeat once; `quality_report` | `noisy-data`, `cmu-cv-distortion` |
+| Cp falling with frequency, large D | series R or inductance | `impedance_convert` (`series_r`) | `cmu-series-resistance` |
 | errors 320-323, fault latched | excess current, SCUU module in CN, interrupted run | `get_run` audit; `safe_shutdown` | `errx-codes`, `cleanup-failed-fault` |
 
 ## 10. Validation record

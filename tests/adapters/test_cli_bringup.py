@@ -49,7 +49,7 @@ def test_status_on_the_simulator(cli_world: World) -> None:
     result = invoke("bringup", "status")
     assert result.exit_code == 0, result.output
     assert result.stdout.startswith("[SIMULATED] ok: SIMULATED next stage S0: Physical prerequisites")
-    assert "-> S0   open" in result.stdout and "L6   no_stage_file" in result.stdout  # L5 and L9 exist since WP7.7
+    assert "-> S0   open" in result.stdout and "L8   no_stage_file" in result.stdout  # L5, L6, L9 exist (WP7.7, 8.6)
     assert "next: simulator: a rehearsal; no record is ever drafted from simulator runs" in result.stdout
     status = BringupStatus.model_validate(as_json(invoke("bringup", "status", "--json")))
     assert status.next_stage == "S0" and status.simulated and len(status.stages) == 12

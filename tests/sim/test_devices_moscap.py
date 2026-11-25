@@ -13,6 +13,8 @@ from b1500_test_agent.models.sim import MoscapParams
 from b1500_test_agent.transport.sim.devices.moscap import MoscapDevice
 from tests.sim.device_fits import EPS0_F_CM, Q_E, UT_300, crossing, linfit
 
+pytestmark = pytest.mark.cmu
+
 BASE = {"nsub_cm3": 3.0e16, "tox_nm": 12.0, "phi_ms_v": -0.85, "qf_cm2": 2.0e11, "area_um2": 4.0e4}
 HF = 1.0e5
 

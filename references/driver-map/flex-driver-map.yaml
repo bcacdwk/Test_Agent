@@ -34,7 +34,7 @@ counts:
     m1: 70
     m2: 13
     later: 199
-  atoms_unmapped: 177
+  atoms_unmapped: 176
   flows:
     A: 20
     B: 16
@@ -44,7 +44,7 @@ counts:
     CD: 4
     total: 97
   commands: 280
-  commands_mapped: 142
+  commands_mapped: 143
   ledger:
     smu:
       atoms:
@@ -61,17 +61,17 @@ counts:
         open: 0
     cmu:
       atoms:
-        mapped: 36
-        out_of_scope: 0
-        open: 8
+        mapped: 41
+        out_of_scope: 3
+        open: 0
       flows:
-        mapped: 0
-        out_of_scope: 0
-        open: 19
+        mapped: 18
+        out_of_scope: 1
+        open: 0
       commands:
-        mapped: 42
-        out_of_scope: 0
-        open: 7
+        mapped: 43
+        out_of_scope: 6
+        open: 0
     spgu:
       atoms:
         mapped: 15
@@ -111,7 +111,7 @@ counts:
         mapped: 20
         out_of_scope: 0
         open: 39
-driver_targets: [B1500Driver.identify, B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte, B1500Driver.output_state, B1500Driver.abort, B1500Driver.zero, B1500Driver.disconnect, B1500Driver.reset, B1500Driver.self_test, B1500Driver.self_calibrate, B1500Driver.set_format, B1500Driver.set_integration, B1500Driver.set_range, B1500Driver.enable, B1500Driver.force_v, B1500Driver.force_i, B1500Driver.staircase_v, B1500Driver.staircase, B1500Driver.execute_and_read, B1500Driver.wait_complete, B1500Driver.auto_calibration, B1500Driver.set_auto_calibration, B1500Driver.selector_control_mode, B1500Driver.selector_state, B1500Driver.pulse_output_active, B1500Driver.correction_enabled, B1500Driver.phase_compensation_result, B1500Driver.set_time_stamp, B1500Driver.reset_timer, B1500Driver.sampling_setup, B1500Driver.sampling_update, B1500Driver.spot_setup, B1500Driver.asu_paths, B1500Driver.asu_1pa_auto, B1500Driver.set_asu_path, B1500Driver.set_asu_1pa_auto, B1500Driver.set_asu_indicator, B1500Driver.set_impedance_model, B1500Driver.apply_cmu_signal, B1500Driver.set_cmu_range, B1500Driver.set_cmu_integration, B1500Driver.set_cmu_monitor, B1500Driver.spot_c, B1500Driver.cv_sweep, B1500Driver.cf_sweep, B1500Driver.ac_level_sweep, B1500Driver.pulsed_spot_c, B1500Driver.pulsed_cv_sweep, B1500Driver.ct_sampling, B1500Driver.set_phase_compensation_mode, B1500Driver.set_correction_frequencies, B1500Driver.measure_correction, B1500Driver.set_correction_standard, B1500Driver.set_correction_data, B1500Driver.set_correction, B1500Driver.scuu_route, B1500Driver.set_scuu_indicator, B1500Driver.correction_frequencies, B1500Driver.correction_standard, B1500Driver.configure_spgu, B1500Driver.apply_pulse_setup, B1500Driver.start_pulses, B1500Driver.stop_pulses, B1500Driver.measure_pulse_load, B1500Driver.set_selector_control, B1500Driver.route_selector, B1500Driver.pulsed_setup, B1500Driver.pulsed_update, B1500Driver.search_setup, B1500Driver.quasi_pulse_setup, B1500Driver.set_filter, B1500Driver.set_series_resistor, B1500Driver.set_adc_zero, B1500Driver.set_averaging, B1500Driver.set_range_mode, B1500Driver.clear_sweep_sources, B1500Driver.qscv_setup, B1500Driver.measure_qscv_offset, flex.cn, flex.cl, flex.dz, flex.fmt, flex.mm, flex.cmm, flex.aad, flex.ait, flex.ri, flex.rv, flex.wt, flex.wm, flex.dv, flex.wv, flex.cm, flex.lrn_q, flex.di, flex.wi, flex.wsv, flex.wsi, flex.wnx, flex.erssp_q, flex.corrst_q, flex.adj_q, flex.tsc, flex.tsr, flex.mcc, flex.ml, flex.mt, flex.msc, flex.mv, flex.mi, flex.sap, flex.sar, flex.sal, flex.imp, flex.fc, flex.acv, flex.dcv, flex.rc, flex.act, flex.lmn, flex.wdcv, flex.wtdcv, flex.wmdcv, flex.wfc, flex.wtfc, flex.wmfc, flex.wacv, flex.wtacv, flex.wmacv, flex.pdcv, flex.ptdcv, flex.pwdcv, flex.mdcv, flex.mtdcv, flex.adj, flex.corrl, flex.clcorr, flex.corr_q, flex.dcorr, flex.corrdt, flex.corrst, flex.ssp, flex.ssl, flex.corrl_q, flex.dcorr_q, flex.sim, flex.spm, flex.spt, flex.spv, flex.spper, flex.sprm, flex.ser, flex.spupd, flex.odsw, flex.stgp, flex.corrser_q, flex.alw, flex.als, flex.ermod, flex.erssp, flex.XE, flex.AB, flex.IDN_Q, flex.UNT_Q, flex.ERRX_Q, flex.STB_Q, flex.OPC_Q, flex.LOP_Q, flex.RST, flex.TST_Q, flex.CAL_Q, flex.ERMOD_Q, flex.SPST_Q, flex.SRP, flex.SPP, flex.pt, flex.pv, flex.pi, flex.pwv, flex.pwi, flex.mcpt, flex.mcpnt, flex.mcpnx, flex.mcpws, flex.mcpwnx, flex.lsv, flex.lsi, flex.lgv, flex.lgi, flex.lsm, flex.lstm, flex.lssv, flex.lssi, flex.lsvm, flex.bsv, flex.bsi, flex.bgv, flex.bgi, flex.bsm, flex.bst, flex.bssv, flex.bssi, flex.bsvm, flex.bdv, flex.bdt, flex.bdm, flex.fl, flex.ssr, flex.az, flex.av, flex.rm, flex.wncc, flex.qsv, flex.qst, flex.qsm, flex.qsl, flex.qso, flex.qsc, flex.qsr, flex.qsz]
+driver_targets: [B1500Driver.identify, B1500Driver.modules, B1500Driver.errors, B1500Driver.status_byte, B1500Driver.output_state, B1500Driver.abort, B1500Driver.zero, B1500Driver.disconnect, B1500Driver.reset, B1500Driver.self_test, B1500Driver.self_calibrate, B1500Driver.set_format, B1500Driver.set_integration, B1500Driver.set_range, B1500Driver.enable, B1500Driver.force_v, B1500Driver.force_i, B1500Driver.staircase_v, B1500Driver.staircase, B1500Driver.execute_and_read, B1500Driver.wait_complete, B1500Driver.auto_calibration, B1500Driver.set_auto_calibration, B1500Driver.selector_control_mode, B1500Driver.selector_state, B1500Driver.pulse_output_active, B1500Driver.correction_enabled, B1500Driver.phase_compensation_result, B1500Driver.set_time_stamp, B1500Driver.reset_timer, B1500Driver.sampling_setup, B1500Driver.sampling_update, B1500Driver.spot_setup, B1500Driver.asu_paths, B1500Driver.asu_1pa_auto, B1500Driver.set_asu_path, B1500Driver.set_asu_1pa_auto, B1500Driver.set_asu_indicator, B1500Driver.set_impedance_model, B1500Driver.apply_cmu_signal, B1500Driver.set_cmu_range, B1500Driver.set_cmu_integration, B1500Driver.set_cmu_monitor, B1500Driver.spot_c, B1500Driver.cv_sweep, B1500Driver.cf_sweep, B1500Driver.ac_level_sweep, B1500Driver.pulsed_spot_c, B1500Driver.pulsed_cv_sweep, B1500Driver.ct_sampling, B1500Driver.set_phase_compensation_mode, B1500Driver.set_correction_frequencies, B1500Driver.measure_correction, B1500Driver.set_correction_standard, B1500Driver.set_correction_data, B1500Driver.set_correction, B1500Driver.scuu_route, B1500Driver.set_scuu_indicator, B1500Driver.correction_frequencies, B1500Driver.correction_standard, B1500Driver.configure_spgu, B1500Driver.apply_pulse_setup, B1500Driver.start_pulses, B1500Driver.stop_pulses, B1500Driver.measure_pulse_load, B1500Driver.set_selector_control, B1500Driver.route_selector, B1500Driver.pulsed_setup, B1500Driver.pulsed_update, B1500Driver.search_setup, B1500Driver.quasi_pulse_setup, B1500Driver.set_filter, B1500Driver.set_series_resistor, B1500Driver.set_adc_zero, B1500Driver.set_averaging, B1500Driver.set_range_mode, B1500Driver.clear_sweep_sources, B1500Driver.qscv_setup, B1500Driver.measure_qscv_offset, B1500Driver.correction_data, B1500Driver.correction_data_list, flex.cn, flex.cl, flex.dz, flex.fmt, flex.mm, flex.cmm, flex.aad, flex.ait, flex.ri, flex.rv, flex.wt, flex.wm, flex.dv, flex.wv, flex.cm, flex.lrn_q, flex.di, flex.wi, flex.wsv, flex.wsi, flex.wnx, flex.erssp_q, flex.corrst_q, flex.adj_q, flex.tsc, flex.tsr, flex.mcc, flex.ml, flex.mt, flex.msc, flex.mv, flex.mi, flex.sap, flex.sar, flex.sal, flex.imp, flex.fc, flex.acv, flex.dcv, flex.rc, flex.act, flex.lmn, flex.wdcv, flex.wtdcv, flex.wmdcv, flex.wfc, flex.wtfc, flex.wmfc, flex.wacv, flex.wtacv, flex.wmacv, flex.pdcv, flex.ptdcv, flex.pwdcv, flex.mdcv, flex.mtdcv, flex.adj, flex.corrl, flex.clcorr, flex.corr_q, flex.dcorr, flex.corrdt, flex.corrst, flex.ssp, flex.ssl, flex.corrl_q, flex.dcorr_q, flex.sim, flex.spm, flex.spt, flex.spv, flex.spper, flex.sprm, flex.ser, flex.spupd, flex.odsw, flex.stgp, flex.corrser_q, flex.alw, flex.als, flex.ermod, flex.erssp, flex.XE, flex.AB, flex.IDN_Q, flex.UNT_Q, flex.ERRX_Q, flex.STB_Q, flex.OPC_Q, flex.LOP_Q, flex.RST, flex.TST_Q, flex.CAL_Q, flex.ERMOD_Q, flex.SPST_Q, flex.SRP, flex.SPP, flex.pt, flex.pv, flex.pi, flex.pwv, flex.pwi, flex.mcpt, flex.mcpnt, flex.mcpnx, flex.mcpws, flex.mcpwnx, flex.lsv, flex.lsi, flex.lgv, flex.lgi, flex.lsm, flex.lstm, flex.lssv, flex.lssi, flex.lsvm, flex.bsv, flex.bsi, flex.bgv, flex.bgi, flex.bsm, flex.bst, flex.bssv, flex.bssi, flex.bsvm, flex.bdv, flex.bdt, flex.bdm, flex.fl, flex.ssr, flex.az, flex.av, flex.rm, flex.wncc, flex.qsv, flex.qst, flex.qsm, flex.qsl, flex.qso, flex.qsc, flex.qsr, flex.qsz, flex.corrdt_q]
 atoms:
 - {id: A_atom_flex_connect, class: A, basis: ['*IDN?', 'UNT?'], flex: ['*IDN?', 'UNT?'], target: [B1500Driver.identify, B1500Driver.modules], priority: m1, family: system, scope: mapped}
 - {id: A_atom_flex_disconnect, class: A, basis: [session.close], flex: [], target: unmapped, priority: m1, note: 'successor: Transport.close via Session (sections 2.2, 2.4); B1500Driver.disconnect is CL', family: system, scope: open}
@@ -146,7 +146,7 @@ atoms:
 - {id: A_atom_flex_query_selector_mode, class: A, basis: ['ERMOD?', 'ERSSP?'], flex: ['ERMOD?', 'ERSSP?'], target: [B1500Driver.selector_control_mode, B1500Driver.selector_state], priority: later, family: spgu, scope: mapped}
 - {id: A_atom_flex_query_cmu_correction_status, class: A, basis: ['CORRST?'], flex: ['CORRST?'], target: [B1500Driver.correction_enabled], priority: later, family: cmu, scope: mapped}
 - {id: A_atom_flex_query_cmu_correction_freq_list, class: A, basis: ['CORRL?'], flex: ['CORRL?'], target: [B1500Driver.correction_frequencies], priority: later, family: cmu, scope: mapped}
-- {id: A_atom_flex_query_cmu_correction_data, class: A, basis: ['CORRDT?'], flex: ['CORRDT?'], target: unmapped, priority: later, family: cmu, scope: open}
+- {id: A_atom_flex_query_cmu_correction_data, class: A, basis: ['CORRDT?'], flex: ['CORRDT?'], target: [B1500Driver.correction_data], priority: later, family: cmu, scope: mapped}
 - {id: A_atom_flex_query_cmu_load_standard, class: A, basis: ['DCORR?'], flex: ['DCORR?'], target: [B1500Driver.correction_standard], priority: later, family: cmu, scope: mapped}
 - {id: A_atom_wgfmu_open_session, class: A, basis: [WGFMU_openSession], flex: [], target: unmapped, priority: later, family: wgfmu, scope: open}
 - {id: A_atom_wgfmu_close_session, class: A, basis: [WGFMU_closeSession], flex: [], target: unmapped, priority: later, family: wgfmu, scope: open}
@@ -329,7 +329,7 @@ atoms:
 - {id: C_atom_cmu_read_measurement_data, class: C, basis: [output data buffer read], flex: [], target: [B1500Driver.execute_and_read], priority: later, family: cmu, scope: mapped}
 - {id: C_atom_cmu_configure_cv_dc_sweep, class: C, basis: [WDCV, WTDCV, WMDCV], flex: [WDCV, WTDCV, WMDCV], target: [B1500Driver.cv_sweep], priority: later, family: cmu, scope: mapped}
 - {id: C_atom_cmu_execute, class: C, basis: [XE], flex: [XE], target: [B1500Driver.execute_and_read], priority: later, family: cmu, scope: mapped}
-- {id: C_atom_cmu_measure_high_speed_spot, class: C, basis: [TC, TTC, TMACV, TMDCV], flex: [TC, TTC, TMACV, TMDCV], target: unmapped, priority: later, family: cmu, scope: open}
+- {id: C_atom_cmu_measure_high_speed_spot, class: C, basis: [TC, TTC, TMACV, TMDCV], flex: [TC, TTC, TMACV, TMDCV], target: unmapped, priority: later, family: cmu, scope: out_of_scope, reason: 'MFCMU high-speed spot C (TC/TTC) and its AC level/DC bias monitor commands (TMACV/TMDCV): the CMU counterpart of the SMU high-speed spot, out of scope by blueprint v2 1.2 (MFCMU in-scope list); the MM 17 spot C (cmu_measure, recipe cmu.spot) with LMN monitors covers single points'}
 - {id: C_atom_cmu_execute_spot_c, class: C, basis: [MM17, XE], flex: [MM 17, XE], target: [B1500Driver.spot_c, B1500Driver.execute_and_read], priority: later, family: cmu, scope: mapped}
 - {id: C_atom_cmu_execute_cv_dc_sweep, class: C, basis: [MM18, XE], flex: [MM 18, XE], target: [B1500Driver.cv_sweep, B1500Driver.execute_and_read], priority: later, family: cmu, scope: mapped}
 - {id: C_atom_cmu_configure_cf_sweep, class: C, basis: [WFC, WTFC, WMFC], flex: [WFC, WTFC, WMFC], target: [B1500Driver.cf_sweep], priority: later, family: cmu, scope: mapped}
@@ -342,8 +342,8 @@ atoms:
 - {id: C_atom_cmu_execute_pulsed_cv_sweep, class: C, basis: [MM20, XE], flex: [MM 20, XE], target: [B1500Driver.pulsed_cv_sweep, B1500Driver.execute_and_read], priority: later, family: cmu, scope: mapped}
 - {id: C_atom_cmu_configure_ct_sampling, class: C, basis: [MDCV, MTDCV], flex: [MDCV, MTDCV], target: [B1500Driver.ct_sampling], priority: later, family: cmu, scope: mapped}
 - {id: C_atom_cmu_execute_ct_sampling, class: C, basis: [MM26, XE], flex: [MM 26, XE], target: [B1500Driver.ct_sampling, B1500Driver.execute_and_read], priority: later, family: cmu, scope: mapped}
-- {id: C_atom_cmu_measure_timer_start_ac_voltage, class: C, basis: [TACV], flex: [TACV], target: unmapped, priority: later, family: cmu, scope: open}
-- {id: C_atom_cmu_measure_timer_start_dc_voltage, class: C, basis: [TDCV], flex: [TDCV], target: unmapped, priority: later, family: cmu, scope: open}
+- {id: C_atom_cmu_measure_timer_start_ac_voltage, class: C, basis: [TACV], flex: [TACV], target: unmapped, priority: later, family: cmu, scope: out_of_scope, reason: 'timer-start MFCMU AC/DC output (TACV/TDCV): the CMU counterpart of TDV/TDI, out of scope by blueprint v2 1.2; ACV/DCV set the signal and the C-t sampling (MM 26) carries the time stamps'}
+- {id: C_atom_cmu_measure_timer_start_dc_voltage, class: C, basis: [TDCV], flex: [TDCV], target: unmapped, priority: later, family: cmu, scope: out_of_scope, reason: 'timer-start MFCMU AC/DC output (TACV/TDCV): the CMU counterpart of TDV/TDI, out of scope by blueprint v2 1.2; ACV/DCV set the signal and the C-t sampling (MM 26) carries the time stamps'}
 - {id: C_atom_hvsmu_set_operation_mode, class: C, basis: [HVSMUOP], flex: [HVSMUOP], target: unmapped, priority: later, family: smu, scope: out_of_scope, reason: 'HV/HC/UHC units, expanders and their selectors/fixtures (N1258A/N1259A, N1265A, N1266A, N1268A, N1272A): not installed in this station and above the 42 V / 100 mA ceiling (blueprint v2 1.2)'}
 - {id: C_atom_hvsmu_execute_iv, class: C, basis: [HVSMUOP, SMU IV wrapper], flex: [HVSMUOP], target: unmapped, priority: later, family: smu, scope: out_of_scope, reason: 'HV/HC/UHC units, expanders and their selectors/fixtures (N1258A/N1259A, N1265A, N1266A, N1268A, N1272A): not installed in this station and above the 42 V / 100 mA ceiling (blueprint v2 1.2)'}
 - {id: C_atom_hcsmu_execute_iv, class: C, basis: [HCSMU IV wrapper], flex: [], target: unmapped, priority: later, family: smu, scope: out_of_scope, reason: 'HV/HC/UHC units, expanders and their selectors/fixtures (N1258A/N1259A, N1265A, N1266A, N1268A, N1272A): not installed in this station and above the 42 V / 100 mA ceiling (blueprint v2 1.2)'}
@@ -356,7 +356,7 @@ atoms:
 - {id: D_atom_ingest_request_build_expectation, class: D, basis: [PG Ed.15 Table 4-24 (FMT)], flex: [], target: unmapped, priority: m1, legacy_priority: P0, successor: 'catalog planner: PlanRecord.estimate', family: system, scope: mapped}
 - {id: D_atom_ingest_smu_build_dataset, class: D, basis: [PG Ed.15 Tables 1-6 to 1-11], flex: [], target: unmapped, priority: m1, legacy_priority: P0, successor: kind.to_table + analysis.load_run, family: smu, scope: mapped}
 - {id: D_atom_ingest_easyexpert_build_dataset, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P1, family: system, scope: open}
-- {id: D_atom_ingest_cmu_build_dataset, class: D, basis: [PG Ed.15 Table 4-16 (IMP)], flex: [], target: unmapped, priority: later, legacy_priority: P2, family: cmu, scope: open}
+- {id: D_atom_ingest_cmu_build_dataset, class: D, basis: [PG Ed.15 Table 4-16 (IMP)], flex: [], target: unmapped, priority: later, legacy_priority: P2, successor: cmu_measure/smu_qscv to_table + analysis.load_run (WP8.3-8.5), family: cmu, scope: mapped}
 - {id: D_atom_ingest_wgfmu_build_series, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P2, successor: 'kind wgfmu_waveform: waveform_table (point_layout, program_levels) + analysis.load_run of data.npz; raw/wgfmu-<ch>-<n>.npz (WP10.4)', family: wgfmu, scope: mapped}
 - {id: D_atom_qualify_dataset_classify_status, class: D, basis: [PG Ed.15 Tables 1-7 to 1-10], flex: [], target: unmapped, priority: m1, legacy_priority: P0, successor: analysis.assess_quality (per-column status), family: system, scope: mapped}
 - {id: D_atom_qualify_dataset_check_completeness, class: D, basis: [], flex: [], target: unmapped, priority: m1, legacy_priority: P0, successor: analysis.assess_quality, family: system, scope: mapped}
@@ -366,7 +366,7 @@ atoms:
 - {id: D_atom_qualify_dataset_grade_trust, class: D, basis: [], flex: [], target: unmapped, priority: m1, legacy_priority: P0, successor: RunData.trusted + QualityReport verdict, family: system, scope: mapped}
 - {id: D_atom_qualify_iv_check_source_tracking, class: D, basis: [], flex: [], target: unmapped, priority: m1, legacy_priority: P1, successor: 'analysis.assess_quality (C/T: a source that left its set value; status letters per point)', family: smu, scope: mapped}
 - {id: D_atom_qualify_dataset_check_continuity, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P2, successor: 'smu_sampling kind_result index_gaps, time_source (WP7.4)', family: system, scope: mapped}
-- {id: D_atom_qualify_cv_check_correction, class: D, basis: ['CORRST?', 'CORRL?'], flex: [], target: unmapped, priority: later, legacy_priority: P2, family: cmu, scope: open}
+- {id: D_atom_qualify_cv_check_correction, class: D, basis: ['CORRST?', 'CORRL?'], flex: [], target: unmapped, priority: later, legacy_priority: P2, successor: 'rule R-CORR-01 + live CORRST?/ADJ? check (catalog/corrections.py; WP8.2)', family: cmu, scope: mapped}
 - {id: D_atom_qualify_timeseries_check_events, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P2, successor: analysis.time_to_breakdown (WP7.4), family: system, scope: mapped}
 - {id: D_atom_shape_dataset_split_segments, class: D, basis: [], flex: [], target: unmapped, priority: m2, legacy_priority: P1, successor: segment fwd/rev option of the Vth extractors, family: system, scope: mapped}
 - {id: D_atom_shape_dataset_stack_family, class: D, basis: [], flex: [], target: unmapped, priority: m2, legacy_priority: P1, successor: smu_stepped table (Id-Vd family), family: system, scope: mapped}
@@ -384,8 +384,8 @@ atoms:
 - {id: D_atom_extract_transfer_voltage_shift, class: D, basis: [], flex: [], target: unmapped, priority: m2, legacy_priority: P1, successor: analysis.memory_window, family: smu, scope: mapped}
 - {id: D_atom_extract_output_ron, class: D, basis: [], flex: [], target: unmapped, priority: m2, legacy_priority: P2, successor: analysis.output_metrics, family: smu, scope: mapped}
 - {id: D_atom_extract_leakage_breakdown_voltage, class: D, basis: [], flex: [], target: unmapped, priority: m1, legacy_priority: P2, successor: analysis.breakdown_voltage (WP7.5), family: smu, scope: mapped}
-- {id: D_atom_extract_cv_cox, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P2, family: cmu, scope: open}
-- {id: D_atom_extract_cv_vfb, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P2, family: cmu, scope: open}
+- {id: D_atom_extract_cv_cox, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P2, successor: analysis.cv_cox (accumulation extrapolation; WP8.3), family: cmu, scope: mapped}
+- {id: D_atom_extract_cv_vfb, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P2, successor: analysis.cv_flatband (flatband capacitance; WP8.3), family: cmu, scope: mapped}
 - {id: D_atom_assess_value_check_limits, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P0, family: system, scope: open}
 - {id: D_atom_assess_dataset_check_envelope, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P1, family: system, scope: open}
 - {id: D_atom_assess_dataset_compare_reference, class: D, basis: [], flex: [], target: unmapped, priority: later, legacy_priority: P2, successor: 'analysis.pulsed_vs_dc (reference_run), analysis.model_compare (WP7.3, WP7.7)', family: system, scope: mapped}
@@ -427,38 +427,38 @@ flows:
 - {id: B_flow_maintenance_b1500_self_test_calibration, class: B, family: system, scope: open}
 - {id: B_flow_maintenance_wgfmu_self_test_calibration, class: B, family: wgfmu, scope: open}
 - {id: B_flow_preparation_asu_low_current_path, class: B, family: smu, target: ['recipe:mosfet.gate_leakage', B1500Driver.set_asu_path], scope: mapped}
-- {id: B_flow_preparation_scuu_signal_path, class: B, family: cmu, scope: open}
-- {id: B_flow_correction_cmu_open_short_load, class: B, family: cmu, scope: open}
-- {id: B_flow_correction_cmu_phase_compensation, class: B, family: cmu, scope: open}
-- {id: B_flow_correction_qscv_offset_cancel, class: B, family: cmu, scope: open}
+- {id: B_flow_preparation_scuu_signal_path, class: B, family: cmu, target: [B1500Driver.scuu_route, 'kind:cmu_measure', 'kind:smu_qscv', 'kind:cmu_correction'], scope: mapped}
+- {id: B_flow_correction_cmu_open_short_load, class: B, family: cmu, target: ['recipe:cmu.correction_open', 'recipe:cmu.correction_short', 'recipe:cmu.correction_load', 'kind:cmu_correction'], scope: mapped}
+- {id: B_flow_correction_cmu_phase_compensation, class: B, family: cmu, target: ['recipe:cmu.phase_compensation', 'kind:cmu_correction'], scope: mapped}
+- {id: B_flow_correction_qscv_offset_cancel, class: B, family: cmu, target: ['recipe:moscap.qscv', 'kind:smu_qscv', B1500Driver.measure_qscv_offset], scope: mapped}
 - {id: B_flow_correction_easyexpert_zero_cancel, class: B, family: system, scope: open}
 - {id: C_flow_spot_smu_iv, class: C, family: smu, target: ['recipe:generic.smu_spot', 'recipe:resistor.kelvin_4w', 'kind:smu_spot'], scope: mapped}
 - {id: C_flow_spot_smu_high_speed, class: C, family: smu, scope: out_of_scope, reason: 'high-speed spot (TI/TV/TIV, timer variants): out of scope by blueprint v2 1.2, the MM 1 spot (smu_spot) covers single points'}
 - {id: C_flow_spot_wgfmu_dc, class: C, family: wgfmu, scope: open}
-- {id: C_flow_spot_cmu_impedance, class: C, family: cmu, scope: open}
-- {id: C_flow_spot_cmu_high_speed, class: C, family: cmu, scope: open}
+- {id: C_flow_spot_cmu_impedance, class: C, family: cmu, target: ['recipe:cmu.spot', 'kind:cmu_measure', 'analysis:impedance_convert'], scope: mapped}
+- {id: C_flow_spot_cmu_high_speed, class: C, family: cmu, scope: out_of_scope, reason: 'MFCMU high-speed spot C (TC/TTC) and its AC level/DC bias monitor commands (TMACV/TMDCV): the CMU counterpart of the SMU high-speed spot, out of scope by blueprint v2 1.2 (MFCMU in-scope list); the MM 17 spot C (cmu_measure, recipe cmu.spot) with LMN monitors covers single points'}
 - {id: C_flow_sweep_smu_staircase, class: C, family: smu, target: ['recipe:mosfet.idvg', 'recipe:basic.diode_iv', 'kind:smu_staircase'], scope: mapped}
 - {id: C_flow_sweep_smu_staircase_biased, class: C, family: smu, target: ['recipe:mosfet.idvd', 'recipe:mosfet.idvg_family', 'kind:smu_stepped'], scope: mapped}
 - {id: C_flow_sweep_smu_synchronous, class: C, family: smu, target: ['recipe:mosfet.idvg_sync', 'kind:smu_staircase'], scope: mapped}
 - {id: C_flow_sweep_smu_multi_channel, class: C, family: smu, target: ['recipe:generic.smu_multi_sweep', 'kind:smu_staircase'], scope: mapped}
-- {id: C_flow_sweep_smu_qscv, class: C, family: cmu, scope: open}
-- {id: C_flow_sweep_cmu_cv, class: C, family: cmu, scope: open}
-- {id: C_flow_sweep_cmu_cf, class: C, family: cmu, scope: open}
-- {id: C_flow_sweep_cmu_ac_level, class: C, family: cmu, scope: open}
+- {id: C_flow_sweep_smu_qscv, class: C, family: cmu, target: ['recipe:moscap.qscv', 'kind:smu_qscv', 'analysis:cv_cox', 'analysis:dit_high_low'], scope: mapped}
+- {id: C_flow_sweep_cmu_cv, class: C, family: cmu, target: ['recipe:moscap.cv', 'recipe:mosfet.cgc_cv', 'recipe:mosfet.cgd_cv', 'recipe:moscap.cv_multi_freq', 'recipe:fecap.cv_butterfly', 'kind:cmu_measure'], scope: mapped}
+- {id: C_flow_sweep_cmu_cf, class: C, family: cmu, target: ['recipe:moscap.cf', 'kind:cmu_measure', 'analysis:cf_dispersion'], scope: mapped}
+- {id: C_flow_sweep_cmu_ac_level, class: C, family: cmu, target: ['recipe:moscap.cv_ac_level', 'kind:cmu_measure', 'analysis:cv_ac_dependence'], scope: mapped}
 - {id: C_flow_pulse_smu_spot, class: C, family: smu, target: ['recipe:basic.pulsed_spot', 'kind:smu_pulsed'], scope: mapped}
 - {id: C_flow_pulse_smu_sweep, class: C, family: smu, target: ['recipe:mosfet.idvg_pulsed', 'kind:smu_pulsed'], scope: mapped}
 - {id: C_flow_pulse_smu_staircase_pulsed_bias, class: C, family: smu, target: ['recipe:mosfet.idvd_pulsed', 'kind:smu_pulsed'], scope: mapped}
 - {id: C_flow_pulse_smu_multi_channel, class: C, family: smu, target: ['recipe:generic.smu_multi_pulsed', 'kind:smu_pulsed'], scope: mapped}
 - {id: C_flow_pulse_smu_quasi, class: C, family: smu, target: ['recipe:dielectric.bdv', 'kind:smu_search'], scope: mapped}
 - {id: C_flow_pulse_spgu_train, class: C, family: spgu, scope: open}
-- {id: C_flow_pulse_cmu_spot, class: C, family: cmu, scope: open}
-- {id: C_flow_pulse_cmu_cv, class: C, family: cmu, scope: open}
+- {id: C_flow_pulse_cmu_spot, class: C, family: cmu, target: ['recipe:moscap.pulsed_cv', 'kind:cmu_measure'], scope: mapped}
+- {id: C_flow_pulse_cmu_cv, class: C, family: cmu, target: ['recipe:moscap.pulsed_cv', 'kind:cmu_measure', 'analysis:cv_pulsed_vs_dc'], scope: mapped}
 - {id: C_flow_waveform_wgfmu_acquire, class: C, family: wgfmu, scope: open}
 - {id: C_flow_waveform_spgu_sequence, class: C, family: spgu, scope: open}
 - {id: C_flow_sampling_smu_iv_time, class: C, family: smu, target: ['recipe:generic.smu_sampling', 'recipe:mosfet.id_t_sampling', 'kind:smu_sampling'], scope: mapped}
 - {id: C_flow_sampling_smu_signal_monitor, class: C, family: smu, scope: out_of_scope, reason: 'signal monitor (DSMPL*): out of scope by blueprint v2 1.2; MM 10 sampling records I(t)'}
 - {id: C_flow_sampling_smu_spgu_bias, class: C, family: spgu, scope: open}
-- {id: C_flow_sampling_cmu_ct, class: C, family: cmu, scope: open}
+- {id: C_flow_sampling_cmu_ct, class: C, family: cmu, target: ['recipe:moscap.ct', 'kind:cmu_measure', 'analysis:ct_recovery'], scope: mapped}
 - {id: C_flow_search_smu_target, class: C, family: smu, target: ['recipe:mosfet.vth_search', 'recipe:basic.breakdown_search', 'kind:smu_search'], scope: mapped}
 - {id: C_flow_remote_easyexpert_selected_test, class: C, family: system, scope: open}
 - {id: C_flow_remote_easyexpert_repeat, class: C, family: system, scope: open}
@@ -477,22 +477,22 @@ flows:
 - {id: AB_flow_maintenance_wgfmu_self_test_calibration, class: AB, family: wgfmu, scope: open}
 - {id: AB_flow_preparation_flex_nonmeasurement_baseline, class: AB, family: system, scope: open}
 - {id: AB_flow_preparation_asu_low_current_path, class: AB, family: smu, target: ['recipe:mosfet.gate_leakage', B1500Driver.set_asu_path], scope: mapped}
-- {id: AB_flow_preparation_scuu_signal_path, class: AB, family: cmu, scope: open}
-- {id: AB_flow_correction_cmu_open_short_load, class: AB, family: cmu, scope: open}
-- {id: AB_flow_correction_cmu_phase_compensation, class: AB, family: cmu, scope: open}
-- {id: AB_flow_correction_qscv_offset_cancel, class: AB, family: cmu, scope: open}
+- {id: AB_flow_preparation_scuu_signal_path, class: AB, family: cmu, target: [B1500Driver.scuu_route, 'kind:cmu_measure', 'kind:smu_qscv', 'kind:cmu_correction'], scope: mapped}
+- {id: AB_flow_correction_cmu_open_short_load, class: AB, family: cmu, target: ['recipe:cmu.correction_open', 'recipe:cmu.correction_short', 'recipe:cmu.correction_load', 'kind:cmu_correction'], scope: mapped}
+- {id: AB_flow_correction_cmu_phase_compensation, class: AB, family: cmu, target: ['recipe:cmu.phase_compensation', 'kind:cmu_correction'], scope: mapped}
+- {id: AB_flow_correction_qscv_offset_cancel, class: AB, family: cmu, target: ['recipe:moscap.qscv', 'kind:smu_qscv', B1500Driver.measure_qscv_offset], scope: mapped}
 - {id: AB_flow_correction_easyexpert_zero_cancel, class: AB, family: system, scope: open}
 - {id: D_flow_qualify_iv_dataset, class: D, family: smu, target: ['analysis:quality_report'], scope: mapped}
 - {id: D_flow_screen_iv_leakage, class: D, family: smu, target: ['analysis:leakage_at'], scope: mapped}
 - {id: D_flow_archive_run_bundle, class: D, family: system, scope: open}
 - {id: D_flow_analyze_iv_transfer, class: D, family: smu, target: ['analysis:vth_linear_extrapolation', 'analysis:subthreshold_swing', 'analysis:gm_max', 'analysis:ion_ioff', 'analysis:compact_model_fit'], scope: mapped}
 - {id: D_flow_analyze_iv_output, class: D, family: smu, target: ['analysis:output_metrics', 'analysis:compact_model_fit'], scope: mapped}
-- {id: D_flow_qualify_cv_dataset, class: D, family: cmu, scope: open}
+- {id: D_flow_qualify_cv_dataset, class: D, family: cmu, target: ['analysis:quality_report', 'analysis:cv_cox', 'analysis:cv_flatband'], scope: mapped}
 - {id: D_flow_qualify_timeseries_dataset, class: D, family: system, scope: open}
 - {id: CD_flow_qualify_iv_dataset, class: CD, family: smu, target: ['recipe:mosfet.idvg', 'analysis:quality_report'], scope: mapped}
 - {id: CD_flow_screen_iv_leakage, class: CD, family: smu, target: ['recipe:mosfet.gate_leakage', 'analysis:leakage_at'], scope: mapped}
 - {id: CD_flow_analyze_iv_transfer, class: CD, family: smu, target: ['recipe:mosfet.idvg', 'analysis:vth_linear_extrapolation'], scope: mapped}
-- {id: CD_flow_qualify_cv_dataset, class: CD, family: cmu, scope: open}
+- {id: CD_flow_qualify_cv_dataset, class: CD, family: cmu, target: ['recipe:moscap.cv', 'analysis:quality_report', 'analysis:cv_cox'], scope: mapped}
 commands:
 - {command: '*IDN?', source: detailed, pdf_pages: [440], printed_pages: [4-122], target: B1500Driver.identify, builder: flex.IDN_Q, priority: m1, atoms: [A_atom_flex_connect, A_atom_flex_identify], family: system, scope: mapped}
 - {command: '*RST', source: detailed, pdf_pages: [502], printed_pages: [4-184], target: B1500Driver.reset, builder: flex.RST, priority: m1, atoms: [B_atom_lifecycle_b1500_reset], note: sent alone, family: system, scope: mapped}
@@ -545,7 +545,7 @@ commands:
 - {command: 'DCORR?', source: grouped, pdf_pages: [389, 390], printed_pages: [4-71 to 4-72], target: B1500Driver.correction_standard, builder: flex.dcorr_q, priority: m1, atoms: [A_atom_flex_query_cmu_load_standard], note: standards read back by the correction recipes (WP8.2), family: cmu, scope: mapped}
 - {command: 'CORRST?', source: grouped, pdf_pages: [388], printed_pages: [4-70], target: B1500Driver.correction_enabled, builder: flex.corrst_q, priority: m1, atoms: [A_atom_flex_query_cmu_correction_status, B_atom_correction_cmu_set_correction], note: 'read-only probe per installed MFCMU (WP6.1); R-CORR-01 pre-execute: M8', family: cmu, scope: mapped}
 - {command: CORRDT, source: grouped, pdf_pages: [383, 384], printed_pages: [4-65 to 4-66], target: B1500Driver.set_correction_data, builder: flex.corrdt, priority: m1, atoms: [B_atom_correction_cmu_set_correction_data], family: cmu, scope: mapped}
-- {command: 'CORRDT?', source: grouped, target: unmapped, priority: later, atoms: [A_atom_flex_query_cmu_correction_data], family: cmu, scope: open}
+- {command: 'CORRDT?', source: grouped, pdf_pages: [384], printed_pages: [4-66], target: B1500Driver.correction_data, builder: flex.corrdt_q, priority: m1, atoms: [A_atom_flex_query_cmu_correction_data], note: 'the correction recipes read the data just measured back (correction_data_list: CORRL? count, CORRDT? per frequency; WP8.6)', family: cmu, scope: mapped}
 - {command: PAX, source: grouped, target: unmapped, priority: later, atoms: [], family: system, scope: open}
 - {command: TM, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_set_trigger_mode], family: system, scope: open}
 - {command: SAL, source: grouped, pdf_pages: [505], printed_pages: [4-187], target: B1500Driver.set_asu_indicator, builder: flex.sal, priority: m1, atoms: [B_atom_routing_asu_set_indicator], note: ASU indicator; no output change (WP7.1), family: smu, scope: mapped}
@@ -567,10 +567,10 @@ commands:
 - {command: AITM, source: grouped, target: unmapped, priority: later, atoms: [], family: smu, scope: out_of_scope, reason: 'HRSMU PLC-mode operation type (PG p360 (4-42)): the initial type is kept; integration is set by the AIT presets short/medium/long'}
 - {command: 'AITM?', source: grouped, target: unmapped, priority: later, atoms: [], family: smu, scope: out_of_scope, reason: 'query of AITM (out of scope, see AITM)'}
 - {command: AZ, source: grouped, pdf_pages: [363], printed_pages: [4-45], target: B1500Driver.set_adc_zero, builder: flex.az, priority: m1, atoms: [B_atom_calibration_smu_set_adc_zero], note: high-resolution ADC offset cancel; off at *RST, family: smu, scope: mapped}
-- {command: TC, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_measure_high_speed_spot], family: cmu, scope: open}
-- {command: TMACV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_measure_high_speed_spot], family: cmu, scope: open}
-- {command: TMDCV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_measure_high_speed_spot], family: cmu, scope: open}
-- {command: TTC, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_measure_high_speed_spot], family: cmu, scope: open}
+- {command: TC, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_measure_high_speed_spot], family: cmu, scope: out_of_scope, reason: 'MFCMU high-speed spot C (TC/TTC) and its AC level/DC bias monitor commands (TMACV/TMDCV): the CMU counterpart of the SMU high-speed spot, out of scope by blueprint v2 1.2 (MFCMU in-scope list); the MM 17 spot C (cmu_measure, recipe cmu.spot) with LMN monitors covers single points'}
+- {command: TMACV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_measure_high_speed_spot], family: cmu, scope: out_of_scope, reason: 'MFCMU high-speed spot C (TC/TTC) and its AC level/DC bias monitor commands (TMACV/TMDCV): the CMU counterpart of the SMU high-speed spot, out of scope by blueprint v2 1.2 (MFCMU in-scope list); the MM 17 spot C (cmu_measure, recipe cmu.spot) with LMN monitors covers single points'}
+- {command: TMDCV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_measure_high_speed_spot], family: cmu, scope: out_of_scope, reason: 'MFCMU high-speed spot C (TC/TTC) and its AC level/DC bias monitor commands (TMACV/TMDCV): the CMU counterpart of the SMU high-speed spot, out of scope by blueprint v2 1.2 (MFCMU in-scope list); the MM 17 spot C (cmu_measure, recipe cmu.spot) with LMN monitors covers single points'}
+- {command: TTC, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_measure_high_speed_spot], family: cmu, scope: out_of_scope, reason: 'MFCMU high-speed spot C (TC/TTC) and its AC level/DC bias monitor commands (TMACV/TMDCV): the CMU counterpart of the SMU high-speed spot, out of scope by blueprint v2 1.2 (MFCMU in-scope list); the MM 17 spot C (cmu_measure, recipe cmu.spot) with LMN monitors covers single points'}
 - {command: TTI, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_measure_high_speed_spot], family: smu, scope: out_of_scope, reason: 'high-speed spot (TI/TV/TIV, timer variants): out of scope by blueprint v2 1.2, the MM 1 spot (smu_spot) covers single points'}
 - {command: TTIV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_measure_high_speed_spot], family: smu, scope: out_of_scope, reason: 'high-speed spot (TI/TV/TIV, timer variants): out of scope by blueprint v2 1.2, the MM 1 spot (smu_spot) covers single points'}
 - {command: TTV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_smu_measure_high_speed_spot], family: smu, scope: out_of_scope, reason: 'high-speed spot (TI/TV/TIV, timer variants): out of scope by blueprint v2 1.2, the MM 1 spot (smu_spot) covers single points'}
@@ -579,8 +579,8 @@ commands:
 - {command: FC, source: grouped, pdf_pages: [435], printed_pages: [4-117], target: B1500Driver.apply_cmu_signal, builder: flex.fc, priority: m1, atoms: [C_atom_cmu_configure_signal], note: OutputGuard.check_ac; also set_cmu_frequency, family: cmu, scope: mapped}
 - {command: ACV, source: grouped, pdf_pages: [354, 355], printed_pages: [4-36 to 4-37], target: B1500Driver.apply_cmu_signal, builder: flex.acv, priority: m1, atoms: [C_atom_cmu_configure_signal], note: 'OutputGuard.check_ac; also set_cmu_ac, zero_cmu (cleanup)', family: cmu, scope: mapped}
 - {command: DCV, source: grouped, pdf_pages: [390, 391], printed_pages: [4-72 to 4-73], target: B1500Driver.apply_cmu_signal, builder: flex.dcv, priority: m1, atoms: [C_atom_cmu_configure_signal], note: 'OutputGuard.check_ac; MFCMU +-25 V only; also set_cmu_dc, zero_cmu (cleanup step 4)', family: cmu, scope: mapped}
-- {command: TACV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_measure_timer_start_ac_voltage], family: cmu, scope: open}
-- {command: TDCV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_measure_timer_start_dc_voltage], family: cmu, scope: open}
+- {command: TACV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_measure_timer_start_ac_voltage], family: cmu, scope: out_of_scope, reason: 'timer-start MFCMU AC/DC output (TACV/TDCV): the CMU counterpart of TDV/TDI, out of scope by blueprint v2 1.2; ACV/DCV set the signal and the C-t sampling (MM 26) carries the time stamps'}
+- {command: TDCV, source: grouped, target: unmapped, priority: later, atoms: [C_atom_cmu_measure_timer_start_dc_voltage], family: cmu, scope: out_of_scope, reason: 'timer-start MFCMU AC/DC output (TACV/TDCV): the CMU counterpart of TDV/TDI, out of scope by blueprint v2 1.2; ACV/DCV set the signal and the C-t sampling (MM 26) carries the time stamps'}
 - {command: ACT, source: grouped, pdf_pages: [354], printed_pages: [4-36], target: B1500Driver.set_cmu_integration, builder: flex.act, priority: m1, atoms: [C_atom_cmu_set_ranging_integration], family: cmu, scope: mapped}
 - {command: IMP, source: grouped, pdf_pages: [441], printed_pages: [4-123], target: B1500Driver.set_impedance_model, builder: flex.imp, priority: m1, atoms: [C_atom_cmu_set_impedance_model], note: 'Table 4-16; run-table modes 10, 11, 100, 101, 200, 201', family: cmu, scope: mapped}
 - {command: LMN, source: grouped, pdf_pages: [445, 446], printed_pages: [4-127 to 4-128], target: B1500Driver.set_cmu_monitor, builder: flex.lmn, priority: m1, atoms: [C_atom_cmu_set_monitor_output], family: cmu, scope: mapped}

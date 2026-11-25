@@ -67,6 +67,8 @@ Kind `smu_qscv` (recipe `moscap.qscv`, card `moscap-dit`); PG p115-117 (2-27), e
 - `QSR` is a fixed range (10 pA..1 uA; an MPSMU from 1 nA) for the charge current `C cvoltage / cinteg` plus the
   leakage; `QSM 2` stops at compliance, overflow or oscillation (error 242, dummy data). `QSZ 2` measures the path
   offset with the probes lifted (`physical_setup`), `QSZ 1` subtracts it; `QSO` (smart operation) stays off.
+- The run's `kind_result` keeps `offset_f` (offset run) and `leakage_max_a` (largest |leakage| of the sweep): the
+  bring-up L6 checks (offset below 5 pF, leakage below 1 nA).
 - Through an SCUU (`SSP 7,3`) the same landing then gives the MFCMU C-V: [08](08-capacitance-cv.md#quasi-static-c-v).
 
 ## Zero check floor

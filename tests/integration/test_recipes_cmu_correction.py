@@ -8,7 +8,8 @@ writes its record to the correction store. Fidelity (4.2): uncorrected the 100 p
 open + short it reads 100 pF within 0.1 %. The correction gate R-CORR-01 is exercised end to end with the capacitance
 recipe ``cmu.spot`` (kind ``cmu_measure``, WP8.3; it replaced the WP8.2 test stub): missing, stale, uncovered and
 other-pin-map corrections block at validation with the card as next step, and a ``cmu_correction_lost`` fault blocks
-before execution with zero source commands. These tests set the recipes' ``status: sim_validated``.
+before execution with zero source commands. These tests set the recipes' ``status: sim_validated``. Each data
+correction reads its data back (``CORRDT?``, WP8.6): the fixture's open and short parasitics, the load standard.
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ from b1500_test_agent.models.run import RunSummary
 from b1500_test_agent.rules.builtin.cmu import CORRECTION_NEXT_STEP
 from b1500_test_agent.service import B1500Service
 from tests.integration.helpers import REPO_ROOT, World
+
+pytestmark = pytest.mark.cmu
 
 CMU, ALIAS = 7, "CMU1"
 TRUTH_F = 100e-12
@@ -156,6 +159,12 @@ def test_correction_recipe_needs_the_physical_setup_and_writes_its_record(recipe
         assert record.freqs_hz == [] and facts["after_phase"] is True
     else:
         assert len(record.freqs_hz) == 23 and record.corr_state[kind] is True and facts["setup"] == "rewritten"
+        # CORRDT? read-back (WP8.6): the fixture's open 0.3 pF, short 0.5 Ohm + 50 nH, the 100 Ohm load (medians over
+        # the 23 frequencies, uncompensated phase: a few % on the short)
+        expected = {"open": {"open_cp_f": (0.3e-12, 0.02)}, "load": {"load_rs_ohm": (100.0, 0.01)},
+                    "short": {"short_rs_ohm": (0.5, 0.05), "short_ls_h": (50e-9, 0.05)}}[kind]
+        assert facts["data_freqs"] == 23
+        assert {k: facts[k] for k in expected} == {k: pytest.approx(v, rel=r) for k, (v, r) in expected.items()}
 
 
 def test_corrections_need_no_dut_profile_and_bind_to_the_pin_maps_mfcmu_terminals(svc: B1500Service) -> None:

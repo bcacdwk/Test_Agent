@@ -39,6 +39,8 @@ from b1500_test_agent.transport.sim.devices.moscap import MoscapDevice
 from b1500_test_agent.transport.sim.devices.mosfet import Mosfet
 from tests.unit.analysis_helpers import manifest
 
+pytestmark = pytest.mark.cmu
+
 CRITERIA = QualityCriteria(limited=[], untrusted=["U", "D", "V", "X", "C", "T", "F", "G", "S"])
 AREA = DutGeometry(area_um2=1.0e4, tox_nm=5.0)
 F = 1e6

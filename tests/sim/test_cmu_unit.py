@@ -19,6 +19,8 @@ from b1500_test_agent.transport.sim import SimTransport, sim_state_file
 from b1500_test_agent.transport.sim.devices.moscap import MoscapDevice
 from tests.sim.helpers import errx_all, load_scenario, noiseless, run, scenario_with
 
+pytestmark = pytest.mark.cmu
+
 CMU = 7
 F = 1.0e5
 

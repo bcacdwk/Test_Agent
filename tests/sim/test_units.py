@@ -31,7 +31,7 @@ SAMPLING = {"MCC", "ML", "MT", "MSC", "MV", "MI", "TSR"}
 PULSED = {"PT", "PV", "PI", "PWV", "PWI", "MCPT", "MCPNT", "MCPNX", "MCPWS", "MCPWNX"}  # WP7.3
 SEARCH = set(flex.SEARCH_COMMANDS)  # WP7.5
 QSCV = set(flex.QSCV_COMMANDS)  # WP8.5
-CMU = {"CORRST?", "ADJ?", "CORR?", "CORRL?", "DCORR?", "MM", "XE"} | set(flex.CMU_COMMANDS)  # MM/XE by mode (WP8.1)
+CMU = {"CORRST?", "ADJ?", "CORR?", "CORRL?", "DCORR?", "CORRDT?", "MM", "XE"} | set(flex.CMU_COMMANDS)  # MM/XE by mode
 SPGU = {"SPST?", "SIM", "SPM", "SPT", "SPV", "SPPER", "SPRM", "SER", "SPUPD", "SRP", "SPP", "ODSW", "STGP",
         "CORRSER?", "ALW", "ALS"}  # WP9.1
 SWITCH = {"ERMOD?", "ERSSP?", "SAP", "SAR", "SAL", "SSP", "SSL", "ERMOD", "ERSSP"}  # ERMOD/ERSSP: WP9.2

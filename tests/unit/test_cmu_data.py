@@ -26,6 +26,8 @@ from b1500_test_agent.driver.errors import FlexParseError
 from b1500_test_agent.driver.parser import parse_data, parse_element
 from tests.unit.flex_fixtures import FlexFixture, all_fixtures
 
+pytestmark = pytest.mark.cmu
+
 CMU_FIXTURES = [f for f in all_fixtures("fmt1") if f.name.startswith("fmt1_cmu_")]
 
 

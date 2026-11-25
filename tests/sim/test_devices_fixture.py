@@ -14,6 +14,8 @@ from b1500_test_agent.models.sim import CapacitorParams, FixtureParams
 from b1500_test_agent.transport.sim.devices.basic import CapacitorDevice
 from b1500_test_agent.transport.sim.devices.fixture import FixtureDevice, compensate, cp_g
 
+pytestmark = pytest.mark.cmu
+
 FREQS = [1.0e3, 1.0e4, 1.0e5, 1.0e6, 5.0e6]  # MFCMU 1 kHz - 5 MHz
 
 

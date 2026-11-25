@@ -18,7 +18,8 @@ Strictly in order; a stage starts only after the previous one is signed off. Not
 | L3 | known diode | [l3-diode](../.agents/skills/b1500-bringup/stages/l3-diode.md) | `basic.diode_iv` |
 | L4 | known-good MOSFET against EasyEXPERT | [l4-mosfet](../.agents/skills/b1500-bringup/stages/l4-mosfet.md) | `mosfet.idvg`, `mosfet.idvd`, `mosfet.gate_leakage` |
 | L5 | SMU advanced: pulsed vs DC, sampling time grid, Vth by search | [l5-smu-advanced](../.agents/skills/b1500-bringup/stages/l5-smu-advanced.md) | `mosfet.idvg_pulsed`, `mosfet.idvd_pulsed`, `basic.pulsed_spot`, `generic.smu_multi_pulsed`, `mosfet.id_t_sampling`, `generic.smu_sampling`, `mosfet.vth_search` |
-| L6-L8 | CMU, SPGU + selector, WGFMU | arrive with their module work packages | - |
+| L6 | CMU: phase compensation and open/short (the human lifts and lands), known capacitor, MOS-C C-V and variants, QSCV and Dit (SCUU same landing), split C-V, FeCap butterfly | [l6-cmu](../.agents/skills/b1500-bringup/stages/l6-cmu.md) | `stage-l6`, `cmu.phase_compensation`, `cmu.correction_open`, `cmu.correction_short`, `cmu.correction_load`, `cmu.spot`, `moscap.cv`, `moscap.cv_ac_level`, `moscap.pulsed_cv`, `moscap.cf`, `moscap.ct`, `moscap.cv_multi_freq`, `moscap.qscv`, `mosfet.cgc_cv`, `mosfet.cgd_cv`, `fecap.cv_butterfly` |
+| L7-L8 | SPGU + selector, WGFMU | arrive with their module work packages | - |
 | L9 | long runs (SMU part): async BTI, cancel and kill-recovery drills, stress and breakdown recipes | [l9-long-runs](../.agents/skills/b1500-bringup/stages/l9-long-runs.md) | `stage-l9`, `reliability.bti_sms`, `igzo.bias_stress`, `reliability.hci`, `reliability.silc`, `reliability.tddb_cvs`, `dielectric.bdv`, `basic.breakdown_search` |
 | L10 | acceptance prompts on hardware, records reviewed and transferred | [l10-harness-handoff](../.agents/skills/b1500-bringup/stages/l10-harness-handoff.md) | `stage-l10` |
 
@@ -64,9 +65,8 @@ software cannot reach the instrument and an output may still be on: switch the B
 
 ## Rehearsal on the simulator
 
-The same stages run against the simulator scenario `lab_station` (acceptance scenario S17): every value is
-SIMULATED, the owner may answer the physical steps with "done", and no record, fixture or `validation/hw/` file
-is ever produced from simulator runs.
+The same stages run against the simulator scenario `lab_station` (acceptance scenario S17): every value is SIMULATED,
+the physical steps may be answered with "done", and no record, fixture or `validation/hw/` file comes from it.
 
 ## Hardware tests (end of day)
 

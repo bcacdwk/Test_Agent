@@ -438,6 +438,16 @@ def corrdt(ch: int, freq_hz: float, open_g: float, open_b: float, short_r: float
     return f"CORRDT {_channel(ch)},{_num(freq)}," + ",".join(_num(v) for v in values)
 
 
+def corrdt_q(ch: int, index: int) -> str:
+    """``CORRDT? chnum,index``: the correction data stored for the ``index``-th frequency of the correction list (1 =
+    first), answered as ``freq,open_r,open_i,short_r,short_i,load_r,load_i`` (open as G, B in S; short and load as
+    R, X in Ohm; PG PDF 384, printed 4-66, example ``CORRDT? 9,1``). A query: the data and functions stay as they
+    are."""
+    if _int(index, "CORRDT? index") < 1:
+        raise ValueError(f"CORRDT? index starts at 1, got {index}")
+    return f"CORRDT? {_channel(ch)},{index}"
+
+
 def corrst(ch: int, corr: CorrectionFunction, on: bool) -> str:
     """``CORRST chnum,corr,state``: switch the open (1), short (2) or load (3) correction function ON (1) or OFF (0)
     (PG PDF 387-388, printed 4-69 to 4-70). ON needs the correction data measured by ``CORR?`` first (error 685).

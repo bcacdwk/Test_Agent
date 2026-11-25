@@ -64,8 +64,11 @@ Coverage ledger (blueprint v2 §9, WP7.7): every atom, flow and command also car
 `recipe:<id>`, `kind:<id>`, `analysis:<method>` or `B1500Driver.<method>`), `out_of_scope` (with `reason`, from
 `OUT_OF_SCOPE`) or `open`. Families come from `entry_family` (id words) and, for commands, from the manual category
 (`COMMAND_CATEGORY_FAMILY`) with the `COMMAND_FAMILY` overrides. `counts.ledger` holds mapped/out_of_scope/open per
-family and entry type; `--check` fails on an `open` entry of a family in `CLOSED_FAMILIES` (`smu` since WP7.7; the
-module closures 8.6, 9.6, 10.8 add theirs, WP11.2 the rest).
+family and entry type; `--check` fails on an `open` entry of a family in `CLOSED_FAMILIES` (`smu` since WP7.7, `cmu`
+since WP8.6; the module closures 9.6, 10.8 add theirs, WP11.2 the rest). The `cmu` family holds the MFCMU, SCUU and
+QSCV entries; the GNDU has no legacy atom, flow or command (its v2 parts are rule R-GNDU-01 and the simulator's
+return-current accounting, WP8.5). CMU out of scope: the high-speed spot C `TC`/`TTC` with its monitors
+`TMACV`/`TMDCV` and the timer-start outputs `TACV`/`TDCV` (the MM 17 spot and MM 26 time stamps serve the recipes).
 
 ## Target vocabulary (§2.3)
 
@@ -83,6 +86,7 @@ module closures 8.6, 9.6, 10.8 add theirs, WP11.2 the rest).
 | `CM`, `*LRN?`; `ERMOD?`, `ERSSP?`, `SPST?`, `CORRST?`, `ADJ?` | `set_auto_calibration`, `auto_calibration`; the probe queries | WP5.6; WP6.1 |
 | MFCMU: `IMP`, `FC`/`ACV`/`DCV`, `RC`, `ACT`, `LMN`, the MM 18-26 sources and timing, `ADJ`, `CORRL`, `CLCORR`, `CORR?`, `DCORR`, `CORRDT`, `CORRST`; `MM` 17-20, 22, 23, 26 (`MM_MODE_TARGETS`); SCUU `SSP`, `SSL` | `CmuOps` (`apply_cmu_signal`, `cv_sweep`, `cf_sweep`, ...), `SwitchOps.scuu_route` | WP8.1 |
 | SMU conditioning `FL` / `SSR` / `AZ` / `AV` / `RM`; `WNCC` (WP7.7) | `set_filter` / `set_series_resistor` / `set_adc_zero` / `set_averaging` / `set_range_mode`; `clear_sweep_sources` | `fl` / `ssr` / `az` / `av` / `rm`; `wncc` |
+| MFCMU correction data `CORRDT?` (WP8.6; with `CORRL?` for the count) | `correction_data`, `correction_data_list` | `corrdt_q` |
 
 Mapped since: `CM`, `*LRN?` (WP5.6); the probe queries `ERMOD?`, `ERSSP?`, `SPST?`, `CORRST?`, `ADJ?` (WP6.1); the
 sampling setup `MM 10`, `MCC`, `ML`, `MT`, `MSC`, `MV`, `MI` and the time stamps `TSC`, `TSR` (WP7.4); `DI`, `WI`,

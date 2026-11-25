@@ -41,7 +41,8 @@ Table (``data.csv`` contract): one row per measured step, ``step``, ``segment`` 
 ``dc_v`` (the step voltage the source reports), ``<role>_Cp`` (the quasi-static capacitance, F; leakage-compensated
 with ``leakage: compensate``) with its status and, unless ``leakage: off``, ``<role>_I`` (the leakage current, A) with
 its status. An offset measurement: one row, ``<role>_Cp`` = the offset. ``kind_result``: ``measurement_mode`` 13,
-``points``, ``offset`` mode, ``offset_f`` (offset run), ``aborted`` (error 242) and the column names.
+``points``, ``offset`` mode, ``offset_f`` (offset run), ``leakage_max_a`` (the largest |leakage| of the sweep, unless
+``leakage: off``; WP8.6), ``aborted`` (error 242) and the column names.
 """
 
 from __future__ import annotations
@@ -432,6 +433,9 @@ def qscv_result(program: QscvProgram, block: RawBlock) -> dict[str, Any]:
         steps = parse_qscv(block.points, channel=setup.measured_channel, source_channel=setup.source.channel,
                            leakage=setup.leakage_data, steps=setup.points)
         result["points"] = len(steps)
+        leaks = [abs(s.leakage.value) for s in steps if s.leakage is not None and not s.leakage.invalid]
+        if leaks:  # the largest leakage of the sweep (bring-up L6 QSCV leakage check; WP8.6)
+            result["leakage_max_a"] = max(leaks)
     return result
 
 

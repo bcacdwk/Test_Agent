@@ -1,6 +1,7 @@
 """MFCMU measurement data and query answers: impedance pairs per ``IMP`` model, monitor values, CMU status codes,
 and the small MFCMU/SCUU answers ``CORR?``, ``*LRN? 81`` (SCUU path) and ``*LRN? 90`` (phase compensation mode)
-(blueprint v2 2.5, 2.10; WP8.1), plus the correction set-up queries ``CORRL?`` and ``DCORR?`` (WP8.2).
+(blueprint v2 2.5, 2.10; WP8.1), plus the correction set-up queries ``CORRL?`` and ``DCORR?`` (WP8.2) and the
+correction data query ``CORRDT?`` (WP8.6).
 
 Formats from the Keysight B1500 Series Programming Guide, Edition 15 ("PG"; physical PDF pages):
 
@@ -320,6 +321,52 @@ def parse_dcorr(text: str) -> tuple[int, float, float]:
         raise FlexParseError(f"standard reference mode (DCORR?) is not 100 or 400: {text!r}", raw=text)
     return int(mode), _number(parts[1], "standard primary value (DCORR?)"), \
         _number(parts[2], "standard secondary value (DCORR?)")
+
+
+@dataclass(frozen=True)
+class CorrectionData:
+    """The correction data of one listed frequency (``CORRDT?``; PG PDF 384): the open as admittance ``G + jB`` (S),
+    the short and the load as impedance ``R + jX`` (Ohm), as measured by ``CORR?`` (or set by ``CORRDT``). A
+    correction never measured answers 0 (TODO(verify) at bring-up L6)."""
+
+    freq_hz: float
+    open_g: float
+    open_b: float
+    short_r: float
+    short_x: float
+    load_r: float
+    load_x: float
+
+    @property
+    def open_cp_f(self) -> float:
+        """Stray capacitance of the open path, ``B / (2 pi f)`` (F)."""
+        return self.open_b / (2.0 * math.pi * self.freq_hz)
+
+    @property
+    def short_ls_h(self) -> float:
+        """Series inductance of the short path, ``X / (2 pi f)`` (H)."""
+        return self.short_x / (2.0 * math.pi * self.freq_hz)
+
+    @property
+    def load_ls_h(self) -> float:
+        """Series inductance of the load reading, ``X / (2 pi f)`` (H)."""
+        return self.load_x / (2.0 * math.pi * self.freq_hz)
+
+
+def parse_correction_data(text: str) -> CorrectionData:
+    """``CORRDT? chnum,index`` -> ``CorrectionData`` from ``freq,open_r,open_i,short_r,short_i,load_r,load_i`` (PG PDF
+    384).
+
+    Raises:
+        FlexParseError: If the answer is not seven finite numbers with a positive frequency.
+    """
+    parts = text.strip().split(",")
+    if len(parts) != 7:
+        raise FlexParseError(f"correction data (CORRDT?) is not freq and six values: {text!r}", raw=text)
+    values = [_number(part, "correction data value (CORRDT?)") for part in parts]
+    if values[0] <= 0:
+        raise FlexParseError(f"correction data frequency (CORRDT?) is not positive: {text!r}", raw=text)
+    return CorrectionData(*values)
 
 
 def _canonical(channel: int) -> int:

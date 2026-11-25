@@ -117,7 +117,7 @@ def test_builder_check_mode_reproduces_committed_map_from_archive_tag(capsys: py
 @pytest.mark.smu
 def test_every_smu_entry_is_mapped_or_out_of_scope_with_a_reason(doc: dict) -> None:
     ledger = doc["counts"]["ledger"]
-    assert set(ledger) == set(builder.LEDGER_FAMILIES) and builder.CLOSED_FAMILIES == ("smu",)
+    assert set(ledger) == set(builder.LEDGER_FAMILIES) and {"smu", "cmu"} <= set(builder.CLOSED_FAMILIES)
     smu = ledger["smu"]
     assert {kind: smu[kind]["open"] for kind in ("atoms", "flows", "commands")} == {"atoms": 0, "flows": 0,
                                                                                      "commands": 0}
@@ -154,6 +154,43 @@ def test_ledger_check_rejects_open_smu_entries_and_bad_flow_targets(doc: dict) -
     assert any("B1500Driver.no_such_method is not a driver target" in p for p in problems)
     assert any("'plot:iv' is not recipe:/kind:/analysis:" in p for p in problems)
     assert any("command TI: out_of_scope without a reason" in p for p in problems)
+
+
+# -- coverage ledger: the CMU rows (WP8.6; MFCMU + SCUU + QSCV; the GNDU has no legacy atom, flow or command) ------
+
+
+@pytest.mark.cmu
+def test_every_cmu_entry_is_mapped_or_out_of_scope_with_a_reason(doc: dict) -> None:
+    cmu = doc["counts"]["ledger"]["cmu"]
+    assert {kind: cmu[kind]["open"] for kind in ("atoms", "flows", "commands")} == {"atoms": 0, "flows": 0,
+                                                                                     "commands": 0}
+    assert cmu["atoms"]["mapped"] >= 40 and cmu["flows"]["mapped"] >= 18 and cmu["commands"]["mapped"] >= 43
+    by_command = {c["command"]: c for c in doc["commands"]}
+    for mnemonic in ("CORRDT?", "CORRL?", "DCORR?", "CORR?", "ADJ?", "SSP", "QSZ", "WMDCV", "MTDCV"):  # 1.2 in scope
+        assert by_command[mnemonic]["scope"] == "mapped" and by_command[mnemonic]["family"] == "cmu", mnemonic
+    assert by_command["CORRDT?"]["target"] == "B1500Driver.correction_data"
+    assert by_command["CORRDT?"]["pdf_pages"] == [384]
+    for mnemonic in ("TC", "TTC", "TMACV", "TMDCV", "TACV", "TDCV"):  # high-speed spot C, timer-start outputs
+        assert by_command[mnemonic]["scope"] == "out_of_scope" and by_command[mnemonic]["reason"], mnemonic
+    flows = {f["id"]: f for f in doc["flows"]}
+    assert flows["C_flow_sweep_cmu_cv"]["target"][0] == "recipe:moscap.cv"
+    assert "recipe:cmu.correction_short" in flows["B_flow_correction_cmu_open_short_load"]["target"]
+    assert flows["C_flow_spot_cmu_high_speed"]["scope"] == "out_of_scope"
+    atoms = {a["id"]: a for a in doc["atoms"]}
+    assert atoms["A_atom_flex_query_cmu_correction_data"]["target"] == ["B1500Driver.correction_data"]
+    assert atoms["D_atom_extract_cv_cox"]["successor"].startswith("analysis.cv_cox")
+    assert not [e for e in [*doc["atoms"], *doc["flows"], *doc["commands"]]
+                if "gndu" in str(e.get("id", e.get("command"))).lower()]  # GNDU: v2 only (R-GNDU-01, sim budget)
+
+
+@pytest.mark.cmu
+def test_ledger_check_rejects_an_open_cmu_entry(doc: dict) -> None:
+    broken = copy.deepcopy(doc)
+    next(c for c in broken["commands"] if c["command"] == "CORRDT?").update(scope="open")
+    next(f for f in broken["flows"] if f["id"] == "C_flow_sweep_cmu_cf").update(scope="open")
+    problems = builder.check_ledger(broken["atoms"], broken["flows"], broken["commands"])
+    assert any("command CORRDT?: cmu entry is neither mapped nor out_of_scope" in p for p in problems)
+    assert any("flow C_flow_sweep_cmu_cf: cmu entry is neither mapped nor out_of_scope" in p for p in problems)
 
 
 @pytest.mark.parametrize(("entry_id", "family"), [

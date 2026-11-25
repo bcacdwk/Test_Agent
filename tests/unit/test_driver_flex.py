@@ -417,8 +417,8 @@ def test_family_modules_hold_disjoint_builders() -> None:
             "fl", "ssr", "az", "av", "rm", "wncc"} == set(_own_functions(flex_smu))  # conditioning: WP7.7
     assert {"corrst_q", "adj_q", "imp", "fc", "acv", "dcv", "rc", "act", "lmn", "wdcv", "wtdcv", "wmdcv", "wfc",
             "wtfc", "wmfc", "wacv", "wtacv", "wmacv", "pdcv", "ptdcv", "pwdcv", "mdcv", "mtdcv", "adj", "corrl",
-            "clcorr", "corr_q", "dcorr", "corrdt", "corrst", "corrl_q", "dcorr_q"} == set(
-        _own_functions(flex_cmu))  # WP8.1; the set-up queries CORRL?, DCORR? WP8.2
+            "clcorr", "corr_q", "dcorr", "corrdt", "corrst", "corrl_q", "dcorr_q", "corrdt_q"} == set(
+        _own_functions(flex_cmu))  # WP8.1; the set-up queries CORRL?, DCORR? WP8.2; CORRDT? WP8.6
     assert {"sim", "spm", "spt", "spv", "spper", "sprm", "ser", "spupd", "odsw", "stgp", "corrser_q", "alw",
             "als"} == set(_own_functions(flex_spgu))  # WP9.1
     assert {"SPST_Q", "SRP", "SPP"} <= set(_own_constants(flex_spgu))

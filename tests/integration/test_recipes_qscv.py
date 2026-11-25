@@ -28,6 +28,8 @@ from b1500_test_agent.transport.sim.devices.moscap import MoscapDevice
 from b1500_test_agent.transport.sim.units.qscv import QSCV_STRAY_F
 from tests.integration.helpers import REPO_ROOT, World
 
+pytestmark = pytest.mark.cmu
+
 CORRECTIONS = ("cmu.phase_compensation", "cmu.correction_open", "cmu.correction_short")
 DIT = {"pin_map": "moscap-scuu", "dut_profile": "moscap-generic"}
 QSCV = {"recipe_id": "moscap.qscv", **DIT}
@@ -105,6 +107,8 @@ def test_qscv_meets_the_cox_target_with_its_leakage_compensated(recipe_id: str, 
     assert np.allclose(depletion["gate_Cp"] - QSCV_STRAY_F, q, rtol=0.03)
     record = manifest(world, result.run_id)  # type: ignore[arg-type]
     assert record["kind_result"]["measurement_mode"] == 13 and record["kind_result"]["aborted"] is False
+    leak_max = float(np.max(np.abs(table["gate_I"])))  # the L6 QSCV leakage check reads it (WP8.6)
+    assert record["kind_result"]["leakage_max_a"] == pytest.approx(leak_max, rel=1e-6) and leak_max < 3e-9  # 1 GOhm
     plots = svc.analyze_run(result.run_id, "plot_cv")  # type: ignore[arg-type]
     assert plots.ok and [p.rsplit("/", 1)[-1] for p in plots.plots] == ["qscv-1.png"], plots.message
     refused = svc.analyze_run(result.run_id, "cv_flatband")  # type: ignore[arg-type]

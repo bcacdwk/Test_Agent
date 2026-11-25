@@ -30,9 +30,11 @@ from b1500_test_agent.driver import flex
 from b1500_test_agent.driver.cmu_data import (
     CmuLayout,
     CmuReading,
+    CorrectionData,
     parse_adj_mode,
     parse_cmu_blocks,
     parse_corr_result,
+    parse_correction_data,
     parse_corrl_count,
     parse_corrl_frequency,
     parse_dcorr,
@@ -309,6 +311,18 @@ class CmuOps(DriverBase):
         """``DCORR? ch,corr`` -> ``(mode, primary, secondary)``: the reference value of the open (100: Cp, G), short or
         load (400: Ls, Rs) standard (PG PDF 389-390). A query."""
         return parse_dcorr(self._query(flex.dcorr_q(ch, corr)))
+
+    def correction_data(self, ch: int, index: int) -> CorrectionData:
+        """``CORRDT? ch,index`` -> the correction data of the ``index``-th listed frequency (1 = first): open G, B;
+        short and load R, X (PG PDF 384). A query: nothing is cleared or switched."""
+        return parse_correction_data(self._query(flex.corrdt_q(ch, index)))
+
+    def correction_data_list(self, ch: int) -> tuple[CorrectionData, ...]:
+        """``CORRL? ch`` (the number of listed frequencies), then ``CORRDT? ch,index`` for each: the correction data of
+        the whole list in list order (PG PDF 384-385). Queries only; an empty list (corrections lost with a power
+        cycle) answers no data instead of asking for an index the instrument does not have."""
+        count = parse_corrl_count(self._query(flex.corrl_q(ch)))
+        return tuple(self.correction_data(ch, index) for index in range(1, count + 1))
 
     # -- B: settings without an output change -------------------------------------------------------------------
 

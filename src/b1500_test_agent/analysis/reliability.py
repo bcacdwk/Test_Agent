@@ -26,11 +26,11 @@ Over the trusted points inside ``[t_min, t_max]`` (default: all): ``initial`` an
 and the last ``edge`` points (default 10, at most a tenth of the points), ``mean``, ``std`` (sample standard
 deviation) and ``drift`` = (final - initial) / |initial| (unit ``1``). With ``fit="stretched_exp"`` it also fits the
 relaxation ``y(t) = y_inf + (y0 - y_inf) exp(-(t/tau)^beta)`` (IGZO bias-stress transients, Libsch & Kanicki,
-APL 62, 1286, 1993; Kohlrausch law): linear least squares for ``y_inf`` and ``y0`` at each ``(tau, beta)`` (variable
-projection), a coarse grid over ``tau`` (``t``-span / 30 to 30 x the span, log) and ``beta`` (0.1 to 1.5) on the
-data averaged in at most 400 log-time bins, then Levenberg-Marquardt on every point in ``(ln tau, beta)``; results
-``tau`` (s), ``beta`` (1) and ``y_inf`` (unit of ``y``); ``fit`` holds ``y0``, ``r2``, the residual rms and the
-standard errors from the Jacobian. A ``tau`` beyond 3x the last time or a ``beta`` at a grid edge is flagged
+APL 62, 1286, 1993, not page-checked; Kohlrausch law): linear least squares for ``y_inf`` and ``y0`` at each ``(tau,
+beta)`` (variable projection), a coarse grid over ``tau`` (``t``-span / 30 to 30 x the span, log) and ``beta`` (0.1 to
+1.5) on the data averaged in at most 400 log-time bins, then Levenberg-Marquardt on every point in ``(ln tau, beta)``;
+results ``tau`` (s), ``beta`` (1) and ``y_inf`` (unit of ``y``); ``fit`` holds ``y0``, ``r2``, the residual rms and
+the standard errors from the Jacobian. A ``tau`` beyond 3x the last time or a ``beta`` at a grid edge is flagged
 (poorly constrained). Trust as every method: untrusted points refuse the call unless ``force``; limited (``C``/``T``)
 points are excluded and counted.
 
@@ -280,7 +280,7 @@ FitModel = Literal["none", "stretched_exp"]
 DEFAULT_EDGE = 10
 MAX_FIT_BINS = 400
 BETA_GRID = (0.1, 1.5)
-"""Range of the stretched-exponential exponent searched (Kohlrausch beta; IGZO 0.3-0.7, Debye relaxation 1)."""
+"""Range of the stretched-exponential exponent searched (Kohlrausch beta; 1 = single exponential)."""
 TAU_GRID_FACTOR = 30.0
 """``tau`` is searched from the time span / 30 to 30 x the span (log grid)."""
 

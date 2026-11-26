@@ -4,6 +4,8 @@
 # drain (R-PULSE-02: a WGFMU pulse role on a terminal without one is blocked; outside it the plan needs confirmation,
 # dut_envelope). The gate takes +-5 V (the lab's LFN waveforms swing the gate to +-4 V, lwp/1530). Example values, not
 # a real device. Per terminal: max |V| (V) and max |I| (A; also the largest SMU compliance) for DC (R-DUT-01).
+# Nominal values: simulator example (scenarios `nmos_wgfmu`, `nmos_rtn`: Vth 0.5 V, SS about 77 mV/dec), not
+# real-device values and never measurements; replace or delete them in your own profile.
 
 device_type: nmos
 description: Generic n-channel transistor with gate and drain pulse envelopes for WGFMU pulsed, fast and custom waveforms.
@@ -18,9 +20,10 @@ terminals:
     pulse: {max_abs_v: 3.0, max_width_s: 1.0e-2, max_duty: 0.5, max_count: 1000000}
   source: {max_abs_v: 1.0, max_abs_i: 1.0e-2}
   bulk: {max_abs_v: 2.0, max_abs_i: 1.0e-3}
-nominal:
+nominal:                        # simulator example (scenarios `nmos_wgfmu`, `nmos_rtn`), not a real-device value
   vth: {value: 0.5, unit: V}
   ss: {value: 80.0, unit: mV/dec}
 notes:
   - "Pulsed and fast Id-Vg within the DC limits; the DC reference (mosfet.idvg on mosfet-4t) uses the same profile."
-  - "The WGFMU has no compliance: a short draws up to its range's full scale; keep the drain range at the expected Id."
+  - "The WGFMU has no compliance: a short draws up to its range's full scale (WG p16 (1-4)); keep the drain range at
+    the expected Id."

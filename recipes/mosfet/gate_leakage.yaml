@@ -1,10 +1,10 @@
 # Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
 # Gate leakage: staircase on the gate with drain and source at 0 V (drain held and measured by its SMU, source and
 # bulk on the GNDU). The gate current needs pA resolution, hence low_current (HRSMU, rule R-PIN-01), long
-# integration and a hold/delay for the displacement current to settle. Non-destructive envelope: a small gate
-# compliance (default 100 nA) and the automatic abort on compliance (WM 2,1) stop the sweep before an oxide could be
-# stressed; the gate range stays inside the DUT profile. A gate-drain short reaches the compliance at the first
-# non-zero step.
+# integration and a hold/delay for the displacement current to settle. Low-stress envelope: a small gate compliance
+# (default 100 nA) and the automatic abort on compliance (WM 2,1) limit the current (and the energy into a breaking
+# oxide) once the leakage reaches the compliance and stop the sweep there; the voltage stress itself is bounded by
+# the sweep range and the DUT envelope. A gate-drain short reaches the compliance at the first non-zero step.
 # Analysis: leakage_at (|Ig| at v_op against leak_limit_a; a compliance stop before v_op is a fail with a lower bound).
 # ASU option (v2 WP7.1): asu_1pa: true reads the gate current with limited auto ranging down to the 1 pA range
 # (RI gate,8), which only an SMU with an ASU has: rule R-ASU-01 blocks the plan unless the station declares an ASU on
@@ -43,7 +43,7 @@ params:
     default: 1.0e-7
     recommended: [1.0e-9, 1.0e-6]
     range: [1.0e-12, 1.0e-4]
-    doc: Gate compliance; keep it small so a breakdown cannot drive current through the oxide.
+    doc: "Gate compliance; keep it small: it limits the current (and the energy) into an oxide that breaks down."
   hold_s: {unit: s, default: 0.5, recommended: [0.1, 2.0], range: [0.0, 30.0], doc: Hold before the first step.}
   delay_s: {unit: s, default: 0.05, recommended: [0.01, 0.5], range: [0.0, 10.0], doc: Delay per step (settling).}
   v_op:
@@ -51,13 +51,15 @@ params:
     default: 1.5
     recommended: [0.5, 3.0]
     range: [-10.0, 10.0]
-    doc: Operating gate bias at which the leakage is judged (analysis only; must lie inside the sweep).
+    doc: "Operating gate bias at which the leakage is judged (analysis only; must lie inside the sweep): an
+      example; from the request or your device specification."
   leak_limit_a:
     unit: A
     default: 1.0e-9
     recommended: [1.0e-12, 1.0e-7]
     range: [1.0e-15, 1.0e-4]
-    doc: Leakage limit at v_op (analysis only; leakage_at pass/fail).
+    doc: "Leakage limit at v_op (analysis only; leakage_at pass/fail): an example; set it from the request or
+      your device specification, otherwise a pass means nothing."
   integration:
     type: enum
     choices: [short, medium, long]

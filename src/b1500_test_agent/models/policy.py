@@ -257,8 +257,10 @@ class DutProfile(StrictModel):
     (R-DUT-01, R-PULSE-02, R-SPGU-01, R-CMU-01).
 
     A plan outside the envelope needs confirmation (``dut_envelope``); a recipe with DUT roles and no profile is
-    blocked. ``nominal`` holds typical values (e.g. ``vth``) that help choose recipe parameters; they are never
-    reported as measurements. ``geometry`` is used by analyses only. ``name`` is the file name without ``.yaml``.
+    blocked. ``nominal`` holds the owner's device values (e.g. ``vth``) or, in a committed example, simulator example
+    values labelled as such; they are never measurements and never expectations unless the human set them. Device
+    levels (e.g. program, read or stress amplitudes) may be given here. ``geometry`` is used by analyses only.
+    ``name`` is the file name without ``.yaml``.
     """
 
     name: ConfigName

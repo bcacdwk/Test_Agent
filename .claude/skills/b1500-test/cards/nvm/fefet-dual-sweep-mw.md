@@ -57,8 +57,8 @@ MW = Vth_fwd - Vth_rev, and Ion/Ioff per branch. This is the card for "memory wi
 
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
-| `vg_start` | -4 V | - | -10..10 V | erase first, beyond the negative coercive voltage: example default, not your film's (ask) | smaller \|V\|: minor loop, smaller MW |
-| `vg_stop` | 4 V | - | -10..10 V | full program, beyond the positive coercive voltage: example default (ask) | capped by the profile's gate `max_abs_v` |
+| `vg_start` | -4 V | - | -10..10 V | erase first, beyond the negative coercive voltage: the request, else the DUT profile (`-sweep_v`), else ask; -4 V is an example default | smaller \|V\|: minor loop, smaller MW |
+| `vg_stop` | 4 V | - | -10..10 V | full program, beyond the positive coercive voltage: the request, else the DUT profile (`sweep_v`), else ask | capped by the profile's gate `max_abs_v` |
 | `vg_points` | 161 | 81..321 | 11..1001 | points per branch (2x steps in total), 50 mV steps | sets the sweep rate together with `integration` |
 | `vd` | 50 mV | 20..100 mV | -1..1 V | small read bias, linear region | larger: read disturb, lateral field |
 | `icomp_gate` | 1 uA | - | 1 pA..1 mA | limits gate current through the stack | switching current ≈ gate area x dP/dt: a gate `C` means too low |

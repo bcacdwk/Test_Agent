@@ -1,9 +1,9 @@
 # Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
 # Pulsed spot I-V of a two-terminal device (blueprint v2 3.1, kind smu_pulsed MM 3): terminal a pulses from `base` to
 # each level of `levels` (one PV pulse and one spot measurement of a's current at the pulse end per level, host list),
-# terminal b on the GNDU. A resistor or contact check that never holds DC (no self-heating, no electromigration
-# drift); the resistance analysis fits I(V) over the levels. HR/MP/HPSMU pulse timing (R-PULSE-01); the DUT profile's
-# terminal a needs a pulse envelope (R-PULSE-02).
+# terminal b on the GNDU. A resistor or contact check that never holds DC (short pulses at low duty: less
+# self-heating and electromigration drift than a DC sweep); the resistance analysis fits I(V) over the levels.
+# HR/MP/HPSMU pulse timing (R-PULSE-01); the DUT profile's terminal a needs a pulse envelope (R-PULSE-02).
 # status: sim_validated by tests/integration/test_recipes_pulsed.py (resistor_100k: R vs the 100 kOhm truth).
 id: basic.pulsed_spot
 version: 1
@@ -31,9 +31,10 @@ params:
   base: {unit: V, default: 0.0, range: [-42.0, 42.0], doc: Level of a between pulses.}
   icomp: {unit: A, default: 1.0e-4, recommended: [1.0e-9, 1.0e-3], range: [1.0e-12, 0.1], doc: Current compliance of a.}
   width: {unit: s, default: 1.0e-3, recommended: [5.0e-4, 1.0e-2], range: [1.0e-5, 2.0],
-          doc: "Pulse width (HR/MP/HPSMU 500 us-2 s in 100 us steps, R-PULSE-01)."}
+          doc: "Pulse width (HR/MP/HPSMU 500 us-2 s in 100 us steps, PG p486 (4-168); R-PULSE-01)."}
   period: {unit: s, default: 0.02, recommended: [0.01, 0.1], range: [5.0e-3, 5.0],
-           doc: "Pulse period (>= width + 2 ms; 0.1 ms steps)."}
+           doc: "Pulse period (>= width + 2 ms for widths up to 100 ms, >= width + 10 ms above:
+             PG p487 (4-169); 0.1 ms steps)."}
   hold_s: {unit: s, default: 0.0, recommended: [0.0, 1.0], range: [0.0, 30.0], doc: "Hold before each pulse."}
   meas_time: {unit: s, default: 2.0e-4, recommended: [1.0e-4, 5.0e-4], range: [2.0e-6, 0.02],
               doc: "Pulsed ADC measurement time (AIT 2), ending with the pulse; at most the width."}

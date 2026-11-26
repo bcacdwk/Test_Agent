@@ -245,7 +245,8 @@ def test_pulsed_cv_matches_the_dc_cv_outside_inversion_and_shows_deep_depletion(
     found = {r.quantity: r.value for r in compared.results}
     assert abs(found["delta_vfb"]) < 0.020 and found["cox_ratio"] == pytest.approx(1.0, abs=0.01)
     # each point is read in the last 8 ms (ACT 0,1) of its 10 ms pulse: 2 ms of inversion-layer formation
-    # (simulator convention, TODO(verify) at bring-up L6); the DC sweep into inversion lags equilibrium a little
+    # (simulator convention; on hardware the L6 check `pulsed_dvfb`, step L6.A4); the DC sweep into inversion lags
+    # equilibrium a little
     pulse_c = device.transient_capacitance(2.0, 1e6, 0.002)
     table = load_run(pulsed.run_id, data_root=world.data).table  # type: ignore[arg-type]
     reference = load_run(dc.run_id, data_root=world.data).table  # type: ignore[arg-type]

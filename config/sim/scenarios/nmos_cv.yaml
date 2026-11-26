@@ -15,8 +15,8 @@
 # at 10 kHz, 6.2 nA at 100 kHz, 62 nA at 1 MHz (Qcp = Icp/f = 6.2e-14 C per cycle), out of the bulk (the bulk SMU
 # reads +Icp, source and drain share -Icp). The base-level curve (3 V amplitude) has its plateau for bases between
 # about -2.3 V and -0.9 V. Target (blueprint v2 10.5 WP9.3): Icp proportional to f within +-10 % of the model.
-# Device values are typical of a test MOSFET, not a measured device (TODO(verify) M12 per device). Noise as
-# nmos_basic.yaml (HRSMU floor 1e-13 A, 0.1 % relative).
+# Device values are simulator example values, not a real-device value (a real MOSFET's Vth, Cgc plateau and Qcp:
+# TODO(verify)[L4.A2, L6.A7, L7.A10]). Noise as nmos_basic.yaml (HRSMU floor 1e-13 A, 0.1 % relative).
 #
 # Split C-V (blueprint v2 3.2 mosfet.cgc_cv, mosfet.cgd_cv; 4.2 `mosfet` +cv; WP8.3): a second transistor of the same
 # technology on the die, `cv`, is landed on the MFCMU (pin map mosfet-split-cv): gate on the High side (7H), drain on
@@ -98,7 +98,7 @@ models:
       cov_f_per_m: 2.0e-10      # 20 fF overlap per edge (the Cgc floor)
   path:
     model: fixture
-    params: {}                  # blueprint 4.2 defaults (models.sim_devices.FixtureParams); TODO(verify) at M12 L6
+    params: {}                  # blueprint 4.2 defaults (sim_devices.FixtureParams); station: TODO(verify)[L6.A2]
 noise:
   floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
   rel: 1.0e-3

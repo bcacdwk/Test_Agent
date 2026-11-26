@@ -2,7 +2,7 @@
 # kind: fmt1
 # command: FMT 1; MM 14; LSM 2,3; LSVM 1; LSTM 0,0; LGI 5,1,13,0.001; LSV 4,12,0,3,0.01,0.01; LSSV 5,1,0,0.01; XE
 # terminator: crlf
-# note: the Data_sense header NEI (status N, channel E = slot 5, the drain; data type I) and both values are printed; the Data_search header is not printed: N, the gate channel D (slot 4) and data type V are assumed (TODO(verify) at bring-up stage L5)
+# note: the Data_sense header NEI (status N, channel E = slot 5, the drain; data type I) and both values are printed; the Data_search header is not printed: N, the gate channel D (slot 4) and data type V are assumed (same fact as src/b1500_test_agent/driver/search.py)
 # point: N D V +1.40000E+00
 # point: N E I +1.03545E-03
 NDV+1.40000E+00,NEI+1.03545E-03

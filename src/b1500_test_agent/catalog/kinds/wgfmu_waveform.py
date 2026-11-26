@@ -148,10 +148,11 @@ SETUP_OVERHEAD_S: Final = 0.5
 """Estimated time of the library session (open, initialize, load, update, connect) and the RSU switching."""
 
 READBACK_S_PER_VALUE: Final = 2e-6
-"""Estimated readback time per stored value (100,000-value chunks; TODO(verify) at bring-up L8, blueprint v2 7.6)."""
+"""Estimated readback time per stored value (100,000-value chunks; TODO(verify)[L8.A6]: the record's
+``wgfmu_readback_s_per_value``, blueprint v2 7.6)."""
 
 DC_READ_S: Final = 1e-3
-"""Estimated time of one DC reading (TODO(verify) at bring-up L8)."""
+"""Estimated time of one DC reading (TODO(verify)[L8.A3]: the record's ``wgfmu_dc_read_s``)."""
 
 OVERRANGE_FRACTION: Final = 1.0 - 1e-9
 """A reading at this fraction of its range's full scale or beyond is saturated (status ``V``)."""

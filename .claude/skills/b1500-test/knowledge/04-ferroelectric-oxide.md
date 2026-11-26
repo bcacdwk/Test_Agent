@@ -74,10 +74,10 @@ never an expectation ([README](README.md#conventions)). Limits come from the DUT
   drop, trapping).
 - The sweep amplitude decides how much of the loop is switched: sweeps smaller than the switching voltage give
   minor loops and a smaller MW; MW versus amplitude is a useful map, run one plan per amplitude.
-- Gate amplitude: from the film's thickness and Ec, which the owner gives; the recipe default ±4 V is a software
-  default, not a device value. Drain: a small linear-region bias (recipe default 50 mV). The sweep rate matters.
-  Actual ranges come from `list_recipes(recipe_id=...)` and the card; the DUT profile caps the gate voltage.
-  Unknown film thickness or Ec: ask before choosing an amplitude.
+- Gate amplitude: from the film's thickness and Ec; the recipe default ±4 V is a software default, not a device
+  value. Take it from the request, else from the DUT profile (`nominal` `sweep_v` or `vc` in its file), else ask
+  before choosing one. Drain: a small linear-region bias (recipe default 50 mV). The sweep rate matters. Actual
+  ranges come from `list_recipes(recipe_id=...)` and the card; the DUT profile's envelope caps the gate voltage.
 - Report per branch: Vth (method, window), Ion/Ioff, the sweep start state and loop index, amplitude, points,
   integration preset. Compare windows only between runs with identical sweep settings.
 
@@ -101,9 +101,10 @@ retention (`fefet.endurance`, `fefet.retention`, WP9.5, card `fefet-endurance-re
 [09](09-pulse-spgu-selector.md#program-and-read).
 
 - Program and erase with short gate pulses (HVSPGU through the 16440A selector, or the WGFMU), read with an SMU
-  Id-Vg sweep. Amplitude and width depend on the stack: they come from the DUT profile's gate `pulse` block, which
-  the owner sets (`TODO(owner)`: which program and erase pulses (amplitude, width, edges) does the lab use for each
-  FeFET stack?); bring-up records one stack's switching kinetics (`TODO(verify)[L7.A9]`). The lab script
+  Id-Vg sweep. Amplitude and width depend on the stack: they come from the request, else from the DUT profile
+  (`nominal` `v_program`, `v_erase`, `width`; the gate `pulse` block is only the envelope), else from the human
+  (`TODO(owner)`: which program and erase pulses (amplitude, width, edges) does the lab use for each FeFET stack?);
+  bring-up records one stack's switching kinetics (`TODO(verify)[L7.A9]`). The lab script
   `lwp/matlab_B1500/test_SPGU.m` drives ±3 V, 2 us wide with 100 ns edges into a 1 MOhm load: a script setting, not
   a validated program condition.
 - **Endurance**: MW after N program/erase cycles. The film first opens (wake-up: pinned domains free up), then

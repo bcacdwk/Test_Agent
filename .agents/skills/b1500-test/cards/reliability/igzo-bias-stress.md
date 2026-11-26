@@ -40,8 +40,8 @@ reads Id-Vg at log-spaced cumulative stress times; with `recovery_time` it reads
 | source | `source`: ground | GNDU | |
 
 - Example pin map `mosfet-4t` with DUT profile `nmos-generic` (3 V): no IGZO DUT profile is committed; for an IGZO
-  sample ask the human for its pins and limits (never invent them). IGZO stress levels are the owner's
-  ([04](../../knowledge/04-ferroelectric-oxide.md#igzo-and-oxide-tft-specifics)) and need the owner's profile;
+  sample ask the human for its pins and limits (never invent them). IGZO stress levels come from the request
+  or the human's DUT profile ([04](../../knowledge/04-ferroelectric-oxide.md#igzo-and-oxide-tft-specifics)), else ask;
   SMU4/SMU3 on the RSUs' "From SMU" inputs (lab layout after L8) take at most +-25 V (WG p20 (1-8), R-RSU-01).
 - Routes: none in every phase (direct SMU and GNDU wiring).
 
@@ -59,7 +59,7 @@ reads Id-Vg at log-spaced cumulative stress times; with `recovery_time` it reads
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
 | `vg_stress` | required | - | -20..20 V | PBS > 0, NBS < 0 | dV_inf scales with it; above the profile: confirmation |
-| `stress_time` | 300 s | 100..10000 s | 0.1..86400 s | total stress | > 300 s async; > 600 s `long_run` |
+| `stress_time` | 300 s | - | 0.1..86400 s | total stress: the request or the DUT profile, else ask (the films' time scale is unknown); example default | > 300 s async; > 600 s `long_run` |
 | `schedule` | `log` | `log` | `log`, `list` | read times | |
 | `first_read` | 100 ms | 0.1..1 s | 0.02..3600 s | first read (also recovery) | 10 ms grid |
 | `reads_per_decade` | 4 | 3..6 | 1..20 | log density | the fit needs 8 reads |
@@ -67,8 +67,8 @@ reads Id-Vg at log-spaced cumulative stress times; with `recovery_time` it reads
 | `recovery_time` | 0 s | 0..3600 s | 0..86400 s | recovery after the stress | 0 = none |
 | `vg_recovery` | 0 V | - | -20..20 V | gate during recovery | |
 | `read_kind` | `staircase` | `staircase` | `staircase`, `spot` | Vth per read | spot: Id at `vg_read` |
-| `vg_start` | -1 V | - | -20..20 V | read sweep start: example default, your TFT's range (ask) | |
-| `vg_stop` | 3 V | - | -20..20 V | read sweep stop: example default, your TFT's range (ask) | |
+| `vg_start` | -1 V | - | -20..20 V | read sweep start, the TFT's range: the request, else the DUT profile, else ask; example default | |
+| `vg_stop` | 3 V | - | -20..20 V | read sweep stop, the TFT's range: the request, else the DUT profile, else ask; example default | |
 | `vg_points` | 41 | 21..81 | 11..401 | read points | fewer: less disturbance |
 | `vg_read` | 2 V | - | -20..20 V | spot read level | |
 | `vd` | 100 mV | 50..500 mV | -20..20 V | read drain bias | linear region |

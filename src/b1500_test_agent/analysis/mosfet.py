@@ -14,7 +14,8 @@ together). Transfer-curve methods default to ``x="gate_V"``, ``y="drain_I"`` and
   ``fit_points`` trusted points centred on the maximum of |gm| (the tangent at maximum gm); or an explicit
   ``(lo, hi)`` gate-voltage window.
 - **Vth, constant current** (``vth_constant_current``): the gate voltage at which |Id| first reaches the critical
-  current I_crit = ``i_crit_a`` x ``w_over_l`` (``i_crit_a`` alone without ``w_over_l``; default 100 nA), walking
+  current I_crit = ``i_crit_a`` x ``w_over_l`` (``i_crit_a`` alone without ``w_over_l``; default 100 nA, a common
+  convention and an example criterion: set it per device and report it), walking
   the trusted points in the direction of increasing |Id| (rising Vg for n-type, falling Vg for p-type); log10|Id|
   is interpolated linearly in Vg between the two bracketing points. More than one crossing → warning.
 - **Vth, maximum gm change** (``vth_max_gm``; the second-derivative or transconductance-change method): the gate
@@ -373,7 +374,8 @@ MinR2 = Annotated[float, Field(ge=0, le=1)]
 WindowPoints = Annotated[int, Field(ge=3, le=101)]
 
 DEFAULT_I_CRIT_A = 1e-7
-"""Default critical current of the constant-current method (100 nA, per square when ``w_over_l`` is given)."""
+"""Default critical current of the constant-current method (100 nA, per square when ``w_over_l`` is given; a common
+convention, not a device value: set ``i_crit_a``/``w_over_l`` per device)."""
 
 
 def _transfer_rows(d: RunData, x: str, y: str, segment: Segment, policy: TrustPolicy, method: str) -> Rows:

@@ -30,9 +30,9 @@ sources: [blueprint v2 2.7 (spgu_pulse), 4.2 (SPGU output), PG p507 (4-189) "SER
 2. Station profile vs pin map: which channel is on the selector's PGU input (`station_status` switches, the station
    profile `inputs`); the SPGU channel in the summary (`SPGU1:101`).
 3. Physics: compare amplitude and width with the device: the coercive voltage and switching time of the human's
-   film (the human gives them; card and recipe defaults are examples, not values for this device), Vth and Vfb from
-   an Id-Vg on the same landing. A larger amplitude or width needs the human's values first: a new plan with them,
-   validated, never above the DUT envelope.
+   film (from the human or the human's DUT profile; card and recipe defaults are examples, not values for this
+   device), Vth and Vfb from an Id-Vg on the same landing. A larger amplitude or width needs the human's values
+   first: a new plan with them, validated, never above the DUT envelope.
 4. Charge pumping: a base-level sweep at one frequency (several `v_base`) shows whether any base gives a plateau.
 
 ## Physical checks to ask the human

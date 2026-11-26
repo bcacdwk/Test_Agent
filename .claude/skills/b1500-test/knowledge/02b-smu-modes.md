@@ -72,8 +72,8 @@ Kind `smu_qscv` (recipe `moscap.qscv`, card `moscap-dit`); PG p115-117 (2-27), e
   (error 242, PG p580 (5-8); dummy data). `QSZ 2` measures the path offset with the probes lifted
   (`physical_setup`), `QSZ 1` subtracts it (PG p499 (4-181)); `QSO` (smart operation) stays off.
 - The run's `kind_result` keeps `offset_f` (offset run) and `leakage_max_a` (largest |leakage| of the sweep): the
-  bring-up L6 checks compare them with the stage's provisional criteria (offset below 5 pF; leakage below the L6
-  MOS-C's gate leakage limit from its DUT profile, 1 nA in the example), not with general limits.
+  bring-up L6 checks compare them with the stage's provisional criteria (offset below 5 pF; leakage small against
+  the charge current `C cvoltage / cinteg`, below 1 nA provisionally), not with general limits.
 - Through an SCUU (`SSP 7,3`) the same landing then gives the MFCMU C-V: [08](08-capacitance-cv.md#quasi-static-c-v).
 
 ## Zero check floor

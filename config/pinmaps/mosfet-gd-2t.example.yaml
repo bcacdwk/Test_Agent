@@ -16,5 +16,5 @@ terminals:
   a: 4
   b: 3
 notes:
-  - Use with DUT profile resistor-generic (+-0.1 V, 1 mA), which never stresses a gate oxide.
+  - Use with DUT profile resistor-generic (+-0.1 V, 1 mA compliance), a low-stress check for a gate oxide.
   - The drain SMU holds 0 V as the return side, so its current is the same path seen from the other end.

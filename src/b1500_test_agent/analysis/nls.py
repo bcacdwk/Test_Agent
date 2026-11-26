@@ -1,7 +1,7 @@
 """Least-squares fit of nucleation-limited switching (NLS) over an amplitude x width grid (the numerical core of
 ``nvm.switching_kinetics_fit``; definitions in the ``nvm.py`` docstring and knowledge ``06b-analysis-time-pulse.md``).
 
-Model (Tagantsev et al., Phys. Rev. B 66, 214109, 2002, with a field-dependent switching time):
+Model (Tagantsev et al., Phys. Rev. B 66, 214109, 2002, not page-checked; with a field-dependent switching time):
 ``y = V0 + A(V) (1 - exp(-(w / tau(V))^beta))``, ``tau(V) = tau0 exp((Va / |V|)^alpha)``, where ``y`` is the read
 quantity after one pulse of amplitude ``V`` and width ``w`` from the reset state (Vth of a FeFET), ``V0`` the reset
 level (one for all points) and ``A(V)`` the window an amplitude switches at saturation (one per distinct amplitude:
@@ -26,7 +26,7 @@ import numpy as np
 __all__ = ["NlsFit", "fit_nls", "switched_fraction"]
 
 BETA_GRID = (0.3, 3.0)
-"""Range of the stretched exponent searched at the start (Lorentzian-broadened NLS ~0.5-1, KAI 1-2)."""
+"""Range of the stretched exponent ``beta`` searched at the start (a fit setting, not a device range)."""
 
 TAU_MARGIN = 30.0
 """The start grid searches ``tau`` from the smallest width / 30 to 30 x the largest width (log grid)."""

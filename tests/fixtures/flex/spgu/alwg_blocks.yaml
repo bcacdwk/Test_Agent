@@ -8,7 +8,7 @@ source: >-
   and PDF 151 (printed 2-63, Table 2-5 ALWG Sequence Data: 20-byte header with the number of pattern cycles, per cycle
   pattern index 2 bytes + repeat count 4 bytes; Figure 2-34 example sizes 176, 160 and 32 bytes).
 kind: alwg
-note: hand-assembled from the tables (not instrument data); TODO(verify) with a raw ALW?/ALS? read-back at bring-up L7.
+note: hand-assembled from the tables (not instrument data); no tool reads ALW?/ALS? back, so no bring-up step captures the bytes (L7.A4, spgu.alwg_sequence with an empty ERRX?, shows only that the instrument accepts them).
 patterns:
   - name: two_vectors
     patterns:

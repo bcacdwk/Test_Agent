@@ -37,7 +37,8 @@ params:
     default: 1.0e-9
     recommended: [1.0e-12, 1.0e-6]
     range: [1.0e-15, 1.0e-3]
-    doc: Reverse leakage limit at v_rev (analysis only; leakage_at pass/fail).
+    doc: "Reverse leakage limit at v_rev (analysis only; leakage_at pass/fail): an example; set it from the request
+      or your device specification, otherwise a pass means nothing."
   integration:
     type: enum
     choices: [short, medium, long]

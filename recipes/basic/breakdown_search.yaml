@@ -31,7 +31,8 @@ params:
   v_step: {unit: V, default: 0.1, recommended: [0.02, 0.5], range: [0.005, 5.0],
            doc: "Step magnitude = the resolution of the result (at most 1001 steps)."}
   i_bd: {unit: A, default: 1.0e-6, recommended: [1.0e-7, 1.0e-4], range: [1.0e-10, 0.1],
-         doc: "Breakdown current criterion (magnitude)."}
+         doc: "Breakdown current criterion (magnitude): an example (a criterion convention); set it from
+           your device specification."}
   icomp: {unit: A, default: 1.0e-3, recommended: [1.0e-5, 1.0e-2], range: [1.0e-9, 0.1],
           doc: "Current compliance (post-breakdown current limit, at least i_bd)."}
   hold_s: {unit: s, default: 0.0, range: [0.0, 30.0], doc: "Hold before the first step (LSTM hold, 10 ms steps)."}

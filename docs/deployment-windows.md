@@ -103,7 +103,8 @@ process cannot load the vendor VISA DLL, the WGFMU library or see the USB/GPIB a
    window and check `uv --version`.
 3. **Python 3.12 x64** through uv: `uv python install 3.12` (kept in uv's own folder, no admin rights).
 4. **VISA stack and GPIB adapter driver — one vendor only:** Keysight IO Libraries Suite with a Keysight 82357B
-   (the lab's stack), or NI-VISA with NI-488.2 and an NI GPIB-USB-HS. Admin rights, usually lab IT. Check: Keysight
+   (the default: the lab's MATLAB scripts open Keysight VISA; the adapter model is a fact to collect, table above),
+   or NI-VISA with NI-488.2 and an NI GPIB-USB-HS. Admin rights, usually lab IT. Check: Keysight
    Connection Expert lists the instrument at `GPIB0::17::INSTR` once EasyEXPERT is ended (step 4).
 5. **B1530A WGFMU Instrument Library A.03.00 or later** (the free Keysight download; current
    A.04.00.2440.5403). Install the 64-bit library: the x64 `wgfmu.dll` goes to `C:\Windows\System32`, which is
@@ -374,7 +375,7 @@ robocopy config\local D:\b1500-backup\config-local /E
 
 ### Step 12 — Daily use and updates
 
-- Each measurement day: the interlock test of bring-up Stage 0 (the User Guide asks for it daily, UG PDF 142),
+- Each measurement day: the interlock test of bring-up Stage 0 (the User Guide asks for it daily, UG p142 (3-64)),
   EasyEXPERT ended, then `uv run b1500 status` (an open harness does not block it), or `station_status` through the
   agent.
 - **CLI and harness coexist:** every b1500 call opens and closes the instrument's VISA session, so the CLI works
@@ -554,7 +555,8 @@ Every run records what was approved and the fingerprints (sha256) of the configu
   b1500 server is expected to run outside that sandbox (it has to reach VISA; checked in step 8.4, ATV-4).
 
 **Physical backstop.** Keep the interlock open (the kernel never goes above 42 V; the B1500A then limits outputs to
-±42 V in hardware), use per-channel compliance (every recipe sets it) and the closed shield box.
+±42 V in hardware, UG p142 (3-64); PG p442 (4-124)), use per-channel compliance (every recipe sets it) and the closed
+shield box.
 
 ## Optional future hardening (not part of v2)
 

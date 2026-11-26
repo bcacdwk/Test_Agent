@@ -24,8 +24,8 @@ Strictly in order; a stage starts only after the previous one is signed off. Not
 | L9 | long runs: async runs, cancel and kill-recovery drills per bus, stress and breakdown recipes, FeFET endurance and retention, fast BTI, FeCap endurance, the timer over hours, the correction drift | [l9-long-runs](../.agents/skills/b1500-bringup/stages/l9-long-runs.md) | `stage-l9`, `reliability.bti_sms`, `igzo.bias_stress`, `reliability.hci`, `reliability.silc`, `reliability.tddb_cvs`, `dielectric.bdv`, `basic.breakdown_search`, `fefet.endurance`, `fefet.retention`, `wgfmu.fast_bti`, `fecap.endurance_pund` |
 | L10 | session end during an async run, acceptance prompts on hardware, records reviewed and transferred | [l10-harness-handoff](../.agents/skills/b1500-bringup/stages/l10-harness-handoff.md) | `stage-l10` |
 
-Six sections each: Preconditions, Physical steps (human), Agent steps, Expected values (checks, tolerances and one
-`TODO(verify)` line: the §7.6 items the stage settles, the [roadmap](roadmap.md)'s M12 table), Abort criteria, Record.
+Six sections each: Preconditions, Physical steps (human), Agent steps, Expected values (checks, tolerances, the
+`TODO(verify) (blueprint v2 7.6 items …)` line = the [roadmap](roadmap.md)'s M12 table), Abort criteria, Record.
 
 ## Steps, ledger and sessions
 

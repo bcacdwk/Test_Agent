@@ -2,5 +2,5 @@
 # kind: erssp
 # command: ERSSP? 0
 # expect: {"state": "pgu_open"}
-# note: synthetic answer 3 (PGU open, semiconductor relay open; CH 1 of a selector only, PG PDF 154). TODO(verify) the raw answer at bring-up L7.
+# note: synthetic answer 3 (PGU open, semiconductor relay open; CH 1 of a selector only, PG PDF 154). TODO(verify)[L7.A13] the raw answer (the selector check capture, `ERSSP?` per state).
 3

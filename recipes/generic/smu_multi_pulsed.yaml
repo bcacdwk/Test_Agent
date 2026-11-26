@@ -44,8 +44,9 @@ params:
   bias_v: {unit: V, default: 0.0, range: [-42, 42], doc: "DC bias of terminal d."}
   bias_icomp: {unit: A, default: 1.0e-4, range: [1.0e-12, 0.1], doc: "Current compliance of terminal d."}
   width: {unit: s, default: 1.0e-3, recommended: [5.0e-4, 1.0e-2], range: [1.0e-5, 2.0],
-          doc: "Pulse width of every pulse terminal (HR/MP/HPSMU 500 us-2 s in 100 us steps)."}
-  period: {unit: s, default: 0.02, recommended: [0.01, 0.1], range: [5.0e-3, 5.0], doc: "Pulse period (>= width + 2 ms)."}
+          doc: "Pulse width of every pulse terminal (HR/MP/HPSMU 500 us-2 s in 100 us steps, PG p486 (4-168))."}
+  period: {unit: s, default: 0.02, recommended: [0.01, 0.1], range: [5.0e-3, 5.0],
+           doc: "Pulse period (>= width + 2 ms for widths up to 100 ms, >= width + 10 ms above, PG p487 (4-169))."}
   hold_s: {unit: s, default: 0.0, recommended: [0.0, 1.0], range: [0.0, 30.0], doc: "Hold before the first pulse."}
   meas_time: {unit: s, default: 2.0e-4, recommended: [1.0e-4, 5.0e-4], range: [2.0e-6, 0.02],
               doc: "Pulsed ADC measurement time (AIT 2), ending with the pulse; at most the width."}

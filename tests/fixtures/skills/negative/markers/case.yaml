@@ -1,0 +1,16 @@
+description: >-
+  Blank markers (v2.1 KD-1, KD-8): a TODO(verify) naming an unknown step, one without step ids, a TODO(owner) without
+  its question, an unknown marker kind and a bare TODO; the combined mention, a placeholder and a well-formed owner
+  question pass.
+edits:
+  - file: .agents/skills/b1500-test/knowledge/06-analysis-extraction.md
+    old: "Window rule: TODO(verify)[L4.A1]."
+    new: "Window rule: TODO(verify)[L4.A9]. Floor: TODO(verify). Device: TODO(owner) unknown. Later: TODO(later).
+      Plain TODO here. The mentions `TODO(owner|verify|cite)` and `TODO(verify)[<step ids>]` pass, and so does
+      `TODO(owner)`: which `ERSSP?` state does the lab expect?"
+expect:
+  - {code: todo_verify, file: .agents/skills/b1500-test/knowledge/06-analysis-extraction.md, contains: "no step L4.A9 in .agents/skills/b1500-bringup/steps.yaml"}
+  - {code: todo_verify, file: .agents/skills/b1500-test/knowledge/06-analysis-extraction.md, contains: "TODO(verify) without step ids"}
+  - {code: todo_owner, file: .agents/skills/b1500-test/knowledge/06-analysis-extraction.md, contains: "TODO(owner) needs its question"}
+  - {code: todo_marker, file: .agents/skills/b1500-test/knowledge/06-analysis-extraction.md, contains: "unknown marker TODO(later)"}
+  - {code: todo_marker, file: .agents/skills/b1500-test/knowledge/06-analysis-extraction.md, contains: "a bare TODO"}

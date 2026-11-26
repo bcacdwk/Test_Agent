@@ -8,7 +8,7 @@ pages of ``B1500A Programming Guide.pdf`` (chapter 4: PDF page = printed 4-N + 3
   30 entries and each query removes one. The lab's own code (``lwp/matlab_B1500/lib/IV_sweep.m``, ``SPGU_pulse.m``)
   tests success with ``startsWith(response, '+0,')``, i.e. the firmware signs the code; a parser that expects one
   form misreads the other (lab pitfall, blueprint v2 1.1), so every success form counts: ``0,"No Error."``,
-  ``+0,"No Error."``, ``0,`` and a bare ``0``/``+0`` (TODO(verify) the exact firmware text at bring-up L0,
+  ``+0,"No Error."``, ``0,`` and a bare ``0``/``+0`` (TODO(verify)[L0.A3, L0.A7]: the exact firmware text,
   blueprint 7.6 item 3).
 - Status byte: PG PDF 76-77 (printed 1-56 to 1-57), ``*STB?`` PDF 523 (printed 4-205). Bit 3 (value 8) = interlock
   open. Per the manual it is set when the interlock is open *and* a voltage output or voltage compliance above the

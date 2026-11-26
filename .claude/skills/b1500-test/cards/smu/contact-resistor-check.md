@@ -23,8 +23,9 @@ version: 1
 ## 1. Purpose and applicable devices
 
 Is the probe landed, and does the terminal pair behave as expected? A ±0.1 V staircase between two terminals gives
-R, linearity and offset current, classified `open`, `short` or `in_range`. It never stresses a device, so it is the
-gate-keeper on every fresh landing and the first safe check of skill `b1500-debug`.
+R, linearity and offset current, classified `open`, `short` or `in_range`. A low-stress check for most structures
+(a fragile thin line may need a smaller compliance): the gate-keeper on every fresh landing and the first safe
+check of skill `b1500-debug`.
 
 - Structures of known R well above 100 Ohm (a resistor, two pads of one device): compare R with the expected value
   yourself; the class uses `r_short_ohm`/`r_open_ohm`, not the DUT profile. A metal line or two probes on one pad

@@ -5,8 +5,9 @@
 # quasi-pulse needs |v_stop - v_start| >= 10 V and a 10 V change from v_start before the compliance (else status S,
 # PG p53 (1-33)): films that break below v_start + 10 V use method linear, a voltage ramp (MM 14) in v_step increments
 # until the gate current reaches i_bd (JEDEC JESD35 V-ramp style; the result within one step). The other electrode(s)
-# on ground. DESTRUCTIVE: every plan needs confirmation (destructive). A sacrificial site sets the TDDB stress level
-# (80-95 % of BDV; reliability.tddb_cvs).
+# on ground. DESTRUCTIVE: every plan needs confirmation (destructive). The BDV of a sacrificial site bounds the TDDB
+# stress level of reliability.tddb_cvs (the fraction is a per-film choice without a checked rule; asked in
+# knowledge 05, TDDB stress levels).
 # status: sim_validated by tests/integration/test_recipes_search.py (dielectric_tddb: linear ramp, BDV 6.0 V within 2 %;
 # dielectric_thick: quasi-pulsed, BDV 24 V within 2 %; quasi-pulsed on the 6 V film reads status S).
 id: dielectric.bdv
@@ -41,7 +42,8 @@ params:
   icomp: {unit: A, default: 1.0e-3, recommended: [1.0e-5, 1.0e-2], range: [1.0e-9, 0.1],
           doc: "Breakdown current limit (quasi_pulsed: the detection criterion; linear: at least i_bd)."}
   i_bd: {unit: A, default: 1.0e-4, recommended: [1.0e-6, 1.0e-3], range: [1.0e-10, 0.1],
-         doc: "linear: breakdown current criterion (magnitude)."}
+         doc: "linear: breakdown current criterion (magnitude): an example; use your specification or the JEDEC
+           JESD35 procedure (its criterion not checked here, TODO(cite))."}
   interval:
     type: enum
     choices: [short, long]
@@ -62,5 +64,6 @@ provenance:
   sources:
     - blueprint v2 3.1 row dielectric.bdv, 4.2 dielectric (BDV +/-2 %), 2.7 kind smu_search
     - Programming Guide Ed. 15 quasi-pulsed spot PDF 106-107 (printed 2-18 to 2-19), example Table 3-10 PDF 216-218, BDM PDF 364, BDT/BDV PDF 365-366; linear search PDF 110-111, LSV PDF 459-460
-    - JEDEC JESD35-A (procedure for the wafer-level testing of thin dielectrics, voltage ramp)
+    - JEDEC JESD35-A (procedure for the wafer-level testing of thin dielectrics, voltage ramp; not in the repository,
+      not checked, TODO(cite))
   validation_runs: []

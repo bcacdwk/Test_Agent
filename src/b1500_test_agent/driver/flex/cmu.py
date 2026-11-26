@@ -372,8 +372,8 @@ def adj_q(ch: int, mode: int) -> str:
     """``ADJ? chnum,mode``: MFCMU phase compensation (PG PDF 355-356, printed 4-37 to 4-38); answers 0-3
     (``ADJ_RESULTS``). Mode 1 (``ADJ_MEASURE``) measures the compensation data (about 30 s, terminals open at the
     device end, needs ``ADJ chnum,1`` first, resets the MFCMU); mode 0 (``ADJ_READ_LAST``) only returns the last
-    result. The manual defaults an omitted mode to 1, so the mode is always written. TODO(verify) at bring-up L0/L6
-    that mode 0 changes no output (PDF 355 says the command resets the MFCMU)."""
+    result. The manual defaults an omitted mode to 1, so the mode is always written. TODO(verify)[L0.A2, L6.A3]:
+    mode 0 changes no output (PDF 355 says the command resets the MFCMU)."""
     return f"ADJ? {_channel(ch)},{_choice(mode, (0, 1), 'ADJ? mode')}"
 
 

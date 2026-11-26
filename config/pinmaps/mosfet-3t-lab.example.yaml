@@ -15,4 +15,5 @@ terminals:
   source: 5
 notes:
   - The source is an SMU forced to 0 V (role source = ground); its compliance is the sum of the sourcing roles'.
-  - The lab script's 100 mA drain compliance is far above what a sub-uA device needs; recipes default to 1 mA.
+  - The lab script's 100 mA drain compliance is far above what a sub-uA device needs (Id at most
+    0.43 uA in lwp matlab_B1500/IdVg_test_20251001_*.csv); recipes default to 1 mA.

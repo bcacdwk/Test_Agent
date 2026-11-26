@@ -2,7 +2,7 @@
 ``spgu_pulse`` whose SMU read the substrate (bulk) current while gate pulse trains ran.
 
 Definitions (the single source of the section "Charge pumping" of knowledge file ``05-reliability-defects.md`` of
-skill ``b1500-test``; change both together; Groeseneken et al., IEEE TED 31, 42, 1984):
+skill ``b1500-test``; change both together; Groeseneken et al., IEEE TED 31, 42, 1984, not page-checked):
 
 - **Table.** One row per reading during a train: ``freq_hz`` (the pulse frequency), the gate's programmed base level
   ``x`` (default: the one source ``<role>_V`` column, no status, whose values vary; none = one base level) and the
@@ -20,8 +20,10 @@ skill ``b1500-test``; change both together; Groeseneken et al., IEEE TED 31, 42,
 - ``icp_max`` (A): the largest ``Icp`` (highest frequency).
 - **Traps.** With ``area_um2`` (the gate area W·L of the DUT profile geometry): ``nit`` = ``Qcp/(q·A)`` (cm^-2, the
   traps per area swept in the energy window ``ΔE``); with ``delta_e_ev`` too: ``dit`` = ``nit/ΔE`` (cm^-2 eV^-1, the
-  mean interface-trap density). ``ΔE`` is an assumption the caller states (about ``2 kT ln(1/(v_th n_i σ t_em))``,
-  0.6-0.8 eV for 100 ns edges and σ = 1e-16 cm²); without it ``dit`` is not reported.
+  mean interface-trap density). ``ΔE`` is an assumption the caller states; nothing here derives it. Textbook estimate:
+  ``ΔE ≈ 2 kT ln(1/(v_th n_i σ t_em))`` with ``t_em`` = edge time x |Vth - Vfb| / amplitude; with the assumed σ =
+  1e-16 cm², v_th = 1e7 cm/s, n_i = 1e10 cm^-3 and ``t_em`` = 100 ns it gives 2 x 0.0259 eV x ln(1e6) = 0.71 eV at
+  300 K (the device's σ is unknown). Without ``delta_e_ev`` ``dit`` is not reported.
 
 Every result is derived (``ExtractionResult``) with the method, its parameters and the readings used; refusals and
 failures are results, never exceptions (``InvalidInputError`` only for unusable calls: no ``freq_hz`` column, an

@@ -11,8 +11,9 @@ engine evaluates the whole measurement at ``XE`` on the scenario circuit, in vir
   sample that would start while the channels are still measuring the previous one is skipped (its index is not
   returned: PDF 49), so a slow measurement (``slow`` fault) shows index gaps. Linear mode holds ``number``
   samples; log mode (``ML`` 2-7) holds the first ``number`` distinct indices ``round(10^(j/density))``
-  (TODO(verify) at L5: the instrument's choice of the held points). Intervals below 2 ms measure the channels in
-  parallel and stop at ``h_bias + interval x number`` even with fewer samples.
+  (the instrument's choice of the held points: same fact as ``catalog/kinds/smu_sampling.py`` ``log_indices``).
+  Intervals below 2 ms measure the channels in parallel and stop at ``h_bias + interval x number`` even with fewer
+  samples.
 - If the channels' integration time exceeds the interval, the instrument shortens the averaging to keep the
   interval (PDF 475): the simulator measures for at most the interval and raises the noise to that of the shorter
   integration.

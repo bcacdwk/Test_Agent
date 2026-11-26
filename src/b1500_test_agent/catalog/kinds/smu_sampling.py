@@ -30,8 +30,8 @@ h_bias,interval,n,h_base``), then continuation blocks whose synchronous sources 
 first sample comes one interval (rounded to 10 ms) after their trigger (``MT`` sent only when it changes). The time
 stamps run on through the whole chain (one ``TSR`` before the first trigger), so ``t_s`` stays exact across block
 boundaries; the gap between blocks is the host round trip (a few ms on GPIB). FMT 1 time stamps keep six
-significant digits (0.1 s resolution beyond 10,000 s; PG p539 (4-221) remarks): TODO(verify) at bring-up stages
-L5/L9 that the timer runs on over hours without a reset (else ``t_s`` falls back to the index, flagged). Each block
+significant digits (0.1 s resolution beyond 10,000 s; PG p539 (4-221) remarks): TODO(verify)[L5.A3, L9.A11]: the
+timer runs on over hours without a reset (else ``t_s`` falls back to the index, flagged). Each block
 is one checkpoint (``tx.checkpoint``: progress, ``partial.csv``, cancel via ``safe_shutdown``). Real-time reading of
 one block while it samples (lwp's unproven path, ATV-30) is not used: progress is per block (the ATV-30 fallback, by
 design).
@@ -200,7 +200,7 @@ def _on_grid(value: float, step: float) -> bool:
 
 def log_indices(density: int, number: int) -> list[int]:
     """The first ``number`` distinct sampling indices ``round(10^(j/density))`` of log sampling (the estimate's
-    reading of PG p476 (4-158); TODO(verify) at bring-up stage L5 which points the instrument holds)."""
+    reading of PG p476 (4-158); TODO(verify)[L5.A7, L5.A9]: which points the instrument holds)."""
     held: list[int] = []
     j = 0
     while len(held) < number:

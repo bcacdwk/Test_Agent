@@ -4,7 +4,9 @@
 # make the drain follow the gate 0.2 V ahead (Vd 0.2 -> 1.2 V while Vg 0 -> 1.2 V): the device is in saturation at
 # every point above threshold, and the weak-inversion drain factor 1 - exp(-Vd/U_T) is saturated from the first
 # point (a drain starting at 0 V, diode-connected Vd = Vg, makes the subthreshold slope look steeper than it is).
-# Source on the GNDU. The drain compliance (1 mA) stays above the drain current at the top of the sweep.
+# Source on the GNDU. The defaults are sized for the simulator's generic nMOS (scenario nmos_basic, Vth 0.42 V; not
+# a real-device value): there the drain compliance (1 mA) stays above the drain current at the top of the sweep;
+# set the ranges from a mosfet.idvg run of your device.
 # Analyses: vth_constant_current (100 nA criterion) and subthreshold_swing on the synchronous curve.
 # status: sim_validated by tests/integration/test_recipes_sweeps.py (nmos_basic: Vth and SS vs the same extractors
 # on the noiseless model curve, SS vs the model's n·U_T·ln10, Id vs the model at the programmed (Vg, Vd));
@@ -33,7 +35,9 @@ roles:
 params:
   vg_start: {unit: V, default: 0.0, recommended: [-1.0, 0.0], range: [-10, 10],
              doc: "Gate sweep start (below threshold; the 100 nA Vth criterion needs subthreshold points)."}
-  vg_stop: {unit: V, default: 1.2, recommended: [1.0, 3.0], range: [-10, 10], doc: "Gate sweep stop."}
+  vg_stop: {unit: V, default: 1.2, recommended: [1.0, 3.0], range: [-10, 10],
+            doc: "Gate sweep stop (default 1.2 V: sized for the simulator's generic nMOS, scenario nmos_basic; set it
+             from a mosfet.idvg run of your device)."}
   vg_points: {type: int, default: 121, recommended: [61, 301], range: [11, 1001],
               doc: "Gate sweep points (121 = 10 mV steps over the default range)."}
   vd_start: {unit: V, default: 0.2, recommended: [0.1, 0.5], range: [-5, 5],

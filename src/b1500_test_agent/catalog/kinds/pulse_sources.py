@@ -134,7 +134,7 @@ WGFMU_EDGE_S: Final = 1e-7
 """Default leading/trailing time of a WGFMU pulse (Fast IV; the WGFMU's 10 ns vectors would allow less)."""
 
 WGFMU_RUN_OVERHEAD_S: Final = 0.5
-"""Estimated host time of one WGFMU execution (load, update, connect, status polls; TODO(verify) at bring-up L8)."""
+"""Estimated host time of one WGFMU execution (load, update, connect, status polls; TODO(verify)[L8.A10, L9.A9])."""
 
 WGFMU_CHECKPOINT_S: Final = 10.0
 """Sequencer time between two progress checkpoints inside one WGFMU execution (cancel latency is the 1 s poll)."""

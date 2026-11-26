@@ -28,7 +28,7 @@ in full to every measurement (validate first, consent per plan, report rules): l
 - Stop on any abort criterion of the stage: `safe_shutdown(reason)`, report what you saw and which criterion it
   hit, wait for the human. Never relax a criterion, tolerance, limit or rule to pass a stage. A tolerance marked
   provisional has no checked basis yet: report a miss as a miss of a provisional criterion and let the owner decide;
-  never call the instrument faulty for it. A blank (`TODO(owner)`, `TODO(cite)`, "recorded", no prior value) is no
+  never call the instrument faulty for it. A blank (`TODO(owner|cite)`, "recorded", no prior value) is no
   expectation: report the measured value; never fill it from general knowledge, a card, an example or the simulator.
 - Records only from hardware runs (run ids `H...`, backend visa). Simulator runs (`S...`) never become
   validation records, fixtures or promotion evidence, rehearsal or not. Drafts go to `work/bringup/records/`;
@@ -103,8 +103,8 @@ say which records the stage would draft on hardware (`bringup done` records such
 
 Each `stages/<id>-<name>.md` (names in part 2) follows the [stage template](stages/_TEMPLATE.md): frontmatter
 `stage`, `title`, `recipes`, `checks` (the Expected-values rows `bringup record` copies), `version`; sections
-Preconditions, Physical steps (human), Agent steps, Expected values (each tolerance with its basis; one `TODO(verify)`
-line: the hardware facts the stage settles, blueprint v2 7.6), Abort criteria, Record. `steps.yaml` puts every
+Preconditions, Physical steps (human), Agent steps, Expected values (each tolerance with its basis; one line
+`TODO(verify) (blueprint v2 7.6 items …)`: the hardware facts the stage settles), Abort criteria, Record. `steps.yaml` puts every
 numbered item in execution order with how `done` verifies it; `uv run b1500 dev lint-skills` checks both.
 
 ## 6. Where things live

@@ -33,10 +33,14 @@ Engine (everything is evaluated at ``XE`` in virtual time, like the staircase):
   ``PV``/``PI``), 230 (MM 3 without them),
   220 (MM 5 without ``WV``/``WI``), 226 (log sweep in MM 4/5), 224 (synchronous source in another output mode or on the
   primary channel), 231 (pulse compliance), 232 (MM 27/28 without a usable source, a staircase source on a pulse
-  channel), 233 (period shorter than delay + width + 2 ms / 10 ms; an HR/MP/HPSMU pulse narrower than 500 us or with
-  a delay: simulator convention, TODO(verify) at L5), 238/239 (width above 2 s / below 10 us).
+  channel), 233 (period shorter than delay + width + 2 ms, or + 10 ms when delay + width exceeds 100 ms; PG p487
+  (4-169), PG p580 (5-8) "Invalid pulse timing setup"), 238/239 (width above 2 s / below 10 us). An HR/MP/HPSMU
+  pulse narrower than 500 us (PG p486 (4-168)) or with a delay (0 only: PG p462 (4-144) Table 4-27, EX p232 (2-58))
+  is 233 too: simulator convention, unreachable: R-PULSE-01 refuses those widths (``driver/modules.py``
+  ``SMU_PULSE_SPECS``) and no kind sets a pulse delay (``catalog/kinds/smu_pulsed.py`` builds every ``PulseSource``
+  with delay 0).
 
-Simulator conventions (TODO(verify) at bring-up stage L5): no edge settling or overshoot; the readings carry no
+Simulator conventions (TODO(verify)[L5.A2, L5.A9]): no edge settling or overshoot; the readings carry no
 displacement current of the pulse edges; stateful devices without dynamics (attached noise) keep their state during
 a pulsed measurement.
 """

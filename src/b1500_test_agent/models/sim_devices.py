@@ -175,7 +175,7 @@ class FixtureParams(StrictModel):
     and the short impedance ``Zs = r_short_ohm + jω·l_short_h``, rotated by the phase error ``phase_deg_per_mhz·f``
     until phase compensation (``ADJ``). Open and short corrections remove ``Yo`` and ``Zs`` (Keysight Impedance
     Measurement Handbook, 6th ed., section 4). The defaults are blueprint 4.2 values; the real station's parasitics
-    and phase error are measured at bring-up (blueprint 7.6 item 7). TODO(verify) at M12.
+    and phase error are measured at bring-up (blueprint 7.6 item 7): TODO(verify)[L6.A2].
     """
 
     c_open_f: float = Field(default=0.3e-12, ge=0.0, le=1.0e-9)

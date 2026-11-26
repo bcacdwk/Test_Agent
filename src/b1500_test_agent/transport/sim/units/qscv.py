@@ -26,7 +26,7 @@ or a mean charge current above Icomp) is ``C`` (``T`` on the other channel). Wit
 step stops the sweep: the rest is dummy data (``199.999E+99``, status ``V``), error 242 is queued and the source
 returns to start. After a normal end the source forces start or stop (``QSM`` post).
 
-Simulator conventions (``TODO(verify)`` at bring-up stages L5/L6): the transition is a linear ramp over cinteg; the
+Simulator conventions (TODO(verify)[L6.A6, L6.A8]): the transition is a linear ramp over cinteg; the
 guard capacitance of the path is ``QSCV_STRAY_F``; the offset measurement takes ``linteg + cinteg + linteg`` and raises
 error 245 when the offset current ``C_stray cvoltage / cinteg`` exceeds the range; ``*RST`` and a device clear clear
 the stored offsets; the smart operation (``QSO 1``) is not simulated (error 100 at ``XE``; no kind enables it); a
@@ -60,8 +60,8 @@ LINTEG_N = (1, 100)
 """``QSV`` step count, cvoltage, ``QST`` integration multiples of the line period (PG p496-498)."""
 
 QSCV_STRAY_F = 0.25e-12
-"""Guard capacitance of the SMU path that a QSCV measurement sees (simulator convention, TODO(verify) L6): ``QSZ 2``
-measures it, ``QSZ 1`` removes it."""
+"""Guard capacitance of the SMU path that a QSCV measurement sees (simulator convention, TODO(verify)[L6.A6]: the
+``qscv_offset`` record): ``QSZ 2`` measures it, ``QSZ 1`` removes it."""
 
 RAMP_SUBSTEPS = 8
 """Sub-intervals of the linear transition ramp over cinteg."""

@@ -1,11 +1,18 @@
 # DUT profile (example; committed). Schema: b1500_test_agent.models.policy.DutProfile; name = file name.
-# Generic ferroelectric capacitor (e.g. 10 nm HfZrO, 50 um x 50 um) between the two WGFMU channels (pin map
-# fecap-wgfmu); example values, not a real device. DC envelope (R-DUT-01), impedance class (R-SPGU-01), pulse
-# envelope (R-PULSE-02: PUND trains), AC envelope (R-CMU-01: C-V butterfly) and geometry (analysis: Pr in uC/cm2).
-# Nominal values help choose parameters and are never measurements.
+# Generic ferroelectric capacitor of the simulator (scenario fecap_basic) between the two WGFMU channels (pin map
+# fecap-wgfmu) or on the MFCMU (pin map fecap-cmu). DC envelope (R-DUT-01), impedance class (R-SPGU-01), pulse
+# envelope (R-PULSE-02: PUND trains), AC envelope (R-CMU-01: C-V butterfly) and geometry (analysis: Pr in uC/cm2,
+# Ec = Vc / thickness). The envelope is an example, not checked against any real film.
+# Nominal values and geometry: simulator example (scenario fecap_basic), not a real-device value. They are the device
+# values and operating levels of the simulated film (config/sim/scenarios/fecap_basic.yaml: 50 um x 50 um, 10 nm,
+# Ec 1 MV/cm so Vc = 1.0 V, eps_r 30 so C_lin = 66.4 pF), so a plan on the simulator can take its levels from here.
+# For a real film the human writes their own profile (config/local/duts/); its Vc, Pr and permittivity are unknown
+# until measured (knowledge 04 asks for the stacks).
 
 device_type: fecap
-description: Generic ferroelectric capacitor (example envelope; PUND via WGFMU, C-V via MFCMU).
+description: >-
+  Generic ferroelectric capacitor of the simulator (scenario fecap_basic; example envelope and levels, not a real
+  film): PUND via WGFMU, C-V via MFCMU.
 terminals:
   top:
     max_abs_v: 4.0
@@ -19,10 +26,16 @@ terminals:
     impedance: high_z
     pulse: {max_abs_v: 4.0, max_width_s: 1.0e-3, max_duty: 0.5, max_count: 10000000}
     ac: {max_vrms: 0.1}
-geometry: {area_um2: 2500.0, tox_nm: 10.0}
-nominal:
-  vc: {value: 1.0, unit: V}               # coercive voltage = Ec x thickness (about 1 MV/cm x 10 nm)
-  c: {value: 6.0e-11, unit: F}            # linear dielectric part (eps_r about 27 over 2500 um2 and 10 nm)
+geometry: {area_um2: 2500.0, tox_nm: 10.0}   # simulator example (scenario fecap_basic)
+nominal:                                  # simulator example (scenario fecap_basic), not a real-device value
+  vc: {value: 1.0, unit: V}               # coercive voltage = Ec x thickness of the simulated film
+  c: {value: 6.64e-11, unit: F}           # linear dielectric part of the simulated film (eps_r 30, 2500 um2, 10 nm)
+  v_max: {value: 3.0, unit: V}            # PUND amplitude (fecap.pund, fecap.endurance_pund): saturates its loop
+  v_program: {value: 3.0, unit: V}        # endurance cycling pulses (fecap.endurance_pund)
+  v_erase: {value: -3.0, unit: V}
+  sweep_v: {value: 3.0, unit: V}          # C-V butterfly from -sweep_v to +sweep_v (fecap.cv_butterfly)
 notes:
-  - PUND amplitudes of 2-3 V saturate the loop; expect Pr of order 10-25 uC/cm2 for HfZrO.
-  - Fatigue and wake-up change Pr with cycling; record the cycle count of every PUND run.
+  - "Levels (nominal): simulator example (scenario fecap_basic), not a real-device value. PUND at v_max, cycling at
+    v_program/v_erase, the butterfly from -sweep_v to +sweep_v."
+  - Fatigue and wake-up change Pr with cycling (general practice); record the cycle count of every PUND run.
+  - Pr of a real film is not known in advance; never judge a PUND result against a literature range.

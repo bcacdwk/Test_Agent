@@ -48,10 +48,10 @@ run reports the outputs, pulses and output time, and every route and stop is rea
 - DUT profile with a `pulse` envelope and the right `impedance` on the pulsed terminal (a gate is `high_z`).
 - `load_ohm` 1 MOhm for a gate or capacitor (`SER`, PG p507 (4-189); lab script `lwp/matlab_B1500/test_SPGU.m`: 1
   MOhm); 50 Ohm only into a real 50 Ohm load.
-- The human confirms amplitude and width against the film (coercive field, breakdown) before the first train: the
-  defaults (0 -> 4 V, 1 us, 20 ns edges) are examples, not program/erase values for your film (owner question:
-  [04](../../knowledge/04-ferroelectric-oxide.md#pulse-write-read-endurance-and-retention); the lab script ran
-  +-3 V, 2 us, 100 ns edges: what the lab ran, not a recommendation).
+- Amplitude and width: the request, else the DUT profile (`v_program`, `width`), else the human (coercive field,
+  breakdown), before the first train. The defaults (0 -> 4 V, 1 us, 20 ns edges) are examples, not a film's values
+  ([04](../../knowledge/04-ferroelectric-oxide.md#pulse-write-read-endurance-and-retention) asks the owner); the lab
+  script ran +-3 V, 2 us, 100 ns edges: what the lab ran, not a recommendation.
 
 ## 4. Recipe and parameters
 
@@ -60,7 +60,7 @@ run reports the outputs, pulses and output time, and every route and stop is rea
 | `mode` (spgu.pulse_train) | pg | pg | pg | fixed kind mode | PG pulses |
 | `mode` (spgu.alwg_sequence) | alwg | alwg | alwg | fixed kind mode | ALWG waveform |
 | `v_base` | 0 V | - | -40..40 V | level between pulses (example) | set level; SER-adjusted |
-| `v_peak` | 4 V | - | -40..40 V | pulse level (example default: set it per device with the owner); module +-40 V open load, +-20 V into 50 Ohm (UG p76 (2-36)) | pad sees it at SER = load |
+| `v_peak` | 4 V | - | -40..40 V | pulse level: the request, else the DUT profile (`v_program`), else ask; example default; module +-40 V open load, +-20 V into 50 Ohm (UG p76 (2-36)) | pad sees it at SER = load |
 | `width` | 1 us | - | 10 ns..10 s | time at the peak (example) | >= t_edge / 0.8 (error 2111, PG p591 (5-19)) |
 | `delay` | 0 s | - | 0..10 s | position in the period | - |
 | `t_edge` | 20 ns | 20 ns..1 us | 8 ns..0.4 s | rise and fall (module 8 ns..400 ms, UG p76 (2-36)) | period >= delay + width + t_edge / 0.8 (error 2112, PG p592 (5-20)) |

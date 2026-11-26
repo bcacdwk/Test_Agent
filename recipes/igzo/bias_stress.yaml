@@ -7,8 +7,10 @@
 # & Kanicki, APL 62, 1286, 1993) by degradation_vs_time; bti_power_law gives the power-law view of the same reads. The
 # stress is timed by the instrument (25 s sampling blocks with one gate/drain current sample each); every block and
 # read is a checkpoint. DESTRUCTIVE (bias stress changes the film, partly permanently): every plan is confirmed.
-# Defaults: 300 s at 4 reads per decade from 0.1 s (15 reads): enough to resolve tau of seconds to minutes; longer
-# stresses for slow films. Use mosfet.id_t_sampling (card smu-sampling) for the continuous Id(t) at a fixed bias.
+# Defaults: 300 s at 4 reads per decade from 0.1 s (15 reads), sized for the simulator example (scenario
+# igzo_transient, tau 4 s), not a real-device value. The stress time constant of your films is unknown (the
+# bring-up device: TODO(verify)[L9.A7]): a fit is reliable only when tau lies well inside the stress time. Use
+# mosfet.id_t_sampling (card smu-sampling) for the continuous Id(t) at a fixed bias.
 # status: sim_validated by tests/integration/test_recipes_stress.py (igzo_transient: tau +-15 %, beta +-0.1 vs the
 # model truth, PBS and NBS); hw_validated only through a validation record (stage L9).
 id: igzo.bias_stress
@@ -35,9 +37,11 @@ roles:
   source: {function: ground, allow_gndu: true}
 params:
   vg_stress: {unit: V, range: [-20, 20],
-              doc: "Gate stress voltage (required): positive = PBS (Vth up), negative = NBS (Vth down)."}
-  stress_time: {unit: s, default: 300.0, recommended: [100.0, 10000.0], range: [0.1, 86400.0],
-                doc: "Total stress time (the last read)."}
+              doc: "Gate stress voltage (required): positive = PBS (Vth usually shifts up), negative = NBS
+                (usually down; often small in the dark): general practice, not checked."}
+  stress_time: {unit: s, default: 300.0, range: [0.1, 86400.0],
+                doc: "Total stress time (the last read): example default (simulator); your time scale from the
+                  request, else ask."}
   schedule: {type: enum, choices: [log, list], default: log,
              doc: "log: reads at first_read x 10^(k/reads_per_decade) and at stress_time; list: at read_times."}
   first_read: {unit: s, default: 0.1, recommended: [0.1, 1.0], range: [0.02, 3600.0],
@@ -51,8 +55,12 @@ params:
   vg_recovery: {unit: V, default: 0.0, range: [-20, 20], doc: Gate level during the recovery.}
   read_kind: {type: enum, choices: [staircase, spot], default: staircase,
               doc: "staircase: Id-Vg per read (Vth); spot: Id at vg_read, vd."}
-  vg_start: {unit: V, default: -1.0, recommended: [-3, 0], range: [-20, 20], doc: Read sweep start.}
-  vg_stop: {unit: V, default: 3.0, recommended: [2, 10], range: [-20, 20], doc: Read sweep stop.}
+  vg_start: {unit: V, default: -1.0, range: [-20, 20],
+             doc: "Read sweep start: example default; your TFT's range from the request or the DUT profile, else
+               ask."}
+  vg_stop: {unit: V, default: 3.0, range: [-20, 20],
+            doc: "Read sweep stop: example default; your TFT's range from the request or the DUT profile, else
+              ask."}
   vg_points: {type: int, default: 41, recommended: [21, 81], range: [11, 401],
               doc: "Read sweep points (a short read disturbs the stress least)."}
   vg_read: {unit: V, default: 2.0, range: [-20, 20], doc: Gate level of a spot read.}
@@ -69,6 +77,7 @@ always_confirm: [destructive]
 provenance:
   sources:
     - blueprint v2 3.1 row igzo.bias_stress, 2.7 kind stress_measure, 4.2 igzo transient
-    - knowledge 05 (IGZO instability mechanisms); deck slide 17 (IGZO Vth drift case)
-    - Libsch & Kanicki, APL 62, 1286 (1993) (stretched-exponential bias-stress shift)
+    - knowledge 05 (IGZO instability mechanisms)
+    - Libsch & Kanicki, APL 62, 1286 (1993) (stretched-exponential bias-stress shift; an a-Si:H TFT paper, not
+      page-checked)
   validation_runs: []

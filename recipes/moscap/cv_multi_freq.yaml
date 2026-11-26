@@ -2,8 +2,10 @@
 # MOS capacitor C-V at many frequencies (kind cmu_measure, MM 18 per frequency, host frequency loop; card moscap-dit;
 # blueprint v2 3.2, bring-up stage L6): Cp-G (IMP 100) over the gate DC bias from v_start to v_stop at every frequency
 # of freqs_hz, the gate on the MFCMU High side, the bulk on Low (pin map moscap-cmu, or moscap-scuu through the SCUU).
-# Default sweep: the depletion range of moscap-generic (Vfb about -0.9 V, Vth about 0.2 V) from inversion to
-# accumulation; the frequencies are the correction defaults between 1 kHz and 1 MHz (R-CORR-01 needs phase, open and
+# Default sweep: the depletion range of the simulator's moscap-generic example (Vfb about -0.9 V, Vth about 0.2 V;
+# simulator example, scenarios moscap_basic/moscap_dit, not a real-device value) from inversion to accumulation; set
+# the range from a moscap.cv run of your device. The frequencies are the correction defaults between 1 kHz and 1 MHz
+# (R-CORR-01 needs phase, open and
 # short there). Default analyses: Cox and dit_conductance (Gp/w continuum fit per bias: Dit(E) where the trap peak lies
 # in the band). Programming Guide Ed. 15: C-V sweep (PDF 256-260), WDCV (PDF 549-550), MM 18 (PDF 470-471).
 # status: sim_validated by tests/integration/test_recipes_qscv.py (moscap_dit: Dit at every counted bias within 30 %
@@ -50,5 +52,5 @@ provenance:
   sources:
     - blueprint v2 2.7 (kind cmu_measure), 2.10 (dit_conductance), 3.2 (moscap.cv_multi_freq), 4.2 (moscap Dit)
     - Programming Guide Ed. 15 C-V sweep (PDF 256-260), WDCV (PDF 549-550), WTDCV (PDF 566-567), MM 18 (PDF 470-471)
-    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 5 (conductance method, continuum Gp/w)
+    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 5 (conductance method, continuum Gp/w; not page-checked)
   validation_runs: []

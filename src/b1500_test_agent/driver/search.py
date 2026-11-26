@@ -14,7 +14,7 @@ result (Table 1-10, PG p53, printed 1-33; ``EEE`` 16 and 32 of Table 1-8, p52, i
   start), ``G`` (detection time over 3 s short / 12 s long); severity N<T<C<V<X<G|S
   (``parser.QUASI_PULSED_SPOT_STATUS_SEVERITY``).
 
-What the manual does not print (``TODO(verify)`` at bring-up stage L5/L9, real blocks): the channel letter and the
+What the manual does not print (TODO(verify)[L5.A4, L5.A9], real blocks): the channel letter and the
 data type letter of ``Data_search`` (assumed: the search source's channel and the quantity it forces, ``V``/``I``,
 as the Table 3-11 example reads it with ``Mid(mret, 4, 12)``, PG p221) and its status on a normal end (assumed
 ``N``).

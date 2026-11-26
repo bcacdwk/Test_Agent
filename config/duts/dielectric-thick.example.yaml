@@ -4,12 +4,13 @@
 # above the ramp start); example values, not a real device. The gate envelope covers the ramp to the nominal breakdown
 # voltage plus margin because the measurement is meant to destroy the site (every plan is confirmed as destructive); a
 # human sets it per film. Source, drain and bulk are only grounded (the breakdown current returns there).
+# Nominal values: simulator example (scenario `dielectric_thick`), not a real-device value and never a measurement.
 
 device_type: dielectric
 description: Generic thick dielectric (20 nm, 1e4 um^2) for breakdown voltage ramps (example envelope).
 terminals:
   gate:
-    max_abs_v: 30.0             # nominal BDV of 20 nm at 12 MV/cm (24 V) plus the ramp margin
+    max_abs_v: 30.0             # the nominal bdv below (24 V) plus the ramp margin
     max_abs_i: 1.0e-2           # largest breakdown current limit
     impedance: high_z
   bulk:   {max_abs_v: 1.0, max_abs_i: 1.0e-2}
@@ -17,6 +18,8 @@ terminals:
   drain:  {max_abs_v: 1.0, max_abs_i: 1.0e-2}
 geometry: {area_um2: 10000.0, tox_nm: 20.0}
 nominal:
+  # 24 V = 12 MV/cm x 20 nm: a breakdown field of the textbook order for thermal SiO2 and the simulator's value
+  # (scenario `dielectric_thick`), not your film (ramp a sacrificial site with dielectric.bdv).
   bdv: {value: 24.0, unit: V}
 notes:
   - "Quasi-pulsed BDV: ramp 0 -> 30 V with a 1 mA breakdown limit; the result is the gate voltage where the source hit it."

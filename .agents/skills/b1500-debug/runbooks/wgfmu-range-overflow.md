@@ -20,7 +20,7 @@ sources: [blueprint v2 2.8 (R-QUAL WGFMU flags), 4.2 (WGFMU engine saturation), 
 1. The current range (`irange`, or an events-file range code) is smaller than the device current: the WGFMU has no
    compliance, its reading saturates at the range's full scale (WG p16 (1-4)).
 2. A range event switched to a small range before a high-current section (custom waveform).
-3. A short or a much larger device than planned (Ion far above the profile's nominal values).
+3. A short or a much larger device than planned (Ion far above what the human expects for this device).
 4. A voltage-measuring channel whose level exceeds its voltage measurement range (±5 V or ±10 V, default 10 V:
    WG p141 (4-71)).
 

@@ -4,10 +4,11 @@
 # reference read: spot Id at vg_read, vd_read in the linear region (read_kind spot, the default; `samples` averaged)
 # or an Id-Vg sweep (read_kind staircase: also Vth and the gm loss). The stress is timed by the instrument (25 s
 # sampling blocks, one gate/drain current sample each: the drain current under stress); every block and read is a
-# checkpoint. Analysis: degradation_vs_time, dId/Id0 = b t^m (Takeda/Hu power law). Stress choice: classically
-# Vg ~ Vd/2 for long-channel NMOS (maximum substrate current), Vg ~ Vd for short channels (TODO(verify) per
-# technology); keep vg_stress below the BTI onset when only HCI is wanted. Damage sits at the drain end: forward and
-# reverse reads differ (swap drain and source in the pin map for a reverse read). DESTRUCTIVE: every plan confirmed.
+# checkpoint. Analysis: degradation_vs_time, dId/Id0 = b t^m (Takeda/Hu power law). Stress choice: the human's; the
+# classic worst case is Vg ~ Vd/2 for long-channel NMOS (maximum substrate current) and Vg ~ Vd for short channels
+# (general practice, TODO(cite); the technology decides). A gate bias also adds a BTI shift at any level: record
+# both. Damage sits at the drain end: forward and reverse reads differ (swap drain and source in the pin map for a
+# reverse read). DESTRUCTIVE: every plan confirmed.
 # Implements the reserved id reliability.hci (blueprint v2 3.1).
 # status: sim_validated by tests/integration/test_recipes_stress.py (nmos_bti: m +-0.03 vs the model truth);
 # hw_validated only through a validation record (stage L9).
@@ -35,7 +36,9 @@ roles:
   source: {function: ground, allow_gndu: true}
   bulk: {function: ground, allow_gndu: true, optional: true}
 params:
-  vg_stress: {unit: V, range: [-10, 10], doc: "Gate stress voltage (required; NMOS long channel: about vd_stress/2)."}
+  vg_stress: {unit: V, range: [-10, 10],
+              doc: "Gate stress voltage (required; the human's: classic worst case about vd_stress/2 for a long
+                NMOS, general practice, TODO(cite))."}
   vd_stress: {unit: V, range: [-10, 10], doc: "Drain stress voltage (required; the hot-carrier field)."}
   stress_time: {unit: s, default: 1000.0, recommended: [100.0, 10000.0], range: [0.1, 86400.0],
                 doc: "Total stress time (the last read)."}
@@ -47,7 +50,8 @@ params:
   read_times: {type: float_list, unit: s, default: [1.0, 10.0, 100.0, 1000.0], range: [0.02, 86400.0],
                doc: "Cumulative stress times of the reads when schedule is list (ignored for log)."}
   recovery_time: {unit: s, default: 0.0, recommended: [0.0, 600.0], range: [0.0, 86400.0],
-                  doc: "Rest at 0 V after the stress, read at log times (0 = none; HCI damage hardly recovers)."}
+                  doc: "Rest at 0 V after the stress, read at log times (0 = none; HCI damage hardly recovers:
+                    general practice, check it with recovery_time on your device)."}
   read_kind: {type: enum, choices: [spot, staircase], default: spot,
               doc: "spot: Id at vg_read, vd_read (linear-region current); staircase: Id-Vg per read."}
   vg_read: {unit: V, default: 1.5, recommended: [1.0, 3.0], range: [-10, 10], doc: Gate level of a spot read.}
@@ -68,6 +72,8 @@ always_confirm: [destructive]
 provenance:
   sources:
     - blueprint v2 3.1 row reliability.hci, 2.7 kind stress_measure, 4.2 mosfet + hci
-    - deck slide 14; knowledge 05 (hot-carrier injection)
-    - Takeda & Suzuki, IEEE EDL 4, 111 (1983); Hu et al., IEEE TED 32, 375 (1985) (power-law HCI lifetime)
+    - AN-REL p6 (6) (HCI stress with high gate and drain voltage at the same time); knowledge 05 (hot-carrier
+      injection)
+    - Takeda & Suzuki, IEEE EDL 4, 111 (1983); Hu et al., IEEE TED 32, 375 (1985) (power-law HCI lifetime; not
+      page-checked)
   validation_runs: []

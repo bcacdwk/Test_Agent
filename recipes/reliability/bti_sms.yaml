@@ -74,7 +74,9 @@ always_confirm: [destructive]
 provenance:
   sources:
     - blueprint v2 3.1 row reliability.bti_sms, 2.7 kind stress_measure and catalog/blocks.py, 4.2 mosfet + bti
-    - deck slide 14 and text (BTI log-spaced read times); knowledge 05 (BTI stress-measure-stress)
-    - Kaczer et al., IRPS 2008 (power-law BTI, recovery); JEDEC JEP-series BTI practice (TODO(verify))
+    - AN-REL p7 (7) (stress-measure-stress with a reference read, then Vth reads during the stress, kept short
+      because NBTI recovers fast); log-spaced read times are general BTI practice (not checked against a source);
+      knowledge 05 (BTI stress-measure-stress)
+    - Kaczer et al., IRPS 2008 (power-law BTI, recovery; not page-checked, TODO(cite))
     - Programming Guide Ed. 15 MT (PDF 474-476), MSC (PDF 472-473), WV (PDF 568-569), DV (PDF 396)
   validation_runs: []

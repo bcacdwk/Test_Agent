@@ -6,7 +6,10 @@ least-squares fit I = G·V + I0 of the measured current ``y`` against the forced
 voltage column that varies most and the measured current of the same role, e.g. ``a_V``/``a_I``) over the trusted
 points of ``segment`` gives **R = 1/G** (``resistance``, Ohm), the **linearity** r2 of the fit (``linearity_r2``)
 and the **offset current** I0 at 0 V (``offset_current``, A; ``fit["v_offset"]`` = -I0/G). Classification
-(``classification`` of the ``resistance`` result), thresholds as options:
+(``classification`` of the ``resistance`` result) against two fixed thresholds, options of this method (defaults
+``r_short_ohm`` 100 Ohm and ``r_open_ohm`` 1 GOhm, also the ``basic.contact_resistor`` analysis defaults), never the
+DUT profile's expected value: compare R with that value yourself. With the recipe's ±0.1 V and 1 mA compliance any
+structure below 100 Ohm (a metal line, two probes on one pad) reaches the compliance and always reads ``short``:
 
 - ``short``: the forced terminal reached its compliance (status ``C`` on ``y``): R ≤ |V|/|I| at the first compliance
   point, reported as that upper bound (``bound="upper"``) and nothing is fitted (the sweep was aborted there), when
@@ -61,10 +64,11 @@ from b1500_test_agent.errors import InvalidInputError
 from b1500_test_agent.models.analysis import ExtractionResult, TrustPolicy
 
 DEFAULT_R_SHORT_OHM = 100.0
-"""At or below: ``short`` (a 1 mA compliance at 0.1 V also means R ≤ 100 Ohm)."""
+"""At or below: ``short`` (a method threshold, not from the DUT profile; a 1 mA compliance at 0.1 V also means
+R ≤ 100 Ohm)."""
 
 DEFAULT_R_OPEN_OHM = 1e9
-"""At or above: ``open`` (1 GOhm; an unlanded HRSMU probe reads far above this)."""
+"""At or above: ``open`` (1 GOhm; a method threshold, not from the DUT profile)."""
 
 _CALL_CONFIG = ConfigDict(arbitrary_types_allowed=True)
 Ohms = Annotated[float, Field(gt=0, allow_inf_nan=False)]

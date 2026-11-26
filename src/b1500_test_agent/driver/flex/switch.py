@@ -69,7 +69,9 @@ def erssp(port: int, status: int) -> str:
 def erssp_q(port: int) -> str:
     """``ERSSP? port``: the connection status of one 16440A selector output (PG PDF 434, printed 4-116); port 0/1 =
     output 1/2 of the first selector, 2/3 = output 1/2 of the second (PDF 433). Answers 0-3 (``ERSSP_STATES``).
-    A query: it changes no setting. TODO(verify) at bring-up L7 (ATV-18) whether it answers before ``ERMOD 1``."""
+    A query: it changes no setting. PG p434 (4-116) names no execution condition; its answer before ``ERMOD 1`` is
+    never needed (unreachable: the driver reads it only while ``ERMOD?`` shows the 16440A control mode,
+    ``driver/ops/switch.py`` ``switch_states``; the probe likewise, ``service/probe.py``)."""
     if _int(port, "ERSSP? port") not in SELECTOR_PORTS:
         raise ValueError(f"ERSSP? port must be 0 to 3, got {port}")
     return f"ERSSP? {port}"

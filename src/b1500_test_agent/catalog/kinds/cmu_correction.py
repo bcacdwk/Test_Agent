@@ -44,11 +44,11 @@ table (``to_table`` returns ``None``): ``kind_result`` holds the result code (``
 the read-back correction state (``after_phase``, ``after_open``, ``after_short``, ``after_load``) and, for a data
 correction, the medians of its ``CORRDT?`` data (``data_freqs`` frequencies read).
 
-Hardware-bound (blueprint v2 7.6 item 7, ATV-21; TODO(verify) at bring-up L6): the ``CORR?`` duration per frequency
-(estimate ``CORR_POINT_S``, read timeout ``CORR_TIMEOUT_BASE_S + CORR_TIMEOUT_PER_FREQ_S`` per frequency), the
-largest useful frequency list (``MAX_CORRECTION_FREQS``), the power-on reference values ``DCORR?`` answers and that
-the corrections persist until ``*RST``/device clear/power-off (the live ``CORRST?``/``ADJ?`` check of R-CORR-01
-catches every loss).
+Hardware-bound (blueprint v2 7.6 item 7, ATV-21; TODO(verify)[L6.A2, L6.A5, L6.A8, L7.A12, L9.A12]): the ``CORR?``
+duration per frequency (estimate ``CORR_POINT_S``, read timeout ``CORR_TIMEOUT_BASE_S + CORR_TIMEOUT_PER_FREQ_S`` per
+frequency), the power-on reference values ``DCORR?`` answers, and that the corrections persist until ``*RST``/device
+clear/power-off and how they drift (the live ``CORRST?``/``ADJ?`` check of R-CORR-01 catches every loss). The
+instrument's longest frequency list is not measured (``MAX_CORRECTION_FREQS``).
 """
 
 from __future__ import annotations
@@ -115,11 +115,13 @@ instrument's own limit is not in the manual (``CORRL``, PG p384 (4-66), names no
 a longer list (v2.1 plan §4.6): the kernel keeps 64."""
 
 CORR_POINT_S: Final = 0.5
-"""Estimated ``CORR?`` time per listed frequency (the manual calls it short, PG p251 (3-71)). TODO(verify) L6."""
+"""Estimated ``CORR?`` time per listed frequency (the manual calls it short, PG p251 (3-71));
+TODO(verify)[L6.A2, L6.A5]: the records' ``corr_s``."""
 
 CORR_TIMEOUT_BASE_S: Final = 10.0
 CORR_TIMEOUT_PER_FREQ_S: Final = 2.0
-"""``CORR?`` read timeout = base + per frequency (four times the estimate per frequency). TODO(verify) L6."""
+"""``CORR?`` read timeout = base + per frequency (four times the estimate per frequency; derived from
+``CORR_POINT_S``, whose marker covers it)."""
 
 PHASE_ESTIMATE_S: Final = 35.0
 """Estimated phase compensation run: ``ADJ?`` about 30 s (PG p355 (4-37)) plus the set-up and read-back queries."""

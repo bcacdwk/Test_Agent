@@ -28,7 +28,9 @@ roles:
   drain: {function: ground, allow_gndu: true, optional: true}
 params:
   v_stress: {unit: V, range: [-40, 40],
-             doc: "Constant stress voltage (required; typically 80-95 % of the breakdown voltage of the film)."}
+             doc: "Constant stress voltage (required; from the request or the DUT profile, else ask): below the
+               ramp BDV of a sacrificial site (dielectric.bdv), chosen so t_bd falls inside the run time; no
+               checked starting fraction (asked in knowledge 05, TDDB stress levels)."}
   icomp: {unit: A, default: 1.0e-3, recommended: [1.0e-5, 1.0e-2], range: [1.0e-9, 0.1],
           doc: Breakdown current limit (stress compliance); the post-breakdown current never exceeds it.}
   interval: {unit: s, default: 1.0, recommended: [0.1, 10.0], range: [0.01, 60.0],
@@ -44,7 +46,9 @@ always_confirm: [destructive]
 provenance:
   sources:
     - blueprint v2 3.1 row reliability.tddb_cvs, 4.2 dielectric, 2.7 kind smu_sampling (MSC abort)
-    - JEDEC JESD92 (TDDB test procedure; constant voltage stress, breakdown detection by current)
-    - McPherson & Mogul, J. Appl. Phys. 84, 1513 (1998) (E model); Weibull statistics of dielectric breakdown
+    - JEDEC JESD92 (TDDB test procedure; constant voltage stress, breakdown detection by current; not in the
+      repository, not checked, TODO(cite))
+    - McPherson & Mogul, J. Appl. Phys. 84, 1513 (1998) (E model; not page-checked); Weibull statistics of dielectric
+      breakdown
     - Programming Guide Ed. 15 MSC (PDF 472-473), MT (PDF 474-476), MV (PDF 477-478), TSC/TSR (PDF 538-540)
   validation_runs: []

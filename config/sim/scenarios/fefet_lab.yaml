@@ -1,23 +1,24 @@
 # Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario; device params are typed by
 # b1500_test_agent.models.sim (DEVICE_PARAMS); consumed by the simulator (transport/sim/). Name = file name.
-# The lab's FeFET landing (blueprint v2 4.4, 7.3; lwp SPGU_pulse.m: ERMOD 1, ERSSP p,2 for pulses, ERSSP p,1 back
-# to the SMU): the gate pad hangs on output 1 of the first 16440A selector (ERSSP port 0 = station SEL1.OUT1, CH 1
-# with the PGU-open state), whose SMU input carries the Force of HRSMU 3 and whose PGU input carries SPGU channel 101;
-# drain on HRSMU 4, source and bulk on the GNDU. Pin map fefet-sel, DUT profile fefet-lab. The cabling of the other
-# selector ports is the rehearsal assumption of lab_station.yaml (the real wiring is recorded at bring-up L7). A gate
+# A FeFET on the lab's selector sequence (blueprint v2 4.4, 7.3; lwp SPGU_pulse.m: ERMOD 1, ERSSP p,2 for pulses,
+# ERSSP p,1 back to the SMU): only that sequence is lab-derived; the device values are simulator example values, not
+# the lab's FeFET. The gate pad hangs on output 1 of the first 16440A selector (ERSSP port 0 = station SEL1.OUT1,
+# CH 1 with the PGU-open state), whose SMU input carries the Force of HRSMU 3 and whose PGU input carries SPGU
+# channel 101; drain on HRSMU 4, source and bulk on the GNDU. Pin map fefet-sel, DUT profile fefet-lab. The selector
+# cabling is the rehearsal assumption of lab_station.yaml (the real wiring is recorded at bring-up L7). A gate
 # route to the SMU reaches the pad after the relay settle time; with the selector open or on PGU open the gate floats,
-# so an SMU read through the wrong path shows the noise floor. The FeFET switches with NLS kinetics in microseconds
-# at 4-5 V (pulses from the SPGU through the PGU path), DC loop as fefet_basic. WP9.5 adds retention loss (log decay
-# of the written polarization while the gate rests) and wake-up/fatigue over bipolar cycles, so kinetics, endurance
-# and retention runs have a truth (models/sim_devices.py FerroKineticsParams; values are examples, TODO(verify) at
-# L7/L9 against the lab's devices). Noise and timing as nmos_basic.yaml.
+# so an SMU read through the wrong path shows the noise floor. The simulated FeFET switches with NLS kinetics in
+# microseconds at 4-5 V (pulses from the SPGU through the PGU path), DC loop as fefet_basic. WP9.5 adds retention
+# loss (log decay of the written polarization while the gate rests) and wake-up/fatigue over bipolar cycles, so
+# kinetics, endurance and retention runs have a truth (models/sim_devices.py FerroKineticsParams: simulator example
+# values, not a real-device value; a real FeFET's: TODO(verify)[L7.A9, L9.A8]). Noise and timing as nmos_basic.yaml.
 # WP10.6: a second, identical FeFET `wg` on the WGFMU landing (pin map fefet-wgfmu: gate WGFMU 201 through RSU201,
 # drain WGFMU 202 through RSU202, source and bulk on the GNDU) for the microsecond program and fast read
 # (fefet.fast_program_read); the WGFMU's white noise as nmos_wgfmu (per 5 ns sample on the 10 mA range).
 
 description: >-
-  Lab FeFET behind selector SEL1 (port 0: SMU 3 / SPGU 101), drain SMU4, source/bulk GNDU, on the lab mainframe;
-  instant timing.
+  FeFET (simulator example values) on the lab's selector sequence: gate behind selector SEL1 (port 0: SMU 3 / SPGU
+  101), drain SMU4, source/bulk GNDU, on the lab mainframe; instant timing.
 idn: Agilent Technologies,B1500A,0,A.06.02.2023.0401
 slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
   - {slot: 1, model: B1525A}

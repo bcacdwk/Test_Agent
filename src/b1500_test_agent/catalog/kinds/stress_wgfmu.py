@@ -128,13 +128,13 @@ RUN_OVERHEAD_S: Final = 0.5
 """Estimated host time per WGFMU execution (load, update, connect, status polls, readback setup)."""
 
 READBACK_S_PER_VALUE: Final = 2e-6
-"""Estimated readback time per stored value (TODO(verify) at bring-up L8, as kind ``wgfmu_waveform``)."""
+"""Estimated readback time per stored value (same fact as ``kinds/wgfmu_waveform.py`` ``READBACK_S_PER_VALUE``)."""
 
 SETUP_OVERHEAD_S: Final = 0.5
 """Estimated time of the library session (open, initialize) and the SMU setup."""
 
 SMU_READ_S: Final = 0.05
-"""Estimated time of one SMU spot reading between two executions (TODO(verify) at bring-up L9)."""
+"""Estimated time of one SMU spot reading between two executions (TODO(verify)[L9.A9]: part of ``run_boundary``)."""
 
 OVERRANGE_FRACTION: Final = 1.0 - 1e-9
 """A WGFMU reading at this fraction of its range's full scale or beyond is saturated (status ``V``)."""

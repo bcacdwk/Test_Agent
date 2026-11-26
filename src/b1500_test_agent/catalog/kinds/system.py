@@ -57,7 +57,7 @@ OPERATIONS: dict[str, tuple[str, float]] = {
     "wgfmu_self_cal": ("library self_calibration", 60.0),
 }
 """Operation -> (FLEX query or ``WgfmuApi`` method, estimated duration in s). The durations are conservative
-placeholders, TODO(verify) at bring-up stages L1 (FLEX) and L8 (WGFMU library) (blueprint v2 7.6 item 10: self-test/cal
+placeholders, TODO(verify)[L1.A3, L8.A2] (FLEX at L1, WGFMU library at L8; blueprint v2 7.6 item 10: self-test/cal
 durations); the FLEX read timeout is ``2 x estimate + 10 s`` (250 s for ``*TST?``, 130 s for ``*CAL?``); the library
 times its calls out after 600 s by itself."""
 

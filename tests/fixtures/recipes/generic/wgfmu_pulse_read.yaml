@@ -44,7 +44,8 @@ params:
   read_kind: {type: enum, choices: [wgfmu], default: wgfmu, doc: The WGFMU reads.}
   wgfmu_read: {type: enum, choices: [sweep], default: sweep, doc: Staircase reads.}
   amplitudes: {type: float_list, default: [3.0, 3.5, 4.0], range: [-10.0, 10.0], doc: Grid amplitudes.}
-  widths: {type: float_list, unit: s, default: [1.0e-7, 1.0e-6, 1.0e-5], range: [1.0e-8, 1.0e-3], doc: Grid widths.}
+  widths: {type: float_list, unit: s, default: [3.0e-7, 1.0e-6, 1.0e-5], range: [1.0e-8, 1.0e-3],
+           doc: "Grid widths (Fast IV pulses at least 300 ns, WG p16 (1-4); R-WG-02 blocks shorter ones)."}
   grid_mode: {type: enum, choices: [reset, ispp], default: reset, doc: Grid mode.}
   retention_time: {unit: s, default: 10.0, range: [0.02, 1000.0], doc: Last retention read.}
   first_read: {unit: s, default: 0.1, range: [0.02, 100.0], doc: First retention read.}

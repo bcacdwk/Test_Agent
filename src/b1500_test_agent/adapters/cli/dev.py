@@ -3,11 +3,11 @@
 runs an asynchronous simulator run through it), ``coverage [--write|--check]`` (generated ``docs/coverage.md``,
 ``devtools/coverage.py``), ``sync-harness [--check]``
 (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``lint-skills`` (skill schema, budgets, links; package
-``devtools/skills/``), ``gen-index [--check]`` (generated card index ``cards/README.md``), ``sim-console`` (raw FLEX,
-simulator only), ``acceptance`` (M3 harness acceptance runner, ``devtools/acceptance/cli.py``), ``harness qualify``
-(the maintainer's ladder for a harness version, v2.1 plan §2.3, ``devtools/harness_qualify.py``) and ``cases list|check|
-reproduce`` (the debug cases of skill ``b1500-debug`` and their simulator reproductions, v2.1 plan §3,
-``devtools/cases.py``).
+``devtools/skills/``), ``gen-index [--check]`` (generated card index ``cards/README.md`` and owner questions
+``docs/open-questions.md``), ``sim-console`` (raw FLEX, simulator only), ``acceptance`` (M3 harness acceptance
+runner, ``devtools/acceptance/cli.py``), ``harness qualify`` (the maintainer's ladder for a harness version, v2.1
+plan §2.3, ``devtools/harness_qualify.py``) and ``cases list|check|reproduce`` (the debug cases of skill
+``b1500-debug`` and their simulator reproductions, v2.1 plan §3, ``devtools/cases.py``).
 """
 
 from __future__ import annotations
@@ -253,14 +253,16 @@ def lint_skills_command(
 
 @dev_app.command("gen-index")
 def gen_index_command(
-    check: Annotated[bool, typer.Option("--check", help="Write nothing; exit 1 when cards/README.md differs from "
-                                                        "the generated index.")] = False,
+    check: Annotated[bool, typer.Option("--check", help="Write nothing; exit 1 when cards/README.md or "
+                                                        "docs/open-questions.md differs from the generated "
+                                                        "text.")] = False,
     root: Annotated[Path | None, typer.Option("--root", help="Root with .agents/skills/ and recipes/ (default: this "
                                                              "clone).")] = None,
     as_json: JsonOption = False,
 ) -> None:
     """Write the generated card index .agents/skills/b1500-test/cards/README.md from the card frontmatter and the
-    recipe registry; --check only compares. Exit 1 on drift or invalid card frontmatter."""
+    recipe registry, and the owner's question list docs/open-questions.md from every owner-question marker and the
+    debug cases' open questions; --check only compares. Exit 1 on drift or invalid card frontmatter."""
     report = card_index.gen_index(root, check=check)
     typer.echo(report.model_dump_json(indent=2) if as_json else card_index.format_report(report))
     if not report.ok:

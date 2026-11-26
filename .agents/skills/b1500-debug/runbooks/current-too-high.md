@@ -12,7 +12,7 @@ sources: [general practice (not checked against a source), CC p44 (2-2) "leakage
 ## Symptom
 
 - Measured current is orders of magnitude above what the human expects for this device (ask for the expected
-  current and bias: the card's ranges and the DUT profile's nominal values are examples, not expectations).
+  current and bias: the card's ranges and an example profile's nominal values are no expectations).
 - Off-state current close to on-state current, current at 0 V bias, or an ohmic (straight) curve on a device that
   should switch.
 

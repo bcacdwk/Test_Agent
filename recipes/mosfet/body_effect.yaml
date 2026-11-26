@@ -37,7 +37,9 @@ roles:
 params:
   vg_start: {unit: V, default: 0.0, recommended: [-1.0, 0.0], range: [-10, 10],
              doc: "Gate sweep start (below threshold; the 100 nA Vth criterion needs subthreshold points)."}
-  vg_stop: {unit: V, default: 1.2, recommended: [1.0, 3.0], range: [-10, 10], doc: "Gate sweep stop."}
+  vg_stop: {unit: V, default: 1.2, recommended: [1.0, 3.0], range: [-10, 10],
+            doc: "Gate sweep stop (default 1.2 V: sized for the simulator's generic nMOS, scenario nmos_basic; set it
+             from a mosfet.idvg run of your device)."}
   vg_points: {type: int, default: 121, recommended: [61, 301], range: [11, 1001],
               doc: "Gate sweep points (121 = 10 mV steps over the default range)."}
   vd: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [-5, 5], doc: "Drain bias (linear region)."}

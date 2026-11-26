@@ -13,13 +13,13 @@ Definitions (the single source of the sections "Program/read memory window", "Sw
   write, ``t_s`` = its time after the write).
 - **Per-read quantity** (``quantity``): ``vth`` = the threshold voltage of a staircase read (``x`` default ``gate_V``,
   else the only swept source column; ``y`` default ``drain_I``) by ``vth_method`` ``constant_current`` (default;
-  ``i_crit_a`` x ``w_over_l``, 100 nA by default, log10|Id| interpolated) or ``linear_extrapolation`` (max-gm tangent
-  minus Vd/2); ``current`` = ``y`` at the read: the mean of a spot read's trusted samples, or a sweep's value at
-  ``x = at_v`` (default: the plan parameter ``vg_read``). ``auto`` (default) takes ``vth`` when the reads sweep ``x``,
-  else ``current``. Each read is judged like the method it uses: untrusted points refuse that read unless ``force``
-  (forced reads are flagged); limited (``C``/``T``) points never enter. A refused or failed read drops out with a
-  warning; when every read of a state drops out its results are refused (or failed). The kinetics, endurance and
-  retention methods use ``vth`` (staircase reads; spot reads are refused).
+  ``i_crit_a`` x ``w_over_l``, 100 nA by default as in ``mosfet.py``, log10|Id| interpolated) or
+  ``linear_extrapolation`` (max-gm tangent minus Vd/2); ``current`` = ``y`` at the read: the mean of a spot read's
+  trusted samples, or a sweep's value at ``x = at_v`` (default: the plan parameter ``vg_read``). ``auto`` (default)
+  takes ``vth`` when the reads sweep ``x``, else ``current``. Each read is judged like the method it uses: untrusted
+  points refuse that read unless ``force`` (forced reads are flagged); limited (``C``/``T``) points never enter. A
+  refused or failed read drops out with a warning; when every read of a state drops out its results are refused (or
+  failed). The kinetics, endurance and retention methods use ``vth`` (staircase reads; spot reads are refused).
 - **Memory window** (``vth``): ``MW = mean Vth(erase) - mean Vth(program)`` over the cycles (positive for an n-channel
   FeFET: a positive program pulse lowers Vth); ``fit`` holds the per-cycle windows' minimum, maximum and standard
   deviation over the cycles that have both reads (``cycles``) and the reference read's Vth. A negative window is
@@ -31,7 +31,7 @@ Definitions (the single source of the sections "Program/read memory window", "Sw
   program (``grid``: per point ``cycle``, ``level`` V, ``width`` s, ``row``; ``grid_mode``; the grid operation is
   the second of ``sequence``); a point's value is the Vth of the read after its grid pulse, the reads after the
   resets give ``vth_reset`` (mean, spread). ``grid_mode`` ``reset``: nucleation-limited switching (NLS; Tagantsev et
-  al., Phys. Rev. B 66, 214109, 2002) fitted by least squares over every usable point,
+  al., Phys. Rev. B 66, 214109, 2002, not page-checked) fitted by least squares over every usable point,
   ``Vth(V, w) = V0 + A(V) (1 - exp(-(w / tau(V))^beta))`` with ``tau(V) = tau0 exp((Va / |V|)^alpha)``: ``V0`` (one
   start level) and ``A(V)`` (the switched window of each amplitude) enter linearly and are projected out; ``tau0``,
   ``Va``, ``beta`` (and ``alpha`` when the option ``alpha`` is null; default fixed at 2) by Levenberg-Marquardt from a
@@ -51,9 +51,10 @@ Definitions (the single source of the sections "Program/read memory window", "Sw
   ``Vth = a + b log10(t / 1 s)`` by least squares: ``retention_slope_program``/``retention_slope_erase`` = ``b``
   (V/decade); ``MW(t) = Vth_erase - Vth_program`` of the reads with the same index (the same ``t_s``) fitted the
   same way: ``memory_window_slope``, ``memory_window_at_target`` (the fit at ``target_time_s``, default 10 years =
-  3.156e8 s; a warning when that is more than two decades beyond the last read), ``retention_time`` (s: where the MW
-  fit reaches ``mw_min`` V, else ``fail_fraction`` x the first read's MW, default 0.5; a window that does not decay
-  gives a lower bound at the target time). Extrapolations are derived values, never measurements.
+  3.156e8 s, a common non-volatile-memory convention: set it per product; a warning when that is more than two decades
+  beyond the last read), ``retention_time`` (s: where the MW fit reaches ``mw_min`` V, else ``fail_fraction`` x the
+  first read's MW, default 0.5; a window that does not decay gives a lower bound at the target time). Extrapolations
+  are derived values, never measurements.
 
 Results: ``memory_window_pulse``: ``vth``: ``memory_window`` (V, when both operations ran), ``vth_program``,
 ``vth_erase`` (V; ``fit``: ``first``, ``last``, ``std``, ``reads``) and ``vth_initial`` (V, the reference read);

@@ -21,9 +21,9 @@ family mixin shares the facade's namespace. Every operation that can put a level
   change passes the guard.
 - ``stop_pulses()`` (``SPP``) is never gated; ``pulse_output_active()`` (``SPST?``) and ``wait_pulses_stopped(...)``
   (poll ``SPST?`` with host waits between polls and a caller check, e.g. ``tx.check_abort``, at least once a second)
-  only read. ATV-19 (``SPST?`` = 1 while running, 0 after the count/duration, PG PDF 142) is TODO(verify) at bring-up
-  L7; its fallback is the caller's: after ``wait_pulses_stopped`` raises ``SpguStillActive``, send ``SPP`` and let
-  the cleanup verify.
+  only read. ATV-19 (``SPST?`` = 1 while running, 0 after the count/duration, PG PDF 142) is
+  TODO(verify)[L7.A4, L7.A13]; its fallback is the caller's: after ``wait_pulses_stopped`` raises
+  ``SpguStillActive``, send ``SPP`` and let the cleanup verify.
 
 ``pulse_setup_commands``/``alwg_setup_commands``/``spgu_preview`` are pure (``spgu_preview`` is a kind's FLEX
 preview); ``ALW``/``ALS`` appear there as their command header (the block follows on the bus).

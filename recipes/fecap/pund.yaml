@@ -32,8 +32,10 @@ roles:
     settings: {range: $irange}
 params:
   builder: {type: enum, choices: [pund], default: pund, doc: Fixed waveform builder.}
-  v_max: {unit: V, default: 3.0, recommended: [2.0, 4.0], range: [0.1, 10.0],
-          doc: "PUND pulse amplitude (about 2-3 x the coercive voltage saturates the loop; within the DUT envelope)."}
+  v_max: {unit: V, default: 3.0, range: [0.1, 10.0],
+          doc: "PUND pulse amplitude: example default for a film with Vc about 1 V (simulator example, scenario
+            fecap_basic, not a real-device value); set about 2-3 x your Vc (rule of thumb, not checked) from
+            the request or the DUT profile, else ask; within the DUT envelope."}
   rise: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-4], range: [1.0e-7, 1.0e-2],
          doc: "Ramp time 0 V -> v_max (and back): sets dV/dt, so the displacement and switching currents."}
   plateau: {unit: s, default: 0.0, recommended: [0.0, 1.0e-5], range: [0.0, 1.0e-2],
@@ -51,6 +53,7 @@ analysis_defaults:
 provenance:
   sources:
     - blueprint v2 2.7.1 (builder pund), 2.10 (pund_polarization), 3.4 (fecap.pund), 4.2 ferro FeCap target (Pr, Ps, Ec +-5 %)
-    - Keysight Advanced NVM Application Tests User's Guide (AN-NVM; PUND with the B1530A; TODO(verify) the page at L8)
+    - Keysight Advanced NVM Application Tests User's Guide, FeRAM PUND, AN-NVM p69-71 "FERAM PUND" (PUND waveform
+      parameters peak voltage, rise/fall time, top width, delay; WGFMU-RSU connection)
     - WGFMU guide Ed. 8 setMeasureEvent (PDF 125-126), addSequence (PDF 80), Fast IV mode and ranges (PDF 16, 123, 142)
   validation_runs: []

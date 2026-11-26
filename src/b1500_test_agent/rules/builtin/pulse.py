@@ -433,7 +433,9 @@ def wgfmu_waveform_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     outside averaging windows and, three or more in a pattern, more than 2 us apart (WG p128 (4-58)); stored values
     per channel within ``policy.run_limits.max_points.wgfmu`` and about 4,000,000 (WG p125 (4-55)); the program
     within the channel's ``WaveformLimits`` (vectors, values, time, 10 ns grid); DC levels (``dc_spot``) inside the
-    channel's force range in DC mode and its envelope (WG p89 (4-19))."""
+    channel's force range in DC mode and its envelope (WG p89 (4-19)); every nominal pulse train of a WGFMU channel
+    at least the minimum pulse width of the channel's mode (PG 100 ns, Fast IV 300 ns; WG p16 (1-4)), which the
+    10 ns vector grid alone would let through."""
     sources, problem = source_plan_of(ctx)
     if problem is not None:
         return  # R-PULSE-01 reports an invalid source plan
@@ -454,6 +456,23 @@ def wgfmu_waveform_limits(ctx: RuleContext, env: RuleEnv) -> Iterator[Finding]:
     yield from _wg_events(program, spec_src)
     yield from _wg_dc(ctx, env, program, spec_src)
     yield from _wg_points_and_envelope(ctx, env, program, spec_src)
+    yield from _wg_pulse_widths(program, sources.pulses, env.code(f"{SPEC_SYMBOL}.WGFMU_SPEC.min_pulse_width_s "
+                                                                  "(WG p16 (1-4))"))
+
+
+def _wg_pulse_widths(program: WaveformProgram, pulses: dict[int, list[PulseTrain]],
+                     source: str) -> Iterator[Finding]:
+    """Nominal pulse trains of the program's channels against the minimum pulse width of each channel's mode."""
+    setups = {norm_channel(ch): setup for ch, setup in program.channels.items()}
+    for ch, trains in sorted(pulses.items()):
+        setup = setups.get(norm_channel(ch))
+        minimum = WGFMU_SPEC.min_pulse_width_s.get(setup.mode) if setup is not None else None
+        if minimum is None:
+            continue
+        short = sorted(t.width_s for t in trains if t.width_s < minimum * (1 - 1e-9))
+        if short:
+            yield block(f"channel {ch}: pulse width {short[0]:g} s is below the {minimum:g} s minimum of "
+                        f"{setup.mode} mode (WG p16 (1-4))", source=source, observed=short[0], limit=minimum)
 
 
 def _wg_channels(ctx: RuleContext, env: RuleEnv, program: WaveformProgram,

@@ -22,5 +22,5 @@ binding `WgfmuDll` (`dll.py`). The simulator implements the same protocol in `tr
   channel read) or close the FLEX link (probe session check) first (ATV-14, ATV-16); close the library session on
   every path. The transaction's WGFMU phase and cleanup step 3 live in `session/wgfmu_phase.py`, the guarded
   operations in `driver/wgfmu.py` (WP10.3); nothing else drives the library.
-- Hardware facts stay `TODO(verify)` until bring-up L0/L8: error-string and warning-summary formats, version
-  resource form, firmware codes, load from `System32` (ATV-15).
+- Hardware facts stay `TODO(verify)[L0.A2, L0.A7, L8.A10, L8.A11]` until those bring-up steps record them:
+  error-string and warning-summary formats, version resource form, firmware codes, load from `System32` (ATV-15).

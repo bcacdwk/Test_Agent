@@ -14,6 +14,6 @@ See also [subthreshold swing](#subthreshold-swing-ss).
 
 ## Subthreshold swing (SS)
 
-Inverse slope of log10(Id) versus Vg in the subthreshold region. TODO(verify) window rule.
+Inverse slope of log10(Id) versus Vg in the subthreshold region. Window rule: TODO(verify)[L4.A1].
 
 <a id="legacy-ss"></a>

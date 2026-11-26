@@ -3,8 +3,9 @@
 # bring-up stage L6): gate on the MFCMU High side (DC bias sweep vg_start -> vg_stop, Cp-G), drain on the Low side,
 # bulk grounded (GNDU or an SMU at 0 V). The source is no role: it is tied to the drain at the MFCMU Low cable (pin
 # map target 7L) or left floating (an SMU this recipe never switches on, pin map mosfet-split-cv), so the whole
-# channel charge returns through the Low side; never ground it (that measures Cgd, recipe mosfet.cgd_cv). Low
-# frequency (100 kHz) keeps the channel resistance out of the reading. The inversion plateau extrapolates to
+# channel charge returns through the Low side; never ground it (that measures Cgd, recipe mosfet.cgd_cv). Measure
+# at a frequency low enough that the channel follows (100 kHz for this example; check that the Cgc plateau does not
+# change with frequency on your device). The inversion plateau extrapolates to
 # Cox*W*L (overlap floor removed); the onset of the Cgc rise gives Vth. Needs fresh phase/open/short corrections of
 # this pin map at every frequency (R-CORR-01). Programming Guide Ed. 15: C-V sweep (PDF 256-260), MM 18 (PDF 470-471).
 # status: sim_validated by tests/integration/test_recipes_cv.py (nmos_cv: plateau Cox*W*L +-2 % of the model truth);
@@ -52,5 +53,6 @@ provenance:
   sources:
     - "blueprint v2 2.7 (kind cmu_measure), 3.2 (mosfet.cgc_cv), 4.2 (mosfet +cv, Cgc plateau = Cox*W*L +-2 %)"
     - Programming Guide Ed. 15 C-V sweep (PDF 256-260), MM 18 (PDF 470-471)
-    - Koomen, Solid-State Electron. 16, 801 (1973); Sodini et al., Solid-State Electron. 25, 833 (1982) (split C-V)
+    - Koomen, Solid-State Electron. 16, 801 (1973); Sodini et al., Solid-State Electron. 25, 833 (1982) (split C-V;
+      not page-checked)
   validation_runs: []

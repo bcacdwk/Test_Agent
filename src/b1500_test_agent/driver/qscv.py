@@ -9,7 +9,7 @@ the sweep output. ``QSZ 2`` returns one ``C`` datum, the measured offset (p499 (
 Status letters (Table 1-10, PG p53 (1-33)): ``N`` normal, ``C`` this channel's compliance, ``T`` another channel's,
 ``V`` over range or data after an automatic abort (``199.999E+99``, ``QSM 2``; error 242), ``X`` oscillation.
 
-What the manual does not print (``TODO(verify)`` at bring-up stages L5/L6, real blocks): the channel letter of
+What the manual does not print (TODO(verify)[L6.A6, L6.A8], real blocks): the channel letter of
 ``DataL``/``DataC`` (assumed: the ``MM 13`` measurement channel, as the example's ``C`` channel letter is its gate SMU)
 and the number of blocks of a double sweep (assumed: every step of both directions, turning point not measured).
 """

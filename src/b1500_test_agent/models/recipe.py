@@ -127,8 +127,9 @@ def _is_real(value: object) -> bool:
 
 
 class ParamSpec(StrictModel):
-    """One recipe parameter. ``range`` is the hard recipe envelope (R-PARAM-01); ``recommended`` is advisory and
-    shown to the agent. ``default`` ``None`` means the parameter is required. A ``file`` parameter is a CSV path
+    """One recipe parameter. ``range`` is the hard recipe envelope (R-PARAM-01); ``recommended`` is an example window
+    of the recipe, shown to the agent, not a device recommendation (device levels come from the request or the DUT
+    profile). ``default`` ``None`` means the parameter is required. A ``file`` parameter is a CSV path
     (``FILE_PARAM_PATTERN``); its default may only name a committed library file under ``recipes/waveforms/``."""
 
     type: Literal["float", "int", "bool", "enum", "float_list", "file"] = "float"

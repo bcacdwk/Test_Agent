@@ -38,7 +38,7 @@ models:
       c_f: 1.0e-10              # truth: 100 pF, lossless
   path:
     model: fixture
-    params: {}                  # blueprint 4.2 defaults (models.sim_devices.FixtureParams); TODO(verify) at M12 L6
+    params: {}                  # blueprint 4.2 defaults (sim_devices.FixtureParams); station: TODO(verify)[L6.A2]
 noise:
   floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
   rel: 2.0e-4

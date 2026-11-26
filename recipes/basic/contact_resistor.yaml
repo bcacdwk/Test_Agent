@@ -1,9 +1,12 @@
 # Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
 # Contact / resistor check: a small staircase (default -0.1 V .. +0.1 V) on the forced terminal `a` against the
 # return terminal `b` (GNDU), the gate-keeper on every fresh landing. Analysis `resistance`: R, linearity, offset
-# current and a classification open | short | in_range (thresholds are analysis options). +-0.1 V and 1 mA never
-# stress a device, so it may be run on any structure through a two-terminal pin map (e.g. resistor-2t: a = SMU3,
-# which is also the drain probe of the mosfet-4t wiring) with a resistor DUT profile.
+# current and a classification open | short | in_range by the analysis thresholds r_short_ohm (100 Ohm) and
+# r_open_ohm (1 GOhm) (analysis options below), not by the DUT profile: compare R with the expected value yourself.
+# At +-0.1 V the 1 mA compliance is reached below 100 Ohm, so a structure below 100 Ohm (a metal line, two probes on
+# one pad) always reads `short`. +-0.1 V with a 1 mA compliance is a low-stress check for most structures (a
+# fragile thin line or nanowire may need a smaller compliance). It runs through a two-terminal pin map (e.g.
+# resistor-2t: a = SMU3, which is also the drain probe of the mosfet-4t wiring) with a resistor DUT profile.
 # status: sim_validated by tests/integration/test_recipes_basic.py (resistor_100k: R +-1 %; open_drain_noisy: open);
 # hw_validated only through an M4 validation record. card: set by WP2.5.
 id: basic.contact_resistor

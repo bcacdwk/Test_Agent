@@ -38,9 +38,11 @@ roles:
   bulk: {function: ground, allow_gndu: true, optional: true}
 params:
   v_program: {unit: V, default: 4.0, recommended: [-5.0, 5.0], range: [-20.0, 20.0],
-              doc: "Program pulse amplitude (set level; SER-adjusted)."}
+              doc: "Program pulse amplitude (set level; SER-adjusted): example default; your level from the
+                request or the DUT profile, else ask."}
   v_erase: {unit: V, default: -4.0, recommended: [-5.0, 5.0], range: [-20.0, 20.0],
-            doc: "Erase pulse amplitude (used when the sequence erases)."}
+            doc: "Erase pulse amplitude (used when the sequence erases): example default; from the request or the
+              DUT profile, else ask."}
   v_base: {unit: V, default: 0.0, recommended: [-1.0, 1.0], range: [-20.0, 20.0], doc: Level between pulses.}
   width: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-3], range: [1.0e-8, 1.0], doc: Program pulse width.}
   erase_width: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-3], range: [1.0e-8, 1.0], doc: Erase pulse width.}
@@ -48,9 +50,10 @@ params:
            doc: "Pulse period (>= width + t_edge / 0.8)."}
   count: {type: int, default: 1, recommended: [1, 100], range: [1, 100000], doc: Pulses per operation.}
   t_edge: {unit: s, default: 2.0e-8, recommended: [2.0e-8, 1.0e-6], range: [8.0e-9, 0.4],
-           doc: "Leading and trailing transition time (width >= t_edge / 0.8)."}
+           doc: "Leading and trailing transition time (width >= t_edge / 0.8, PG p591 (5-19) error 2111)."}
   load_ohm: {unit: Ohm, default: 1.0e+6, recommended: [1.0e+3, 1.0e+6], range: [0.1, 1.0e+6],
-             doc: "Declared load SER (1 MOhm for an insulated gate; 50 Ohm doubles the level on an open load)."}
+             doc: "Declared load SER (1 MOhm for an insulated gate; 50 Ohm doubles the level on an open load:
+               50 Ohm output, UG p76 (2-36))."}
   sequence: {type: enum, choices: [program_erase, erase_program, program, erase], default: program_erase,
              doc: "Operations of one cycle, each followed by a read (program: cumulative program pulses)."}
   cycles: {type: int, default: 3, recommended: [1, 20], range: [1, 200], doc: Repetitions of the sequence.}
@@ -58,9 +61,15 @@ params:
   schedule: {type: enum, choices: [cycles], default: cycles, doc: Schedule of the operations.}
   read_kind: {type: enum, choices: [spot, staircase], default: spot,
               doc: "spot: Id at vg_read (samples readings); staircase: an Id-Vg sweep per read."}
-  vg_read: {unit: V, default: 0.9, recommended: [-2.0, 2.0], range: [-10.0, 10.0], doc: Gate level of a spot read.}
-  vg_start: {unit: V, default: -0.5, recommended: [-2.0, 0.0], range: [-10.0, 10.0], doc: Read sweep start.}
-  vg_stop: {unit: V, default: 1.8, recommended: [0.0, 2.0], range: [-10.0, 10.0], doc: Read sweep stop.}
+  vg_read: {unit: V, default: 0.9, range: [-10.0, 10.0],
+            doc: "Gate level of a spot read (between your two Vth states): example default; from the request or
+              the DUT profile, else ask."}
+  vg_start: {unit: V, default: -0.5, range: [-10.0, 10.0],
+             doc: "Read sweep start (below your programmed Vth): example default; from the request or the DUT
+              profile, else ask."}
+  vg_stop: {unit: V, default: 1.8, range: [-10.0, 10.0],
+            doc: "Read sweep stop: for a FeFET it must stay below YOUR device's Vc (from the request or the DUT
+              profile; else ask); 1.8 V suits the simulator FeFET (Vc 2.8 V, scenarios fefet_basic/fefet_lab)."}
   vg_points: {type: int, default: 47, recommended: [21, 101], range: [11, 401], doc: Read sweep points.}
   vd: {unit: V, default: 0.05, recommended: [0.02, 0.5], range: [-5.0, 5.0], doc: Drain read bias.}
   vd_pulse: {unit: V, default: 0.0, recommended: [0.0, 0.0], range: [-5.0, 5.0],

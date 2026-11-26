@@ -48,30 +48,40 @@ params:
                 doc: "Cumulative cycle counts of the checkpoints when cycle_reads is list (integers)."}
   cycle_period: {unit: s, default: 1.0e-3, recommended: [1.0e-5, 1.0e-2], range: [4.0e-8, 1.0],
                  doc: "Period of one bipolar cycle in the bursts (erase pulse, program pulse half a period later)."}
-  v_program: {unit: V, default: 4.0, recommended: [3.0, 5.0], range: [-10.0, 10.0],
-              doc: "Program pulse amplitude (cycling and checkpoints; n-FeFET: positive, lowers Vth)."}
-  v_erase: {unit: V, default: -4.0, recommended: [-5.0, -3.0], range: [-10.0, 10.0],
-            doc: "Erase pulse amplitude (cycling and checkpoints; n-FeFET: negative, raises Vth)."}
-  width: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-4], range: [1.0e-8, 1.0e-3],
-          doc: "Pulse width of program and erase (cycling and checkpoints)."}
+  v_program: {unit: V, default: 4.0, range: [-10.0, 10.0],
+              doc: "Program pulse amplitude (cycling and checkpoints; n-FeFET: positive, lowers Vth): example
+                default for the simulator FeFET (scenario fefet_lab), not a real-device value; from the request or
+                the DUT profile, else ask."}
+  v_erase: {unit: V, default: -4.0, range: [-10.0, 10.0],
+            doc: "Erase pulse amplitude (cycling and checkpoints; n-FeFET: negative, raises Vth): example default
+              (simulator FeFET); from the request or the DUT profile, else ask."}
+  width: {unit: s, default: 1.0e-6, range: [1.0e-8, 1.0e-3],
+          doc: "Pulse width of program and erase (cycling and checkpoints): example default (simulator FeFET);
+            from the request or the DUT profile, else ask."}
   period: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-3], range: [2.0e-8, 1.0],
            doc: "Pulse period of the checkpoint operations (matters only with count > 1)."}
   count: {type: int, default: 1, recommended: [1, 10], range: [1, 1000], doc: Pulses per checkpoint operation.}
   t_edge: {unit: s, default: 2.0e-8, recommended: [2.0e-8, 1.0e-6], range: [8.0e-9, 0.4],
-           doc: "Leading and trailing transition time (width >= t_edge / 0.8)."}
+           doc: "Leading and trailing transition time (width >= t_edge / 0.8, PG p591 (5-19) error 2111)."}
   load_ohm: {unit: Ohm, default: 1.0e+6, recommended: [1.0e+3, 1.0e+6], range: [0.1, 1.0e+6],
-             doc: "Declared load SER (1 MOhm for the insulated gate; 50 Ohm doubles the level on an open gate)."}
+             doc: "Declared load SER (1 MOhm for the insulated gate; 50 Ohm doubles the level on an open gate:
+             50 Ohm output, UG p76 (2-36))."}
   sequence: {type: enum, choices: [erase_program, program_erase], default: erase_program,
              doc: "Order of the two operations in every cycle (bursts and checkpoints)."}
   initial_read: {type: bool, default: true, doc: A reference read before the first pulse.}
   schedule: {type: enum, choices: [cycles], default: cycles, doc: "Schedule (cycles with checkpoint reads)."}
   read_kind: {type: enum, choices: [staircase, spot], default: staircase,
               doc: "staircase: Id-Vg per read (Vth, MW); spot: Id at vg_read (read current window)."}
-  vg_start: {unit: V, default: -0.5, recommended: [-1.0, 0.0], range: [-5.0, 5.0], doc: Read sweep start.}
-  vg_stop: {unit: V, default: 1.8, recommended: [1.5, 2.0], range: [-5.0, 5.0],
-            doc: "Read sweep stop (well below the coercive voltage)."}
+  vg_start: {unit: V, default: -0.5, range: [-5.0, 5.0],
+             doc: "Read sweep start (below your programmed Vth): example default; from the request or the DUT
+              profile, else ask."}
+  vg_stop: {unit: V, default: 1.8, range: [-5.0, 5.0],
+            doc: "Read sweep stop: must stay below YOUR device's Vc (from the request or the DUT profile; else ask);
+              1.8 V suits the simulator FeFET (Vc 2.8 V, scenarios fefet_basic/fefet_lab)."}
   vg_points: {type: int, default: 47, recommended: [31, 101], range: [11, 401], doc: Read sweep points.}
-  vg_read: {unit: V, default: 0.6, recommended: [0.0, 1.5], range: [-5.0, 5.0], doc: Gate level of a spot read.}
+  vg_read: {unit: V, default: 0.6, range: [-5.0, 5.0],
+            doc: "Gate level of a spot read (between your two Vth states): example default; from the request or
+              the DUT profile, else ask."}
   vd: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [-1.0, 1.0], doc: Drain read bias (linear region).}
   icomp_gate: {unit: A, default: 1.0e-6, range: [1.0e-12, 1.0e-3], doc: Gate current compliance of the reads.}
   icomp_drain: {unit: A, default: 1.0e-3, range: [1.0e-12, 1.0e-2], doc: Drain current compliance of the reads.}
@@ -89,6 +99,10 @@ analysis_defaults:
 provenance:
   sources:
     - blueprint v2 2.7 (kind pulse_read, schedule cycles), 2.10 (nvm.py endurance_summary), 3.3 (fefet.endurance), 4.2 ferro FeFET (wake-up/fatigue)
-    - Keysight Advanced NVM Application Tests User's Guide (AN-NVM; endurance cycling with checkpoint reads; TODO(verify) page at L9)
+    - Keysight B1500A self-paced training, SPGU module, AN-TUT p170 (5-24) (flash endurance with repeated write/erase
+      pulses and Vth reads after set cycle counts) and AN-TUT p174 (5-28) (Vth read at each decade through the
+      selector's SMU path);
+      AN-NVM p72-74 "FeRAM Endurance" (reads a set number of times per decade of cycles); flash and FeRAM tests, not
+      FeFET ones
     - Programming Guide Ed. 15 SPM three-level output (PDF 146, 511), SPRM (PDF 512-513), SPT (PDF 514), ERSSP (PDF 433-434)
   validation_runs: []

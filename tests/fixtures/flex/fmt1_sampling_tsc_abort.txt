@@ -3,7 +3,7 @@
 # command: FMT 1,1; TSC 1; TSR; MT 0.5,1,5,0; MSC 2,2; MV 4,0,0,5.5,0.001; MM 10,4; CMM 4,1; XE
 # terminator: crlf
 # note: assembled from the tables (TDDB-like): samples 1-2 normal leakage, sample 3 in compliance (breakdown) aborts, samples 4-5 are dummy data; times are 0.5 s + (index - 1) x 1 s after the TSR
-# note: the order Sampling_no, Time, Data and the letters of the index and dummy-sample elements are assumed (the manual prints none; TODO(verify) at bring-up stage L5, ATV-22)
+# note: the order Sampling_no, Time, Data and the letters of the index and dummy-sample elements are assumed (the manual prints none; ATV-22; same fact as src/b1500_test_agent/driver/sampling.py)
 # point: N D X +1.00000E+00
 # point: N D T +500.000E-03
 # point: N D I +2.03500E-06

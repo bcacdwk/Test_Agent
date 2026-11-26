@@ -1,7 +1,9 @@
 # DUT profile (example; committed). Schema: b1500_test_agent.models.policy.DutProfile; name = file name.
 # 100 pF reference capacitor (the known-capacitance check of bring-up stage L6 and of cmu.spot); terminals `a`/`b`
 # like the other two-terminal examples. AC envelope for the MFCMU (R-CMU-01); a passive standard tolerates the full
-# MFCMU AC range. Nominal values help choose parameters and are never measurements.
+# MFCMU AC range. Nominal values: the 100 pF of the bring-up standard (owner decision OD-2) as the simulator models it
+# (scenario `capacitor_100p`), not a real-device value and never a measurement; the value and tolerance of your
+# standard come from its calibration certificate (asked in bring-up stage L6).
 
 device_type: capacitor
 description: 100 pF reference capacitor (example; MFCMU known-capacitance check).
@@ -16,9 +18,10 @@ terminals:
     max_abs_i: 1.0e-3
     impedance: high_z
     ac: {max_vrms: 0.25}
-nominal:
+nominal:                                  # simulator example (scenario `capacitor_100p`), not a real-device value
   c: {value: 1.0e-10, unit: F}
-  tolerance: {value: 0.01, unit: "1"}     # relative, i.e. 1 %
+  tolerance: {value: 0.01, unit: "1"}     # relative, i.e. 1 %: an example; your standard's certificate gives it
 notes:
-  - After phase compensation and open/short correction the MFCMU should read 100 pF within the standard's tolerance;
-    uncorrected it reads the fixture parasitics too (about +0.3 pF).
+  - "After phase compensation and open/short correction the MFCMU should read the standard's certificate value
+    within its tolerance; uncorrected it also reads the fixture's open capacitance (size on this station:
+    TODO(verify)[L6.A2]; the simulator's fixture adds 0.3 pF)."

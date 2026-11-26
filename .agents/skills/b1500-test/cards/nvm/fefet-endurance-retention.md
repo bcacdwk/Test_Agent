@@ -64,9 +64,9 @@ reads; long runs (asynchronous: `running`, poll `get_run`, cancel with `safe_shu
 | `precycles` | 0 | 0..10000 | 0..1000000 | wake-up before the writes | woken film |
 | `sequence` (`fefet.endurance`) | erase_program | - | erase_program, program_erase | operation order per cycle | - |
 | `sequence` (`fefet.retention`) | program_erase | - | program_erase, erase_program, program, erase | states written in turn | one state: no MW |
-| `v_program` | 4 V | - | -10..10 V | program level (n-FeFET positive): example default, set per film | - |
-| `v_erase` | -4 V | - | -10..10 V | erase level: example default, set per film | - |
-| `width` | 1 us | - | 10 ns..1 ms | program/erase width: example default, set per film | - |
+| `v_program` | 4 V | - | -10..10 V | program level (n-FeFET positive): the request, else the DUT profile (`v_program`), else ask; example default | - |
+| `v_erase` | -4 V | - | -10..10 V | erase level: the request, else the DUT profile (`v_erase`), else ask; example default | - |
+| `width` | 1 us | - | 10 ns..1 ms | program/erase width: the request, else the DUT profile (`width`), else ask; example default | - |
 | `period` | 10 us | 1 us..1 ms | 20 ns..1 s | period with count > 1 | - |
 | `count` | 1 | 1..10 | 1..1000 | pulses per write | - |
 | `t_edge` | 20 ns | 20 ns..1 us | 8 ns..0.4 s | rise and fall | width >= t_edge / 0.8 (PG p591 (5-19)) |
@@ -76,7 +76,7 @@ reads; long runs (asynchronous: `running`, poll `get_run`, cancel with `safe_shu
 | `schedule` (`fefet.retention`) | retention | - | retention | reads at log times | - |
 | `read_kind` | staircase | - | staircase, spot | Id-Vg per read | spot: currents only |
 | `vg_start` | -0.5 V | - | -5..5 V | read sweep start: example default | - |
-| `vg_stop` | 1.8 V | - | -5..5 V | read sweep stop: example default; stays below your film's Vc (ask) | higher: read disturb |
+| `vg_stop` | 1.8 V | - | -5..5 V | read sweep stop, below the film's Vc: the request, else the DUT profile (`read_vg_max`), else ask; example default | higher: read disturb |
 | `vg_points` | 47 | 31..101 | 11..401 | 50 mV steps | - |
 | `vg_read` | 0.6 V | - | -5..5 V | spot read level: example default, between your two Vth | - |
 | `vd` | 50 mV | 20..100 mV | -1..1 V | read drain bias | - |

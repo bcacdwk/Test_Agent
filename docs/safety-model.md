@@ -9,8 +9,8 @@ pulse, AC, route and waveform checks (`driver/guard.py`); the session with its p
 the fault latch (`session/`); asynchronous runs with checkpoints and the cross-process abort file; the harness wiring
 (Codex `forbidden` rules, Claude Code permission rules and the `PreToolUse` guard hook). The simulator test suite
 checks the global invariant over every kind, fault and position (section "Cleanup and fault latch", end). Nothing
-has run on hardware yet: the items marked `TODO(verify)` are settled at the bring-up stages of M12, and the residual
-risks of this design are collected in section "Residual risks (v2)".
+has run on hardware yet: the items marked `TODO(verify)[<step ids>]` are settled at the named bring-up steps of M12,
+and the residual risks of this design are collected in section "Residual risks (v2)".
 
 ## Principles
 
@@ -107,7 +107,7 @@ plan (`plan:...`) or a state file (`data/state/fault.json`). "pre" = `pre_execut
 | R-PULSE-03 | plan | Above `policy.pulse` (level at the DUT, pulses per run, time at the pulse level, duty) | confirm `soft_pulse` | `policy.yaml#pulse.*` |
 | R-SPGU-01 | plan | HV-SPGU channels: every train sets `SER` (recipe `load_ohm`); open-load voltage `\|V\|·(SER+50)/SER` ≤ 40 V, the hard \|V\| limit and the terminal's pulse `max_abs_v`; a `high_z` terminal needs `SER` ≥ 1 kΩ; short-circuit current `V_open/(50 + min_series_ohm)` ≤ the hard compliance limit unless the terminal is `high_z` (then an info residual shown in the summary); every channel's bound is recorded (info) | block / info | `code:…SPGU_SPEC.*`, `policy.yaml#hard_limits.*`, `duts/<name>.yaml#terminals.<t>.{pulse.max_abs_v,impedance}` |
 | R-WG-01 | plan, pre | WGFMU roles reach the DUT through their RSU (`RSU<ch>.OUT`, state `wgfmu`); on visa the library probe is loadable (x64; a 32-bit DLL → "install library ≥ A.03.00"); the bound channels are among `WGFMU_getChannelIds` (required before execution) | block | `pinmaps/<name>.yaml#terminals.<t>`, `live:wgfmu_library`, `live:wgfmu_channels` |
-| R-WG-02 | plan | The waveform program fits the module and the plan: channel setups for every WGFMU role and nothing else; PG mode only 3 V/5 V ranges, current measurement only in Fast IV/DC (3302/3303); ≤ 2,048 vectors per pattern (3307), ≤ 512 sequences per channel (3305), no empty pattern (3306), counts 1–1.1·10¹² (3309); vector times 10 ns–10995 s on the 10 ns grid (3311); levels in the force range (3310) and the envelope; measure events inside their pattern, interval 10 ns–1.342 s (3312), average 0 or 10 ns–20.97 ms (3315) and ≤ interval (3316); range events only with Fast IV current measurement, outside averaging windows, three or more > 2 µs apart; stored values per channel ≤ `max_points.wgfmu` and ~4 M; the program inside the channel's `WaveformLimits` | block | `code:…WGFMU_SPEC`, `policy.yaml#run_limits.max_points.wgfmu`, `plan:envelope.{waveform,channels}.<ch>`, `plan:program.sources.waveform` |
+| R-WG-02 | plan | The waveform program fits the module and the plan: channel setups for every WGFMU role and nothing else; PG mode only 3 V/5 V ranges, current measurement only in Fast IV/DC (3302/3303); ≤ 2,048 vectors per pattern (3307), ≤ 512 sequences per channel (3305), no empty pattern (3306), counts 1–1.1·10¹² (3309); vector times 10 ns–10995 s on the 10 ns grid (3311); levels in the force range (3310) and the envelope; measure events inside their pattern, interval 10 ns–1.342 s (3312), average 0 or 10 ns–20.97 ms (3315) and ≤ interval (3316); range events only with Fast IV current measurement, outside averaging windows, three or more > 2 µs apart; stored values per channel ≤ `max_points.wgfmu` and ~4 M; the program inside the channel's `WaveformLimits`; every nominal pulse train at least the minimum pulse width of its channel's mode (PG 100 ns, Fast IV 300 ns, WG p16 (1-4); v2.1 WP21.12) | block | `code:…WGFMU_SPEC`, `policy.yaml#run_limits.max_points.wgfmu`, `plan:envelope.{waveform,channels}.<ch>`, `plan:program.sources.waveform` |
 | R-ROUTE-01 | plan, pre | Every route of the plan (allowed routes, routes per phase, role `via`) resolves to a declared switch output that can take the state (`pgu_open` only on CH 1, ports 0 and 2); on visa the switch is `present: true`; phases apply only allowed routes or `rest` and name every allowed route; one source per switch output per phase; Kelvin roles never through a selector (Force only); pre: every output of the involved switches and every present selector port reads back its `rest` state | block | `station.yaml#switches[i].*`, `plan:routes_by_phase.*`, `plan:envelope.routes`, recipe `#roles.<role>.kelvin`, `live:switch_states.<switch>.<output>` |
 | R-ROUTE-02 | plan | A route through a switch recorded `certainty: unverified`, or switch outputs mapped by an `unverified` pin map | confirm `unverified_topology` | `station.yaml#switches[i].certainty`, `pinmaps/<name>.yaml#certainty` |
 | R-ASU-01 | plan | A role's measurement range (setting `irange`, or `asu_1pa: true` = the 1 pA range; live since WP7.1: `mosfet.gate_leakage` option `asu_1pa`) exists on its SMU; a range that needs an ASU (1 pA HRSMU, 1–100 pA B1511B MPSMU) only with a declared ASU recorded `present: true`. On the instrument a missing ASU makes `RI ch,8` an error, which the kind's `ERRX?` drain turns into an abort before `XE` | block | `station.yaml#switches[i].present`, `code:…MODULE_SPECS[<type>]` |
@@ -299,11 +299,12 @@ twice before anything is written: `check` at its base and every pulse or sweep l
 envelope; the staircase sources of the pulsed modes (`WV`/`WI`, `WSV`/`WSI`, `WNX`) are checked at both ends, and a
 host list of pulse levels re-checks every re-programmed level (`pulsed_update`). An SMU pulse has a compliance, so its
 short-circuit bound is the compliance (`max_short_circuit_a` 0 in the envelope: no SPGU-style residual). R-PULSE-01
-blocks widths, periods and resolutions outside the SMU `PT` table (HR/MP/HPSMU 500 us-2 s at 100 us, period >= width
-+ 2 ms); R-PULSE-02 requires the DUT terminal's pulse envelope; R-PULSE-03 asks for `soft_pulse` above the policy
-bands. Sweeps run with `WM 2,1` (automatic abort; the pulse sources return to base, the staircases to start); a host
-list stops after a trigger with compliance, overflow or oscillation. Residual: in pulsed mode auto ranging measures on
-the compliance range, so a generous compliance hides small currents in the noise (the card asks for a tight one).
+blocks widths, periods and resolutions outside the SMU `PT` table (HR/MP/HPSMU 500 us-2 s at 100 us, PG p486 (4-168);
+period >= width + 2 ms (width <= 100 ms) or width + 10 ms (longer), PG p487 (4-169)); R-PULSE-02 requires the DUT
+terminal's pulse envelope; R-PULSE-03 asks for `soft_pulse` above the policy bands. Sweeps run with `WM 2,1`
+(automatic abort; the pulse sources return to base, the staircases to start); a host list stops after a trigger with
+compliance, overflow or oscillation. Residual: in pulsed mode auto ranging measures on the compliance range, so a
+generous compliance hides small currents in the noise (the card asks for a tight one).
 
 **SMU searches (`smu_search`, WP7.5).** A linear or binary search (`LSV`/`LSI`, `BSV`/`BSI`) and the quasi-pulse
 (`BDV`) pass `check` at their start and stop before anything is written (every value they force lies between them),
@@ -397,9 +398,9 @@ SCUU or ASU that does not answer its read-back is not installed: nothing to rest
 through it is blocked before the run (unreadable state, R-ROUTE-01). Kinds switch with
 `Transaction.apply_routes(phase)` (composite kinds through `catalog/blocks.apply_routes`): the whole phase passes
 `check_route` before the first write, `ERMOD 1` precedes `ERSSP`, the transaction waits the relay settle time (10 ms,
-`TODO(verify)` at L7) and reads every touched output back (`RouteNotVerified` on a mismatch). Residual: `ERSSP?`
-reports the commanded state; a relay welded without the B1500A noticing is found only by the human at the selector
-check (bring-up L7, LEDs and relay clicks).
+an estimate: `TODO(verify)[L7.A4]`) and reads every touched output back (`RouteNotVerified` on a mismatch).
+Residual: `ERSSP?` reports the commanded state; a relay welded without the B1500A noticing is found only by the human
+at the selector check (bring-up L7, LEDs and relay clicks).
 
 **SPGU stop (cleanup step 2, WP9.1).** The cleanup knows whether an HV-SPGU is installed from the `UNT?` the run's
 pre-execute snapshot read (a transaction without one, e.g. `safe_shutdown` or an in-flight recovery, reads `UNT?`
@@ -437,7 +438,7 @@ reads the RSU states the same way: `disconnect` of each declared RSU's channel (
 library, else the output stays unread and R-ROUTE-01 blocks. Residuals: while the lock is released another VISA client
 could send commands (EasyEXPERT must be closed, deployment step); without a loadable library `safe_shutdown` cannot
 reach a WGFMU another program left connected; ATV-17 (`initialize` resets the WGFMU only, an SMU bias stays) holds in
-the simulator and is `TODO(verify)` at L8.
+the simulator and is `TODO(verify)[L8.A7]` (`smu_bias_held`).
 
 **WGFMU waveform kind (blueprint v2 2.7, 2.7.1, decision 21, WP10.4).** Kind `wgfmu_waveform` compiles one
 `WaveformProgram` from the recipe's builder (`catalog/waveforms.py`: `pulsed_iv`, `pulse_train`, `fast_iv_ramp`,
@@ -452,8 +453,8 @@ run `plan_stale`; `program.json` records the program and the file records before
 the kind (`bias_v`, a grounded SMU) are switched on and set over FLEX before the WGFMU phase (`LOP?` positive control
 on hardware) and stay on through it (`flex_io`); the cleanup's `DZ`/`CL` turns them off. A DC level (`dc_spot`) is
 checked with the whole program at `load` and again at each `force_dc`. Residuals: the WGFMU has no compliance, so a
-short at a terminal draws up to the full scale of its range (10 mA range; PG mode about 100 mA into a short), which
-R-GNDU-01 budgets; an over-range reading saturates and is flagged `V`, never trusted.
+short at a terminal draws up to the full scale of its range (10 mA range; PG mode about 100 mA into a short: 5 V
+behind 50 Ω, WG p16 (1-4)), which R-GNDU-01 budgets; an over-range reading saturates and is flagged `V`, never trusted.
 
 **WGFMU stress and fast BTI (`stress_measure` WGFMU path, WP10.7).** A `stress_measure` recipe with `wgfmu` roles
 (`wgfmu.fast_bti`) compiles the whole schedule into one `fast_bti` `WaveformProgram` (`catalog/fast_bti.py`: the
@@ -466,10 +467,11 @@ names the stress level of each WGFMU channel and the schedule; every plan is `de
 on and set inside the WGFMU phase after `WGFMU_initialize` (WG Ex. 10's order, the ATV-17 fallback order), `ERRX?` is
 drained after every execution and the bulk is read between executions (WG Ex. 11). Cancel: within one 1 s status poll
 (the abort ends the execution; the phase exit aborts, initializes and disconnects). Residuals: a run boundary adds the
-host's readback and setup time (milliseconds) at the stress level, unrecorded in `t_s`; on hardware TODO(verify) at L9
-that the next execution's `WGFMU_update` leaves the output at the stress level. The kind `system`'s WGFMU self-test
-and self-calibration (`system.wgfmu_*`) open the same phase without any level (`SourcePlan.library`: R-WG-01 needs a
-loadable library and a listed WGFMU channel) and always need the human's confirmation with open terminals.
+host's readback and setup time (milliseconds) at the stress level, unrecorded in `t_s`; on hardware
+`TODO(verify)[L9.A9]` (`run_boundary`) that the next execution's `WGFMU_update` leaves the output at the stress level.
+The kind `system`'s WGFMU self-test and self-calibration (`system.wgfmu_*`) open the same phase without any level
+(`SourcePlan.library`: R-WG-01 needs a loadable library and a listed WGFMU channel) and always need the human's
+confirmation with open terminals.
 
 **WGFMU program/read, PUND and endurance by PUND (`pulse_read` WGFMU path, `wgfmu_waveform` builders `pund` and
 `program_read`, WP10.6).** A `pulse_read` recipe with `wgfmu` roles pulses and reads through the WGFMU only (an SMU
@@ -485,9 +487,9 @@ endurance plans `long_run` (asynchronous; cancel within one 1 s status poll). A 
 itself, so it cannot read a written state (schedules `grid`, `retention` refused) and every WGFMU channel must rest at
 0 V. A read whose WGFMU value saturates (`V`) stops the run; the phase exit always aborts, initializes (0 V) and
 disconnects. Residuals: between two executions the output holds its rest level for the host's readback and setup time
-(milliseconds; TODO(verify) at L8 that `WGFMU_update` keeps it there); the WGFMU has no compliance, so the DUT
-profile's limits and the current range are the only bounds of a short. The builders `pund` and `program_read` run one
-execution like every other `wgfmu_waveform` builder.
+(milliseconds; that `WGFMU_update` keeps it there is the run-boundary check of fast BTI, `TODO(verify)[L9.A9]`);
+the WGFMU has no compliance, so the DUT profile's limits and the current range are the only bounds of a short. The
+builders `pund` and `program_read` run one execution like every other `wgfmu_waveform` builder.
 
 **`LOP?` positive control (hardware, WP6.2; v1 ATV-1, ATV-23).** On hardware the verification is `LOP?` reading `00`
 for every slot. An all-`00` answer proves the outputs off only if `LOP?` reports this instrument's output switches at
@@ -527,8 +529,8 @@ neither the VISA session nor the WGFMU library.
 ## Residual risks (v2)
 
 What the kernel does not prevent, in one place; each is accepted by the owner (D3, OD-3) or settled on hardware at
-the named bring-up stage (`TODO(verify)` lines of the stage files, blueprint v2 §7.6). The sections above give the
-mechanism; this list gives the limit.
+the named bring-up stage (the `TODO(verify) (blueprint v2 7.6 items …)` lines of the stage files). The sections
+above give the mechanism; this list gives the limit.
 
 **Routes.**
 - `ERSSP?` reports the commanded selector state: a relay welded without the B1500A noticing is found only by the
@@ -552,9 +554,9 @@ mechanism; this list gives the limit.
   enforced; every summary shows it as `Isc<=X A residual`, so it is approved knowingly. A `high_z` declaration that
   is wrong (a leaky or broken gate) is the accepted risk; `SER` below 1 kΩ on a `high_z` terminal is blocked.
 - **WGFMU (no compliance):** its current is bounded only by the measurement range it uses (about 10 mA in the 10 mA
-  range; in PG mode about 100 mA into a short, 50 Ω) and the DUT profile's levels; R-GNDU-01 budgets the return
-  current; an over-range reading saturates and is flagged `V`, never trusted (the stress and program/read paths
-  start no further execution after one).
+  range; in PG mode about 100 mA into a short, 5 V behind 50 Ω; WG p16 (1-4)) and the DUT profile's levels;
+  R-GNDU-01 budgets the return current; an over-range reading saturates and is flagged `V`, never trusted (the stress
+  and program/read paths start no further execution after one).
 - SMU pulses keep their compliance; in pulsed mode auto ranging measures on the compliance range (small currents
   hide in the noise of a generous compliance).
 
@@ -573,8 +575,8 @@ a cancel waits for the segment to end:
 | `smu_staircase` | one staircase sweep (`XE`; `WM 2,1` aborts it at compliance, overflow or oscillation) | the plan's estimate, ≤ 300 s; read timeout 2 × estimate + 10 s |
 | `smu_search` | one linear/binary search or quasi-pulsed spot (`XE`, interrupted only by `AB`) | the estimate (= `max_segment_s`), ≤ 300 s; read timeout 2 × estimate + 10 s |
 | `smu_qscv` | one quasi-static C-V sweep (`XE`; `QSM 2` aborts at compliance) | the estimate, ≤ 300 s; read timeout 2 × estimate + 10 s |
-| `cmu_correction` | one open/short/load measurement over its frequency list (`CORR?`), or the phase compensation (`ADJ?`) | `CORR?`: 2 s + 0.5 s per frequency (≤ 34 s for the 64-frequency maximum), read timeout 10 s + 2 s per frequency; `ADJ?`: about 35 s, read timeout 90 s (`TODO(verify)` at L6) |
-| `system` | one `*TST?`/`*CAL?` or the library's self-test/self-calibration call | `*TST?` 120 s, `*CAL?` 60 s (estimates, `TODO(verify)` at L1/L8); read timeout 250 s / 130 s; the library's own call timeout 600 s |
+| `cmu_correction` | one open/short/load measurement over its frequency list (`CORR?`), or the phase compensation (`ADJ?`) | `CORR?`: 2 s + 0.5 s per frequency (≤ 34 s for the 64-frequency maximum), read timeout 10 s + 2 s per frequency; `ADJ?`: about 35 s, read timeout 90 s (estimates, `TODO(verify)[L6.A2]`) |
+| `system` | one `*TST?`/`*CAL?` or the library's self-test/self-calibration call | `*TST?` 120 s, `*CAL?` 60 s (estimates, `TODO(verify)[L1.A3, L8.A2]`); read timeout 250 s / 130 s; the library's own call timeout 600 s |
 
 `safe_shutdown` from another process writes the abort request and waits up to `segment_max_s` + 35 s (65 s with the
 defaults) for the instrument lock; a one-segment run that lasts longer makes it answer `busy` while the run finishes
@@ -601,9 +603,10 @@ its approved envelope: the guard checked every level before the segment started.
 - During a WGFMU phase the FLEX exclusive lock is released (the library opens its own VISA session, ATV-14): another
   VISA client could send commands meanwhile (EasyEXPERT must be closed). Without a loadable library `safe_shutdown`
   cannot reach a WGFMU another program left connected. `initialize` resetting the WGFMU only (ATV-17) holds in the
-  simulator and is `TODO(verify)` at L8.
+  simulator and is `TODO(verify)[L8.A7]`.
 - `LOP?` reading `00` proves the outputs off only with its positive control (v1 ATV-1, ATV-23: L1); `ADJ? ch,0` in
-  the read-only probe re-applies the last phase compensation (L0 checks that no output changes).
+  the read-only probe re-applies the last phase compensation (L0 reads the outputs off; L6 checks that two probes
+  after the corrections read the same, `adj_read_only`).
 
 **Harness and configuration** (D3): bypass modes, the agent's own code and edits of `config/local/` or `data/` are
 outside the kernel's reach; the next section lists them with their mitigations.
@@ -676,9 +679,9 @@ reach the instrument only through `Session.read_only`: its `ReadOnlyTransport` p
 (header = mnemonic + `?`, no `;`) and refuses every setting command, a device clear (it re-initialises the instrument)
 and a serial poll (it clears status bits), so neither can switch an output; the status snapshot uses the same link.
 Residual: `ADJ? ch,0` is a query that, per the manual, re-applies the last phase compensation and resets the MFCMU
-(TODO(verify) at bring-up L0 that no output changes). The proposal is written to `work/bringup/`; only the human adopts
-it (`config adopt`, human only: denied by the harness rules and blocked by the guard hook), and `config adopt` refuses a
-file that does not validate against its schema and keeps the replaced file as `<file>.bak`.
+(that it changes nothing: `TODO(verify)[L6.A3]`, `adj_read_only`). The proposal is written to `work/bringup/`;
+only the human adopts it (`config adopt`, human only: denied by the harness rules and blocked by the guard hook), and
+`config adopt` refuses a file that does not validate against its schema and keeps the replaced file as `<file>.bak`.
 
 **WGFMU library binding (blueprint v2 2.4, decision 6, WP10.2).** `transport/wgfmu/dll.py` is the only module that
 imports `ctypes` and loads `wgfmu.dll` (lint). It loads nothing until the first library call, and only after a probe
@@ -688,12 +691,13 @@ clear error, never a crash. Every function's argument types come from the genera
 the API extract and the manual's prototypes); strings that are not ASCII and numbers that are not finite C values are
 refused before the library. `doctor` and `doctor --probe` only read the file; `--wgfmu-session` (and the pre-execute
 snapshot of a WGFMU plan, for R-WG-01) opens the library's own session only to read the channel ids (and the status),
-with the GPIB link closed or its exclusive lock released, and always closes it (ATV-16: TODO(verify) at bring-up L0
-that this changes no output). Residual: the library's error-string format and the real firmware codes are verified at
-L8; a library that crashes inside a call ends that call as a library error, but its effect on the instrument is the
-library's.
+with the GPIB link closed or its exclusive lock released, and always closes it (ATV-16: `TODO(verify)[L0.A2]`,
+`wgfmu_session`, that this changes no output). Residual: the library's error-string format and the real firmware
+codes are verified at L8; a library that crashes inside a call ends that call as a library error, but its effect on
+the instrument is the library's.
 
-**Physical backstop.** Outputs stay at or below 42 V while the interlock is open (keep it open; v1 has no
-high-voltage workflow), per-channel compliance limits current, and the shield box encloses the DUT.
+**Physical backstop.** Outputs stay at or below 42 V while the interlock is open (UG p142 (3-64); PG p442 (4-124),
+`INTLKVTH` factory setting; keep it open; v1 has no high-voltage workflow), per-channel compliance limits current, and
+the shield box encloses the DUT.
 
 On the development Mac only the simulator runs, so the tiers there are behavior tests, not protection.

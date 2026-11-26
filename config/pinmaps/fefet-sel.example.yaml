@@ -16,4 +16,5 @@ terminals:
   source: GNDU
 notes:
   - SEL1.OUT1 is selector CH 1, the only channel with the PGU-open state (PG p154 (2-66)).
-  - Through a selector the SMU path is Force only (Sense open), so no Kelvin role may use the gate terminal.
+  - Through a selector the SMU path is Force only (Sense open, PG p154 (2-66)), so no Kelvin role may use the gate
+    terminal.

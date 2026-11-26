@@ -26,8 +26,8 @@ usage errors.
 - developer: ``dev tool-budget``, ``dev recipe-check``, ``dev mcp-smoke --config F`` (start the server as a harness
   config says and check it), ``dev sim-console`` (raw FLEX, simulator only), ``dev sync-harness [--check]``
   (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``dev lint-skills`` (skill schema, budgets, links),
-  ``dev gen-index [--check]`` (generated card index), ``dev acceptance`` (M3 harness acceptance runner,
-  ``devtools/acceptance/cli.py``)
+  ``dev gen-index [--check]`` (generated card index and owner questions), ``dev acceptance`` (M3 harness
+  acceptance runner, ``devtools/acceptance/cli.py``)
 - manuals (CLI only, no MCP tool): ``manual search|page|toc|status`` (read-only queries of the committed page
   corpus) and ``manual build [--src DIR] [--check]``
 

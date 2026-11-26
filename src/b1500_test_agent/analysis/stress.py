@@ -14,19 +14,20 @@ Definitions (the single source of the section "Stress-measure analysis" of knowl
   stress reads used by the fits (the reference read is always used).
 - **Per-read quantity** ``X``: ``vth`` = the threshold voltage of a staircase read (x default ``gate_V``, y default
   ``drain_I``, segment ``fwd``) by the ``mosfet.py`` method ``vth_method``: ``constant_current`` (default; ``i_crit_a``
-  x ``w_over_l``, 100 nA by default, log10|Id| interpolated) or ``linear_extrapolation`` (max-gm tangent minus Vd/2,
-  Vd from the plan parameter ``vd``); ``id``/``ig`` = the current ``y`` at the read: the mean of a spot read's trusted
-  samples, or the value of a staircase read at ``x = at_v`` (linear interpolation between the bracketing trusted
-  points; a read that does not sweep ``x`` has no ``vth``). Each read is judged like the method it uses: untrusted
-  points refuse that read unless ``force``
-  (forced reads are flagged); limited (``C``/``T``) points never enter. A refused or failed read drops out with a
-  warning; a refused or failed reference read refuses or fails every result.
+  x ``w_over_l``, 100 nA by default as in ``mosfet.py``, log10|Id| interpolated) or ``linear_extrapolation`` (max-gm
+  tangent minus Vd/2, Vd from the plan parameter ``vd``); ``id``/``ig`` = the current ``y`` at the read: the mean of a
+  spot read's trusted samples, or the value of a staircase read at ``x = at_v`` (linear interpolation between the
+  bracketing trusted points; a read that does not sweep ``x`` has no ``vth``). Each read is judged like the method it
+  uses: untrusted points refuse that read unless ``force`` (forced reads are flagged); limited (``C``/``T``) points
+  never enter. A refused or failed read drops out with a warning; a refused or failed reference read refuses or fails
+  every result.
 - **Change** ``Δ(t) = X(t) - X(0)`` against the reference read; ``relative`` divides by ``|X(0)|`` (unit ``1``).
 - **Power law** (``fit="power_law"``): ``|Δ| = b·t^m`` by least squares of ``log10|Δ|`` on ``log10 t`` over the stress
   reads whose change has the majority sign and ``|Δ| >= min_change`` (below it the change is lost in the read
   noise); at least 3 such reads, else failed. ``b`` is the change at 1 s on the fitted line, with the sign of the
   change (negative for a falling drain current); ``fit`` holds ``r2``, the reads used and the time window.
-- **Stretched exponential** (``fit="stretched_exp"``, IGZO bias stress, Libsch & Kanicki, APL 62, 1286, 1993):
+- **Stretched exponential** (``fit="stretched_exp"``, IGZO bias stress, Libsch & Kanicki, APL 62, 1286, 1993, not
+  page-checked):
   ``Δ(t) = Δ∞·(1 - exp(-(t/τ)^β))`` fitted to the stress reads (reference included as ``Δ = 0``) by
   ``reliability.fit_stretched_exponential`` (at least 8 reads); results ``tau`` (s), ``beta`` (1) and ``delta_inf``.
 - **Recovery** (runs with recovery reads): ``recovery`` = ``1 - Δ(t_rec,last)/Δ(t_stress)``, the recovered fraction of
@@ -50,11 +51,11 @@ Methods:
   ``auto`` (default) takes ``constant_current`` when every stress and recovery read sweeps ``x``, else
   ``reference_curve``. Both find a crossing on the monotonic stretch of log10|y| (down from the largest current to the
   noise floor) with the cubic through the four sense levels around it (linear when the stretch has fewer): a fast
-  staircase is coarse (50 mV steps), and linear interpolation of log10|y| would bias each shift by a few percent of a
-  step depending on where in the step it falls. Then as ``bti_power_law``: results ``n``, ``a``, ``dvth``
-  [+ ``recovery``, ``recovery_rate``]; every ``fit`` also holds ``read_s`` (the time each read kept the gate off its
-  stress level, from the run's ``kind_result``) and ``read_fraction`` = ``read_s`` / the first stress read's time:
-  above 2 % a warning says that the reads themselves may have let the shift recover.
+  staircase is coarse (50 mV steps at the recipe defaults), and linear interpolation of log10|y| would bias each shift
+  by a few percent of a step depending on where in the step it falls. Then as ``bti_power_law``: results ``n``, ``a``,
+  ``dvth`` [+ ``recovery``, ``recovery_rate``]; every ``fit`` also holds ``read_s`` (the time each read kept the gate
+  off its stress level, from the run's ``kind_result``) and ``read_fraction`` = ``read_s`` / the first stress read's
+  time: above 2 % a warning says that the reads themselves may have let the shift recover.
 - ``silc``: ``X`` = ``|Ig|`` at ``v_sense`` (``y`` default ``gate_I``; ``v_sense`` default: the plan parameter
   ``v_sense``, else the spot read level of the gate); the SILC ratio ``r(t) = (|Ig(t)| - |Ig0|)/|Ig0|``. Results
   ``silc_ratio`` (1, at the last stress read), ``silc_exponent`` (1, the power-law slope of ``r`` over the stress

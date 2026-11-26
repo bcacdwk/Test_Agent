@@ -2,9 +2,10 @@
 # MOSFET transfer family: a gate staircase (Id-Vg) at each drain bias of the drain step list (host loop over the
 # drain role, kind smu_stepped), source on the GNDU. The lowest drain bias is the linear-region curve, the highest the
 # saturation curve; DIBL is the threshold shift between them per volt of drain bias. Defaults: Vd 0.1 V (the lab's
-# Id-Vg drain bias, lwp test_IdVg.m) to 1 V, gate 0..1.2 V in 10 mV steps so the subthreshold region is resolved
-# and the top of the sweep stays below the 1 mA drain compliance at Vd 1 V. The loop stops after a curve in
-# compliance (later drain steps drive harder).
+# Id-Vg drain bias, lwp test_IdVg.m) to 1 V, gate 0..1.2 V in 10 mV steps, sized for the simulator's generic nMOS
+# (scenario nmos_basic, Vth 0.42 V; not a real-device value) so its subthreshold region is resolved and the top of
+# the sweep stays below the 1 mA drain compliance at Vd 1 V; set the gate range from a mosfet.idvg run of your
+# device. The loop stops after a curve in compliance (later drain steps drive harder).
 # Analysis: dibl (constant-current Vth per curve; DIBL = -(Vth(Vd_high) - Vth(Vd_low)) / (Vd_high - Vd_low) in mV/V).
 # status: sim_validated by tests/integration/test_recipes_sweeps.py (nmos_basic: long channel, DIBL 0 +- 5 mV/V; a
 # copy with dibl 0.06 V/V: 60 +- 5 mV/V); hw_validated only through a reviewed validation record (bring-up stage L4).
@@ -32,7 +33,9 @@ roles:
 params:
   vg_start: {unit: V, default: 0.0, recommended: [-1.0, 0.0], range: [-10, 10],
              doc: "Gate sweep start (below threshold; the 100 nA Vth criterion needs subthreshold points)."}
-  vg_stop: {unit: V, default: 1.2, recommended: [1.0, 3.0], range: [-10, 10], doc: "Gate sweep stop."}
+  vg_stop: {unit: V, default: 1.2, recommended: [1.0, 3.0], range: [-10, 10],
+            doc: "Gate sweep stop (default 1.2 V: sized for the simulator's generic nMOS, scenario nmos_basic; set it
+             from a mosfet.idvg run of your device)."}
   vg_points: {type: int, default: 121, recommended: [61, 301], range: [11, 1001],
               doc: "Gate sweep points (121 = 10 mV steps over the default range)."}
   vd_values: {type: float_list, unit: V, default: [0.1, 0.55, 1.0], range: [-5, 5],

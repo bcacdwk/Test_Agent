@@ -56,5 +56,6 @@ provenance:
   sources:
     - blueprint v2 2.7 (kind cmu_measure), 2.10 (cv.py), 3.2 (moscap.cv), 4.2 (moscap fidelity targets)
     - Programming Guide Ed. 15 C-V sweep (PDF 256-260), WDCV (PDF 549-550), WTDCV (PDF 566-567), WMDCV (PDF 554-555)
-    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 2, 9 (flatband capacitance, doping profile)
+    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 2, 9 (flatband capacitance, doping profile; not
+      page-checked)
   validation_runs: []

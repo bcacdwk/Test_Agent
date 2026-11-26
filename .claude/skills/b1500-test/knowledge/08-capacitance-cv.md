@@ -84,7 +84,8 @@ docstrings are the source); every value they return is derived. Debugging is ski
 
 - Phase compensation, then open and short at every frequency the measurement uses, with the probes where the human
   puts them for the C-V (lifted, shorted); a re-landing or another pin map makes them stale.
-- Uncorrected, the open capacitance of cables and probe (about 0.3 pF in the simulator) adds to every reading; the
+- Uncorrected, the open capacitance of cables and probe adds to every reading (simulator example, scenario
+  `capacitor_100p`: 0.3 pF, not a real-device value; this station's: `TODO(verify)[L6.A2]`); the
   short path (resistance, inductance) matters above about 1 MHz and for large capacitances.
 - Corrections act only at listed frequencies: list every C-V frequency in the correction recipes' `freqs_hz` (the
   23 default frequencies of `CLCORR 2`: 1-2-5 steps from 1 kHz to 1 MHz, then 1.2, 1.5, 2, 2.5, 2.7, 3, 3.2, 3.5,
@@ -131,8 +132,8 @@ docstrings are the source); every value they return is derived. Debugging is ski
   |d(1/C^2)/dV|)` from the slope; depth `W = eps_s A (1/C - 1/Cox)`.
 - `cv_doping_profile` fits the slope only where the band bending `psi = |int_Vfb^V (1 - C/Cox) dV|` lies between
   4 kT/q and `2 phi_B - 3 kT/q` (`phi_B = (kT/q) ln(N/ni)`): nearer flatband the Debye tail, nearer threshold the
-  inversion charge bend the line. Silicon defaults `eps_s = 11.7 eps0`, `ni = 1e10 cm^-3`, 300 K (options: set
-  them for another substrate).
+  inversion charge bend the line. Textbook silicon values: `eps_s = 11.7 eps0` (fixed in the code: the doping
+  holds for silicon only), `ni = 1e10 cm^-3` and 300 K (options `ni_cm3`, `temperature_k`).
 - Reported: `nsub` (cm^-3) with the fit window and depth range; needs `geometry.area_um2`. A non-uniform profile
   shows as a curved 1/C^2 plot (`plot_cv`).
 

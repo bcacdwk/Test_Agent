@@ -56,8 +56,8 @@ single sample ``h_bias`` after the trigger; the sample's measurement lasts ``per
 measurement time)`` (the instrument shortens the averaging to keep the interval, PG p475 (4-157)), so the block holds
 the outputs for ``h_bias + period``. ``h_bias = L - period`` rounded to the 10 ms grid keeps the hold at ``L`` (exactly
 for 1 PLC and longer integration). The duration estimate and every time axis use ``h_bias + period``; on hardware
-the host round trips between blocks (a few ms each) add unrecorded stress: TODO(verify) at bring-up stage L9 with
-the time stamps of a long run.
+the host round trips between blocks (a few ms each) add unrecorded stress: TODO(verify)[L9.A2, L9.A4], the time
+stamps of a long run.
 """
 
 from __future__ import annotations

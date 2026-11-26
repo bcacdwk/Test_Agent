@@ -2,5 +2,5 @@
 # kind: adj
 # command: ADJ? 7,0
 # expect: {"result": 3}
-# note: synthetic answer 3: no phase compensation measurement since power-on (the manual: "If the phase compensation measurement has never been performed, result=3 is returned"). TODO(verify) at bring-up L0/L6.
+# note: synthetic answer 3: no phase compensation measurement since power-on (the manual: "If the phase compensation measurement has never been performed, result=3 is returned"). TODO(verify)[L0.A7] the raw answer (probe capture `adj`, before the L6 corrections).
 3

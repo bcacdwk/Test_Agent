@@ -33,8 +33,9 @@ Runs (``batches``): the kind runs the program in WGFMU executions of whole opera
 ``[start, stop)`` with the patterns and events they use), each ending after a read, at most ``BATCH_S`` of
 sequencer time unless one hold is longer; the first starts with the reference read, the last ends with the tail. Every
 run starts at the level the previous one ended at (the stress or recovery level, which the WGFMU keeps between runs),
-so a run boundary interrupts nothing; it only adds the host's readback and setup time to the hold (TODO(verify) at
-bring-up L9: duration per boundary, and that ``WGFMU_update`` of the next run leaves the output at its level).
+so a run boundary interrupts nothing; it only adds the host's readback and setup time to the hold
+(TODO(verify)[L9.A9]: duration per boundary, and that ``WGFMU_update`` of the next run leaves the output at its
+level; the level only with the step's optional scope).
 
 Data (``entry_values``): per measuring channel in sequence order, a read stores one value per step and a hold one
 value; the tail stores none.

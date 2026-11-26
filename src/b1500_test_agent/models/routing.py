@@ -74,8 +74,8 @@ PGU_OPEN_PORTS: Final = frozenset({0, 2})
 SELECTOR_SETTLE_S: Final = 0.01
 """Time a 16440A output needs after an ``ERSSP`` change before the new path carries the signal (mechanical relays;
 break before make, so the output is open meanwhile). The manual gives no switching time (SEL p27-29 list none):
-10 ms is a conservative relay figure, TODO(verify) at bring-up L7. The transaction waits it after every selector
-change; the simulator keeps a switched output open for this long."""
+10 ms is a conservative relay figure, TODO(verify)[L7.A4] (``relay_settle``, by scope). The transaction waits it
+after every selector change; the simulator keeps a switched output open for this long."""
 
 SELECTOR_KIND: Final = "selector_16440a"
 """``SwitchSpec.kind`` of the 16440A SMU/PGU selector."""

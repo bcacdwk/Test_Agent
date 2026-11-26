@@ -568,7 +568,8 @@ class WgfmuSpec(StrictModel):
 
     No compliance (it covers the full scale of the current range). Force ranges 3 V (-3..3), 5 V (-5..5), -10 V
     (-10..0), 10 V (0..10); PG mode: 50 Ohm output, -5..5 V open load (3 V or 5 V range), voltage measurement only;
-    current measurement in Fast IV or DC mode only (1 uA to 10 mA ranges); SMU pass-through mode up to +-25 V, 100 mA,
+    current measurement in Fast IV or DC mode only (1 uA to 10 mA ranges); minimum pulse width 100 ns in PG mode and
+    300 ns in Fast IV mode (``min_pulse_width_s``); SMU pass-through mode up to +-25 V, 100 mA,
     and the RSU's "From SMU" input takes at most +-25 V in any state (WG p20 (1-8): above it the RSU is damaged).
     ALWG: 10 ns grid, at most 2,048 vectors per pattern and 512 sequences per channel, vector time 10 ns to
     10995.11627775 s, sequence count 1 to 1,099,511,627,776; about 4,000,000 stored values per channel; measure
@@ -587,6 +588,11 @@ class WgfmuSpec(StrictModel):
     current_ranges: dict[str, float] = Field(default_factory=lambda: {
         "1ua": 1e-6, "10ua": 1e-5, "100ua": 1e-4, "1ma": 1e-3, "10ma": 1e-2})
     current_modes: frozenset[str] = frozenset({"fastiv", "dc"})
+    min_pulse_width_s: dict[str, float] = Field(default_factory=lambda: {"pg": 1e-7, "fastiv": 3e-7})
+    """Shortest pulse per operation mode (WG p16 (1-4) "Minimum pulse width": PG mode 100 ns, Fast IV mode 300 ns;
+    the manual gives none for DC mode, which outputs DC). R-WG-02 blocks a nominal WGFMU pulse train (``width_s``:
+    the flat top, or rise + top of a PUND ramp, so the check is conservative) below the channel's mode minimum,
+    although the 10 ns vector grid would accept it."""
     smu_mode_max_v: float = 25.0
     """Largest |V| at the RSU's "From SMU" input and on its SMU path (WG p20 (1-8) CAUTION "Maximum input voltage to
     the From SMU terminal is +-25 V ... Or the RSU will be damaged"; WG p16 (1-4) "SMU mode"). It bounds the SMU
@@ -596,7 +602,8 @@ class WgfmuSpec(StrictModel):
     ``OutputGuard`` hold the SMU cabled to the From SMU input to it."""
     max_output_a: float = 0.1
     """Current assumed to return from one WGFMU channel without a pulse envelope (R-GNDU-01): the RSU path's 100 mA
-    (SMU mode). TODO(verify) the Fast IV short-circuit current at bring-up stage L8."""
+    (SMU mode). TODO(cite): the Fast IV short-circuit current (a B1530A data-sheet value, not in the manual corpus;
+    unsafe to measure)."""
     grid_s: float = WGFMU_GRID_S
     max_vectors: int = 2048
     max_sequences: int = 512

@@ -27,7 +27,7 @@ The run table (``analysis/dataset.py`` contract) keeps the MFCMU quantities ``Cp
 ``Z`` and ``theta`` (radian): ``TABLE_IMP_MODES`` maps the ``IMP`` modes that produce them (100, 101, 200, 201,
 10, 11) and ``CmuReading.table_values`` converts mode 11's degrees to radian (WP5.7 handoff). The parser shares no
 code with the simulator's formatter (``transport/sim/units/cmu_engine.py``). ATV-22: the layouts come from the
-manual's example programs; TODO(verify) against raw FMT 1 blocks captured at bring-up L6 (``bringup capture``).
+manual's example programs; TODO(verify)[L6.A8]: raw FMT 1 blocks (``bringup capture``).
 """
 
 from __future__ import annotations
@@ -327,7 +327,7 @@ def parse_dcorr(text: str) -> tuple[int, float, float]:
 class CorrectionData:
     """The correction data of one listed frequency (``CORRDT?``; PG PDF 384): the open as admittance ``G + jB`` (S),
     the short and the load as impedance ``R + jX`` (Ohm), as measured by ``CORR?`` (or set by ``CORRDT``). A
-    correction never measured answers 0 (TODO(verify) at bring-up L6)."""
+    correction never measured answers 0 (TODO(verify)[L6.A2, L6.A8])."""
 
     freq_hz: float
     open_g: float
@@ -417,7 +417,8 @@ def parse_adj_mode(text: str, ch: int) -> int:
 def parse_scuu_path(text: str, ch: int) -> int | None:
     """The SCUU path (``SSP`` 1-4) of the SCUU on MFCMU ``ch`` from a ``*LRN? 81`` answer (``SSP chnum,mode``; PG
     PDF 452, 520); ``None`` when the answer has no item for ``ch`` or reports 0 (outputs open: the power-on state
-    that no ``SSP`` sets). TODO(verify) at bring-up L6 (SCUU present) what the instrument answers for the open state.
+    that no ``SSP`` sets). TODO(verify)[L6.A6, L6.A8] (SCUU present): what the instrument answers for the open
+    state.
 
     Raises:
         FlexParseError: If the item is malformed or its path is not 0-4.

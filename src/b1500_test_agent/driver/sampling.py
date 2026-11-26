@@ -10,7 +10,7 @@ Data types: Table 1-12, PDF 55.
 ``parse_sampling`` groups the parsed FMT 1/5 elements (``driver/parser.py``) into ``Sample`` rows by their data type
 letters, not by fixed positions, so the same code reads blocks with or without index and time stamps, and a block
 whose index jumps (the measurement took longer than the interval, or auto ranging discarded a sample: PDF 49) or a
-read cut short by ``AB``. What the manual does not print (TODO(verify) at bring-up stage L5, ATV-22): the status and
+read cut short by ``AB``. What the manual does not print (TODO(verify)[L5.A3, L5.A9], ATV-22): the status and
 channel letters of the ``Sampling_no`` element (ignored here) and whether the index precedes the first time stamp
 (accepted either way only in that order: ``X`` opens a block). Values after an automatic abort read ``199.999E+99``
 with status ``V`` (``MSC``, PDF 473): ``Sample.dummy``.

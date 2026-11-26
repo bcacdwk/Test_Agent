@@ -53,5 +53,5 @@ provenance:
   sources:
     - blueprint v2 2.7 (kind smu_qscv), 2.10 (dit_high_low), 3.2 (moscap.qscv), 4.2 (moscap Dit)
     - Programming Guide Ed. 15 QSCV (PDF 115-117), QSC/QSL/QSM/QSO/QSR/QST/QSV/QSZ (PDF 493-500), Table 3-17 (PDF 241-245)
-    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 8 (quasi-static and high-low methods)
+    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 8 (quasi-static and high-low methods; not page-checked)
   validation_runs: []

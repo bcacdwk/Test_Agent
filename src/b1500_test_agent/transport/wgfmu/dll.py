@@ -23,13 +23,14 @@ simulator. For ``WGFMU_FW_ERROR`` the firmware code (3000-3999) is taken from th
 can take (not ASCII, not a finite C number, an unknown literal) is refused before the library with the code the
 library would return (``ArgumentRefused``) and queued the same way. Exceptions of the call itself (an access violation
 surfaces as ``OSError``, a marshalling error as ``ctypes.ArgumentError``) become ``WGFMU_LIBRARY_ERROR``.
-TODO(verify) at bring-up L8: the text format of the library's error strings (firmware code position) and the real
-codes of firmware errors (blueprint 7.6 item 5).
+TODO(verify)[L8.A10, L8.A11]: the text format of the library's error strings (firmware code position) and the real
+codes of firmware errors (blueprint 7.6 item 5; recorded only when an L8 run raises one).
 
 Warnings (WP10.8). ``warnings()`` reads the warning summary with ``WGFMU_getWarningSummarySize``/
 ``WGFMU_getWarningSummary`` (WG p119 (4-49)) into a buffer one longer than its size and splits it into its non-empty
 lines; the warning level is set and read with ``WGFMU_setWarningLevel``/``WGFMU_getWarningLevel`` and the error
-threshold with ``WGFMU_treatWarningsAsErrors`` (Table 4-4 codes). TODO(verify) at L8: the summary's line format.
+threshold with ``WGFMU_treatWarningsAsErrors`` (Table 4-4 codes). TODO(verify)[L8.A10, L8.A11]: the summary's line
+format.
 
 Readback. ``measure_values`` reads in chunks of ``READBACK_CHUNK`` (100,000) values per ``WGFMU_getMeasureValues``
 call into preallocated numpy arrays, as the lab code does (``lwp/1530/LFN_noise_meas.cpp``); a short chunk ends the
@@ -41,8 +42,8 @@ the configured ``wgfmu.library`` or the installer's default ``%SystemRoot%\\Syst
 in pure Python (``read_pe``: machine 0x8664 = x64, 0x14c = x86; the export names; the file version from the version
 resource) and says whether this Python can load it. A 32-bit DLL is not loadable: "install library >= A.03.00" (the
 first release with the x64 DLL in System32, Keysight release notes 9018-80226; no 32-bit bridge). Off Windows nothing
-is loadable (WARN on the Mac); tests inject ``platform``. TODO(verify) at L0: the version resource form of the
-installed library (``A.04.00.2440.5403`` string or numeric only).
+is loadable (WARN on the Mac); tests inject ``platform``. TODO(verify)[L0.A2, L0.A7]: the version resource form of
+the installed library (``A.04.00.2440.5403`` string or numeric only).
 """
 
 from __future__ import annotations

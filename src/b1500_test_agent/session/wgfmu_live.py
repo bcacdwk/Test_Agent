@@ -12,7 +12,7 @@
   (as ``AuditingTransport.bind`` does for the FLEX link).
 
 All of them only read (ATV-16: opening a library session, reading the channel ids and the status changes no output;
-TODO(verify) at bring-up L0). The library needs the B1500A without the FLEX link's exclusive VISA lock: callers
+TODO(verify)[L0.A2, L8.A1]). The library needs the B1500A without the FLEX link's exclusive VISA lock: callers
 release it first (``Transaction.snapshot``) or close the FLEX link (``Session.wgfmu_session``); the simulator refuses
 online calls while the lock is held, as the lab's VISA would (ATV-14).
 """

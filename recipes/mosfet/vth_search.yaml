@@ -35,7 +35,8 @@ params:
             doc: "Gate search stop (above Vth for n-type; the cautious control reaches it only if Vth lies there)."}
   vd: {unit: V, default: 0.05, recommended: [0.02, 0.1], range: [-5.0, 5.0], doc: Drain bias (linear region).}
   i_crit_a: {unit: A, default: 1.0e-7, recommended: [1.0e-8, 1.0e-6], range: [1.0e-12, 1.0e-3],
-             doc: "Critical current per square (the constant-current criterion); the target is i_crit_a x w_over_l."}
+             doc: "Critical current per square (the constant-current criterion, a common convention; set it for
+               your device); the target is i_crit_a x w_over_l."}
   w_over_l: {default: 1.0, recommended: [0.1, 100.0], range: [1.0e-3, 1.0e4],
              doc: "Channel W/L of the device (scales the critical current)."}
   limit_rel: {default: 0.01, recommended: [0.001, 0.02], range: [1.0e-4, 0.1],

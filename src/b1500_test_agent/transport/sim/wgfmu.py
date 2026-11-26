@@ -28,7 +28,8 @@ raised by the next call that observes the run: 3050 when more than ``LIMITS["mem
 not yet read (values after that are lost), 3051 when adjacent events with different averaging start less than 100 ns
 apart, 3052 when three or more range changes follow at 2 us or less. 3307 and 3308 cannot arise through this API (the
 library's own checks come first); they, and any other code, come from the ``wgfmu_error`` fault. The mapping of each
-condition to its firmware code is the simulator's reading of the manual's messages, TODO(verify) at bring-up L8.
+condition to its firmware code is the simulator's reading of the manual's messages (same fact as
+``transport/sim/wgfmu_checks.py``).
 
 Time: library calls take no virtual time except ``wait_until_completed`` (to the end of the run), polls (``status``,
 ``channel_status``, ``measure_value_size``: one poll quantum each, ``POLL_QUANTUM_S``), DC measurements
@@ -53,8 +54,10 @@ IV/PG mode (``measure_value_size``/``measure_values``); normal - a measurement c
 at ``open_session``/``close_session``; information - a value is rounded (a time off the 10 ns grid, a non-integer
 sequence count). ``set_warning_level`` chooses what the summary keeps (default ``normal``),
 ``treat_warnings_as_errors`` makes warnings at or above a level fail their call (default ``off``); ``clear`` empties
-the summary and restores both defaults (the simulator's reading of WG p84 (4-14), TODO(verify) at L8). ``warnings()``
-returns one ``[<level>] <function>: <text>`` line per warning (the real summary's line format: TODO(verify) at L8).
+the summary and restores both defaults (WG p84 (4-14): ``WGFMU_clear`` clears the warning level and the level for
+``WGFMU_treatWarningsAsErrors``; WG p138 (4-68) Table 4-4: their defaults are normal and off). ``warnings()`` returns
+one ``[<level>] <function>: <text>`` line per warning (the real summary's line format: same fact as
+``transport/wgfmu/dll.py`` "Warnings").
 
 Extras beyond the protocol (simulator only, for the WG example fixtures and tests): ``session_open``,
 ``poll_quantum_s`` and the mixin ``transport/sim/wgfmu_extras.py`` (``warning_records``, ``error_summary``,
@@ -143,7 +146,8 @@ POLL_QUANTUM_S = (0.001, 1.0)
 about once a second, blueprint v2 2.5; simulator convention)."""
 
 DC_MEASURE_S = 1e-3
-"""Virtual duration of one DC spot measurement (simulator convention, TODO(verify) at bring-up L8)."""
+"""Virtual duration of one DC spot measurement (simulator convention; same fact as ``catalog/kinds/wgfmu_waveform.py``
+``DC_READ_S``)."""
 
 _MEMORY = int(LIMITS["memory_points"])
 _GRID = LIMITS["grid_s"]

@@ -55,7 +55,7 @@ current is the nominal peak AC current into a short through the smallest impedan
 ``cmu_correction``). Corrections: rule R-CORR-01 needs fresh phase/open/short records of this pin map covering every
 frequency (``freqs`` is in Hz, so the rule reads it).
 
-Estimate conventions (TODO(verify) at bring-up L6, the simulator uses the same): ``ACT`` auto mode 8 ms per N, PLC
+Estimate conventions (TODO(verify)[L6.A4, L6.A5], the simulator uses the same): ``ACT`` auto mode 8 ms per N, PLC
 mode N / 50 Hz per point; 0.5 s per frequency (per C-t block) for setup and data transfer; a pulsed point takes one
 pulse period.
 """
@@ -134,7 +134,8 @@ cycles."""
 DEFAULT_PRESET: Final = "medium"
 
 ACT_AUTO_UNIT_S: Final = 8e-3
-"""Estimated averaging time per auto-mode coefficient (TODO(verify) L6; the simulator's convention)."""
+"""Estimated averaging time per auto-mode coefficient (the module docstring's estimate conventions; the simulator's
+convention)."""
 
 LINE_HZ: Final = 50.0
 """Line frequency assumed for PLC averaging estimates (50 Hz gives the longer cycle: a conservative estimate)."""

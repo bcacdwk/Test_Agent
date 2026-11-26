@@ -89,8 +89,8 @@ the code wins on any difference and a change to either must change both.
 - Kind `pulse_read` with a `wgfmu` pulse role (`pulse_wgfmu.py`): the schedules of the SPGU path (cycles, endurance
   checkpoints, grid, retention) with WGFMU pulses, bipolar cycling bursts (one cycle pattern repeated up to 10^6 times
   per entry) and WGFMU reads (`wgfmu_read` `sweep` or `pund`), one execution per step inside one library phase (the
-  output stays at its rest level between executions; that `WGFMU_update` keeps it there is a bring-up L8 check,
-  `TODO(verify)[L8.A9, L8.P4]`).
+  output stays at its rest level between executions; that `WGFMU_update` keeps the level across an execution
+  boundary is checked at bring-up L9 on `wgfmu.fast_bti`, `TODO(verify)[L9.A9]`).
 - Simulator: a vertex step holds the level at its end, so a pulse's leading edge counts as time at the level for
   switching kinetics; long unmeasured repeats (cycling) are stepped in aggregated chunks with the devices' cycle
   counter (wake-up/fatigue exact, retention between pulses approximate).

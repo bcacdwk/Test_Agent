@@ -5,28 +5,31 @@
 the persistent state (``state.selector_mode``, ``state.selector_ports``): ``ERMOD?`` (PG PDF 420-421, printed 4-102 to
 4-103: the sum of the enabled control modes, 0 at power-on) and ``ERSSP? port`` (PG PDF 434, printed 4-116: 0 all
 open, 1 SMU, 2 PGU, 3 PGU open; port 0-3, anything else error 120). Power-on, ``*RST`` and a device clear set the
-mode to 0 and every port to 0 (ATV-18 assumption, TODO(verify) at L7). ``ERSSP?`` answers whatever the control
-mode is (the manual names no execution condition for the query).
+mode to 0 and every port to 0 (ATV-18 assumption; same fact as ``driver/ops/switch.py``). ``ERSSP?`` answers
+whatever the control mode is (the manual names no execution condition for the query).
 
 16440A selectors (WP9.2; two units = ports 0-3, PG p433 (4-115), p154 (2-66)): ``ERMOD mode[,option]`` (PG PDF 419:
 mode 0, 1, 2, 4, 8, 16 or 32; option 1 enables, the default, 0 disables; mode 0 returns to general purpose, every
 mode off) and ``ERSSP port,status`` (status 0 open, 1 SMU, 2 PGU, 3 PGU open; PGU open only on CH 1 = ports 0 and 2;
 anything else error 120). ``ERSSP`` without the 16440A control mode is error 120 too (the manual names the condition
-but no error code; simulator convention, TODO(verify) at L7). The state is persistent; a changed output is open for
-``routing.SELECTOR_SETTLE_S`` (relays break before make; instrument clock, not persisted) and then connects the
-input its status names. ``SimScenario.selectors`` gives the cabling (port -> SMU channel on the SMU input, SPGU
-channel on the PGU input), and a DUT terminal wired to ``"SELPORT<port>"`` sees, through ``Circuit.router``, the
-channel the port connects: the SMU's level (its current counted as that SMU's) or the SPGU's static and pulse levels;
-open, PGU open, an uncabled input or a settling relay leave it floating, so an SMU on the wrong path reads its noise
-floor (blueprint v2 4.2 "Switches"). Running SPGU and WGFMU outputs are synchronised before a route changes. The
-``selector_stuck`` fault holds one port in its state through every ``ERSSP``, ``*RST`` and device clear, and
-``ERSSP?`` reports it.
+but no error code, PG p433 (4-115)): simulator convention, unreachable: every route and every cleanup sends
+``ERMOD 1`` first (``driver/ops/switch.py`` ``apply_routes``, ``rest_switch``). The state is persistent; a changed
+output is open for ``routing.SELECTOR_SETTLE_S`` (relays break before make; instrument clock, not persisted) and then
+connects the input its status names. ``SimScenario.selectors`` gives the cabling (port -> SMU channel on the SMU
+input, SPGU channel on the PGU input), and a DUT terminal wired to ``"SELPORT<port>"`` sees, through
+``Circuit.router``, the channel the port connects: the SMU's level (its current counted as that SMU's) or the SPGU's
+static and pulse levels; open, PGU open, an uncabled input or a settling relay leave it floating, so an SMU on the
+wrong path reads its noise floor (blueprint v2 4.2 "Switches"). Running SPGU and WGFMU outputs are synchronised before
+a route changes. The ``selector_stuck`` fault holds one port in its state through every ``ERSSP``, ``*RST`` and device
+clear, and ``ERSSP?`` reports it.
 
 ASU (WP7.1; PG p505-506 (4-187 to 4-188), *LRN? p451 (4-133), initial settings PDF 180): an SMU whose scenario slot
 declares ``asu: true`` accepts ``SAP chnum,path`` (0 SMU side, 1 AUX input), ``SAR chnum,mode`` (0 enables the 1 pA
 range for auto ranging, 1 disables it) and ``SAL chnum,mode`` (indicator 0 off, 1 on) and answers ``*LRN? 62``
 (``SAP<ch>,<path>`` items) and ``*LRN? 63`` (``SAR<ch>,<mode>`` items), one item per ASU, ``;``-separated (an empty
-answer without ASUs). On an SMU without an ASU these commands are error 151 (TODO(verify) the code at bring-up L2).
+answer without ASUs). On an SMU without an ASU these commands are error 151: simulator convention, unreachable: no
+tool sends ``SAR`` or ``SAL``, and ``SAP`` goes only to an ASU that answers ``*LRN? 62`` (``driver/ops/switch.py``
+``_rest_asu``; a plan through an unreadable ASU is blocked by R-ROUTE-01, ``session/routes.py``).
 ``SAP`` path 1 disconnects the SMU from the DUT (its terminal floats, it carries no current; the output keeps its
 setting); ``CN`` and ``CL`` of the SMU return the path to the SMU side (PG p505). ``SAP`` is ignored while an output
 is in the high-voltage state (the manual: not effective when the high-voltage indicator is lit; unreachable under
@@ -39,8 +42,8 @@ SCUU (WP8.1; present on the MFCMU slots of ``scenario.scuu``): ``SSP chnum,path`
 power-on and ``*RST`` state). Side effects per output (PG p520 (4-202), p37 (1-17); ATV-27): a connection made switches
 the unit's output ON (the ``CN`` condition if it was off); SMU -> MFCMU sets that SMU to 0 V, 100 V range, 20 mA
 compliance; MFCMU -> SMU sets it to 0 V, 20 V range, 100 uA, output ON. ``SSL chnum,mode`` keeps the LED setting
-(``state.scuu_indicators``). ``*LRN? 80``/``81`` answer ``SSL``/``SSP`` items per SCUU (path 0 = open; TODO(verify)
-at L6). Which DUT terminals each output reaches is ``CmuEngine._route_sides``.
+(``state.scuu_indicators``). ``*LRN? 80``/``81`` answer ``SSL``/``SSP`` items per SCUU (path 0 = open; same fact
+as ``driver/cmu_data.py`` ``parse_scuu_path``). Which DUT terminals each output reaches is ``CmuEngine._route_sides``.
 """
 
 from __future__ import annotations

@@ -16,9 +16,9 @@ it; the other methods refuse it (they need a high-frequency curve).
 **Structure.** ``moscap`` (MOS capacitor, the default) or ``split`` (split C-V of a MOSFET, recipes ``mosfet.cgc_cv``
 and ``mosfet.cgd_cv``); ``structure: auto`` decides by the recipe.
 
-**MOS capacitor** (Nicollian & Brews, *MOS Physics and Technology*, 1982, ch. 9; Sze & Ng, 2007, ch. 4). The
-substrate type follows from the curve: the high-capacitance end is accumulation (p substrate: negative gate bias).
-One fit (``moscap_fit``) iterates to a consistent set:
+**MOS capacitor** (Nicollian & Brews, *MOS Physics and Technology*, 1982, ch. 9; Sze & Ng, 2007, ch. 4; not
+page-checked). The substrate type follows from the curve: the high-capacitance end is accumulation (p substrate:
+negative gate bias). One fit (``moscap_fit``) iterates to a consistent set:
 
 - ``Cox`` by **accumulation extrapolation** (``plateau_extrapolation``): the majority charge grows as ``dQ = C dV``
   and in strong accumulation ``Cs = Q / (2 U_T)``, so ``1/C = 1/Cox + 2 U_T / Q``. Over the strong-accumulation tail
@@ -27,9 +27,11 @@ One fit (``moscap_fit``) iterates to a consistent set:
   needed. ``Cmax`` itself is ``Cox`` in series with the accumulation layer (a few % low for thin oxides). ``EOT =
   3.9 eps0 A / Cox`` (needs ``geometry.area_um2``).
 - **Doping** from the depletion slope (``1/C^2``): with ``A`` the gate area, ``1/C^2 = 1/Cox^2 + 2 (V - Vfb - U_T) /
-  (q eps_s N A^2)`` exactly in depletion, so ``N = 2 / (q eps_s A^2 |d(1/C^2)/dV|)`` from a line over the points with
-  band bending ``psi = |int_Vfb^V (1 - C/Cox) dV|`` between ``4 U_T`` and ``2 phi_B - 3 U_T`` (``phi_B = U_T ln(N /
-  ni)``; outside it the Debye tail or the inversion charge bend the line); depth ``W = eps_s A (1/C - 1/Cox)``.
+  (q eps_s N A^2)`` in depletion (assumed: the depletion approximation with the kT/q Debye correction, a doping that
+  is uniform over the depth probed and no interface-trap stretch-out, which would lower the slope and raise N), so ``N
+  = 2 / (q eps_s A^2 |d(1/C^2)/dV|)`` from a line over the points with band bending ``psi = |int_Vfb^V (1 - C/Cox)
+  dV|`` between ``4 U_T`` and ``2 phi_B - 3 U_T`` (``phi_B = U_T ln(N / ni)``; outside it the Debye tail or the
+  inversion charge bend the line); depth ``W = eps_s A (1/C - 1/Cox)``.
 - ``Vfb`` by the **flatband capacitance**: ``C_FB = A Cox' C_D / (Cox' + C_D)``, ``C_D = eps_s / L_D``, ``L_D =
   sqrt(eps_s U_T / (q N))`` (``Cox' = Cox / A``); ``Vfb`` is the bias where the curve crosses ``C_FB``.
 - ``Vth = Vfb + 2 phi_B + sqrt(2 q eps_s N 2 phi_B) / Cox'`` (sign mirrored for an n substrate): the strong-inversion
@@ -38,18 +40,19 @@ One fit (``moscap_fit``) iterates to a consistent set:
   without an area, the mid level ``(Cmax + Cmin)/2``) nearest to the ``fwd`` flatband; negative when the return
   branch lies at lower bias.
 
-Defaults: ``T = 300 K``, ``ni = 1e10 cm^-3``, ``eps_s = 11.7 eps0`` (silicon), ``eps_ox = 3.9 eps0`` (SiO2 EOT).
-Without ``geometry.area_um2`` the doping, flatband, threshold and EOT values are refused (naming the field); ``Cox``
-(F) needs no geometry.
+Defaults (textbook silicon/SiO2 values): ``T = 300 K`` and ``ni = 1e10 cm^-3`` (options ``temperature_k`` and
+``ni_cm3``); ``eps_s = 11.7 eps0`` (silicon) and ``eps_ox = 3.9 eps0`` (SiO2 EOT) are fixed, so for another
+semiconductor the doping, flatband and threshold values do not apply, and for a high-k stack the EOT is the
+SiO2-equivalent thickness. Without ``geometry.area_um2`` the doping, flatband, threshold and EOT values are refused
+(naming the field); ``Cox`` (F) needs no geometry.
 
-**Split C-V** (Koomen 1973; Sodini et al. 1982). The low-capacitance end is accumulation; its floor (median of the
-three smallest values) is the overlap capacitance and is removed (``c = C - floor``). In strong inversion ``1/c =
-1/(Cox W L) + k / Q`` with ``Q`` the inversion charge, so the same ``plateau_extrapolation`` over ``c >= acc_frac x
-c_max`` gives the plateau ``Cox W L`` (``cv_cox`` reports it as ``cox``; per area and EOT with ``geometry`` W and L or
-``area_um2``). ``Vth`` (``cv_vth``) is the **onset** of the
-inversion capacitance, the maximum of ``d^2 c / dV^2`` (local quadratic fits over five points, vertex refined) in the
-rising part (``0.01 .. 0.7 x c_max``). For ``mosfet.cgd_cv`` the plateau is about ``Cox W L / 2 + Cov``; only
-``cv_vth`` applies.
+**Split C-V** (Koomen 1973; Sodini et al. 1982; not page-checked). The low-capacitance end is accumulation; its
+floor (median of the three smallest values) is the overlap capacitance and is removed (``c = C - floor``). In strong
+inversion ``1/c = 1/(Cox W L) + k / Q`` with ``Q`` the inversion charge, so the same ``plateau_extrapolation`` over
+``c >= acc_frac x c_max`` gives the plateau ``Cox W L`` (``cv_cox`` reports it as ``cox``; per area and EOT with
+``geometry`` W and L or ``area_um2``). ``Vth`` (``cv_vth``) is the **onset** of the inversion capacitance, the
+maximum of ``d^2 c / dV^2`` (local quadratic fits over five points, vertex refined) in the rising part (``0.01 ..
+0.7 x c_max``). For ``mosfet.cgd_cv`` the plateau is about ``Cox W L / 2 + Cov``; only ``cv_vth`` applies.
 
 **impedance_convert** reports a run's readings in another parameter pair (``to``: ``cp_g``, ``cp_d``, ``cs_rs``,
 ``cs_d``, ``z_theta`` (radian)) at one point per frequency: the mean over a spot run's samples, the point nearest
@@ -111,6 +114,7 @@ from b1500_test_agent.models.analysis import ExtractionResult, TrustPolicy, Unit
 Q_E = 1.602176634e-19
 EPS0_F_CM = 8.8541878128e-14
 K_B = 1.380649e-23
+# Textbook silicon/SiO2 values (module docstring "Defaults"): eps_s and eps_ox fixed, ni and T options.
 EPS_SI = 11.7
 EPS_SIO2 = 3.9
 UM2_TO_CM2 = 1e-8

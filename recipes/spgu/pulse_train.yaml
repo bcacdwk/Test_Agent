@@ -38,15 +38,20 @@ roles:
 params:
   mode: {type: enum, choices: [pg], default: pg, doc: Fixed kind mode (PG pulses).}
   v_base: {unit: V, default: 0.0, recommended: [-5.0, 5.0], range: [-40.0, 40.0], doc: Base level (set level; SER-adjusted).}
-  v_peak: {unit: V, default: 4.0, recommended: [-5.0, 5.0], range: [-40.0, 40.0], doc: Peak level (set level; SER-adjusted).}
+  v_peak: {unit: V, default: 4.0, recommended: [-5.0, 5.0], range: [-40.0, 40.0],
+           doc: "Peak level (set level; SER-adjusted): example default; a device's program level comes from the
+             request or the DUT profile."}
   width: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-3], range: [1.0e-8, 10.0], doc: Pulse width (time at the peak level).}
   delay: {unit: s, default: 0.0, range: [0.0, 10.0], doc: Pulse delay within the period.}
-  t_edge: {unit: s, default: 2.0e-8, recommended: [2.0e-8, 1.0e-6], range: [8.0e-9, 0.4], doc: Leading and trailing transition time (width >= t_edge / 0.8).}
+  t_edge: {unit: s, default: 2.0e-8, recommended: [2.0e-8, 1.0e-6], range: [8.0e-9, 0.4],
+           doc: "Leading and trailing transition time (width >= t_edge / 0.8, PG p591 (5-19) error 2111)."}
   period: {unit: s, default: 1.0e-4, recommended: [1.0e-6, 1.0], range: [2.0e-8, 10.0], doc: Pulse period (>= delay + width + t_edge / 0.8).}
   bound: {type: enum, choices: [count, duration], default: count, doc: What ends the train (free run is never used).}
   count: {type: int, default: 1000, recommended: [1, 10000], range: [1, 1000000], doc: Pulses of the train (bound count).}
   duration: {unit: s, default: 0.1, recommended: [1.0e-3, 10.0], range: [1.0e-6, 3600.0], doc: Output time of the train (bound duration).}
-  load_ohm: {unit: Ohm, default: 1.0e+6, recommended: [1.0e+3, 1.0e+6], range: [0.1, 1.0e+6], doc: Declared load SER (1 MOhm for an insulated gate; 50 Ohm doubles the level on an open load).}
+  load_ohm: {unit: Ohm, default: 1.0e+6, recommended: [1.0e+3, 1.0e+6], range: [0.1, 1.0e+6],
+             doc: "Declared load SER (1 MOhm for an insulated gate; 50 Ohm doubles the level on an open load:
+               50 Ohm output, UG p76 (2-36))."}
   three_level: {type: bool, default: false, doc: Add pulse source 2 (three-level output = sum of both sources).}
   v_base2: {unit: V, default: 0.0, range: [-40.0, 40.0], doc: Base level of source 2 (three-level only).}
   v_peak2: {unit: V, default: -4.0, range: [-40.0, 40.0], doc: Peak level of source 2 (three-level only).}

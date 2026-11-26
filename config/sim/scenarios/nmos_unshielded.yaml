@@ -10,8 +10,8 @@
 # gate has a 10 GOhm leakage path (gate_leak_s 1e-11 S, split between gate-source and gate-drain as in every
 # mosfet_ekv), so mosfet.gate_leakage from 0 to 3 V spans 30 pA: with integration short (noise x3, 15 pA) the gate
 # current is at its noise floor (SNR below 10), with integration long (x0.3, 1.5 pA) it is clearly resolved (SNR
-# above 10): the deck's first remedy "lengthen the integration time" (deck slide 17). The floor is a simulator
-# stand-in for an open shield box; real pickup is not white noise (50 Hz lines, ground loops: no model here).
+# above 10): the remedy of a longer integration time (general practice). The floor is a simulator stand-in for an
+# open shield box; real pickup is not white noise (50 Hz lines, ground loops: no model here).
 # Truth: as nmos_basic (Vth 0.42 V, SS about 77 mV/dec), gate leakage 1e-11 S.
 
 description: >-

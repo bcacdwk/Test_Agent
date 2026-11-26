@@ -53,18 +53,18 @@ FeFET memory window from program/erase pulses, each followed by a read: MW = Vth
 
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
-| `v_program` (`fefet.pulse_write_read`, `fefet.fast_program_read`) | 4 V | - | -10..10 V | positive: lowers Vth (n-FeFET); example default | beyond the coercive field: saturated state |
+| `v_program` (`fefet.pulse_write_read`, `fefet.fast_program_read`) | 4 V | - | -10..10 V | positive: lowers Vth (n-FeFET); the request, else the DUT profile (`v_program`), else ask; example default | beyond the coercive field: saturated state |
 | `v_program` (`spgu.program_smu_read`) | 4 V | - | -20..20 V | program level: example default | set level at the pad (SER = load) |
-| `v_erase` (`fefet.pulse_write_read`, `fefet.fast_program_read`) | -4 V | - | -10..10 V | negative: raises Vth; example default | asymmetric levels shift both states |
+| `v_erase` (`fefet.pulse_write_read`, `fefet.fast_program_read`) | -4 V | - | -10..10 V | negative: raises Vth; the request, else the DUT profile (`v_erase`), else ask; example default | asymmetric levels shift both states |
 | `v_erase` (`spgu.program_smu_read`) | -4 V | - | -20..20 V | erase level: example default | used when the sequence erases |
-| `width` (`fefet.pulse_write_read`, `fefet.fast_program_read`) | 1 us | - | 10 ns..1 ms | time at the pulse level: example default; WGFMU Fast IV pulses >= 300 ns (WG p16 (1-4)) | NLS: switched fraction grows with log width |
+| `width` (`fefet.pulse_write_read`, `fefet.fast_program_read`) | 1 us | - | 10 ns..1 ms | time at the pulse level: the request, else the DUT profile (`width`), else ask; example default; WGFMU Fast IV pulses >= 300 ns (WG p16 (1-4)) | NLS: switched fraction grows with log width |
 | `width` (`spgu.program_smu_read`) | 1 us | - | 10 ns..1 s | program width: example default | - |
 | `period` | 10 us | 1 us..1 ms | 20 ns..1 s | repetition (count > 1) | >= width + t_edge / 0.8 (PG p591 (5-19)) |
 | `count` (`fefet.pulse_write_read`) | 1 | 1..10 | 1..1000 | pulses per operation | soft band 10,000 per run |
 | `count` (`spgu.program_smu_read`) | 1 | 1..100 | 1..100000 | pulses per operation | soft band 10,000 per run |
 | `count` (`fefet.fast_program_read`) | 1 | 1..10 | 1..100 | pulses per operation | 4 vectors each |
 | `t_edge` (`fefet.pulse_write_read`, `spgu.program_smu_read`) | 20 ns | 20 ns..1 us | 8 ns..0.4 s | rise and fall | width >= t_edge / 0.8 |
-| `t_edge` (`fefet.fast_program_read`) | 100 ns | 20 ns..1 us | 10 ns..100 us | WGFMU edges | period > 2 t_edge + width |
+| `t_edge` (`fefet.fast_program_read`) | 100 ns | 70 ns..1 us | 10 ns..100 us | WGFMU edges (>= 70 ns limits overshoot, WG5 p25 (1-15)) | period > 2 t_edge + width |
 | `load_ohm` | 1 MOhm | 1 kOhm..1 MOhm | 0.1 Ohm..1 MOhm | declared load SER | 50 Ohm doubles the level on the open gate |
 | `sequence` (`fefet.pulse_write_read`, `fefet.fast_program_read`) | erase_program | - | erase_program, program_erase | order per cycle | each operation is followed by a read |
 | `sequence` (`spgu.program_smu_read`) | program_erase | - | program_erase, erase_program, program, erase | order per cycle | `program`: cumulative program pulses |
@@ -73,7 +73,7 @@ FeFET memory window from program/erase pulses, each followed by a read: MW = Vth
 | `initial_read` | true | - | - | reference read before any pulse (`schedule` cycles only) | `vth_initial` / `i_initial` |
 | `read_kind` (`fefet.pulse_write_read`) | staircase | - | staircase, spot | Id-Vg per read | Vth and MW |
 | `read_kind` (`spgu.program_smu_read`) | spot | - | spot, staircase | Id at vg_read | read currents and their ratio |
-| `vg_start` (`fefet.pulse_write_read`, `fefet.fast_program_read`) | -0.5 V | - | -5..5 V | read sweep start, below your programmed Vth | `vg_stop` 1.8 V is an example: above your erased Vth, below your Vc (ask) |
+| `vg_start` (`fefet.pulse_write_read`, `fefet.fast_program_read`) | -0.5 V | - | -5..5 V | read sweep start, below your programmed Vth | `vg_stop` 1.8 V is an example: above the erased Vth, below the film's Vc (the request, else the DUT profile `read_vg_max`, else ask) |
 | `vg_start` (`spgu.program_smu_read`) | -0.5 V | - | -10..10 V | read sweep start (`read_kind` staircase) | `vg_stop` 1.8 V (-10..10 V) |
 | `vg_points` | 47 | - | 11..401 | 50 mV steps | fewer points: shorter read, less disturb |
 | `vg_read` (`fefet.pulse_write_read`) | 0.6 V | - | -5..5 V | spot read level: example default | between your two Vth |
@@ -86,7 +86,7 @@ FeFET memory window from program/erase pulses, each followed by a read: MW = Vth
 | `samples` (`spgu.program_smu_read`) | 3 | 1..10 | 1..100 | spot readings per read | averaged |
 | `integration` | `medium` | `medium` | `short`, `medium`, `long` | read ADC preset | keep fixed between devices |
 | `irange` | 100ua | - | 1ua, 10ua, 100ua, 1ma, 10ma | drain range | saturates above: status V |
-| `read_edge` | 100 ns | 50 ns..1 us | 10 ns..100 us | between read levels | - |
+| `read_edge` | 100 ns | 70 ns..1 us | 10 ns..100 us | between read levels (>= 70 ns, WG5 p25 (1-15)) | - |
 | `read_width` | 1 us | 500 ns..10 us | 20 ns..10 ms | flat time per read level | `read_settle` 500 ns not averaged |
 
 Example plan (validated on the simulator by `b1500 dev lint-skills`):

@@ -3,8 +3,9 @@
 # nmos-generic plus pulse envelopes on gate and drain (R-PULSE-02: a pulse role on a terminal without one is blocked;
 # outside it the plan needs confirmation, dut_envelope). Example values, not a real device: pulses up to the DC
 # voltage, 2 s wide, duty 0.5, 100000 pulses per run. Per terminal: max |V| (V) and max |I| (A; also the largest
-# compliance) for DC sourcing (R-DUT-01). Nominal values are typical numbers for choosing parameters, never
-# measurements.
+# compliance) for DC sourcing (R-DUT-01). Nominal values: simulator example (scenario `nmos_selfheat`: cold Vth
+# 0.5 V, SS about 77 mV/dec), not real-device values and never measurements; replace or delete them in your own
+# profile.
 
 device_type: nmos
 description: Generic n-channel MOSFET with gate and drain pulse envelopes (example; pulsed Id-Vg/Id-Vd and DC references).
@@ -19,7 +20,7 @@ terminals:
     pulse: {max_abs_v: 3.0, max_width_s: 2.0, max_duty: 0.5, max_count: 100000}
   source: {max_abs_v: 1.0, max_abs_i: 1.0e-3}
   bulk: {max_abs_v: 1.0, max_abs_i: 1.0e-3}
-nominal:
+nominal:                        # simulator example (scenario `nmos_selfheat`), not a real-device value
   vth: {value: 0.5, unit: V}
   ss: {value: 80.0, unit: mV/dec}
 notes:

@@ -79,7 +79,7 @@ reads at `vg_recovery`. DESTRUCTIVE (part of the shift is permanent). nMOS PBTI 
 | `vd_stress` | 0 V | - | -5..5 V | drain during stress | 0 V for BTI |
 | `irange` (wgfmu.fast_bti) | `100ua` | - | `1ua`, `10ua`, `100ua`, `1ma`, `10ma` | drain range | saturates (V) above it |
 | `width` (wgfmu.fast_bti) | 1 us | 0.5..10 us | 20 ns..1 ms | flat time per sense step | longer: less noise, more recovery |
-| `edge` (wgfmu.fast_bti) | 100 ns | 50 ns..1 us | 10 ns..10 us | between levels | |
+| `edge` (wgfmu.fast_bti) | 100 ns | 70 ns..1 us | 10 ns..10 us | between levels (>= 70 ns limits overshoot, WG5 p25 (1-15)) | |
 | `settle` (wgfmu.fast_bti) | 500 ns | 100 ns..5 us | 0..1 ms | left out of each average | |
 | `icomp_gate` (reliability.bti_sms) | 1 uA | - | 1 pA..1 mA | gate limit, every phase | a breakdown stops the run |
 

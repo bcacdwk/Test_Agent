@@ -11,7 +11,7 @@ name: lab-b1500a-example
 
 mainframe:
   model: B1500A
-  gndu: true                    # built-in ground unit (sinks up to 4.2 A, UG PDF 58); pin maps may use GNDU
+  gndu: true                    # built-in ground unit (sinks up to 4.2 A, UG p58 (2-18)); pin maps may use GNDU
 
 modules:
   - {slot: 1, model: B1525A, type: HVSPGU, channels: [101, 102], alias: SPGU1}
@@ -53,10 +53,10 @@ switches:
       OUT1: {index: 0, inputs: {smu: null, pgu: null}}   # CH 1: SMU, PGU, PGU-open (PG p154 (2-66))
       OUT2: {index: 1, inputs: {smu: null, pgu: null}}   # CH 2: SMU or PGU only
     rest: open
-    note: SMU inputs carry Force only (Sense open), so Kelvin roles never go through a selector.
+    note: SMU inputs carry Force only (Sense open, PG p154 (2-66)), so Kelvin roles never go through a selector.
   - id: SEL2                    # second 16440A selector: ERSSP ports 2 (CH 1) and 3 (CH 2)
     kind: selector_16440a
-    present: true
+    present: true               # inferred from lwp SPGU_pulse.m (it drives ports 2, 3); TODO(verify)[L7.A2]
     certainty: unverified
     ports:
       OUT1: {index: 2, inputs: {smu: null, pgu: null}}

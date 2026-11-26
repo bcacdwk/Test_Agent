@@ -205,7 +205,8 @@ class MethodRecord(StrictModel):
 class Provenance(StrictModel):
     """Where a recipe's defaults and ranges come from, and which archived runs validated it.
 
-    Example: ``{sources: ["deck slide 6", "Programming Guide WV/FMT pages"], validation_runs: []}``.
+    Example: ``{sources: ["Programming Guide Ed. 15 WV (PDF 568-569)", "lwp test_IdVg.m"], validation_runs: []}``
+    (the owner's planning deck is illustrative, never a source).
     """
 
     sources: list[Annotated[str, Field(min_length=1)]] = Field(default_factory=list)

@@ -4,8 +4,8 @@
 # (R-DUT-01); impedance class and minimum series resistance for sources without compliance (R-SPGU-01); pulse
 # envelope for gate pulse trains (R-PULSE-02: outside it needs confirmation, dut_envelope); AC envelope of the
 # terminals the MFCMU drives in split C-V (R-CMU-01, WP8.3). The geometry is used by analyses only (charge per cycle ->
-# traps per cm2; Cox per area and EOT from the Cgc plateau). Nominal values help choose parameters and are never
-# measurements.
+# traps per cm2; Cox per area and EOT from the Cgc plateau). Nominal values: simulator example (scenario `nmos_cv`),
+# not real-device values and never measurements; replace or delete them in your own profile.
 
 device_type: nmos
 description: Large n-channel MOSFET (W/L 100/10 um, 10 nm oxide; example envelope) for charge pumping and C-V.
@@ -33,10 +33,11 @@ terminals:
     impedance: resistive
     min_series_ohm: 1000.0
 geometry: {w_um: 100.0, l_um: 10.0, tox_nm: 10.0}
-nominal:
+nominal:                        # simulator example (scenario `nmos_cv`: Vfb -0.62 V), not a real-device value
   vth: {value: 0.7, unit: V}
   vfb: {value: -0.6, unit: V}
 notes:
   - Charge pumping swings the gate from accumulation (below Vfb) to inversion (above Vth); keep |V| at the gate
     within 5 V and the train short (seconds), the junctions reverse-biased (drain/source >= bulk for n-channel).
-  - Split C-V at low frequency (100 kHz) so the channel follows the AC signal (pin map mosfet-split-cv).
+  - Split C-V at a frequency low enough that the channel follows the AC signal (100 kHz for this example; check that
+    the Cgc plateau does not change with frequency on your device; pin map mosfet-split-cv).

@@ -66,7 +66,7 @@ entry skill `b1500-test` (card index, tiers, report template), seven knowledge f
 | 2.4 Entry skill | `b1500-test` skill, card template, final `AGENTS.md`/`CLAUDE.md`, generated `.claude/skills/` |
 | 2.5 Six cards | Contact/resistor check, diode I-V, MOSFET Id-Vg, MOSFET Id-Vd, gate leakage, FeFET dual-sweep memory window, each with a simulator validation record; reserved slots with their preconditions |
 | 2.6 Knowledge 01–07 | Device physics, instrument, wiring, ferroelectrics/oxides, reliability, extraction, HSPICE (reserved; v2 WP7.7: compact models) |
-| 2.7 Debug skill | `b1500-debug` with eight runbooks and the deck's three cases |
+| 2.7 Debug skill | `b1500-debug` with eight runbooks and three illustrative cases from the owner's deck (not lab history; v2.1: `example-*`) |
 
 ## M3 — Harness acceptance (done)
 
@@ -215,7 +215,7 @@ runnable recipes, 14 kinds, 34 cards, every bring-up stage S0, L0-L10 written; n
 | 11.1 Async + debug completeness | runbook `async-run-interrupted`, the debug skill's symptom router over every family, stage L9 drills (cancel and kill-recovery per bus); a killed async run now gets its auto-calibration restored by the recovery | done (2026-11-26) |
 | 11.2 Coverage closure | the legacy ledger closed for every family (411 mapped, 248 out of scope with reasons, 0 open), `b1500 dev coverage` and the generated [coverage.md](coverage.md), the reserved slots and the declared-only kind deleted, WGFMU PG mode reachable | done (2026-11-26) |
 | 11.3 Full safety + visa-loop | the global fault matrix over every kind x fault x position (2,372 rows run), every recipe on the visa-loop and through the fake WGFMU library, refusals open no bus; suite about 5 min with `-n 4` | done (2026-11-26) |
-| 11.4 Docs + plug-in-and-go closure | README, `AGENTS.md` v2, [architecture](architecture.md) "Adding a module family", [safety model](safety-model.md) residual risks, this roadmap, [deployment](deployment-windows.md) (wheelhouse re-run), the twelve stage files final with their `TODO(verify)` lists, `b1500 doctor` complete (`local config` check; in CI on both OS), a doc-command test over every doc and skill | done (2026-11-26) |
+| 11.4 Docs + plug-in-and-go closure | README, `AGENTS.md` v2, [architecture](architecture.md) "Adding a module family", [safety model](safety-model.md) residual risks, this roadmap, [deployment](deployment-windows.md) (wheelhouse re-run), the twelve stage files final with their `TODO(verify) (blueprint v2 7.6 items …)` lines, `b1500 doctor` complete (`local config` check; in CI on both OS), a doc-command test over every doc and skill | done (2026-11-26) |
 | 11.5 Final acceptance | S1–S18 on codex-cli 0.170.0 and Claude Code 2.1.328 from the main checkout at `35bb934` (§8.2: 11 safety ★ scenarios 3/3, 7 functional 1/1): **18/18 PASS on both harnesses**; Codex 40 sessions at the first attempt, Claude Code 40 + one logged re-run (S7: the first rep skipped the contact check); no text change needed; reports [Codex](acceptance/2026-11-26-codex-0.170.0.md), [Claude Code](acceptance/2026-11-26-claude-2.1.328.md) | done (2026-11-26) |
 
 ## M12 — Hardware session (owner)
@@ -234,7 +234,7 @@ the Mac. Nothing below can be done or faked without the hardware (blueprint v2 �
 3. **Developer work packages per module** on the Mac: fixture parser tests, simulator recalibration from the
    measured floors and devices, the ATV outcomes, recipe promotions to `hw_validated` (blueprint v2 §7.2).
 
-What each stage settles (the `TODO(verify)` line of each stage file; blueprint v2 §7.6 items):
+What each stage settles (the `TODO(verify) (blueprint v2 7.6 items …)` line of each stage file):
 
 | §7.6 item | Settled at |
 |---|---|
@@ -250,5 +250,5 @@ What each stage settles (the `TODO(verify)` line of each stage file; blueprint v
 | 10 self-test/calibration durations; auto-calibration over hours | L1, L8, L9 |
 | 11 EasyEXPERT golden comparisons; every `hw_validated` promotion | S0, L4, L10 |
 | 12 harness facts on the lab PC (v1 ATV-4, ATV-7, ATV-8, ATV-11; ATV-25) | L0, L4, L10 |
-| 13 real device physics behind defaults and tolerances (FeFET kinetics, IGZO drift, RTN statistics) | L7, L8, L9 |
+| 13 real device physics behind defaults and tolerances (FeFET kinetics, IGZO drift, RTN statistics; left blank in the knowledge files and cards, each blank marked for a bring-up step, an owner question or a citation) | L7, L8, L9 |
 | 14 Windows CI (only without the push) | resolved: the CI runs on `windows-latest` since the owner allowed the push (OD-4); no stage |

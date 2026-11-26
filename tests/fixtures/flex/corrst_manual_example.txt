@@ -2,5 +2,5 @@
 # kind: corrst
 # command: CORRST? 9,3
 # expect: {"on": true}
-# note: the manual example (load correction of the MFCMU in slot 9 switched on). TODO(verify) the raw answer at bring-up L6.
+# note: the manual example (load correction of the MFCMU in slot 9 switched on). TODO(verify)[L6.A3] the raw answer (the probe file of the second probe after the corrections, `corrst_on`).
 1

@@ -36,9 +36,9 @@ has no query of the relay, so a disconnect it accepts is the reading: a stuck re
 leaves the output unread and R-ROUTE-01 blocks) -> ``close_session`` -> relock. A relock refused by another client
 propagates (``BusLocked``).
 
-Hardware facts, TODO(verify) at bring-up L8: releasing the exclusive lock is enough for the library's session and the
-relock is clean (ATV-14; else switch ``flex_during_phase`` to ``close``); ``initialize`` resets the WGFMU only and
-leaves an SMU bias alone (ATV-17; the simulator models it so; the phase initializes at its entry, before the kind
+Hardware facts, TODO(verify)[L8.P4, L8.A7, L8.A10]: releasing the exclusive lock is enough for the library's session
+and the relock is clean (ATV-14; else switch ``flex_during_phase`` to ``close``); ``initialize`` resets the WGFMU only
+and leaves an SMU bias alone (ATV-17; the simulator models it so; the phase initializes at its entry, before the kind
 applies any bias inside the phase); a ``disconnect`` the library accepts means the RSU relay opened.
 """
 

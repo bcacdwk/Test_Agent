@@ -49,7 +49,7 @@ capacitor (FeCap, e.g. HfZrO between two electrodes) from switching currents, an
 - `station_status` clean (no fault, no active run). Ask the film thickness, area and expected Ec (DUT profile);
   never invent geometry: without it Pr/Ps/Ec are refused (`q_switch` and Vc still come out).
 - Amplitude above Vc within the terminals' pulse `max_abs_v` (2-3 x Vc: general practice, not checked; the lab's
-  PUND train: ±4 V, `lwp/1530/ch1_wave_pt.csv`); the human gives it; a C-V butterfly first shows where Vc is.
+  PUND train: ±4 V, `lwp/1530/ch1_wave_pt.csv`); it comes from the request, else the DUT profile (`v_max`), else ask; a C-V butterfly first shows where Vc is.
 - Each PUND cycles the film (~1.5 cycles); a pristine film wakes up: record the device's cycle history.
 
 ## 4. Recipe and parameters
@@ -57,7 +57,7 @@ capacitor (FeCap, e.g. HfZrO between two electrodes) from switching currents, an
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
 | `builder` | pund | - | pund | the PUND waveform | - |
-| `v_max` | 3 V | - | 0.1..10 V | PUND amplitude beyond Vc: example default, set from your film | too low: Pr under-read |
+| `v_max` | 3 V | - | 0.1..10 V | PUND amplitude beyond Vc: the request, else the DUT profile (`v_max`), else ask; example default | too low: Pr under-read |
 | `rise` | 10 us | 1..100 us | 100 ns..10 ms | ramp 0 V -> v_max | current ~ dV/dt |
 | `plateau` | 0 s | 0..10 us | 0..10 ms | flat top (0 = triangle) | triangle resolves Vc best |
 | `delay` | 10 us | 1 us..1 ms | 100 ns..1 s | at 0 V after each pulse | relaxation |

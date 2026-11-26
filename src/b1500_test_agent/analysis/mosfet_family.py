@@ -8,14 +8,15 @@ together; trust, refusal and the constant-current criterion as in ``mosfet.py``)
 - **Curves**: the rows grouped by the step column (default: the one varying source voltage column other than
   ``x``, e.g. ``drain_V`` or ``bulk_V``; with a single curve the one other source voltage column), in acquisition
   order; per curve the constant-current Vth of ``mosfet.py``
-  (``i_crit_a`` x ``w_over_l``, default 100 nA, interpolated in log10|Id|).
+  (``i_crit_a`` x ``w_over_l``, default 100 nA: the ``mosfet.py`` convention, set it per device; interpolated in
+  log10|Id|).
 - **DIBL** (``dibl``, mV/V; the step is the drain bias): ``s·(Vth(Vd_lo) - Vth(Vd_hi)) / (|Vd_hi| - |Vd_lo|)``
   between the curves of the lowest and the highest |Vd| (s = +1 for n-type, -1 for p-type curves, so a barrier
   lowering is positive for both), plus ``vth_lin``/``vth_sat`` (V), the Vth of those two curves; ``fit`` adds every
   curve's Vth and, with three or more curves, the least-squares slope ``slope_mv_per_v``. The weak-inversion current
-  carries the drain factor ``1 - exp(-|Vd|/U_T)`` (it raises Vth by about 0.7 mV at Vd = 0.1 V and 5 mV at 50 mV)
-  and channel-length modulation; this standard two-point definition counts both as DIBL, so a linear curve at
-  Vd >= 0.1 V keeps them below a few mV/V.
+  carries the drain factor ``1 - exp(-|Vd|/U_T)`` (it raises Vth by ``-n U_T ln(1 - exp(-|Vd|/U_T))``: about 0.7 mV
+  at Vd = 0.1 V and 5 mV at 50 mV for n ≈ 1.3 at 300 K) and channel-length modulation; this standard two-point
+  definition counts both as DIBL, so a linear curve at Vd >= 0.1 V keeps them below a few mV/V.
 - **Body effect** (``body_effect``, V/V; the step is the bulk bias): the least-squares slope dVth/dVsb over the
   curves, Vsb = V_source - V_bulk (``source_v``; default 0 V, the source on the GNDU; a constant ``source_V``
   column is used when the run has one), positive for an n- or p-channel device under reverse body bias, plus

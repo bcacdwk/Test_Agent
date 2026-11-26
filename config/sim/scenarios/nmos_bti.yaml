@@ -8,7 +8,7 @@
 # recipe body-biases it: then it floats at the source potential, as on the GNDU). While an RSU is not on its WGFMU path
 # its terminal sees that SMU (the RSU's normal path, WG p19 (1-7)), so the SMU recipes on pin map mosfet-4t (gate SMU4,
 # drain SMU3) and the WGFMU fast BTI on pin maps mosfet-wgfmu(-body) stress and read the same transistor (ATV-32 on
-# hardware: TODO(verify) at bring-up L8/L9; fallback: separate SMU wiring in the pin map).
+# hardware: TODO(verify)[L9.A9]; fallback: separate SMU wiring in the pin map).
 #
 # Truth (tests/integration/test_recipes_stress.py asserts the default analyses against it; models/sim_devices.py):
 # - BTI (reliability.bti_sms, wgfmu.fast_bti): above a gate-source bias of bti_v_min = 1.5 V the threshold rises as
@@ -26,9 +26,10 @@
 # Recovery during reads: the simulator ages devices only in timed holds (MM 10) and WGFMU executions; its SMU
 # sweeps and spot reads are quasi-static, so reliability.bti_sms shows no read-induced recovery here (on hardware a
 # slow read does lose part of the shift); wgfmu.fast_bti's reads are WGFMU executions and do age the device.
-# Device values are typical of a bulk NMOS (Vth 0.45 V, SS about 77 mV/dec, beta 2 mA/V^2), not a measured device;
-# the ageing constants are chosen so a 30-minute stress shows every effect clearly (real BTI/HCI/SILC magnitudes
-# depend on the technology and the temperature: TODO(verify) M12 per device). No self-heating (rth 0).
+# Device values (Vth 0.45 V, SS about 77 mV/dec, beta 2 mA/V^2) are simulator example values, not a real-device
+# value; the ageing constants are chosen so a 30-minute stress shows every effect clearly. Real BTI, HCI and SILC
+# magnitudes depend on the technology and the temperature (a real device's: TODO(verify)[L9.A4, L9.A7]). No
+# self-heating (rth 0).
 # Noise: HRSMU floor 1e-13 A and 0.02 % relative noise, so a 1 s BTI shift (20 mV) and a 1 s HCI change (0.7 %) are
 # far above the read noise; the WGFMU's white noise per 5 ns sample on the 10 mA range (as nmos_wgfmu, averaged as
 # 1/sqrt(n) over a point's samples), so a 1 us sense point on the 1 mA range reads about 14 nA rms.

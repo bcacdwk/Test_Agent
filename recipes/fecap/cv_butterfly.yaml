@@ -4,8 +4,9 @@
 # every frequency of freqs_hz, Cp-G (IMP 100), bottom electrode on the Low side (pin map fecap-cmu). The small-signal
 # capacitance (dielectric plus the reversible polarization response) peaks near the coercive voltage of the branch
 # being travelled: +Vc on the rising branch, -Vc on the falling one (the "butterfly"); the sweep itself switches the
-# film (it ends in the state of the last branch). Sweep beyond about 2 x Vc to saturate the loop, within the DUT
-# envelope. WMDCV 2,1: automatic abort. Needs fresh phase/open/short corrections at every frequency (R-CORR-01).
+# film (it ends in the state of the last branch). Sweep beyond about 2 x Vc (rule of thumb, not checked) to
+# saturate the loop, within the DUT envelope; Vc of your film from the request or the DUT profile, else ask.
+# WMDCV 2,1: automatic abort. Needs fresh phase/open/short corrections at every frequency (R-CORR-01).
 # Default analysis: cv_butterfly (peak voltages of both branches -> Vc, imprint, Ec with the film thickness).
 # Programming Guide Ed. 15: C-V sweep (PDF 256-260), WDCV (PDF 549-550), WTDCV (PDF 566-567), WMDCV (PDF 554-555).
 # status: sim_validated by tests/integration/test_recipes_cv_variants.py (fecap_basic: peaks at +-Vc within 5 % of
@@ -34,8 +35,12 @@ params:
     range: [1.0e+3, 5.0e+6]
     doc: Measurement frequencies, one double sweep each (every one in the correction list).
   ac_vrms: {unit: V, default: 0.03, recommended: [0.01, 0.05], range: [0.01, 0.25], doc: Oscillator level (V rms; small against Vc).}
-  v_start: {unit: V, default: -3.0, recommended: [-4.0, 4.0], range: [-25.0, 25.0], doc: Sweep start (one saturated polarity).}
-  v_stop: {unit: V, default: 3.0, recommended: [-4.0, 4.0], range: [-25.0, 25.0], doc: Sweep turning point (the other polarity).}
+  v_start: {unit: V, default: -3.0, range: [-25.0, 25.0],
+            doc: "Sweep start (one saturated polarity): example default; about 2 x your film's Vc (rule of thumb),
+              from the request or the DUT profile, else ask."}
+  v_stop: {unit: V, default: 3.0, range: [-25.0, 25.0],
+           doc: "Sweep turning point (the other polarity): example default; from the request or the DUT profile,
+             else ask."}
   points: {type: int, default: 121, recommended: [61, 241], range: [21, 1001], doc: Bias steps per branch.}
   sweep_mode: {type: enum, choices: [single, double], default: double, doc: double start->stop->start (both branches); single one branch.}
   hold_s: {unit: s, default: 1.0, recommended: [0.5, 5.0], range: [0.0, 60.0], doc: Hold at v_start (poles the film) before the first step.}
@@ -52,5 +57,6 @@ provenance:
   sources:
     - blueprint v2 2.7 (kind cmu_measure MM 18 double), 3.2 (fecap.cv_butterfly), 4.2 (ferro FeCap)
     - Programming Guide Ed. 15 C-V sweep (PDF 256-260), WDCV (PDF 549-550), WMDCV (PDF 554-555)
-    - Miller et al., J. Appl. Phys. 68, 6463 (1990) (polarization branches; reversible C-V peaks at +-Ec)
+    - Miller et al., J. Appl. Phys. 68, 6463 (1990) (polarization branches; reversible C-V peaks at +-Ec; not
+      page-checked)
   validation_runs: []

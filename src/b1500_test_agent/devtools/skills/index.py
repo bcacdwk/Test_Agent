@@ -1,5 +1,5 @@
 """``b1500 dev gen-index [--check]``: the GENERATED card index ``.agents/skills/b1500-test/cards/README.md``
-(blueprint v2 6.1, 6.2).
+(blueprint v2 6.1, 6.2) and the owner's question list ``docs/open-questions.md`` (v2.1 KD-2, ``questions.py``).
 
 One section per family (``## smu`` ... ``## system``, in ``Recipe.family`` order; the entry skill's family router
 links ``cards/README.md#<family>``), each with one table ``family | intent keywords | card | recipes | status |
@@ -9,7 +9,8 @@ analysis-only card lists its analysis methods and its own status), then a row pe
 
 The text is a pure function of the card frontmatter and the registry: UTF-8, LF line endings, no timestamps, so
 ``--check`` (and the ``card_index`` problem of ``lint-skills``) compares bytes. ``gen-index`` refuses to write while
-a card's frontmatter is invalid (the index would silently lose that card).
+a card's frontmatter is invalid (the index would silently lose that card). The question list is written and checked
+with it (``--check`` fails on drift of either file).
 """
 
 
@@ -33,6 +34,7 @@ from b1500_test_agent.devtools.skills.common import (
     validation_messages,
 )
 from b1500_test_agent.devtools.skills.markdown import parse_markdown
+from b1500_test_agent.devtools.skills.questions import QUESTIONS_REL, gen_questions
 from b1500_test_agent.devtools.sync_harness import SOURCE_DIR, normalize_text
 from b1500_test_agent.models.common import StrictModel
 from b1500_test_agent.paths import find_repo_root
@@ -108,7 +110,8 @@ def render_index(cards: list[tuple[str, CardFrontmatter]], registry: RecipeRegis
 
 
 class IndexReport(StrictModel):
-    """Outcome of ``gen-index``: ``ok`` iff there are no problems and (``check``) no drift / (write) written."""
+    """Outcome of ``gen-index``: ``ok`` iff there are no problems and (``check``) neither file drifted. ``path``,
+    ``cards``, ``drift``, ``written``: the card index; ``questions_*``: ``docs/open-questions.md``."""
 
     ok: bool
     mode: Literal["check", "write"]
@@ -116,6 +119,10 @@ class IndexReport(StrictModel):
     cards: int = 0
     drift: bool = False
     written: bool = False
+    questions_path: str = QUESTIONS_REL
+    questions: int = 0
+    questions_drift: bool = False
+    questions_written: bool = False
     problems: list[str] = Field(default_factory=list)
 
 
@@ -154,23 +161,28 @@ def gen_index(root: Path | None = None, *, check: bool = False, recipes_dir: Pat
     text = render_index(cards, registry)
     current = normalize_text(target.read_bytes()) if target.is_file() else None
     drift = current != text
-    if check:
-        return IndexReport(ok=not drift, mode=mode, path=INDEX_REL, cards=len(cards), drift=drift)
-    if drift:
+    questions = gen_questions(root, check=check, recipes_dir=Path(recipes_dir) if recipes_dir else None)
+    if not check and drift:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(text.encode("utf-8"))
-    return IndexReport(ok=True, mode=mode, path=INDEX_REL, cards=len(cards), drift=drift, written=drift)
+    return IndexReport(ok=not (check and (drift or questions.drift)), mode=mode, path=INDEX_REL, cards=len(cards),
+                       drift=drift, written=drift and not check, questions=questions.questions,
+                       questions_drift=questions.drift, questions_written=questions.written)
 
 
 def format_report(report: IndexReport) -> str:
     if report.problems:
-        return "\n".join([f"card index: {len(report.problems)} PROBLEM(S); {report.path} not written",
-                          *(f"  {p}" for p in report.problems)])
+        head = f"card index: {len(report.problems)} PROBLEM(S); {report.path} and {report.questions_path} not written"
+        return "\n".join([head, *(f"  {p}" for p in report.problems)])
     if report.mode == "check":
-        state = "DRIFT: regenerate with `uv run b1500 dev gen-index`" if report.drift else "up to date"
-        return f"card index: {state} ({report.path}, {report.cards} cards)"
-    state = "written" if report.written else "unchanged"
-    return f"card index: {state} ({report.path}, {report.cards} cards)"
+        def state(drift: bool) -> str:
+            return "DRIFT: regenerate with `uv run b1500 dev gen-index`" if drift else "up to date"
+        return (f"card index: {state(report.drift)} ({report.path}, {report.cards} cards)\n"
+                f"owner questions: {state(report.questions_drift)} ({report.questions_path}, {report.questions} "
+                "questions)")
+    return (f"card index: {'written' if report.written else 'unchanged'} ({report.path}, {report.cards} cards)\n"
+            f"owner questions: {'written' if report.questions_written else 'unchanged'} ({report.questions_path}, "
+            f"{report.questions} questions)")
 
 
 def check_index(lint: Lint, entry_dir: Path, cards: list[tuple[str, CardFrontmatter]],

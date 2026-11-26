@@ -22,7 +22,8 @@ or destroy the device: every stress recipe is destructive and always confirmed (
 `long_run` and asynchronous. The SMU stress recipes share the composite kind `stress_measure` (WP7.6): a reference
 read, then stress holds timed by the instrument and reads at log-spaced (or listed) cumulative stress times, then
 optional recovery reads. A number without a source is left blank with a marker that says how to get it, and a
-blank is never an expectation ([README](README.md#conventions)); stress levels come from the human.
+blank is never an expectation ([README](README.md#conventions)); stress levels come from the request or the DUT
+profile, else from the human.
 
 ## Scope and v1 status
 
@@ -205,8 +206,9 @@ Pumping2" (SMU + SPGU, EX p518 (9-12)).
 
 Drifting Vth between runs is a common symptom of oxide TFTs (no lab case is recorded yet).
 
-- Oxygen vacancies are donors in IGZO; their density changes with temperature and atmosphere, shifting Vth.
-- Back-channel adsorption: water and oxygen adsorb and desorb on the exposed back surface, changing its potential.
+- Mechanisms commonly proposed in the literature (not page-checked, `TODO(cite)`): oxygen vacancies act as donors
+  in IGZO and their density changes with temperature and atmosphere, shifting Vth; water and oxygen adsorb and
+  desorb on the exposed back channel, changing its potential.
 - Bias stress: positive gate bias stress shifts Vth positive (electron trapping); negative bias under illumination
   shifts it negative (photo-ionised vacancies). The measurement sweep itself is a short bias stress. The shift
   is commonly fitted with a stretched exponential dV(t) = dV_inf (1 - exp(-(t/tau)^beta)) (the form after Libsch

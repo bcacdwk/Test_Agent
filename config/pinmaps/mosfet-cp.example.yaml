@@ -17,6 +17,9 @@ terminals:
   source: 6
   bulk: 4
 notes:
-  - "The bulk SMU reads the charge-pumping current (pA to tens of nA): an HRSMU, guarded triax to the substrate
-    contact or the chuck; drain and source together set the reverse bias (0 V by default)."
-  - "SEL1.OUT1 is selector CH 1; through a selector the SMU path is Force only (no Kelvin role on the gate)."
+  - "The bulk SMU reads the charge-pumping current, Icp = q f A Nit (textbook): for the 1e-5 cm2 gate of DUT profile
+    nmos-cv, 10 kHz to 1 MHz and an assumed Nit of 1e9 to 1e11 cm-2 that is about 16 pA to 160 nA. Hence an HRSMU,
+    guarded triax to the substrate contact or the chuck; drain and source together set the reverse bias (0 V by
+    default)."
+  - "SEL1.OUT1 is selector CH 1; through a selector the SMU path is Force only (PG p154 (2-66)): no Kelvin role on
+    the gate."

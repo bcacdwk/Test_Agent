@@ -86,7 +86,7 @@ ProblemCode = Literal[
     "skill_layout", "generated_marker", "frontmatter", "budget", "link", "anchor", "card_sections", "card_recipe",
     "recipe_card", "card_knowledge", "card_debug", "analysis_method", "card_status", "param_table", "param_range",
     "example_plan", "card_confirmation", "citation", "card_layout", "card_modules", "card_routes", "card_stage",
-    "card_index", "stage", "command", "case", "steps",
+    "card_index", "stage", "command", "case", "steps", "todo_verify", "todo_owner", "todo_marker",
 ]
 
 _KEBAB = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"

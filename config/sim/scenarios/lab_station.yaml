@@ -2,9 +2,9 @@
 # The lab mainframe of blueprint v2 1.1 / 7.3 for bring-up rehearsals (skill b1500-bringup, stage L0 on the
 # simulator; acceptance S17): the identity and module inventory the lab's own records show, and no DUT (probes
 # lifted, nothing wired), so every terminal reads open. Evidence: *IDN? from the headers of
-# lwp/matlab_B1500/IdVg_test_*.csv (model and firmware only; the B1500A answers 0 in the serial field, PG PDF 440);
-# slots from lwp/matlab_B1500/B1500_Config.mat (UNT? 0: SPGU1=1, WGFMU1=2, HRSMU1=3, HRSMU2=4, MPSMU1=5, MPSMU2=6,
-# CMU1=7); slots 8-10 were not recorded (left empty here). The B1511B of slots 5/6 is the station example's guess
+# lwp/matlab_B1500/IdVg_test_*.csv (model and firmware only; the serial field reads 0, PG p440 (4-122)); slots from
+# lwp/matlab_B1500/B1500_Config.mat (UNT? 0: SPGU1=1, WGFMU1=2, HRSMU1=3, HRSMU2=4, MPSMU1=5, MPSMU2=6, CMU1=7);
+# slots 8-10 were not recorded (left empty here). The B1511B of slots 5/6 is the station example's guess
 # (B1511A or B: confirmed at L0). The two 16440A selectors (WP9.2) are cabled as in fefet_lab.yaml; nothing hangs on
 # their outputs. Noise, faults and timing as documented in nmos_basic.yaml.
 

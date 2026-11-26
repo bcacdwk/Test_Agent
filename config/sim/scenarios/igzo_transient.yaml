@@ -7,12 +7,13 @@
 # Truth (tests/integration/test_recipes_sampling.py asserts the analyses against it): model `mosfet` (EKV + the
 # stretched-exponential IGZO drift of models/sim_devices.py): under gate bias V the threshold rises towards
 # igzo_dvth_per_v x V as dV_inf x (1 - exp(-(t/tau)^beta)); tau 4 s and beta 0.5 put most of the relaxation inside
-# the lab's 40 s sampling window (4 ms x 10001 points), dV_inf 0.15 V at the lab's 3 V gate step. The drain current
-# relaxes accordingly (about -11 % at Vd 5 V, -7 % at 0.1 V); sampling_summary's stretched-exponential fit recovers
-# tau +-15 % and beta +-0.1 (blueprint 4.2 fidelity target). Device values are typical of oxide TFTs (Vth about 0.8 V,
-# SS about 180 mV/dec, beta = mu Cox W/L 2 uA/V^2), not a measured device; the drift time constant is chosen so a
-# short sampling shows it (real IGZO tau spans seconds to hours with temperature and bias). No IGZO DUT profile is
-# committed (acceptance S8: an unknown IGZO sample needs the human's pins and limits); the examples use nmos-generic.
+# the lab script's 40 s sampling window (4 ms x 10001 points), dV_inf 0.15 V at the lab script's 3 V gate step. The
+# drain current relaxes accordingly (about -11 % at Vd 5 V, -7 % at 0.1 V); sampling_summary's stretched-exponential
+# fit recovers tau +-15 % and beta +-0.1 (blueprint 4.2 fidelity target). Device values (Vth 0.8 V, SS about
+# 180 mV/dec, beta = mu Cox W/L 2 uA/V^2) are simulator example values, not a real-device value; the drift time
+# constant is chosen so a short sampling shows it (the time scale of a real IGZO device is not on record: from the
+# request or the DUT profile). No IGZO DUT profile is committed (acceptance S8: an unknown IGZO sample needs the
+# human's pins and limits); the examples use nmos-generic.
 # Noise: lab HRSMU floor (7e-14 A at 1 PLC, see lab_nmos_2025.yaml) and 0.1 % relative noise; the 4 ms interval
 # shortens the 1 PLC integration (MT, PG p475 (4-157)), so the short-integration multiplier (3x) applies.
 

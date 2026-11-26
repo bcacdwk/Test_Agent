@@ -20,7 +20,7 @@
   device clear switch every function off and the compensation mode back to auto; the data, list, references and
   compensation results stay (PG PDF 382, 388; Table 2-13). The ``cmu_correction_lost`` fault clears all of it, as a
   power cycle of the module would. ATV-21 (corrections persist until ``*RST`` or a power cycle and ``CORRST?`` reflects
-  them): as the manual states; TODO(verify) at bring-up L6.
+  them): as the manual states (same fact as ``catalog/kinds/cmu_correction.py``, "Hardware-bound").
 
 ``MM``/``XE`` dispatch by measurement mode (the WP5.2 handoff: "a second family that brings its own MM modes takes
 over"): the MFCMU modes 17-26 are set up and triggered here, every other mode goes to ``SmuUnit``. MM 18 takes the
@@ -400,7 +400,7 @@ class CmuUnit(CmuEngine):
     @handles("CORRL?")
     def _cmd_corrl_q(self, cmd: flex.Command) -> str:
         """``CORRL? chnum[,index]``: the number of listed correction frequencies, or the frequency at ``index`` (1 =
-        the first; error 120 outside the list) (PG PDF 385). Simulator convention (TODO(verify) at bring-up L6): the
+        the first; error 120 outside the list) (PG PDF 385). Simulator convention (TODO(verify)[L6.A5, L6.A8]): the
         list keeps the order it was written in and frequencies are answered as plain decimals."""
         flex.arity(cmd, 1, 2)
         channel = self._cmu_channel(cmd.args[0])
@@ -415,7 +415,7 @@ class CmuUnit(CmuEngine):
     @handles("DCORR?")
     def _cmd_dcorr_q(self, cmd: flex.Command) -> str:
         """``DCORR? chnum,corr``: ``mode,primary,secondary`` of the standard's reference value (PG PDF 389-390).
-        Simulator convention (TODO(verify) at bring-up L6): a standard never set by ``DCORR`` answers the ideal value
+        Simulator convention (TODO(verify)[L6.A2, L6.A8]): a standard never set by ``DCORR`` answers the ideal value
         0, 0 in its mode (open 100, short and load 400)."""
         flex.arity(cmd, 2, 2)
         channel = self._cmu_channel(cmd.args[0])
@@ -504,8 +504,8 @@ class CmuUnit(CmuEngine):
     def _cmd_corrdt_q(self, cmd: flex.Command) -> str:
         """``CORRDT? chnum,index``: ``freq,open_r,open_i,short_r,short_i,load_r,load_i`` of the ``index``-th listed
         frequency (open as G, B; short and load as R, X; PG PDF 384; error 120 outside the list). Simulator
-        convention (TODO(verify) at bring-up L6): a correction never measured at that frequency answers 0, 0 and
-        numbers are answered as plain decimals."""
+        convention: a correction never measured at that frequency answers 0, 0 (same fact as ``driver/cmu_data.py``
+        ``CorrectionData``) and numbers are answered as plain decimals."""
         flex.arity(cmd, 2, 2)
         channel = self._cmu_channel(cmd.args[0])
         freqs = self._cmu_persistent(channel).freqs

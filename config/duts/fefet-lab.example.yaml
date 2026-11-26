@@ -1,33 +1,47 @@
 # DUT profile (example; committed). Schema: b1500_test_agent.models.policy.DutProfile; name = file name.
-# n-channel HfZrO FeFET as the lab measures it (pin map fefet-sel: gate through selector SEL1 for SPGU program/erase
-# pulses and SMU reads); example values, not a real device. Per terminal: max |V| (V) and max |I| (A; also the largest
-# compliance) for DC sourcing (R-DUT-01); impedance class and minimum series resistance for sources without compliance
-# (R-SPGU-01); pulse envelope (R-PULSE-02). A plan outside the envelope needs confirmation (dut_envelope); a pulse on a
-# terminal without a pulse envelope is blocked. Nominal values help choose parameters and are never measurements.
+# The simulator's n-channel FeFET on the lab's selector wiring (scenario fefet_lab, pin map fefet-sel: gate through
+# selector SEL1 for SPGU program/erase pulses and SMU reads, as lwp/matlab_B1500/lib/SPGU_pulse.m drives it). Only the
+# wiring is the lab's ("lab" in the name); the device is NOT the lab's FeFET and every value below is an example.
+# Per terminal: max |V| (V) and max |I| (A; also the largest compliance) for DC sourcing (R-DUT-01); impedance class
+# and minimum series resistance for sources without compliance (R-SPGU-01); pulse envelope (R-PULSE-02). A plan
+# outside the envelope needs confirmation (dut_envelope); a pulse on a terminal without a pulse envelope is blocked.
+# Nominal values and geometry: simulator example (scenario fefet_lab), not a real-device value. They are the device
+# values and operating levels of the simulated FeFET (config/sim/scenarios/fefet_lab.yaml: vth0 0.6 V, memory window
+# about 1 V, coercive gate voltage 2.8 V, NLS switching in microseconds at 4-5 V), so a plan on the simulator can take
+# its levels from here. The lab's own FeFETs need their own profile (config/local/duts/) with the human's values;
+# until then their Vc, Vth, memory window and pulses are unknown (knowledge 04 asks for the stacks and pulses).
 
 device_type: fefet
-description: Lab n-channel FeFET (example envelope; program/erase pulses on the gate through SEL1).
+description: >-
+  Simulator FeFET (scenario fefet_lab) on the lab's selector wiring: program/erase pulses on the gate through SEL1;
+  example envelope and levels, not the lab's device.
 terminals:
   gate:
     max_abs_v: 5.0
     max_abs_i: 1.0e-3
     impedance: high_z           # insulated gate stack: the SPGU short-circuit bound becomes a residual in the summary
-    pulse: {max_abs_v: 5.0, max_width_s: 1.0e-3, max_duty: 0.5, max_count: 1000000}
+    pulse: {max_abs_v: 5.0, max_width_s: 1.0e-3, max_duty: 0.5, max_count: 1000000}   # example envelope
   drain:
     max_abs_v: 1.0
     max_abs_i: 1.0e-3
     impedance: resistive
-    min_series_ohm: 1000.0      # channel + contact resistance at full inversion (example)
-  source:
+    min_series_ohm: 1000.0      # example: a conservative lower bound for the short-circuit check; use the smallest
+  source:                       # series resistance (channel + contacts at full inversion) you know for your device
     max_abs_v: 1.0
     max_abs_i: 1.0e-3
     impedance: resistive
     min_series_ohm: 1000.0
-geometry: {w_um: 10.0, l_um: 1.0, tox_nm: 10.0}   # analysis only (e.g. current per width); tox = ferroelectric + IL
-nominal:
-  vth: {value: 0.6, unit: V}
-  memory_window: {value: 1.0, unit: V}
-  vc: {value: 2.8, unit: V}
+geometry: {w_um: 10.0, l_um: 1.0, tox_nm: 10.0}   # analysis only; simulator example (tox = ferroelectric + IL)
+nominal:                                  # simulator example (scenario fefet_lab), not a real-device value
+  vth: {value: 0.6, unit: V}              # threshold at zero polarization
+  memory_window: {value: 1.0, unit: V}    # saturated loop
+  vc: {value: 2.8, unit: V}               # coercive gate voltage of the DC loop
+  v_program: {value: 4.0, unit: V}        # program pulse at the gate (fefet.pulse_write_read and the other FeFET
+  v_erase: {value: -4.0, unit: V}         # recipes); erase pulse
+  width: {value: 1.0e-6, unit: s}         # program/erase width: switches the simulated film in about a microsecond
+  read_vg_max: {value: 1.8, unit: V}      # highest gate level of a read sweep: below vc
 notes:
-  - Program/erase amplitude and width must be reviewed against film thickness and coercive field before any run.
-  - Reads use conservative SMU I-V settings (|Vg| well below the coercive voltage, Vd 0.1 V).
+  - "Levels (nominal): simulator example (scenario fefet_lab), not a real-device value. Program at v_program, erase
+    at v_erase, both of width; reads stay at or below read_vg_max."
+  - The lab's FeFETs are not described here; their program/erase pulses and read range come from the human.
+  - Reads use conservative SMU I-V settings (Vd 0.1 V or below).

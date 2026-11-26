@@ -58,8 +58,8 @@ belong to the MFCMU landing.
 |---|---|---|---|---|---|
 | `freqs_hz` | [100] kHz | 10 kHz..1 MHz | 1 kHz..5 MHz | reactance 1/(2πfC): about 27 kOhm for the profile's example 60 pF | one double sweep each |
 | `ac_vrms` | 30 mV | 10..50 mV | 10..250 mV | small against Vc | above 50 mV: `soft_cmu` |
-| `v_start` | -3 V | - | -25..25 V | one saturated polarity: example default, about 2x your film's Vc (ask) | the hold poles the film |
-| `v_stop` | 3 V | - | -25..25 V | the other polarity: example default (ask) | turning point |
+| `v_start` | -3 V | - | -25..25 V | one saturated polarity, about 2x the film's Vc: the request, else the DUT profile (`-sweep_v`), else ask; example default | the hold poles the film |
+| `v_stop` | 3 V | - | -25..25 V | the other polarity: the request, else the DUT profile (`sweep_v`), else ask | turning point |
 | `points` | 121 | 61..241 | 21..1001 | >= 5 points across each peak | step = span/(points-1) |
 | `sweep_mode` | double | double | single, double | both branches for Vc | 2 x points |
 | `hold_s` | 1 s | 0.5..5 s | 0..60 s | pole at `v_start` | WTDCV hold |

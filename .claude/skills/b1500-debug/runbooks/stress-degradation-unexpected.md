@@ -48,8 +48,8 @@ sources: [knowledge 05 sections BTI/HCI/SILC/TDDB and "Stress-measure analysis" 
 ## Do not
 
 - Rerun on the same stressed device and average with the first run; stress is cumulative.
-- Raise the stress voltage or time to "get a shift": stress levels are the human's values for this device (a new
-  plan, new consent, the human's decision), never a debug fix.
+- Raise the stress voltage or time to "get a shift": stress levels come from the human's request or DUT profile
+  (a new plan, new consent, the human's decision), never a debug fix.
 - Fit the exponent over a window chosen to match the literature; report the window and points used.
 
 ## Stop and call safe_shutdown

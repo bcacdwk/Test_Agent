@@ -110,6 +110,7 @@ Cards cite `knowledge/<file>.md#<heading-id>` (GitHub heading ids). Renaming a h
 - [Charge pumping](05-reliability-defects.md#charge-pumping)
 - [Oxide traps SILC and charge trapping](05-reliability-defects.md#oxide-traps-silc-and-charge-trapping)
 - [IGZO instability mechanisms](05-reliability-defects.md#igzo-instability-mechanisms)
+- [Stress-measure analysis](05-reliability-defects.md#stress-measure-analysis)
 - [Ferroelectric wake-up imprint and fatigue](05-reliability-defects.md#ferroelectric-wake-up-imprint-and-fatigue)
 
 ### 06 analysis and extraction
@@ -260,16 +261,20 @@ ranges and error codes. Prefer PG, WG, SEL and CC; WG5 only where an extract cit
   (named as a software default) or textbook physics and method conventions (the relation or bound itself). A number
   without one is left blank with one marker that names what is unknown and how to get it, in one short line:
   - `TODO(owner)`: only the owner knows it (device, film, process, station, lab practice). A colon and the exact
-    question follow the marker, ending with `?`; it goes on the owner's question list.
+    question follow the marker, ending with `?`; `uv run b1500 dev gen-index` collects it into the owner's
+    question list `docs/open-questions.md`.
   - `TODO(verify)[<step ids>]`: a hardware measurement gives it; the brackets name the bring-up steps of
     `.agents/skills/b1500-bringup/steps.yaml` that record it (`TODO(verify)[L2.A8]`; several separated by commas).
   - `TODO(cite)`: a literature value or claim that needs a checked source (a book or paper page actually read).
+  - Text about the markers uses `TODO(owner|verify|cite)` or a placeholder; `uv run b1500 dev lint-skills` checks
+    every marker (step ids exist, each owner question ends with `?`).
 - A blank is reported, never filled. A value marked `TODO(owner)`, `TODO(verify)` or `TODO(cite)`, or called
   unknown, is not a value: say that it is unknown for the human's device, then ask the human or name the bring-up
   step. Never fill it from general knowledge, the simulator or an example file, and never use it as a typical value,
   an expectation or a pass/fail criterion. Re-measure on your own only inside ranges that have a source or that the
-  human gave; device ranges without one (FeFET program, read and sweep levels, stress levels, IGZO time scales)
-  need the human's values first.
+  human gave. Device levels (FeFET program, read and sweep levels, FeCap amplitudes, stress levels, IGZO time
+  scales) come from the request, else from the DUT profile (`nominal` in its file: the human's values, or in a
+  committed example the labelled simulator values), else ask the human.
 - Simulator values appear only labelled "simulator example (scenario `<name>`), not a real-device value"; they
   are never expectations for a real device. Recipe, analysis and policy defaults are named as such ("recipe
   default", "example default: set it per device"), never as device recommendations. A bring-up tolerance that a step

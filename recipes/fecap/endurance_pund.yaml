@@ -9,7 +9,8 @@
 # read reads the pristine film). Each step is one WGFMU execution; long plans run asynchronously (R-RUN-02: `running`,
 # progress via get_run, safe_shutdown cancels within one status poll; long_run confirms above 10 minutes).
 # Default analysis pund_polarization: Pr, Ps, Ec of the last read and over the reads Pr initial/max, wake-up,
-# fatigue and cycles to failure (Pr below half its maximum).
+# fatigue and cycles to failure (Pr below half its maximum: a convention; set the analysis option fail_fraction
+# from your spec).
 # status: sim_validated by tests/integration/test_recipes_pund.py (fecap_basic: Pr at every checkpoint within 5 % of
 # the model's wake-up/fatigue truth; asynchronous with checkpoints and cancel, both buses clean); hw_validated only
 # through a validation record.
@@ -42,12 +43,15 @@ params:
                 range: [1.0, 1.0e+9], doc: "Cumulative cycle counts of the reads when cycle_reads is list (integers)."}
   cycle_period: {unit: s, default: 1.0e-4, recommended: [1.0e-5, 1.0e-3], range: [1.0e-7, 1.0],
                  doc: "Period of one bipolar cycle (v_program pulse, v_erase pulse half a period later)."}
-  v_program: {unit: V, default: 3.0, recommended: [2.0, 4.0], range: [-10.0, 10.0],
-              doc: Cycling level of the first pulse of each cycle (positive polarization).}
-  v_erase: {unit: V, default: -3.0, recommended: [-4.0, -2.0], range: [-10.0, 10.0],
-            doc: Cycling level of the second pulse of each cycle (negative polarization).}
+  v_program: {unit: V, default: 3.0, range: [-10.0, 10.0],
+              doc: "Cycling level of the first pulse of each cycle (positive polarization): example default;
+                from the request or the DUT profile (about 2-3 x your Vc), else ask."}
+  v_erase: {unit: V, default: -3.0, range: [-10.0, 10.0],
+            doc: "Cycling level of the second pulse of each cycle (negative polarization): example default;
+              from the request or the DUT profile, else ask."}
   width: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-4], range: [1.0e-8, 1.0e-3],
-          doc: Flat time of each cycling pulse.}
+          doc: "Flat time of each cycling pulse (WGFMU minimum pulse width 100 ns in PG mode, 300 ns in Fast IV
+            mode, WG p16 (1-4))."}
   t_edge: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-5], range: [1.0e-8, 1.0e-3],
            doc: "Leading and trailing time of the cycling pulses (each half period > 2 t_edge + width)."}
   sequence: {type: enum, choices: [program_erase, erase_program], default: program_erase,
@@ -57,7 +61,10 @@ params:
   schedule: {type: enum, choices: [cycles], default: cycles, doc: "Schedule (cycles with checkpoint reads)."}
   read_kind: {type: enum, choices: [wgfmu], default: wgfmu, doc: "The WGFMU reads (a PUND)."}
   wgfmu_read: {type: enum, choices: [pund], default: pund, doc: "The read at each checkpoint: a PUND sequence."}
-  v_max: {unit: V, default: 3.0, recommended: [2.0, 4.0], range: [0.1, 10.0], doc: PUND read amplitude.}
+  v_max: {unit: V, default: 3.0, range: [0.1, 10.0],
+          doc: "PUND read amplitude: example default for a film with Vc about 1 V (simulator example, scenario
+            fecap_basic, not a real-device value); about 2-3 x your Vc (rule of thumb, not checked) from the
+            request or the DUT profile, else ask."}
   rise: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-4], range: [1.0e-7, 1.0e-2],
          doc: PUND ramp time 0 V -> v_max (and back).}
   plateau: {unit: s, default: 0.0, recommended: [0.0, 1.0e-5], range: [0.0, 1.0e-2],
@@ -75,6 +82,7 @@ analysis_defaults:
 provenance:
   sources:
     - blueprint v2 2.7 (kind pulse_read, WGFMU source and read), 2.10 (pund_polarization), 3.4 (fecap.endurance_pund), 4.2 ferro FeCap (wake-up/fatigue)
-    - Keysight Advanced NVM Application Tests User's Guide (AN-NVM; FeRAM endurance with PUND checkpoints; TODO(verify) the page at L9)
+    - Keysight Advanced NVM Application Tests User's Guide, FeRAM Endurance test, AN-NVM p72-74 "FeRAM Endurance"
+      (PUND stress cycles; PUND characterization a set number of times per decade of cycles)
     - WGFMU guide Ed. 8 addSequence count limits (PDF 80), setMeasureEvent (PDF 125-126)
   validation_runs: []

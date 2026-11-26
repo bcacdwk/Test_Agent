@@ -50,6 +50,7 @@ from b1500_test_agent.devtools.skills.common import (
 from b1500_test_agent.devtools.skills.index import check_index
 from b1500_test_agent.devtools.skills.layout import check_skill_front, skill_files
 from b1500_test_agent.devtools.skills.links import check_links
+from b1500_test_agent.devtools.skills.markers import check_markers
 from b1500_test_agent.devtools.skills.stages import check_bringup, check_steps, missing_stage_notes, steps_note
 from b1500_test_agent.devtools.sync_harness import SKILL_FILE, SOURCE_DIR
 from b1500_test_agent.manuals.catalog import ManualError, load_catalog
@@ -155,6 +156,7 @@ def lint_skills(root: Path | None = None, *, recipes_dir: Path | None = None, co
             lint.notes.append(message + " - estimate only, re-check with the tiktoken encoding")
     check_citations(lint)
     check_commands(lint)
+    check_markers(lint, {spec.id for spec in steps.all()} if steps is not None else None)
     if steps is not None:
         lint.notes.append(steps_note(steps))
     problems = sorted(lint.problems, key=lambda p: (p.file, p.line or 0, p.code, p.message))

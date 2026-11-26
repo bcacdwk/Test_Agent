@@ -4,7 +4,8 @@
 # listed) cumulative stress times by a sense of a few microseconds: the gate steps through vg_points levels
 # vg_start..vg_stop (read_kind staircase; spot: one step at vg_read) while the drain WGFMU holds vd and measures Id on
 # irange, then the gate returns to the stress level. The gate leaves its stress level for read_s = steps x (edge +
-# width) + edge only, so the shift hardly recovers before it is read (an SMU read takes seconds: reliability.bti_sms).
+# width) + edge only, so much less recovery happens than during an SMU read (seconds: reliability.bti_sms); how much
+# is unknown per technology (the bring-up device: TODO(verify)[L9.A9]).
 # A reference read precedes the stress; with recovery_time > 0 the gate then rests at vg_recovery and is read at
 # log-spaced recovery times. The WGFMU runs the schedule in executions of up to 25 s of sequencer time (checkpoints
 # every 10 s; runs longer than max_sync_run_s are asynchronous, longer than long_run_confirm_s confirmed: long_run;
@@ -64,12 +65,14 @@ params:
   vg_stop: {unit: V, default: 1.0, recommended: [0.8, 1.5], range: [-10, 10], doc: Last gate sense level.}
   vg_points: {type: int, default: 17, recommended: [9, 33], range: [2, 201],
               doc: "Gate sense levels of a staircase read (each edge + width long)."}
-  vg_read: {unit: V, default: 0.5, range: [-10, 10], doc: "Gate level of a spot read (near the reference Vth)."}
+  vg_read: {unit: V, default: 0.5, range: [-10, 10],
+            doc: "Gate level of a spot read: near YOUR device's Vth from the reference read (0.5 V fits the
+              simulator example, scenario nmos_bti, not a real-device value)."}
   vd: {unit: V, default: 0.1, recommended: [0.05, 0.1], range: [-5, 5], doc: Drain level during the senses (linear region).}
   vd_stress: {unit: V, default: 0.0, range: [-5, 5], doc: "Drain during the stress (0 V for BTI)."}
   irange: {type: enum, choices: [1ua, 10ua, 100ua, 1ma, 10ma], default: 100ua,
            doc: "Drain current range (full scale; no compliance: over-range reads saturate, status V, and stop the run)."}
-  edge: {unit: s, default: 1.0e-7, recommended: [5.0e-8, 1.0e-6], range: [1.0e-8, 1.0e-5],
+  edge: {unit: s, default: 1.0e-7, recommended: [7.0e-8, 1.0e-6], range: [1.0e-8, 1.0e-5],
          doc: "Transition between levels (10 ns grid)."}
   width: {unit: s, default: 1.0e-6, recommended: [5.0e-7, 1.0e-5], range: [2.0e-8, 1.0e-3],
           doc: "Flat time of each sense step (10 ns grid)."}
@@ -85,5 +88,6 @@ provenance:
   sources:
     - blueprint v2 3.4 row wgfmu.fast_bti (reserved id), 2.7 kind stress_measure (WGFMU stress), 2.7.1 builder fast_bti
     - WGFMU guide Ed. 8 Examples 10 and 11 (SMU with the WGFMU in one session, PDF 66-69), setMeasureEvent (PDF 125-126), RSU (PDF 19-20)
-    - Kaczer et al., IRPS 2008 (power-law BTI, recovery); ultra-fast BTI practice (microsecond senses; TODO(verify) per technology)
+    - Kaczer et al., IRPS 2008 (power-law BTI, recovery; not page-checked, TODO(cite)); microsecond senses as
+      ultra-fast BTI general practice (TODO(cite))
   validation_runs: []

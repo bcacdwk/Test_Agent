@@ -16,20 +16,20 @@ Formats from the Keysight B1500 Series Programming Guide, Edition 15 ("PG"; PDF 
 - ``*LRN? 31`` (PDF 448, printed 4-130): ``TM trigger mode;AV number[,mode];CM auto calibration mode;FMT format,
   mode[;MM mode[,chnum...]]`` (``;``-separated items, each a mnemonic followed by its comma-separated parameters).
   The manual prints the syntax with a blank after each mnemonic but no example; the parser accepts the item with
-  or without the blank. TODO(verify) the exact response text with a raw capture at bring-up L1.
+  or without the blank. TODO(verify)[L0.A7]: the exact response text (the probe capture holds ``*LRN? 31``).
 
 - Small-integer state queries of the bring-up probe (blueprint v2 7.1, WP6.1): ``ERMOD?`` (PDF 420-421, printed
   4-102 to 4-103: the sum of the enabled digital I/O control modes, 0-63), ``ERSSP? port`` (PDF 434, printed 4-116:
   0 open, 1 SMU, 2 PGU, 3 PGU open), ``SPST?`` (PDF 513-514, printed 4-195 to 4-196: 0 inactive, 1 active),
   ``CORRST? chnum,corr`` (PDF 388, printed 4-70: 0 OFF, 1 ON) and ``ADJ? chnum,mode`` (PDF 356, printed 4-38:
   0 completed, 1 failed, 2 aborted, 3 not performed). Each answers one integer; a leading ``+`` is accepted (the
-  lab firmware signs ``ERRX?`` codes, so it may sign these too). TODO(verify) raw captures at bring-up L0.
+  lab firmware signs ``ERRX?`` codes, so it may sign these too). TODO(verify)[L0.A7, L7.A13]: raw captures.
 
 - ASU state (WP7.1): ``*LRN? 62`` (PDF 451, printed 4-133) answers ``SAP chnum,path[;SAP chnum,path]...`` (path 0
   SMU, 1 AUX) and ``*LRN? 63`` ``SAR chnum,mode[;SAR chnum,mode]...`` (mode 0 = 1 pA auto ranging enabled, 1 =
   disabled), one item per SMU with an ASU. The manual prints no example and does not say what a mainframe without an
-  ASU answers; the parser takes an empty answer (or the bare mnemonic) as "no ASU". TODO(verify) raw captures at
-  bring-up L1/L2 (ATV-28, ASU presence).
+  ASU answers; the parser takes an empty answer (or the bare mnemonic) as "no ASU". TODO(verify)[L0.P2, L1.A8]:
+  ASU presence (ATV-28) and raw captures.
 - ``CORRSER? chnum,mode,delay,interval,count`` (PDF 386, printed 4-68): ``loadZ,voltage`` (the impedance calculated
   from the measured terminal voltage, and that voltage). Unused: no measurement kind calls
   ``SpguOps.measure_pulse_load``, so no bring-up stage sends or captures ``CORRSER?`` (v2.1 plan §4.6); the parser

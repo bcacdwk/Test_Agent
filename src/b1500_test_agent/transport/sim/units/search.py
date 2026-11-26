@@ -34,7 +34,7 @@ time):
   0) or the source current (mode 1, the compliance value at a detection) of the measurement channel; then the source
   returns to start. Ramp time ``|X - start| / slew`` with 60 V/ms (short) or 6 V/ms (long).
 
-Simulator conventions (``TODO(verify)`` at bring-up stages L5/L9): the programmed level of a search step (and the
+Simulator conventions (TODO(verify)[L5.A4, L9.A7]): the programmed level of a search step (and the
 quasi-pulse at the detection) is committed to stateful devices when the source is limited, because an abrupt
 breakdown (``dielectric``) happens on the way to it and the compliance acts only afterwards; a reading after a hard
 breakdown is the detection voltage (the instrument might read the collapsed, compliance-limited voltage); ``G`` of

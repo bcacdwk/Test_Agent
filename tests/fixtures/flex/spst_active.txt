@@ -2,5 +2,5 @@
 # kind: spst
 # command: SPST?
 # expect: {"active": true}
-# note: synthetic answer 1 (an SPGU pulse output running). TODO(verify) the raw answer at bring-up L7 (ATV-19).
+# note: synthetic answer 1 (an SPGU pulse output running). TODO(verify)[L7.A13] the raw answer (ATV-19; the pulse train capture, `SPST?` 1 while it runs).
 1

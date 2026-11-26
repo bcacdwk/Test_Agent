@@ -43,10 +43,15 @@ params:
     unit: V
     default: [-2.0]
     range: [-10.0, 10.0]
-    doc: Gate base levels (one train set per level; several values = base-level charge pumping).
-  amplitude: {unit: V, default: 4.0, recommended: [2.0, 5.0], range: [0.1, 10.0], doc: Pulse amplitude (top = base + amplitude).}
+    doc: "Gate base levels (one train set per level; several values = base-level charge pumping): below your
+      Vfb (from a moscap or cgc C-V); -2 V fits the simulator's nmos_cv device (Vfb -0.62 V, Vth 0.7 V), not a
+      real-device value."
+  amplitude: {unit: V, default: 4.0, recommended: [2.0, 5.0], range: [0.1, 10.0],
+              doc: "Pulse amplitude (top = base + amplitude, above your Vth): example default for the simulator's
+                nmos_cv device; set it from a C-V of your device."}
   duty: {unit: "1", default: 0.5, recommended: [0.3, 0.5], range: [0.05, 0.5], doc: Width / period.}
-  t_edge: {unit: s, default: 1.0e-7, recommended: [2.0e-8, 1.0e-6], range: [8.0e-9, 1.0e-5], doc: Rise and fall time of the gate pulses.}
+  t_edge: {unit: s, default: 1.0e-7, recommended: [2.0e-8, 1.0e-6], range: [8.0e-9, 1.0e-5],
+           doc: "Rise and fall time of the gate pulses (HV-SPGU from 8 ns, UG p76 (2-36))."}
   frequency:
     type: float_list
     unit: Hz
@@ -67,6 +72,7 @@ analysis_defaults:
 provenance:
   sources:
     - blueprint v2 3.3 (mosfet.charge_pumping, scenario nmos_cv), 2.7 (spgu_pulse with SMU spot during the train)
-    - Groeseneken, Maes, Beltran, De Keersmaecker, IEEE TED 31, 42 (1984) (charge-pumping current and energy window)
+    - Groeseneken, Maes, Beltran, De Keersmaecker, IEEE TED 31, 42 (1984) (charge-pumping current and energy window;
+      not page-checked)
     - Programming Guide Ed. 15 SPGU (PDF 141-151), MM 1 (PDF 470-471), SPST? (PDF 513-514)
   validation_runs: []

@@ -2,5 +2,5 @@
 # kind: ermod
 # command: ERMOD?
 # expect: {"value": 28, "selector": false}
-# note: the manual example; bit value 1 (16440A selector control mode) is clear, so the read-only probe does not read ERSSP?. TODO(verify) the raw answer at bring-up L0.
+# note: the manual example; bit value 1 (16440A selector control mode) is clear, so the read-only probe does not read ERSSP?. TODO(verify)[L0.A7] the raw answer (probe capture `ermod`).
 28

@@ -10,7 +10,7 @@ sources: [general practice (triage order; not checked against a source), example
 ## Symptom
 
 - `moscap.cv`, `mosfet.cgc_cv`/`cgd_cv`, `fecap.cv_butterfly` or `cmu.spot`: Cmax above the expected Cox (from the
-  human's area and oxide thickness or EOT: ask; the DUT profile's nominal values are examples, not expectations), a
+  human's area and oxide thickness or EOT: ask; an example profile's nominal values are no expectations), a
   stretched or humped depletion, a kink or step, C below Cmin in inversion, negative C or G, the two branches of a
   double sweep far apart, scatter at small C.
 - `quality_report` or the run's status counts show MFCMU `U`/`D`/`V`; `cv_cox`, `cv_flatband` or

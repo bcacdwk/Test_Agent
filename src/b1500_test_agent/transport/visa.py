@@ -17,7 +17,7 @@ transaction's cleanup sends a device clear (as in v1). The resource manager is i
 with the library string, returns an object with ``open_resource``/``close``); the visa-loop tests
 (``tests/visa_loop/``) run this class unchanged against the simulator that way.
 
-TODO(verify) ATV-13 at bring-up L0/L1 (blueprint 7.6 item 1): open + lock + unlock + close per transaction stays
+TODO(verify)[L0.P4, L1.A4] ATV-13 (blueprint 7.6 item 1): open + lock + unlock + close per transaction stays
 below 100 ms over GPIB (``bus_*`` audit events carry ``dur_ms``); fallback ``visa.session: process``.
 """
 
@@ -258,8 +258,8 @@ class VisaTransport:
 
     def write_block(self, cmd: str, data: bytes) -> None:
         """``cmd`` with the write termination, then ``data`` as raw bytes (``write_raw``; PG PDF 360-361 ``ALS``,
-        361-362 ``ALW``: "send the data just after the command"). TODO(verify) at bring-up L7 (blueprint 7.6 items 3,
-        9) that the B1500 takes the block as the message after the terminated header; fallback: one ``write_raw`` of
+        361-362 ``ALW``: "send the data just after the command"). TODO(verify)[L7.A4] (blueprint 7.6 items 3, 9)
+        that the B1500 takes the block as the message after the terminated header; fallback: one ``write_raw`` of
         header + LF + block."""
         inst = self._require_open()
         writer = getattr(inst, "write_raw", None)

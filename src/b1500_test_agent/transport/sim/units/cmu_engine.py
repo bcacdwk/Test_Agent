@@ -31,10 +31,11 @@ MFCMU measurements on the scenario circuit, independently of ``driver/cmu_data.p
   ``V`` fills the rest with ``199.999E+99``; the source returns to the start value after an abort, else to the post
   value.
 
-Simulator conventions (not from the manual; TODO(verify) at bring-up L6): ``ACT`` auto mode averages N x 8 ms per
-point, PLC mode N / 50 Hz; a fixed ``RC`` range more than 100 x the measured |Z| saturates the IV amplifier (status
-``D``); ``CORR?`` takes 50 ms per listed frequency and ``ADJ?`` mode 1 30 s; corrections act only at listed
-frequencies (exact match), anywhere else the reading stays uncorrected.
+Simulator conventions (not from the manual; TODO(verify)[L6.A2, L6.A4, L6.A5]): ``ACT`` auto mode averages N x 8 ms
+per point, PLC mode N / 50 Hz; ``CORR?`` takes 50 ms per listed frequency and ``ADJ?`` mode 1 30 s; corrections act
+only at listed frequencies (exact match), anywhere else the reading stays uncorrected. A fixed ``RC`` range more than
+100 x the measured |Z| saturates the IV amplifier (status ``D``): simulator convention, unreachable: every kind sets
+the auto range (``catalog/kinds/cmu_measure.py`` calls ``B1500Driver.set_cmu_range(ch)``, ``RC ch,0``).
 """
 
 from __future__ import annotations

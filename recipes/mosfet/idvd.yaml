@@ -1,7 +1,8 @@
 # Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
 # MOSFET output family (Id-Vd): drain staircase sweep for each gate step (host loop over the gate role). Drain sweep
 # reused from the v0.2 idvd example (Vds 0..3 V, 101 points, 1 mA compliance); gate steps 0.5..1.5 V in 5 steps
-# (WP2.2; the v0.2 2.0 V top step drives the reference device into the 1 mA compliance of the DUT envelope).
+# (WP2.2; the v0.2 2.0 V top step drives the simulator's nmos_basic device into the 1 mA compliance of the DUT
+# envelope). Gate steps and drain range are example defaults: set them per device.
 # Kind smu_stepped: one drain sweep per gate step (start/stop/points), all in one transaction; the loop stops after
 # a sweep in compliance. Table: gate_V = the step level of each curve. Analysis output_metrics (Ron, gds, Vd_sat per
 # curve). Self-heating and compliance: keep the drain compliance inside the DUT profile.
@@ -43,7 +44,6 @@ analysis_defaults:
   - {method: output_metrics}
 provenance:
   sources:
-    - deck slide 6
     - v0.2 references/recipes/mosfet/idvd.example.yaml (tag archive/v0.2-fake-mcp)
     - Programming Guide Ed. 15 WV (PDF 568-569), DV, WM (PDF 552-553), FMT (PDF 436-438)
   validation_runs: []

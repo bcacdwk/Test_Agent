@@ -13,8 +13,8 @@
 #   long batch run                        -> R-RUN-01/02 (run_limits; long_run confirmation)
 #   destructive or breakdown test         -> R-ALWAYS-01 (recipe always_confirm: destructive)
 #   zero outputs on error                 -> always done by the transaction cleanup (not configurable)
-# Module ratings (e.g. MPSMU/HRSMU +-100 V, HV-SPGU +-40 V open load, WGFMU +-10 V, MFCMU 25 V DC / 0.25 Vrms) are
-# code data in driver/modules.py.
+# Module ratings (e.g. MPSMU/HRSMU +-100 V, UG p63 (2-23), UG p69 (2-29); HV-SPGU +-40 V open load, UG p76 (2-36);
+# WGFMU +-10 V, WG p16 (1-4); MFCMU 25 V DC / 0.25 Vrms, UG p73 (2-33)) are code data in driver/modules.py.
 
 hard_limits: {max_abs_voltage_v: 42.0, max_abs_compliance_a: 0.1}   # above → blocked; may only tighten the code ceiling
 soft_limits: {voltage_v: 10.0, compliance_a: 0.01}                  # above → needs_confirmation (soft_limit)

@@ -14,6 +14,7 @@
 #   peaks at +Vc and a descending one at -Vc (FecapDevice.butterfly_truth).
 # Both: 50 um x 50 um (2500 um2, the DUT profile fecap-generic's geometry), 10 nm film, Pr 20 uC/cm2, Ps 25 uC/cm2,
 # Ec 1 MV/cm (Vc = 1.0 V), eps_r 30 (C_lin = 66.4 pF), k_rev 0.05, no leakage; initial state P = 0 (virgin).
+# Simulator example values, not a real-device value (no measured film is on record).
 # WP10.6: the WGFMU landing `dut` also wakes up and fatigues with bipolar cycles (models/sim_devices.py
 # EnduranceParams; the switchable polarization scales by s(N) = (1 - 0.15 exp(-N/100)) / (1 + sqrt(N/1e6)): a
 # pristine film switches 85 % of the woken Pr, Pr peaks near 1e3 cycles and halves near 1e6), so the endurance PUND
@@ -76,7 +77,7 @@ models:
       p_init: 0.0
   path:
     model: fixture
-    params: {}                  # blueprint 4.2 defaults (models.sim_devices.FixtureParams); TODO(verify) at M12 L6
+    params: {}                  # blueprint 4.2 defaults (sim_devices.FixtureParams); station: TODO(verify)[L6.A2]
 noise:
   floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13, WGFMU: 2.0e-6}
   rel: 2.0e-4

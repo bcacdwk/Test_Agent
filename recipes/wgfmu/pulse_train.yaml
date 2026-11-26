@@ -31,14 +31,32 @@ roles:
   source: {function: ground, allow_gndu: true}
 params:
   builder: {type: enum, choices: [pulse_train], default: pulse_train, doc: Fixed waveform builder.}
-  vg_base: {unit: V, default: 0.0, recommended: [-1.0, 0.0], range: [-5.0, 5.0], doc: Gate level between pulses.}
-  vg_peak: {unit: V, default: 2.0, recommended: [1.0, 3.0], range: [-5.0, 5.0], doc: Gate pulse level.}
+  vg_base: {unit: V, default: 0.0, recommended: [-1.0, 0.0], range: [-5.0, 5.0],
+            doc: "Gate level between pulses: example default for the simulator's device (scenario
+              nmos_wgfmu), set it per device."}
+  vg_peak: {unit: V, default: 2.0, recommended: [1.0, 3.0], range: [-5.0, 5.0],
+            doc: "Gate pulse level: example default for the simulator's device (scenario
+              nmos_wgfmu), set it per device."}
   vd: {unit: V, default: 1.0, recommended: [0.05, 2.0], range: [-5.0, 5.0], doc: Drain bias held during the run.}
   irange: {type: enum, choices: [1ua, 10ua, 100ua, 1ma, 10ma], default: 1ma, doc: Drain current range (full scale).}
-  width: {unit: s, default: 1.0e-5, recommended: [1.0e-6, 1.0e-4], range: [1.0e-7, 1.0e-2], doc: Flat top of each pulse.}
+  width:
+    unit: s
+    default: 1.0e-5
+    range: [1.0e-7, 1.0e-2]
+    doc: "Flat top of each pulse.
+      WGFMU minimum pulse width 100 ns in PG mode, 300 ns in Fast IV mode (WG p16 (1-4)); at least the
+      recommended minimum pulse width of irange (WG5 p25 (1-15): 10 mA 145 ns, 1 mA 240 ns, 100 uA 950 ns,
+      10 uA 6.8 us, 1 uA 38.7 us; 47 us for 100 nA on the 1 uA range)."
   period: {unit: s, default: 1.0e-4, recommended: [1.0e-5, 1.0e-2], range: [1.0e-6, 1.0], doc: "Pulse period (> width + 2 edge)."}
-  edge: {unit: s, default: 1.0e-7, recommended: [1.0e-8, 1.0e-6], range: [1.0e-8, 1.0e-4], doc: Rise and fall time.}
-  settle: {unit: s, default: 1.0e-6, recommended: [1.0e-7, 1.0e-5], range: [0.0, 1.0e-3], doc: Time from each edge to the sampled window.}
+  edge: {unit: s, default: 1.0e-7, recommended: [7.0e-8, 1.0e-6], range: [1.0e-8, 1.0e-4],
+         doc: "Rise and fall time; at least 70 ns limits overshoot (WG5 p25 (1-15))."}
+  settle:
+    unit: s
+    default: 1.0e-6
+    range: [0.0, 1.0e-3]
+    doc: "Time from each edge to the sampled window;
+      at least the settling time of irange (WG5 p25 (1-15): 10 mA 125 ns, 1 mA 200 ns, 100 uA 820 ns,
+      10 uA 5.8 us, 1 uA 37 us)."
   count: {type: int, default: 100, recommended: [1, 10000], range: [1, 1000000], doc: Pulses of the train (sequence count).}
   samples: {type: int, default: 10, recommended: [1, 100], range: [1, 2000], doc: Contiguous averaged points on each flat top.}
   gate_mode: {type: enum, choices: [fastiv, pg], default: fastiv,

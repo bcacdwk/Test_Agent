@@ -57,7 +57,7 @@ Id-Vg read gives Vth. The nucleation-limited-switching fit gives `tau0`, `Va`, `
 
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
-| `amplitudes` | [3.2, 3.6, 4.0, 4.4, 4.8] V | - | -10..10 V | grid amplitudes (program direction): example default, span your film's coercive region (ask) | below Vc: small windows |
+| `amplitudes` | [3.2, 3.6, 4.0, 4.4, 4.8] V | - | -10..10 V | grid amplitudes (program direction), spanning the film's coercive region: the request, else the DUT profile (`vc`), else ask; example default | below Vc: small windows |
 | `widths` | [10 ns, 20 ns, 50 ns, 100 ns, 200 ns, 500 ns, 1 us, 2 us, 5 us, 10 us, 100 us] | - | 10 ns..1 ms | log-spaced example grid; reach beyond your film's saturation | span sets the fit window |
 | `grid_mode` | reset | - | reset, ispp | reset: NLS fit | ispp: cumulative, v50 |
 | `reset_read` | true | - | - | read after each reset | checks complete resets |
@@ -75,7 +75,7 @@ Id-Vg read gives Vth. The nucleation-limited-switching fit gives `tau0`, `Va`, `
 | `schedule` | grid | - | grid | amplitude x width grid | - |
 | `read_kind` | staircase | - | staircase, spot | Id-Vg per read | spot: no fit |
 | `vg_start` | -0.5 V | - | -5..5 V | read sweep start: example default | below your programmed Vth |
-| `vg_stop` | 1.8 V | - | -5..5 V | read sweep stop: example default; stays below your film's Vc (ask) | higher: read disturb |
+| `vg_stop` | 1.8 V | - | -5..5 V | read sweep stop, below the film's Vc: the request, else the DUT profile (`read_vg_max`), else ask; example default | higher: read disturb |
 | `vg_points` | 47 | 31..101 | 11..401 | 50 mV steps | fewer: shorter reads |
 | `vg_read` | 0.6 V | - | -5..5 V | spot read level: example default, between your two Vth | - |
 | `vd` | 50 mV | 20..100 mV | -1..1 V | read drain bias | larger: read disturb |

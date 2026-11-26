@@ -4,10 +4,10 @@ level), ``cv_butterfly`` (FeCap C-V double sweep) and the two-run ``cv_pulsed_vs
 ``cv.py``'s impedance conversions, curve loading and the MOS-C fit ``moscap_fit``. The definitions below are the
 source of knowledge file ``08-capacitance-cv.md`` (skill ``b1500-test``); change both together.
 
-**cf_dispersion** (Nicollian & Brews, *MOS Physics and Technology*, 1982, ch. 5, the conductance method). A C-f
-run at one DC bias in depletion: the measured parallel pair ``Cm``, ``Gm`` (after removing a series ``rs_ohm``)
-gives the interface-trap conductance ``Gp/w = w Cox^2 Gm / (Gm^2 + w^2 (Cox - Cm)^2)``. ``Cox`` comes from
-``cox_f`` (e.g. the ``cv_cox`` result of a C-V on the same device) or from the DUT geometry (``eps_ox eps0
+**cf_dispersion** (Nicollian & Brews, *MOS Physics and Technology*, 1982, ch. 5, the conductance method; not
+page-checked). A C-f run at one DC bias in depletion: the measured parallel pair ``Cm``, ``Gm`` (after removing a
+series ``rs_ohm``) gives the interface-trap conductance ``Gp/w = w Cox^2 Gm / (Gm^2 + w^2 (Cox - Cm)^2)``. ``Cox``
+comes from ``cox_f`` (e.g. the ``cv_cox`` result of a C-V on the same device) or from the DUT geometry (``eps_ox eps0
 area_um2 / tox_nm``, ``eps_ox`` 3.9 by default: an EOT estimate). The trap response is fitted over the
 frequencies: ``model: continuum`` (traps spread in energy, ``Gp/w = q A Dit ln(1 + (w tau)^2) / (2 w tau)``, peak
 ``0.402 q A Dit`` at ``w tau = 1.98``) or ``single`` (one level, ``q A Dit w tau / (1 + (w tau)^2)``, peak
@@ -17,14 +17,14 @@ towards midgap the peak moves to lower, towards flatband to higher frequencies).
 C(f_high) - 1``: the traps' (and minority carriers') capacitance that only low frequencies see. One bias gives Dit
 at one energy; ``dit_conductance`` maps Dit(E) over biases.
 
-**ct_recovery** (Zerbst 1966; Nicollian & Brews ch. 9). After a step from accumulation into inversion the surface is
-in deep depletion; minority carriers are generated and the inversion layer forms. In the depletion approximation
-``1/C^2`` is linear in the inversion charge at a fixed gate bias, so its relaxation is fitted directly: ``1/C^2 =
-y_inf + (y0 - y_inf) exp(-(t/tau)^beta)`` (``reliability.fit_stretched_exponential``; ``beta`` = 1 for a single
-time constant) over ``t_s`` (``t_min``..``t_max``), reporting ``tau_recovery`` (s), ``beta``, ``c_initial`` (the
-deep-depletion capacitance at the step, ``y0^-1/2``) and ``c_final`` (equilibrium, ``y_inf^-1/2``). ``tau`` is the
-inversion-layer formation time; turning it into a generation lifetime needs the doping and the Zerbst plot (ad-hoc,
-``work/``). A record shorter than three ``tau`` makes ``c_final`` an extrapolation (warning).
+**ct_recovery** (Zerbst 1966; Nicollian & Brews ch. 9; not page-checked). After a step from accumulation into
+inversion the surface is in deep depletion; minority carriers are generated and the inversion layer forms. In the
+depletion approximation ``1/C^2`` is linear in the inversion charge at a fixed gate bias, so its relaxation is fitted
+directly: ``1/C^2 = y_inf + (y0 - y_inf) exp(-(t/tau)^beta)`` (``reliability.fit_stretched_exponential``; ``beta`` = 1
+for a single time constant) over ``t_s`` (``t_min``..``t_max``), reporting ``tau_recovery`` (s), ``beta``,
+``c_initial`` (the deep-depletion capacitance at the step, ``y0^-1/2``) and ``c_final`` (equilibrium, ``y_inf^-1/2``).
+``tau`` is the inversion-layer formation time; turning it into a generation lifetime needs the doping and the Zerbst
+plot (ad-hoc, ``work/``). A record shorter than three ``tau`` makes ``c_final`` an extrapolation (warning).
 
 **cv_ac_dependence**. The MFCMU reports the fundamental of the current; on a curved C-V the capacitance at bias ``V0``
 measured with an oscillator level ``Vac`` is ``C(V0) + C''(V0) Vac^2 / 4`` to second order (the describing function
@@ -33,12 +33,12 @@ and the curvature (``fit.d2c_dv2``); ``ac_limit`` (V rms) is the level where the
 ``tolerance`` (default 1 %; a lower bound when the sweep stays inside it) and ``max_rel_change`` the largest measured
 ``|C / C0 - 1|``.
 
-**cv_butterfly** (Miller et al., J. Appl. Phys. 68, 6463, 1990). A ferroelectric capacitor's small-signal
-capacitance is the dielectric part plus the reversible polarization response of the branch being travelled; it
-peaks near ``+Vc`` while the bias rises and near ``-Vc`` while it falls. Each branch of a double sweep gives its peak
-(the maximum of ``C``, refined by the vertex of a parabola through the five points around it; a peak at a branch end
-fails: sweep further): ``v_peak_up``, ``v_peak_down``, ``vc = (up - down) / 2``, the imprint ``v_imprint = (up +
-down) / 2``, ``c_peak`` (F) and, with ``geometry.tox_nm`` as the film thickness, ``ec = vc / t`` (MV/cm).
+**cv_butterfly** (Miller et al., J. Appl. Phys. 68, 6463, 1990; not page-checked). A ferroelectric capacitor's
+small-signal capacitance is the dielectric part plus the reversible polarization response of the branch being
+travelled; it peaks near ``+Vc`` while the bias rises and near ``-Vc`` while it falls. Each branch of a double sweep
+gives its peak (the maximum of ``C``, refined by the vertex of a parabola through the five points around it; a peak at
+a branch end fails: sweep further): ``v_peak_up``, ``v_peak_down``, ``vc = (up - down) / 2``, the imprint ``v_imprint
+= (up + down) / 2``, ``c_peak`` (F) and, with ``geometry.tox_nm`` as the film thickness, ``ec = vc / t`` (MV/cm).
 
 **cv_pulsed_vs_dc** (two-run; ``options.reference_run`` = a DC C-V of the same device, e.g. ``moscap.cv`` swept from
 accumulation). Both curves at one frequency are fitted with ``moscap_fit``: ``delta_vfb`` = Vfb(pulsed) - Vfb(DC)

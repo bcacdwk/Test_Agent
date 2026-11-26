@@ -62,5 +62,5 @@ provenance:
   sources:
     - blueprint v2 3.1 row reliability.silc, 2.7 kind stress_measure, 4.2 dielectric (SILC damage term)
     - knowledge 05 (oxide traps, SILC and charge trapping)
-    - DiMaria & Cartier, J. Appl. Phys. 78, 3883 (1995) (SILC from trap-assisted tunnelling)
+    - DiMaria & Cartier, J. Appl. Phys. 78, 3883 (1995) (SILC from trap-assisted tunnelling; not page-checked)
   validation_runs: []

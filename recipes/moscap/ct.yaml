@@ -52,5 +52,6 @@ provenance:
   sources:
     - blueprint v2 2.7 (kind cmu_measure MM 26), 3.2 (moscap.ct), 4.2 (moscap deep depletion), 4.1 (virtual time)
     - Programming Guide Ed. 15 C-t sampling (PDF 280-284), MDCV (PDF 467-468), MTDCV (PDF 476-477)
-    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 9; Zerbst, Z. Angew. Phys. 22, 30 (1966) (C-t recovery)
+    - Nicollian & Brews, MOS Physics and Technology (1982) ch. 9; Zerbst, Z. Angew. Phys. 22, 30 (1966) (C-t recovery;
+      not page-checked)
   validation_runs: []

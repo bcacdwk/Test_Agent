@@ -1,6 +1,7 @@
 # Recipe (registry source; schema b1500_test_agent.models.recipe.Recipe; checked by `b1500 dev recipe-check`).
 # MOSFET transfer curve in the linear region: staircase sweep of the gate at a small constant drain bias, source on
-# the GNDU (blueprint 2.6 example; defaults from deck slide 6, values reused from the v0.2 idvg example).
+# the GNDU (blueprint 2.6 example; defaults reused from the v0.2 idvg example: a generic example, not a lab
+# recommendation; the lab script uses Vg -2..2 V, 61 points, Vd 0.1 V and a 10 ms delay, lwp test_IdVg.m).
 # `range` is the hard recipe envelope (rule R-PARAM-01); policy and DUT profile limits apply on top of it.
 # WP7.2: hold_s/delay_s (WT hold and delay; default 0 = the v1 sequence, byte-identical FLEX preview) for slow
 # devices and the lab script's 10 ms per-step delay.
@@ -52,7 +53,7 @@ analysis_defaults:
   - {method: vth_linear_extrapolation, options: {window: max_gm, subtract_half_vd: true}}
 provenance:
   sources:
-    - deck slide 6
+    - lwp matlab_B1500/test_IdVg.m (the lab script's sweep for comparison, Vg -2..2 V, 61 points, Vd 0.1 V, 10 ms)
     - Programming Guide Ed. 15 WV (PDF 568-569), WT (PDF 564-565), WM (PDF 552-553), FMT (PDF 436-438)
     - v0.2 references/recipes/mosfet/idvg.example.yaml (tag archive/v0.2-fake-mcp)
   validation_runs: []

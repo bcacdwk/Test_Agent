@@ -30,8 +30,13 @@ roles:
   source: {function: ground, allow_gndu: true}
   bulk: {function: ground, allow_gndu: true, optional: true}
 params:
-  vg_start: {unit: V, default: -4.0, recommended: [-5.0, -3.0], range: [-10.0, 10.0], doc: Start and end of the loop.}
-  vg_stop: {unit: V, default: 4.0, recommended: [3.0, 5.0], range: [-10.0, 10.0], doc: Turning point of the loop.}
+  vg_start: {unit: V, default: -4.0, range: [-10.0, 10.0],
+             doc: "Start and end of the loop (beyond the negative coercive voltage): example default for the
+               simulator FeFET (scenario fefet_basic, Vc 2.8 V), not a real-device value; your loop from the
+               request or the DUT profile, else ask."}
+  vg_stop: {unit: V, default: 4.0, range: [-10.0, 10.0],
+            doc: "Turning point of the loop (beyond the positive coercive voltage): example default (simulator
+              FeFET); from the request or the DUT profile, else ask."}
   vg_points:
     type: int
     default: 161

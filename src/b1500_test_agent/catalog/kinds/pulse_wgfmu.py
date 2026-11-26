@@ -143,7 +143,7 @@ PUND_DEFAULTS: Final[dict[str, Any]] = {"rise": 1e-5, "plateau": 0.0, "delay": 1
 SETUP_OVERHEAD_S: Final = 0.5
 """Estimated time of the library session (open, initialize) and the SMU setup."""
 READBACK_S_PER_VALUE: Final = 2e-6
-"""Estimated readback time per stored value (TODO(verify) at bring-up L8, as kind ``wgfmu_waveform``)."""
+"""Estimated readback time per stored value (same fact as ``kinds/wgfmu_waveform.py`` ``READBACK_S_PER_VALUE``)."""
 OVERRANGE_FRACTION: Final = 1.0 - 1e-9
 SATURATED: Final = wgfmu_status_letter(range_overflow=True, error=False)
 NORMAL: Final = wgfmu_status_letter(range_overflow=False, error=False)

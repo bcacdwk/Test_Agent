@@ -66,7 +66,7 @@ def test_ermod_enables_and_disables_modes_and_reads_back_the_sum() -> None:
 
 def test_erssp_needs_the_control_mode_and_the_manual_domain() -> None:
     sim = open_sim(resistor_on_port0())
-    sim.write("ERSSP 0,1")  # without ERMOD 1: refused (simulator convention, TODO(verify) L7)
+    sim.write("ERSSP 0,1")  # without ERMOD 1: refused (simulator convention; the driver always sends ERMOD 1 first)
     assert errx_all(sim) == [120] and sim.query("ERSSP? 0") == "0"
     run(sim, "ERMOD 1", "ERSSP 0,1", "ERSSP 1,2", "ERSSP 2,3")
     assert [sim.query(f"ERSSP? {p}") for p in range(4)] == ["1", "2", "3", "0"]

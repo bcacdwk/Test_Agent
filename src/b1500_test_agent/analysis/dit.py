@@ -5,11 +5,11 @@ pieces. The definitions are the source of knowledge file ``08-capacitance-cv.md`
 together. Energies ``e`` are ``E_F - E_i`` at the surface in the p-substrate frame (mirrored for an n substrate:
 there ``e > 0`` is towards the valence band), the frame of the simulator's truth.
 
-**dit_high_low** (two-run, Castagne & Vapaille 1971; Nicollian & Brews, *MOS Physics and Technology*, 1982, ch. 8). A
-quasi-static C-V (QSCV, ``moscap.qscv``: interface traps follow) and a high-frequency C-V (``moscap.cv``: they do not)
-of the same device, one the analysed run, the other ``options.reference_run`` (either order). The HF curve's fit gives
-``Cox`` (accumulation extrapolation; option ``cox_f`` overrides it), ``Vfb``, ``Nsub`` and ``phi_B``; at every QSCV bias
-inside the common range, with the HF capacitance interpolated there,
+**dit_high_low** (two-run, Castagne & Vapaille 1971; Nicollian & Brews, *MOS Physics and Technology*, 1982, ch. 8;
+not page-checked). A quasi-static C-V (QSCV, ``moscap.qscv``: interface traps follow) and a high-frequency C-V
+(``moscap.cv``: they do not) of the same device, one the analysed run, the other ``options.reference_run`` (either
+order). The HF curve's fit gives ``Cox`` (accumulation extrapolation; option ``cox_f`` overrides it), ``Vfb``, ``Nsub``
+and ``phi_B``; at every QSCV bias inside the common range, with the HF capacitance interpolated there,
 ``Dit = [C_LF Cox / (Cox - C_LF) - C_HF Cox / (Cox - C_HF)] / (q A)`` (the semiconductor capacitance cancels; ``A`` from
 ``geometry.area_um2``), and the band bending comes from the LF curve (Berglund integral) ``psi = s int_Vfb^V (1 -
 C_LF/Cox) dV``, ``e = psi - phi_B``. Valid where both curves are in depletion: ``psi_min`` (default 6 kT/q: closer to
@@ -18,7 +18,7 @@ minority carriers add to the LF curve). Results: ``dit_mid`` (at ``e = 0``, inte
 outside the window), ``dit_mean``, ``dit_min``, ``dit_max`` (cm^-2 eV^-1); ``fit`` holds the profile every
 ``e_step`` eV (``e<k>``, ``dit<k>``), the window and the HF fit.
 
-**dit_conductance** (Nicollian & Goetzberger 1967; Nicollian & Brews ch. 5). A C-V at many frequencies
+**dit_conductance** (Nicollian & Goetzberger 1967; Nicollian & Brews ch. 5; not page-checked). A C-V at many frequencies
 (``moscap.cv_multi_freq``): at every bias the parallel ``Cm``, ``Gm`` over the frequencies (series ``rs_ohm`` removed)
 give ``Gp/w = w Cox^2 Gm / (Gm^2 + w^2 (Cox - Cm)^2)`` (``gp_over_omega``); the continuum model ``Gp/w = q A Dit ln(1 +
 (w tau)^2) / (2 w tau)`` (or ``model: single``) is fitted (``fit_trap_response``) for ``Dit`` and ``tau``. A bias counts
@@ -27,8 +27,10 @@ explains the data (``r2 >= min_r2``). ``Cox``, ``Nsub``, ``phi_B`` come from the
 (``cox_f`` overrides Cox); the band bending from that HF capacitance in the depletion approximation, ``W = eps_s A (1/C
 - 1/Cox)``, ``psi = q N W^2 / (2 eps_s) + kT/q``. Results: ``dit_mean``, ``dit_min``, ``dit_max`` (cm^-2 eV^-1) over
 the counted biases, ``tau_min``/``tau_max`` (s); ``fit`` holds per bias ``v<k>``, ``e<k>``, ``dit<k>``, ``tau<k>``. At
-room temperature the 1 kHz..5 MHz band reaches only the traps between about 0.1 and 0.3 eV from the majority band edge
-side of midgap (their time constant grows by e per kT/q towards midgap); the high-low method covers midgap.
+room temperature the 1 kHz..5 MHz band reaches only the traps about 0.15 to 0.37 eV from midgap on the majority side
+(textbook estimate for an assumed capture cross-section of 1e-16 cm^2, v_th 1e7 cm/s and ni 1e10 cm^-3, as knowledge
+``08``; each decade of the cross-section shifts the window by about 0.06 eV, and the trap time constant grows by e per
+kT/q towards midgap); the high-low method covers midgap.
 
 Trust: untrusted points refuse the extraction unless ``force`` (flagged), as in ``cv.py``. Geometry: both methods need
 ``geometry.area_um2`` (refused naming the field).

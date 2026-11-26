@@ -1,18 +1,30 @@
 # DUT profile (example; committed). Schema: b1500_test_agent.models.policy.DutProfile; name = file name.
-# Generic ferroelectric FET (e.g. HfZrO gate stack); example values, not a real device. Per terminal: max |V| (V)
-# and max |I| (A; also the largest compliance). A plan outside this envelope needs confirmation (dut_envelope,
-# rule R-DUT-01). Nominal values are typical numbers for choosing parameters, never measurements.
+# Generic n-channel ferroelectric FET for the simulator (scenario fefet_basic, pin map mosfet-4t). Per terminal:
+# max |V| (V) and max |I| (A; also the largest compliance). A plan outside this envelope needs confirmation
+# (dut_envelope, rule R-DUT-01). The envelope is an example, not checked against any real film.
+# Nominal values: simulator example (scenario fefet_basic), not a real-device value. They are the device values and
+# operating levels of the simulated FeFET (config/sim/scenarios/fefet_basic.yaml: vth0 0.6 V, memory window about
+# 2 x k_v = 1 V, coercive gate voltage vc_v 2.8 V, a +-4 V sweep saturates the loop), so a plan on the simulator can
+# take its levels from here. For a real device the human writes their own profile (config/local/duts/) with the
+# film's values; until then those levels are unknown (knowledge 04 asks for the stacks and pulses).
 
 device_type: fefet
-description: Generic n-channel FeFET (example envelope).
+description: >-
+  Generic n-channel FeFET of the simulator (scenario fefet_basic; example envelope and levels, not a real device).
 terminals:
   gate:   {max_abs_v: 5.0, max_abs_i: 1.0e-3}
   drain:  {max_abs_v: 1.0, max_abs_i: 1.0e-3}
   source: {max_abs_v: 1.0, max_abs_i: 1.0e-3}
   bulk:   {max_abs_v: 1.0, max_abs_i: 1.0e-3}
-nominal:
-  vth: {value: 0.6, unit: V}
-  memory_window: {value: 1.0, unit: V}
+nominal:                                  # simulator example (scenario fefet_basic), not a real-device value
+  vth: {value: 0.6, unit: V}              # threshold at zero polarization
+  memory_window: {value: 1.0, unit: V}    # saturated loop
+  vc: {value: 2.8, unit: V}               # coercive gate voltage
+  sweep_v: {value: 4.0, unit: V}          # dual-sweep amplitude (fefet.dual_sweep_mw vg_start -4 V, vg_stop 4 V)
+  read_vg_max: {value: 1.8, unit: V}      # highest gate level of a read sweep: below vc
 notes:
-  - Program and erase pulses must be reviewed against film thickness and coercive field.
+  - "Levels (nominal): simulator example (scenario fefet_basic), not a real-device value. The dual sweep runs from
+    -sweep_v to +sweep_v; reads stay at or below read_vg_max."
+  - Program and erase pulses of a real film come from the human (its coercive field and thickness); never from
+    this file.
   - Read operations should use conservative SMU I-V settings.

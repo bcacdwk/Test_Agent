@@ -48,6 +48,7 @@ DUTM = "config/local/duts/moscap-generic.yaml#"
 SPEC = "code:b1500_test_agent.driver.modules"
 SPGU_SRC = f"{SPEC}.SPGU_SPEC"
 WG = f"{SPEC}.WGFMU_SPEC"
+WG_MIN_WIDTH = f"{WG}.min_pulse_width_s (WG p16 (1-4))"
 CMU_SRC = f"{SPEC}.CMU_SPEC (UG p73 (2-33))"
 WAVE = "plan:program.sources.waveform"
 CORR_FILE = "data/state/corrections/CMU1.json"
@@ -465,6 +466,17 @@ CASES: list[Case] = [
     Case("wg2-envelope-grid", "R-WG-02",
          partial(v2.wgfmu, limits={201: v2.wg_limits(grid_s=2e-8), 202: v2.wg_limits()}),
          (F("block", 2e-8, 1e-8, "plan:envelope.waveform.201"),)),
+    # v2.1 WP21.12: the WGFMU's minimum pulse width per mode (WG p16 (1-4): PG 100 ns, Fast IV 300 ns)
+    Case("wg2-fastiv-pulse-below-300-ns", "R-WG-02", partial(v2.wgfmu, trains=[WG_TRAIN]),
+         (F("block", 1e-7, 3e-7, WG_MIN_WIDTH),)),
+    Case("wg2-ok-fastiv-pulse-300-ns", "R-WG-02",
+         partial(v2.wgfmu, trains=[WG_TRAIN.model_copy(update={"width_s": 3e-7})])),
+    Case("wg2-pg-pulse-below-100-ns", "R-WG-02",
+         partial(v2.wgfmu, trains=[WG_TRAIN.model_copy(update={"width_s": 5e-8})],
+                 mutate=_set(("channels", "201", "mode"), "pg")),
+         (F("block", 5e-8, 1e-7, WG_MIN_WIDTH),)),
+    Case("wg2-ok-pg-pulse-100-ns", "R-WG-02",
+         partial(v2.wgfmu, trains=[WG_TRAIN], mutate=_set(("channels", "201", "mode"), "pg"))),
     # R-RUN-02
     Case("run2-ok-sync", "R-RUN-02", partial(context, duration_s=100.0)),
     Case("run2-sync-too-long", "R-RUN-02", partial(context, duration_s=400.0),

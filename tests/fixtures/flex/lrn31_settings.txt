@@ -2,5 +2,5 @@
 # kind: lrn
 # command: *LRN? 31
 # expect: {"settings": {"TM": ["1"], "AV": ["1", "0"], "CM": ["1"], "FMT": ["1", "1"], "MM": ["2", "3", "4"]}, "auto_calibration": true}
-# note: the manual prints the syntax without an example; items written without a blank after the mnemonic as in the LOP? example (PDF 447). TODO(verify) with a raw capture at bring-up L1; the parser accepts a blank too.
+# note: the manual prints the syntax without an example; items written without a blank after the mnemonic as in the LOP? example (PDF 447). The raw form is the same fact as src/b1500_test_agent/driver/discovery.py (*LRN? 31); the parser accepts a blank too.
 TM1;AV1,0;CM1;FMT1,1;MM2,3,4

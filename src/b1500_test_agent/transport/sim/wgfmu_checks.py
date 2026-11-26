@@ -3,7 +3,7 @@
 The library checks parameters twice (WG p147 (4-77) "WGFMU Setup Functions"): lowest limits when a setup function is
 called (``SimWgfmu`` itself, error ``-1``), highest limits when the setup is applied by ``update``/``execute``. The
 latter are the firmware errors of WG p152-155 (4-82 to 4-85); this module decides which condition reports which code
-(the simulator's reading of the messages, TODO(verify) at bring-up L8):
+(the simulator's reading of the messages, TODO(verify)[L8.A10, L8.A11]):
 
 =====  ===========================================================================================================
 code   condition (checked at ``update``/``execute``)

@@ -1,9 +1,10 @@
 # Roadmap
 
 Milestones of the re-architecture. v1 (M0–M4, plan tag `plan-v1`) was built on branch `rearch/v1` and merged into
-`main`; v2 (M5–M12, [blueprint](design/blueprint.md) §10) is built on branch `rearch/v2`, one commit per work package
-(WP). The log with acceptance results and handoff notes is [`docs/design/progress.md`](design/progress.md), which is
-the source of truth for status. This page is updated at milestone boundaries.
+`main`; v2 (M5–M12, [blueprint](design/blueprint.md) §10) was built on branch `rearch/v2`, one commit per work package
+(WP), and fast-forwarded into `main`; v2.1 (section below) was built on `main` directly. The log with acceptance
+results and handoff notes is [`docs/design/progress.md`](design/progress.md), which is the source of truth for status.
+This page is updated at milestone boundaries.
 
 | Milestone | Goal | Status |
 |---|---|---|
@@ -20,6 +21,7 @@ the source of truth for status. This page is updated at milestone boundaries.
 | M10 WGFMU | Library protocol + simulator, DLL binding, driver + phase, waveform kind, noise, FeCap PUND, fast BTI | **done** (2026-11-26) |
 | M11 Integration and closure | Async/debug completeness, coverage ledger closure, full safety + visa-loop, docs and plug-in-and-go closure, final acceptance S1–S18 | **done** (2026-11-26; S1–S18 PASS on both harnesses, [reports](acceptance/)) |
 | M12 Hardware session | Owner at the lab PC: staged bring-up S0–L10, validation records, then per-module developer WPs | owner (outside the v2 goal; section M12 below) |
+| v2.1 Update, debug cases, step-by-step bring-up | Operator `update` and maintainer `qualify`, infra stop, debug cases with simulator reproductions, the bring-up step sequence and ledger, knowledge provenance, RSU input limit | **closing** (WP21.9 acceptance; section v2.1 below) |
 
 ## M0 — Re-baseline (done)
 
@@ -252,3 +254,30 @@ What each stage settles (the `TODO(verify) (blueprint v2 7.6 items …)` line of
 | 12 harness facts on the lab PC (v1 ATV-4, ATV-7, ATV-8, ATV-11; ATV-25) | L0, L4, L10 |
 | 13 real device physics behind defaults and tolerances (FeFET kinetics, IGZO drift, RTN statistics; left blank in the knowledge files and cards, each blank marked for a bring-up step, an owner question or a citation) | L7, L8, L9 |
 | 14 Windows CI (only without the push) | resolved: the CI runs on `windows-latest` since the owner allowed the push (OD-4); no stage |
+
+## v2.1 — Update, debug cases, step-by-step bring-up
+
+After v2 closed, on `main` in one sequence of work packages, one commit each, pushed by the maintainer; log:
+[progress.md](design/progress.md) §"v2.1". Three workstreams (harness updates, debug cases, step-by-step bring-up)
+plus the knowledge-provenance pass and the RSU input limit the owner added; nothing in it needs the instrument.
+
+| WP | Result | Status |
+|---|---|---|
+| 21.1 Operator `update` | `uv run b1500 update`, typed by the operator: pull, environment sync, harness wiring, the harness versions of `config/harness/validated.yaml` with one installer per harness, the free checks, one verdict (`Ready.` or a numbered list); refuses inside an agent session; `doctor` line `harness versions` | done (2026-11-26) |
+| 21.2 Maintainer qualify + runner | `uv run b1500 dev harness qualify` (T0 free checks, T1 probes, T2 canary, T3 `--escalate`; bumps `validated.yaml` on PASS, `--pin`, `--windows` for the lab PC); the runner stops at the first login/API/network event (exit 3, OD21-4) and grades every session's `harness contract` | done (2026-11-26) |
+| 21.3 Claude tool surface | dropped: `Monitor` and the other built-ins outside the guard hook are an owner-accepted residual (OD21-5 = c, [safety-model.md](safety-model.md)) | dropped |
+| 21.4 Debug cases | four cases with a simulator reproduction run by a test (`uv run b1500 dev cases check --reproduce`), the case lint, runbook sources, simulator scenarios `nmos_unshielded`, `moscap_leaky`, `igzo_drift_repeat` | done (2026-11-26) |
+| 21.5 Step model, ledger, verbs | `steps.yaml` (204 steps: deployment D1–D12, session start R1–R4 and end E1–E5, stages S0–L10 in execution order), a hash-chained step ledger written only by the CLI, `uv run b1500 bringup next`, `bringup done`, `bringup check`; a stage signs off only with every step verified | done (2026-11-26) |
+| 21.13 RSU input limit | R-RSU-01 and the output guard bound the SMU wired to an RSU input to ±25 V (WGFMU guide) | done (2026-11-26) |
+| 21.6 Sequence content | the gap steps and check ids in the stage files and `steps.yaml`, capture steps and fixture kinds, skill `b1500-bringup` as a next → do → done loop, deployment "First session" = D1–D12 | done (2026-11-26) |
+| 21.7 Rehearsal + S17 graders | `uv run pytest -m rehearsal`: the whole sequence on the simulator, S0–L2 on the visa-loop; grader `bringup_steps`; S17 in three turns | done (2026-11-26) |
+| 21.14 Batch `bringup done` | several steps per `done` call, one ledger entry each, in the order `next` names them | done (2026-11-26) |
+| 21.10–21.12 Knowledge provenance | about 1,300 claims of knowledge, cards, runbooks, cases, stages, config, recipes and docs audited: unfounded values left blank with a marker naming what settles them (an owner question, a bring-up step, a citation), wrong physics corrected with a source, simulator values labelled; the marker lint; the generated owner list [open-questions.md](open-questions.md); R-WG-02 now refuses WGFMU pulses below the channel mode's minimum width | done (2026-11-26) |
+| 21.8 Model-refresh note + qualify tier | Codex's start-up model-refresh timeout is an infra note, never a stop; `qualify` climbs T0 + T1 by default | done (2026-11-26) |
+| 21.9 Closure + acceptance | this section, the README status; the targeted acceptance below | closing |
+
+Acceptance (WP21.9; the owner chose six of the scenarios whose read text changed in a way that can change graded
+behaviour, token cost weighed; S11, S14, S15 and the low-risk ones were not run): S17 ★, S12 ★, S3 ★ (3 reps, 3/3)
+and S7, S10, S13 (1 rep, one logged re-run) on codex-cli 0.170.0 and Claude Code 2.1.328 from the main checkout. The harness versions equal `config/harness/validated.yaml`, so
+`uv run b1500 dev harness qualify --up-to 0` (free) replaces a live qualification; the transcripts of these versions
+are not pinned (`--pin` pins only qualify's T1 probes). Reports: `docs/acceptance/2026-11-26-<harness>-<version>-v21.md`.

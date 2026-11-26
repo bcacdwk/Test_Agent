@@ -10,7 +10,10 @@ limits, tiers, per-command output guards and a verified safe shutdown. A simulat
 for the instrument, so everything is developed and tested without hardware.
 
 > **Status (2026-11-26): v2 built and closed on the simulator (M5–M11); the final harness acceptance S1–S18
-> (WP11.5) passed on Codex and Claude Code; the hardware session M12 is the owner's.** The whole station is covered: SMUs with the GNDU, the MFCMU
+> (WP11.5) passed on Codex and Claude Code. v2.1 added the operator's `uv run b1500 update` and the maintainer's
+> harness qualification, debug cases with simulator reproductions, the bring-up as a verified step sequence with a
+> ledger (`uv run b1500 bringup next`) and explicit blanks instead of unfounded values in the skills (targeted
+> acceptance in WP21.9, [docs/roadmap.md](docs/roadmap.md) §v2.1). The hardware session M12 is the owner's.** The whole station is covered: SMUs with the GNDU, the MFCMU
 > (+SCUU, QSCV), the HV-SPGU with two 16440A selectors and the WGFMU with its RSUs, in 68 recipes, 14 measurement
 > kinds and 34 test cards, every recipe `sim_validated` against the simulator's device models and run through the
 > real VISA transport against the simulator (visa-loop) and through a fake of the WGFMU library's C interface. The
@@ -146,7 +149,8 @@ wheelhouse); then the coding agent follows skill `b1500-bringup` stage by stage 
 | [docs/design/progress.md](docs/design/progress.md) | Work-package log with acceptance results and handoff notes |
 | [docs/architecture.md](docs/architecture.md) | Layers, dependency rules, module map, adding a module family |
 | [docs/safety-model.md](docs/safety-model.md) | Rules, tiers, confirmation, guard, cleanup, async runs, residual risks |
-| [docs/roadmap.md](docs/roadmap.md) | Milestones M0–M12 and their status; what the hardware session settles |
+| [docs/roadmap.md](docs/roadmap.md) | Milestones M0–M12 and v2.1 with their status; what the hardware session settles |
+| [docs/open-questions.md](docs/open-questions.md) | GENERATED: the questions only the owner can answer (devices, films, station, lab practice), each with its file |
 | [docs/coverage.md](docs/coverage.md) | GENERATED: per module the kinds, recipes, cards, rules, simulator model, stages, ledger counts; the modes |
 | [docs/manuals.md](docs/manuals.md) | Manual corpus: `b1500 manual search\|page\|toc`, catalog, citations |
 | [docs/deployment-windows.md](docs/deployment-windows.md) | Windows lab PC: first session, procedure, `uv run b1500 update`, offline wheelhouse, harness permissions |

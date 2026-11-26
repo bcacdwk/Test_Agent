@@ -59,7 +59,11 @@ reports list every session). So:
   `fefet.pulse_write_read`, exactly when the rewritten S3 (same id) became runnable; WP9.6 deleted its file.
 - **When.** Full runs only at WP6.6 (S1-S10 with v1's S3, + S16 + S17) and WP11.5 (S1-S18); a module closure work
   package (7.7, 8.6, 9.6, 10.8) runs `--tag <family>` on both harnesses; skill-text iteration runs `--affected`
-  with a session cap; after the last text change re-run what that change touches.
+  with a session cap; after the last text change re-run what that change touches. v2.1 (WP21.9) ran an
+  owner-chosen targeted set (S17 ★, S12 ★, S3 ★, S7, S10, S13) on both harnesses, one scenario per batch so the
+  running cost could be checked between scenarios, merged per harness with `uv run b1500 dev acceptance report
+  <batch>... --out <file> --shorten` into `<date>-<harness>-<version>-v21.md` (a suffixed report, like `-s7`, keeps
+  the full-suite report of the same day).
 - **Usage.** Every session's token usage (Codex `turn.completed` `usage`; Claude Code `result` `usage` and
   `total_cost_usd`, the API-equivalent estimate of a subscription login) is stored in its `grades.json` and summed
   in the report, with the runner's wall time.

@@ -1,0 +1,14 @@
+{
+  "purpose": "Infra watcher shapes (v2.1 plan §2.4, ATV-36): real lines that must stop a batch and real lines that must not; forged shapes live in tests/acceptance/test_infra_stop.py",
+  "captured": "2026-11-26",
+  "files": {
+    "claude-2.1.328-logged-out.jsonl": "ATV-36: claude -p --bare --output-format stream-json --verbose, prompt on stdin, empty CLAUDE_CONFIG_DIR and HOME, no API key: assistant message with error 'authentication_failed' ('Not logged in · Please run /login'), result subtype success with is_error true and terminal_reason api_error, exit 1, no API call (duration_api_ms 0)",
+    "codex-0.170.0-logged-out.jsonl": "ATV-36: codex exec --json -s read-only --skip-git-repo-check -, prompt on stdin, empty CODEX_HOME and HOME: error events 'Reconnecting... n/5 (unexpected status 401 Unauthorized ...)' over WebSocket and HTTPS, the fallback notice item, a final error and turn.failed, exit 1 after 33 s (unauthenticated requests only)",
+    "codex-0.170.0-logged-out.stderr.txt": "stderr of that run ('failed to connect to Responses WebSocket')",
+    "claude-2.1.328-rate-limit-allowed.jsonl": "the 84 rate_limit_event lines of the WP11.5 Claude batch 20261125T221153Z-claude-2.1.328, rate_limit_info reduced to status/rateLimitType/overageStatus/isUsingOverage (usage numbers dropped): all 'allowed', none may stop a batch",
+    "codex-0.170.0-reconnect-failed.jsonl": "batch 20261125T112556Z-codex-0.170.0, S12-r1 turn 2: 'workspace routing discovery failed' reconnects, the HTTPS fallback notice, turn.failed",
+    "codex-0.170.0-reconnect-failed.stderr.txt": "stderr of that turn (rmcp connection errors to chatgpt.com, model-list refresh timeout)",
+    "codex-0.170.0-stderr-11.5.txt": "the only stderr of the WP11.5 Codex batch 20261125T204845Z-codex-0.170.0 with ERROR lines (S2-r2): model-list refresh timeout and a chatgpt.com connector connection error; the session completed, but under OD21-4 = a these lines stop a batch"
+  },
+  "sanitized": "devtools.acceptance.transcripts.sanitize_lines: paths replaced by <REPO>, <OUT>, <TMP>, <HOME>; Claude init without the user's commands, plugins and skills; signatures blanked"
+}

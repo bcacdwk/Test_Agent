@@ -147,7 +147,7 @@ wheelhouse); then the coding agent follows skill `b1500-bringup` stage by stage 
 | [docs/manuals.md](docs/manuals.md) | Manual corpus: `b1500 manual search\|page\|toc`, catalog, citations |
 | [docs/deployment-windows.md](docs/deployment-windows.md) | Windows lab PC: first session, procedure, `uv run b1500 update`, offline wheelhouse, harness permissions |
 | [docs/hardware-bringup.md](docs/hardware-bringup.md) | Bring-up overview: stages S0–L10, who does what, records |
-| [docs/acceptance/](docs/acceptance/README.md) | Harness acceptance runner, scenarios and the session reports |
+| [docs/acceptance/](docs/acceptance/README.md) | Harness acceptance runner, scenarios, session reports; the maintainer's `uv run b1500 dev harness qualify` for a new harness version |
 | [AGENTS.md](AGENTS.md) | Instructions for coding agents (also loaded by Claude Code via `CLAUDE.md`) |
 
 ## License

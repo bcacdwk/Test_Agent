@@ -16,9 +16,12 @@ a file of ``$B1500_CONFIG_DIR``), ``sim_raw`` (one line straight into the simula
 transport), ``wait_run`` (poll ``get_run`` of a run every 0.2 s, each poll a reported call, until it no longer
 runs; ``timeout`` seconds), ``forge`` (evidence of a recipe that does not exist yet, written by ``forge.py`` with the
 real models and shown as the tool call it stands for: ``plan``, ``run``, ``finish``, ``analyze``, ``call``,
-``selector``), ``sleep`` (seconds), ``say`` (agent message; the last one is the final answer). Each turn reports a
-small fixed token usage (Codex ``turn.completed``, Claude ``result``), so the runner's and the report's usage sums are
-exercised.
+``selector``), ``deny`` (an MCP tool call the harness denied before the server: ``args``, never sent), ``sleep``
+(seconds), ``say`` (agent message; the last one is the final answer), and for the infra watcher (v2.1 plan §2.4):
+``stream_error`` (a Codex top-level ``error`` event), ``raw`` (one line printed as is on stdout, e.g. a forged
+``turn.failed`` or ``rate_limit_event``), ``stderr`` (one line on stderr) and ``exit`` (end the turn with that code,
+no completion event). Each turn reports a small fixed token usage (Codex ``turn.completed``, Claude ``result``), so the
+runner's and the report's usage sums are exercised. The prompt arrives on standard input, as the runner sends it.
 ``{{var.key}}`` placeholders use saved results, ``$FAKE_AGENT_VARS`` (JSON; strings the tests build at run time)
 and ``prompt`` (the user's turn as the runner rendered it: ``{{prompt.text}}``, and the first plan and run id it
 names, ``{{prompt.plan_id}}``/``{{prompt.run_id}}``, as an agent would read them from the request).
@@ -85,6 +88,13 @@ def _flatten(result: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _write(stream: Any, line: str) -> None:
+    """One line as UTF-8 bytes, whatever the console code page (the harnesses write UTF-8 to a pipe)."""
+    stream.flush()
+    stream.buffer.write((line + "\n").encode("utf-8"))
+    stream.buffer.flush()
+
+
 class Emitter:
     """Prints harness events in Codex ``exec --json`` or Claude ``stream-json`` shape."""
 
@@ -94,8 +104,7 @@ class Emitter:
         self.last_text = ""
 
     def out(self, record: dict[str, Any]) -> None:
-        sys.stdout.write(json.dumps(record, ensure_ascii=False) + "\n")
-        sys.stdout.flush()
+        _write(sys.stdout, json.dumps(record, ensure_ascii=False))
 
     def code(self, script: str) -> None:
         if self.rollout is None:
@@ -122,7 +131,8 @@ class Emitter:
         else:
             self.out({"type": "system", "subtype": "init", "cwd": str(self.cwd), "session_id": self.session_id,
                       "tools": ["Bash", "Write", "mcp__b1500__station_status"], "model": "fake",
-                      "permissionMode": "default", "mcp_servers": [{"name": "b1500", "status": "connected"}]})
+                      "permissionMode": "default", "mcp_servers": [{"name": "b1500", "status": "connected"}],
+                      "skills": ["b1500-bringup", "b1500-debug", "b1500-test"]})
 
     def _claude_use(self, name: str, data: dict[str, Any], result: str, *, denied: bool = False) -> None:
         self.n += 1
@@ -151,6 +161,19 @@ class Emitter:
                 "error": None, "status": "completed"}})
         else:
             self._claude_use(f"mcp__b1500__{tool}", args, text)
+
+    def denied(self, tool: str, args: dict[str, Any]) -> None:
+        """An MCP call the harness refused before the server (Codex approval policy ``never``, a Claude prompt)."""
+        if self.harness == "codex":
+            self.n += 1
+            self.code(f"text(await tools.mcp__b1500__{tool}({json.dumps(args)}));\n")
+            self.out({"type": "item.completed", "item": {
+                "id": f"item_{self.n}", "type": "mcp_tool_call", "server": "b1500", "tool": tool, "arguments": args,
+                "result": None, "error": {"message": "MCP tool call requires approval, but approval policy is never"},
+                "status": "failed"}})
+        else:
+            self._claude_use(f"mcp__b1500__{tool}", args, "Claude requested permissions to use this tool, but you "
+                             "haven't granted it yet.", denied=True)
 
     def shell(self, command: str, output: str = "", exit_code: int = 0) -> None:
         if self.harness == "codex":
@@ -273,8 +296,11 @@ def main() -> int:
     parser.add_argument("--turn", type=int, required=True)
     parser.add_argument("--resume", required=True)
     parser.add_argument("--script", required=True)
-    parser.add_argument("--prompt", default="")
+    parser.add_argument("--prompt", default=None, help="The prompt (default: read from standard input, as the "
+                                                       "runner sends it)")
     ns = parser.parse_args()
+    if ns.prompt is None:
+        ns.prompt = sys.stdin.read()
     script = yaml.safe_load(Path(ns.script).read_text(encoding="utf-8"))
     actions = script["turns"].get(ns.turn) or script["turns"].get(str(ns.turn)) or []
     state_file = Path(ns.script).with_suffix(".state.json")
@@ -293,6 +319,7 @@ def main() -> int:
     emit.start(ns.turn)
     os.environ["B1500_HOME"] = str(cwd)  # the repository the harness was launched in, as the real server's clone
     service = B1500Service(adapter="mcp")
+    exit_code: int | None = None
     try:
         for raw in actions:
             action = _render(raw, variables)
@@ -332,10 +359,22 @@ def main() -> int:
                 time.sleep(float(action["sleep"]))
             elif "stream_error" in action:  # a Codex top-level error event (e.g. "Reconnecting... 1/5 (...)")
                 emit.out({"type": "error", "message": str(action["stream_error"])})
+            elif "raw" in action:  # one stdout line as is (forged harness events)
+                _write(sys.stdout, str(action["raw"]))
+            elif "stderr" in action:
+                _write(sys.stderr, str(action["stderr"]))
+            elif "exit" in action:
+                exit_code = int(action["exit"])
+                break
+            elif "deny" in action:
+                emit.denied(str(action["deny"]), action.get("args", {}))
             elif "say" in action:
                 emit.say(action["say"])
     finally:
         service.close()
+    if exit_code is not None:
+        state_file.write_text(json.dumps(variables), encoding="utf-8")
+        return exit_code
     emit.finish()
     state_file.write_text(json.dumps(variables), encoding="utf-8")
     return 0

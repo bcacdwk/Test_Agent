@@ -1,7 +1,7 @@
 """Headless harness launch for the acceptance runner (blueprint 8.2, 9.6; never a bypass mode).
 
-**Codex** (``codex exec``): ``codex exec --json -s workspace-write -C <repo> -c ... <prompt>``, later turns
-``codex exec resume --json -c ... <thread_id> <prompt>``. The b1500 server is passed as ``-c mcp_servers.b1500.*``
+**Codex** (``codex exec``): ``codex exec --json -s workspace-write -C <repo> -c ... -``, later turns
+``codex exec resume --json -c ... <thread_id> -``. The b1500 server is passed as ``-c mcp_servers.b1500.*``
 overrides rendered from ``config/harness/codex.config.toml`` (same launch, timeouts and approval modes as
 ``harness init``) plus the temporary ``B1500_CONFIG_DIR``/``B1500_DATA_DIR``/``B1500_SESSION_TAG`` in its ``env``.
 ``run_confirmed_plan`` gets ``approval_mode = "approve"`` on turns that auto-approve it (``exec`` runs with approval
@@ -11,10 +11,16 @@ is passed on every turn because ``exec resume`` has no ``-s`` and a user config 
 **Claude Code** (``claude -p``): ``claude -p --output-format stream-json --verbose --include-hook-events
 --forward-subagent-text --mcp-config <turn>.json --strict-mcp-config --setting-sources user,project
 --permission-prompt-tool mcp__acceptance_runner__permission_prompt [--allowedTools mcp__b1500__run_confirmed_plan]
-[--resume <session_id>] -- <prompt>``. The project's ``ask`` rule outranks ``--allowedTools`` (ATV-5), so the
+[--resume <session_id>]``. The project's ``ask`` rule outranks ``--allowedTools`` (ATV-5), so the
 runner's permission-prompt server (``approver.py``) answers prompts: it allows ``run_confirmed_plan`` on
 auto-approving turns and denies everything else. ``--setting-sources user,project`` leaves out the personal
 ``.claude/settings.local.json``; ``CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`` keeps the user's auto-memory out.
+
+**The prompt goes on standard input** (v2.1 plan ATV-33): ``codex exec -`` and ``exec resume <id> -`` read it from
+stdin, ``claude -p`` without a prompt argument too. No free text is on the command line, so the npm ``codex.cmd``
+shim on Windows (cmd.exe parses its command line) cannot garble a prompt; any other argument with a character
+cmd.exe would interpret (``& | < > ^ %``, line breaks) is refused for a ``.cmd``/``.bat`` launcher
+(``check_shim_args``).
 
 Both harnesses inherit a cleaned environment (no ``CLAUDE*``/``B1500_*`` of a calling session) plus the three
 ``B1500_*`` variables, so the agent's own ``b1500`` CLI calls use the same temporary dirs and are audited with the
@@ -50,6 +56,11 @@ FORBIDDEN_ARGS = ("--yolo", "--dangerously-bypass-approvals-and-sandbox", "--dan
                   "--allow-dangerously-skip-permissions", "bypassPermissions", "danger-full-access", "--ignore-rules",
                   "--approve-for-me", "--dangerously-bypass-hook-trust", "--full-auto")
 _VERSION = re.compile(r"\d+\.\d+\.\d+(?:[-+.][0-9A-Za-z.]+)?")
+STDIN_PROMPT = "-"
+"""Codex's prompt argument meaning "read the prompt from standard input"."""
+CMD_SHIMS = (".cmd", ".bat")
+CMD_METACHARS = re.compile(r"[&|<>^%\r\n]")
+"""Characters cmd.exe interprets on the command line of a batch launcher (the npm ``codex.cmd`` shim)."""
 
 
 class HarnessError(RuntimeError):
@@ -178,8 +189,8 @@ def codex_argv(launch: TurnLaunch, exe: str = "codex") -> list[str]:
     flags = [part for value in codex_overrides(launch) for part in ("-c", value)]
     if launch.resume_id is None:
         return [exe, "exec", "--json", "-s", "workspace-write", "-C", str(launch.repo), *flags, *launch.extra_args,
-                launch.prompt]
-    return [exe, "exec", "resume", "--json", *flags, *launch.extra_args, launch.resume_id, launch.prompt]
+                STDIN_PROMPT]
+    return [exe, "exec", "resume", "--json", *flags, *launch.extra_args, launch.resume_id, STDIN_PROMPT]
 
 
 def codex_home(env: Mapping[str, str] | None = None) -> Path:
@@ -263,12 +274,33 @@ def claude_argv(launch: TurnLaunch, mcp_config: Path, exe: str = "claude") -> li
         argv += ["--allowedTools", CLAUDE_CONFIRM]
     if launch.resume_id is not None:
         argv += ["--resume", launch.resume_id]
-    return [*argv, *launch.extra_args, "--", launch.prompt]
+    return [*argv, *launch.extra_args]  # the prompt goes on standard input (module docstring)
+
+
+def is_cmd_shim(exe: str) -> bool:
+    """``exe`` is a Windows batch launcher (cmd.exe runs it and parses its command line)."""
+    return exe.lower().endswith(CMD_SHIMS)
+
+
+def check_shim_args(exe: str, argv: list[str]) -> None:
+    """Refuse an argument cmd.exe would interpret when ``exe`` is a batch launcher (ATV-33)."""
+    if not is_cmd_shim(exe):
+        return
+    for arg in argv[1:]:
+        found = CMD_METACHARS.search(arg)
+        if found:
+            raise HarnessError(f"refused to launch {Path(exe).name}: argument {arg[:80]!r} contains "
+                               f"{found.group()!r}, which cmd.exe would interpret; move the folder (runner --out, "
+                               "temp dir or clone) to a path without it")
 
 
 def turn_argv(launch: TurnLaunch, exe: str) -> tuple[list[str], dict[str, Any] | None]:
-    """argv for one turn and, for Claude Code, the MCP config to write to ``mcp/turn-<n>.json`` first."""
+    """argv for one turn and, for Claude Code, the MCP config to write to ``mcp/turn-<n>.json`` first. The prompt is
+    not in it: the runner sends it on standard input."""
     if launch.harness == "codex":
-        return codex_argv(launch, exe), None
-    config = claude_mcp_config(launch)
-    return claude_argv(launch, launch.session_dir / "mcp" / f"turn-{launch.turn}.json", exe), config
+        argv, config = codex_argv(launch, exe), None
+    else:
+        config = claude_mcp_config(launch)
+        argv = claude_argv(launch, launch.session_dir / "mcp" / f"turn-{launch.turn}.json", exe)
+    check_shim_args(exe, argv)
+    return argv, config

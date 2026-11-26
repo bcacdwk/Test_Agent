@@ -84,8 +84,9 @@ def patch_fake_harness(mp: pytest.MonkeyPatch, script: Path, *, tmp: Path, varia
     mp.setenv("FAKE_AGENT_VARS", json.dumps(variables or {}))
 
     def fake_argv(launch: harnesses.TurnLaunch, exe: str) -> tuple[list[str], None]:
+        # no --prompt: the fake agent reads it from standard input, as the real harnesses do (ATV-33)
         return ([sys.executable, str(FAKE_AGENT), "--harness", launch.harness, "--turn", str(launch.turn),
-                 "--resume", launch.resume_id or "new", "--script", str(script), f"--prompt={launch.prompt}"], None)
+                 "--resume", launch.resume_id or "new", "--script", str(script)], None)
 
     mp.setattr(harnesses, "turn_argv", fake_argv)
     mp.setattr(harnesses, "executable", lambda harness: sys.executable)
@@ -94,9 +95,11 @@ def patch_fake_harness(mp: pytest.MonkeyPatch, script: Path, *, tmp: Path, varia
 
 def run_scripted(mp: pytest.MonkeyPatch, tmp: Path, harness: str, agent: Path, *, scenario: Path = SELFTEST_SCENARIO,
                  variables: dict[str, Any] | None = None, timeout_s: float | None = None,
-                 prepare: Callable[[Path], None] | None = None) -> tuple[SessionGrade, Path]:
+                 prepare: Callable[[Path], None] | None = None, infra_stop: bool = True) \
+        -> tuple[SessionGrade, Path]:
     """One session of ``scenario`` through the real runner with the scripted agent; returns grade and repo.
-    ``prepare`` adds to the scripted repository first (e.g. ``add_manual_corpus``)."""
+    ``prepare`` adds to the scripted repository first (e.g. ``add_manual_corpus``); ``infra_stop`` off is the offline
+    tests' option of the runner (grading a forged transport event)."""
     tmp.mkdir(parents=True, exist_ok=True)
     repo = make_repo(tmp)
     if prepare is not None:
@@ -104,7 +107,8 @@ def run_scripted(mp: pytest.MonkeyPatch, tmp: Path, harness: str, agent: Path, *
     script = tmp / "agent.yaml"
     shutil.copyfile(agent, script)
     patch_fake_harness(mp, script, tmp=tmp, variables=variables)
-    options = runner.RunOptions(harness=harness, repo_root=repo, out_dir=tmp / "out", timeout_s=timeout_s)  # type: ignore[arg-type]
+    options = runner.RunOptions(harness=harness, repo_root=repo, out_dir=tmp / "out", timeout_s=timeout_s,  # type: ignore[arg-type]
+                                infra_stop=infra_stop)
     grade = runner.run_session(load_scenario(scenario), scenario, 1, options, tmp / "out" / "batch", "0.0.0-fake")
     return grade, repo
 

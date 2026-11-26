@@ -591,6 +591,24 @@ its approved envelope: the guard checked every level before the segment started.
 **Harness and configuration** (D3): bypass modes, the agent's own code and edits of `config/local/` or `data/` are
 outside the kernel's reach; the next section lists them with their mitigations.
 
+**Harness built-ins outside the guard hook (owner decision OD21-5 = c, v2.1).** The `PreToolUse` hook runs for
+`Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit`. Claude Code 2.1.328 also offers built-ins that run commands or
+write outside that matcher: `Monitor` (a shell command or script in the same environment as `Bash`), the schedule
+and remote tools `CronCreate`, `RemoteTrigger`, `ScheduleWakeup`, `EnterWorktree` (a git worktree) and
+`PublishPlugin`. No `.claude/settings.json` change covers them; the owner accepted them as a residual. Neither the
+hook nor the `Bash(...)`/`Edit(...)` deny rules see a command run through them, so for these tools the boundary is
+the one of "The agent's own code" below: the kernel (rules, tiers, `OutputGuard`, the 42 V / 100 mA ceiling, the
+fault latch) and the instructions in `AGENTS.md` and the skills. What makes it visible: every acceptance session
+lists the offered residual tools as a `harness contract` WARN and adds a separate WARN when the agent calls one,
+whose input the `forbidden_content` graders scan like any tool input; every `uv run b1500 dev harness qualify` report
+repeats it, and a new built-in that appears in a later version is a WARN that names it
+([acceptance/README.md](acceptance/README.md)).
+
+**Interactive-only facts.** A headless check cannot see what only an interactive session shows: that the approval
+prompt of `run_confirmed_plan` displays the `summary` (ATV-11, deployment steps 8.5 and 9.5) and that `/hooks` lists
+the guard hook (ATV-8, step 9.4). They stay human checks, listed in every qualify report and repeated on the lab PC
+after a version change.
+
 ## What is protected and what is not (owner decision D3)
 
 Human approval is the coding harness's own tool confirmation. This keeps the system simple; the owner accepted the

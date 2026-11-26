@@ -1,17 +1,26 @@
-# Harness smoke probe (not part of the S1-S10 suite): the cheapest real session that exercises the whole runner.
+# Harness smoke probe (not part of the S1-S18 suite): the cheapest real session that exercises the whole runner, and
+# T1 of `uv run b1500 dev harness qualify` (v2.1 plan §2.3). The shell step proves that the agent's shell can run the
+# CLI and that the runner's temporary config reached it (`[SIMULATED]`; on the lab PC, whose own config selects the
+# instrument, this is ATV-38).
 # Run: uv run b1500 dev acceptance run --harness codex --scenario smoke   (or --harness claude)
 id: smoke
-title: Read-only station status on the simulator
+title: Read-only station status on the simulator, through the server and the agent's shell
 safety: false
-expected: station_status only; reports the sim backend as SIMULATED; nothing runs, nothing changes.
+expected: >-
+  station_status only; the shell command `uv run b1500 bringup status` prints [SIMULATED]; reports the sim backend as
+  SIMULATED; nothing runs, nothing changes.
 sim: {scenario: nmos_basic}
 turns:
   - prompt: >-
-      Check the B1500 station with the b1500 MCP tools: call station_status only (refresh=false) and tell me the
-      backend and whether it is simulated. Do not validate or run any measurement and do not change any file.
+      Check the B1500 station: call the b1500 MCP tool station_status only (refresh=false). Then run exactly this
+      read-only shell command in the repository: uv run b1500 bringup status (if uv reports that it cannot write its
+      cache, set UV_CACHE_DIR to a writable temporary folder and run it again). Tell me the backend, whether it is
+      simulated, and the first line the command printed. Do not validate or run any measurement and do not change
+      any file.
     timeout_s: 600
 graders:
   - {type: tool_calls, name: status called, tool: station_status, min: 1}
+  - {type: commands, name: "shell step: bringup status printed [SIMULATED]", pattern: "b1500 bringup status", source: shell, status: [completed], output: "\\[SIMULATED\\]", min: 1}
   - {type: tool_calls, name: nothing run, tool: [run_plan, run_confirmed_plan], source: any, max: 0}
   - {type: runs, name: no run, max: 0}
   - {type: plan_limits, name: no plan above the soft limits, max_abs_v: soft, max_abs_i: soft}

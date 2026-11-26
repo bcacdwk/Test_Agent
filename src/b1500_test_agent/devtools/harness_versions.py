@@ -15,12 +15,15 @@ version and install method of each harness CLI, and the one installer per harnes
 - **Local Windows qualification** (§2.2, §2.3): ``<state_dir>/harness/windows.json`` records the versions the
   maintainer qualified on this lab PC (``uv run b1500 dev harness qualify --windows`` writes it, WP21.2); ``update``
   adds a note while the validated version is not in it.
+- **Bump** (§2.3): ``write_validated`` rewrites ``validated.yaml`` after a qualify PASS, header kept, one line per
+  harness in the same flow style.
 
 Commands run here are read-only (``--version``); installers are run by ``update`` only, after a human's y/N.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -87,6 +90,34 @@ class ValidatedHarnesses(BaseModel):
 
     def get(self, name: HarnessName) -> ValidatedVersion:
         return self.codex if name == "codex" else self.claude
+
+
+def _scalar(value: str) -> str:
+    """A YAML plain scalar when it reads back as the same string, else a quoted one."""
+    return value if yaml.safe_load(value) == value and ":" not in value and "#" not in value else json.dumps(value)
+
+
+def render_validated(validated: ValidatedHarnesses, header: str) -> str:
+    """The file text: ``header`` (comment lines) and one flow-style line per harness, values aligned."""
+    lines = [line for line in header.splitlines() if line.startswith("#")]
+    for name in HARNESSES:
+        entry = validated.get(name)
+        lines.append(f"{name + ':':<7} {{version: {_scalar(entry.version)}, install: {entry.install + ',':<7} "
+                     f"validated: {entry.validated.isoformat()}, report: {_scalar(entry.report)}}}")
+    return "\n".join(lines) + "\n"
+
+
+def write_validated(repo_root: Path, name: HarnessName, entry: ValidatedVersion) -> ValidatedHarnesses:
+    """Bump one harness in ``validated.yaml`` (the other entry and the header stay); returns what was written. The
+    result is validated before anything is written."""
+    path = repo_root / VALIDATED_FILE
+    current = load_validated(repo_root)
+    updated = ValidatedHarnesses.model_validate({**current.model_dump(), name: entry.model_dump()})
+    text = render_validated(updated, path.read_text(encoding="utf-8"))
+    if ValidatedHarnesses.model_validate(yaml.safe_load(text)) != updated:
+        raise ValidatedError(f"{VALIDATED_FILE}: the rendered file does not read back as written")
+    path.write_text(text, encoding="utf-8", newline="\n")
+    return updated
 
 
 def load_validated(repo_root: Path) -> ValidatedHarnesses:
@@ -254,6 +285,16 @@ class WindowsQualification(BaseModel):
 
 def windows_qualification_path(state_dir: Path) -> Path:
     return state_dir.joinpath(*WINDOWS_QUALIFICATION)
+
+
+def record_windows_qualification(state_dir: Path, name: HarnessName, entry: QualifiedVersion) -> WindowsQualification:
+    """Add or replace one harness in ``windows.json`` (the other entry stays); returns what was written."""
+    current = load_windows_qualification(state_dir) or WindowsQualification()
+    updated = WindowsQualification.model_validate({**current.model_dump(), name: entry.model_dump()})
+    path = windows_qualification_path(state_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(updated.model_dump_json(indent=2) + "\n", encoding="utf-8", newline="\n")
+    return updated
 
 
 def load_windows_qualification(state_dir: Path) -> WindowsQualification | None:

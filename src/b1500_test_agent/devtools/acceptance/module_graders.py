@@ -56,8 +56,10 @@ def _clip(text: str, limit: int = 100) -> str:
 
 def commands(ev: Evidence, spec: CommandsSpec) -> Outcome:
     pattern = re.compile(spec.pattern)
+    output = re.compile(spec.output) if spec.output is not None else None
     shell = [c for c in ev.shell(spec.turn) if pattern.search(c.command)
-             and (spec.status is None or c.status in spec.status)]
+             and (spec.status is None or c.status in spec.status)
+             and (output is None or output.search(c.output) is not None)]
     inputs = [i for i in ev.tool_inputs(spec.turn) if pattern.search(i.text)]
     if spec.source == "shell":
         n, note = len(shell), ""
@@ -71,7 +73,8 @@ def commands(ev: Evidence, spec: CommandsSpec) -> Outcome:
     if not ok and not details:
         details = [f"shell t{c.turn} [{c.status}] {_clip(c.command)}" for c in ev.shell(spec.turn)]
     where = f" in turn {spec.turn}" if spec.turn else ""
-    return ok, f"commands matching /{spec.pattern}/{where}: {counted}{note}", _details(details)
+    printed = f" printing /{spec.output}/" if spec.output is not None else ""
+    return ok, f"commands matching /{spec.pattern}/{printed}{where}: {counted}{note}", _details(details)
 
 
 # -- plans -----------------------------------------------------------------------------------------------------------

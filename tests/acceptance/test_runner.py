@@ -135,7 +135,7 @@ def test_snapshot_diff_and_digest(tmp_path: Path) -> None:
 def test_codex_commands(tmp_path: Path) -> None:
     first = harnesses.codex_argv(_launch(tmp_path, "codex", approve=False), "codex")
     assert first[:7] == ["codex", "exec", "--json", "-s", "workspace-write", "-C", str(REPO_ROOT)]
-    assert first[-1] == "do it"
+    assert first[-1] == "-" and "do it" not in first  # the prompt goes on standard input (ATV-33)
     values = [first[i + 1] for i, part in enumerate(first) if part == "-c"]
     assert 'sandbox_mode="workspace-write"' in values
     assert 'mcp_servers.b1500.tools.run_confirmed_plan.approval_mode="prompt"' in values
@@ -148,14 +148,14 @@ def test_codex_commands(tmp_path: Path) -> None:
     assert args["x"] == ["run", "--frozen", "--project", REPO_ROOT.as_posix(), "b1500-mcp"]
     resumed = harnesses.codex_argv(_launch(tmp_path, "codex", turn=2, resume="thread-1"), "codex")
     assert resumed[:4] == ["codex", "exec", "resume", "--json"] and "-s" not in resumed
-    assert resumed[-2:] == ["thread-1", "do it"]
+    assert resumed[-2:] == ["thread-1", "-"]
     assert 'mcp_servers.b1500.tools.run_confirmed_plan.approval_mode="approve"' in resumed
 
 
 def test_claude_commands_and_mcp_config(tmp_path: Path) -> None:
     launch = _launch(tmp_path, "claude", approve=False)
     argv, config = harnesses.turn_argv(launch, "claude")
-    assert argv[:2] == ["claude", "-p"] and argv[-2:] == ["--", "do it"]
+    assert argv[:2] == ["claude", "-p"] and "do it" not in argv and "--" not in argv  # prompt on standard input
     for flag in ("--strict-mcp-config", "--verbose", "--include-hook-events"):
         assert flag in argv
     assert argv[argv.index("--output-format") + 1] == "stream-json"
@@ -231,10 +231,12 @@ def test_timeout_kills_the_turn_and_fails_the_session(tmp_path: Path, monkeypatc
 
 
 def test_codex_reconnect_notices_do_not_fail_the_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Grading: a reconnect notice is not an error of the turn. (The live runner stops at it all the same, OD21-4 = a:
+    ``test_infra_stop.py``; this session runs with the watcher off, the offline-test option.)"""
     agent = tmp_path / "flaky.yaml"
     agent.write_text("turns:\n  1:\n    - {stream_error: 'Reconnecting... 1/5 (stream disconnected)'}\n"
                      "    - {say: one}\n  2:\n    - {say: two}\n", encoding="utf-8")
-    grade, _ = run_scripted(monkeypatch, tmp_path / "w", "codex", agent, scenario=SELFTEST_SCENARIO)
+    grade, _ = run_scripted(monkeypatch, tmp_path / "w", "codex", agent, scenario=SELFTEST_SCENARIO, infra_stop=False)
     session = grade.results[0]
     assert session.name == "session ok" and session.verdict == "pass", session.details
     assert "1 transient transport notice(s)" in session.message
@@ -242,7 +244,8 @@ def test_codex_reconnect_notices_do_not_fail_the_session(tmp_path: Path, monkeyp
     broken = tmp_path / "broken.yaml"
     broken.write_text("turns:\n  1:\n    - {stream_error: 'unexpected status 500'}\n    - {say: one}\n"
                       "  2:\n    - {say: two}\n", encoding="utf-8")
-    grade, _ = run_scripted(monkeypatch, tmp_path / "w2", "codex", broken, scenario=SELFTEST_SCENARIO)
+    grade, _ = run_scripted(monkeypatch, tmp_path / "w2", "codex", broken, scenario=SELFTEST_SCENARIO,
+                            infra_stop=False)
     assert grade.results[0].verdict == "fail" and any("unexpected status 500" in d for d in grade.results[0].details)
 
 
@@ -258,3 +261,56 @@ def test_session_records_resume_and_harness_facts(tmp_path: Path, monkeypatch: p
     assert (session / "transcripts" / "codex-rollout.jsonl").is_file()
     assert (session / "grades.json").is_file()
     assert grade_session(session, write=False).results[0].verdict == "pass"
+
+
+# -- Windows launch (ATV-33, by injection) and the prompt on standard input ------------------------------------------
+
+
+def test_a_cmd_shim_gets_no_prompt_and_no_cmd_metacharacters(tmp_path: Path) -> None:
+    shim = "C:/Users/lab/AppData/Roaming/npm/codex.cmd"
+    launch = harnesses.TurnLaunch(harness="codex", repo=REPO_ROOT, session_dir=tmp_path / "s",
+                                  config_dir=tmp_path / "s" / "config", data_dir=tmp_path / "s" / "data", tag="t",
+                                  turn=1, prompt='Run "a & b | c" at 100% > now\nsecond line',
+                                  approve_confirm_tool=True)
+    argv, _ = harnesses.turn_argv(launch, shim)
+    assert argv[0] == shim and argv[-1] == "-" and not any("100%" in a or "a & b" in a for a in argv)
+    assert harnesses.is_cmd_shim("C:\\npm\\CODEX.CMD") and not harnesses.is_cmd_shim("C:/x/claude.exe")
+    bad = harnesses.TurnLaunch(**{**launch.__dict__, "config_dir": tmp_path / "50%" / "config"})
+    with pytest.raises(harnesses.HarnessError, match="cmd.exe would interpret"):
+        harnesses.turn_argv(bad, shim)
+    claude = harnesses.TurnLaunch(**{**bad.__dict__, "harness": "claude"})
+    argv, _ = harnesses.turn_argv(claude, "C:/Users/lab/.local/bin/claude.exe")  # no cmd.exe in between
+    assert "--" not in argv and launch.prompt not in argv
+
+
+def test_windows_process_group_and_tree_kill_by_injection(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert runner._popen_kwargs(windows=True) == {"creationflags": 0x200}
+    assert runner._popen_kwargs(windows=False) == {"start_new_session": True}
+    called: list[list[str]] = []
+    monkeypatch.setattr(runner.subprocess, "run", lambda argv, **_kw: called.append(argv))
+
+    class Proc:
+        pid = 4242
+
+        def kill(self) -> None:
+            called.append(["kill"])
+
+    runner._kill_tree(Proc(), windows=True)  # type: ignore[arg-type]
+    assert called == [["taskkill", "/F", "/T", "/PID", "4242"]]
+
+
+def test_the_prompt_reaches_the_harness_on_stdin_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    prompt = 'Plan "P-AAAAAAAAAA" & check | 100% > 5 V — Ω ✓\nline two'
+    scenario = tmp_path / "echo.yaml"
+    scenario.write_text("id: echo\ntitle: echo\nturns:\n  - prompt: " + json.dumps(prompt) + "\ngraders:\n"
+                        "  - {type: runs, max: 0}\n", encoding="utf-8")
+    agent = tmp_path / "echo-agent.yaml"
+    agent.write_text("turns:\n  1:\n    - {say: '{{prompt.text}}'}\n", encoding="utf-8")
+    grade, _ = run_scripted(monkeypatch, tmp_path / "w", "claude", agent, scenario=scenario)
+    session = Path(grade.session_dir)
+    assert (session / "transcripts" / "turn-1.prompt.txt").read_text(encoding="utf-8") == prompt
+    record = json.loads((session / "session.json").read_text(encoding="utf-8"))
+    assert prompt not in record["turns"][0]["argv"]
+    result = [json.loads(line) for line in (session / "transcripts" / "turn-1.jsonl").read_text(
+        encoding="utf-8").splitlines() if '"type": "result"' in line]
+    assert result[0]["result"] == prompt and grade.results[0].verdict == "pass"

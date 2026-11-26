@@ -1,0 +1,9 @@
+{
+  "purpose": "Harness contract (v2.1 plan §2.5) on real sessions: tests/acceptance/test_harness_contract.py copies a folder, puts the real paths back (<REPO>, <SESSION>) and forges the gaps",
+  "captured": "2026-11-25 (WP11.5 full-suite batches)",
+  "files": {
+    "claude-2.1.328-S16/": "batch 20261125T221153Z-claude-2.1.328, S16-r1: 5 Bash calls, each with a PreToolUse hook_started/hook_response pair; init with 31 built-in tools (the residual Monitor, CronCreate, RemoteTrigger, ScheduleWakeup, EnterWorktree, PublishPlugin among them), the b1500 server connected, the three project skills; rate-limit events dropped",
+    "codex-0.170.0-S2/": "batch 20261125T204845Z-codex-0.170.0, S2-r2: thread.started, items, turn.completed with usage; the rollout trimmed to turn_context and tool-call records"
+  },
+  "sanitized": "paths replaced by <REPO>, <SESSION>, <OUT>, <HOME>; seeds and file changes emptied in session.json; Claude init without the user's commands, plugins and skills; signatures blanked"
+}

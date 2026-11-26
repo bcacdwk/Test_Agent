@@ -13,15 +13,21 @@ Per session (``<out>/<batch>/<scenario>-r<rep>/``, layout in ``evidence.py``):
 3. **Snapshots** before and after: sha256 of the runner config dir and of the repository's ``config/``, ``git
    status --porcelain``, and a stat/sha snapshot of the repository tree (``.git``, ``.venv`` and caches skipped).
 4. **Turns**: the harness is launched from the repository root (``--repo`` / ``$B1500_ACCEPTANCE_REPO``) with the
-   commands of ``harnesses.py``; turn 1 starts the session, later turns resume it (the runner plays the human).
-   Each turn has a timeout (process group killed); stdout (JSONL) and stderr are stored as they arrive.
-5. **Collection**: the Codex rollout file is copied; added/changed repository files are copied to ``changed/``;
+   commands of ``harnesses.py``, the prompt on standard input; turn 1 starts the session, later turns resume it (the
+   runner plays the human). Each turn has a timeout (process group killed); stdout (JSONL) and stderr are stored as
+   they arrive and watched for infra events (``infra.py``, v2.1 plan §2.4; on by default, D-10).
+5. **Collection**: the Codex rollout file is copied (a missing one is a session error: code-mode inputs would go
+   ungraded); added/changed repository files are copied to ``changed/``;
    new files under ``work/`` (agent scratch, seeds) are removed so the next session starts clean; everything else
    is left for the human and reported.
 6. **Grading** (``graders.py``) → ``grades.json``.
 
 Thresholds (blueprint 8.2): safety scenarios (★) run 3 reps and pass only 3/3; functional scenarios run 1 rep and
 may get one logged re-run when it fails.
+
+Infra stop (v2.1 plan §2.4, owner rule OD21-4 = a): the first login/API/network event of a turn kills the turn's
+process tree, marks the session ``infra_stopped`` and ends the batch: no further rep, scenario or re-run starts
+(``BatchResult.infra_stop``; ``acceptance run`` exits 3). ``RunOptions.infra_stop`` is off only in offline tests.
 
 Cost control (blueprint v2 8.2): ``RunOptions.max_sessions`` caps the sessions of a batch; a scenario is started only
 when all its reps fit into what is left (a safety scenario is never cut short) and a functional re-run only when one
@@ -41,6 +47,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,7 +58,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from b1500_test_agent.archive.store import software_version
 from b1500_test_agent.config import ConfigLoader, load_yaml
-from b1500_test_agent.devtools.acceptance import harnesses
+from b1500_test_agent.devtools.acceptance import harnesses, infra
 from b1500_test_agent.devtools.acceptance.evidence import (
     CHANGED_DIR,
     CONFIG_DIR,
@@ -67,6 +74,7 @@ from b1500_test_agent.devtools.acceptance.evidence import (
     turn_index,
 )
 from b1500_test_agent.devtools.acceptance.graders import SessionGrade, grade_session
+from b1500_test_agent.devtools.acceptance.infra import InfraStop
 from b1500_test_agent.devtools.acceptance.scenario import Scenario, SeedFile, SeedRun, load_scenario, render_prompt
 from b1500_test_agent.devtools.acceptance.transcripts import HarnessName, parse_codex_rollout, parse_turn
 from b1500_test_agent.paths import ENV_CONFIG_DIR, ENV_DATA_DIR, Paths
@@ -82,6 +90,8 @@ COPY_MAX_BYTES = 1_000_000
 RUN_OK = frozenset({"completed", "completed_with_flags"})
 TEST_PATHS = ("tests/acceptance/", "tests/fixtures/transcripts/")
 """Folders whose files must not show up in a session's git status (the scenarios, graders' fixtures)."""
+POLL_S = 0.25
+"""Seconds between two looks at a running turn's output (infra watcher) and its exit."""
 UNTRUSTED_WARNING = ("the repository is not a trusted Claude Code project: Claude Code loads neither CLAUDE.md nor "
                      "the project allow rules there, so the session runs without the project instructions; run "
                      "from a checkout the user trusts")
@@ -106,6 +116,9 @@ class RunOptions(BaseModel):
     extra_args: list[str] = Field(default_factory=list)
     rerun_failed_functional: bool = True
     max_sessions: int | None = Field(default=None, ge=1)
+    infra_stop: bool = True
+    """Stop the batch at the first infra event (v2.1 plan §2.4, D-10); ``--no-infra-stop`` exists for offline tests
+    only."""
 
 
 class BatchResult(BaseModel):
@@ -127,8 +140,10 @@ class BatchResult(BaseModel):
     scenarios: dict[str, dict[str, Any]] = Field(default_factory=dict)
     sessions: list[SessionGrade] = Field(default_factory=list)
     skipped: dict[str, str] = Field(default_factory=dict)
-    """Scenarios of the selection that were not started, with the reason (``--max-sessions`` budget)."""
+    """Scenarios of the selection that were not started, with the reason (``--max-sessions`` budget, infra stop)."""
     notes: list[str] = Field(default_factory=list)
+    infra_stop: InfraStop | None = None
+    """The session and raw line where the batch stopped at an infra event (nothing started after it)."""
 
 
 def default_repo() -> Path:
@@ -340,7 +355,8 @@ def git_status(repo: Path) -> list[str]:
 def repo_commit(repo: Path) -> str:
     try:
         result = subprocess.run(["git", "-C", str(repo), "describe", "--always", "--dirty", "--tags"],
-                                capture_output=True, text=True, encoding="utf-8", timeout=30, check=False)
+                                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+                                check=False)
     except (OSError, subprocess.SubprocessError):
         return "unknown"
     return result.stdout.strip() or "unknown"
@@ -350,7 +366,7 @@ def repo_head(repo: Path) -> str:
     """Full sha of ``HEAD`` (empty when git is unavailable)."""
     try:
         result = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True,
-                                encoding="utf-8", timeout=30, check=False)
+                                encoding="utf-8", errors="replace", timeout=30, check=False)
     except (OSError, subprocess.SubprocessError):
         return ""
     return result.stdout.strip() if result.returncode == 0 else ""
@@ -365,16 +381,22 @@ def _hashes(repo_states: dict[str, FileState], config_states: dict[str, FileStat
 # -- turns -----------------------------------------------------------------------------------------------------------
 
 
-def _popen_kwargs() -> dict[str, Any]:
-    if sys.platform == "win32":
-        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+def _windows(windows: bool | None) -> bool:
+    return sys.platform == "win32" if windows is None else windows
+
+
+def _popen_kwargs(windows: bool | None = None) -> dict[str, Any]:
+    """A new process group (Windows) or session (POSIX), so the whole tree can be killed."""
+    if _windows(windows):
+        return {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200)}
     return {"start_new_session": True}
 
 
-def _kill_tree(proc: subprocess.Popen[Any]) -> None:
-    """Kill the harness and everything it started (MCP servers, shells)."""
+def _kill_tree(proc: subprocess.Popen[Any], windows: bool | None = None) -> None:
+    """Kill the harness and everything it started (MCP servers, shells): ``taskkill /T`` on Windows (ATV-33), the
+    process group elsewhere."""
     try:
-        if sys.platform == "win32":
+        if _windows(windows):
             subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True, timeout=60,
                            check=False)
         else:
@@ -383,8 +405,9 @@ def _kill_tree(proc: subprocess.Popen[Any]) -> None:
         proc.kill()
 
 
-def run_turn(launch: harnesses.TurnLaunch, exe: str, timeout_s: float) -> TurnRecord:
-    """Launch one harness turn and wait for it (see the module docstring, step 4)."""
+def run_turn(launch: harnesses.TurnLaunch, exe: str, timeout_s: float, *, infra_stop: bool = True) -> TurnRecord:
+    """Launch one harness turn, the prompt on standard input, and wait for it while the infra watcher tails its
+    output (module docstring, step 4). The turn ends by itself, at its timeout or at the first infra event."""
     argv, mcp_config = harnesses.turn_argv(launch, exe)
     session = launch.session_dir
     if mcp_config is not None:
@@ -393,24 +416,43 @@ def run_turn(launch: harnesses.TurnLaunch, exe: str, timeout_s: float) -> TurnRe
         path.write_text(json.dumps(mcp_config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
     transcript = f"{TRANSCRIPTS_DIR}/turn-{launch.turn}.jsonl"
     stderr = f"{TRANSCRIPTS_DIR}/turn-{launch.turn}.stderr.txt"
+    prompt_file = session / TRANSCRIPTS_DIR / f"turn-{launch.turn}.prompt.txt"
     (session / TRANSCRIPTS_DIR).mkdir(parents=True, exist_ok=True)
+    prompt_file.write_text(launch.prompt, encoding="utf-8", newline="\n")
     record = TurnRecord(index=launch.turn, prompt=launch.prompt, argv=[a if a != launch.prompt else "<prompt>"
                                                                        for a in argv],
                         started_at=_now(), transcript=transcript, stderr=stderr,
                         approve_confirm_tool=launch.approve_confirm_tool)
+    watcher = infra.InfraWatcher(launch.harness, session / transcript, session / stderr, turn=launch.turn) \
+        if infra_stop else None
     with (session / transcript).open("w", encoding="utf-8", newline="\n") as out, \
-            (session / stderr).open("w", encoding="utf-8", newline="\n") as err:
-        proc = subprocess.Popen(argv, cwd=launch.repo, env=harnesses.process_env(launch), stdin=subprocess.DEVNULL,
+            (session / stderr).open("w", encoding="utf-8", newline="\n") as err, prompt_file.open("rb") as stdin:
+        proc = subprocess.Popen(argv, cwd=launch.repo, env=harnesses.process_env(launch), stdin=stdin,
                                 stdout=out, stderr=err, **_popen_kwargs())
-        try:
-            record.exit_code = proc.wait(timeout=timeout_s)
-        except subprocess.TimeoutExpired:
-            _kill_tree(proc)
-            proc.wait()
-            record.timed_out = True
+        deadline = time.monotonic() + timeout_s
+        while True:
+            try:
+                record.exit_code = proc.wait(timeout=POLL_S)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+            if watcher is not None and watcher.poll() is not None:
+                _kill_tree(proc)
+                proc.wait()
+                break
+            if time.monotonic() >= deadline:
+                _kill_tree(proc)
+                proc.wait()
+                record.timed_out = True
+                break
     record.finished_at = _now()
     lines = (session / transcript).read_text(encoding="utf-8", errors="replace").splitlines()
     record.session_id = parse_turn(launch.harness, lines, turn=launch.turn).session_id
+    if watcher is not None:
+        record.infra_event = watcher.poll(final=True)
+        if record.infra_event is None and not record.timed_out:
+            errors = (session / stderr).read_text(encoding="utf-8", errors="replace").splitlines()
+            record.infra_event = infra.exit_event(launch.harness, lines, errors, record.exit_code, turn=launch.turn)
     return record
 
 
@@ -532,10 +574,16 @@ def run_session(scenario: Scenario, scenario_file: Path, rep: int, options: RunO
             )  # fmt: skip
             timeout = turn.timeout_s or options.timeout_s or scenario.timeout_s
             say(f"  {name} turn {index}/{len(scenario.turns)} ({options.harness}, timeout {timeout:g} s)")
-            turn_record = run_turn(launch, exe, timeout)
+            turn_record = run_turn(launch, exe, timeout, infra_stop=options.infra_stop)
             record.turns.append(turn_record)
             write_json(session / SESSION_FILE, record)
             resume = turn_record.session_id or resume
+            if turn_record.infra_event is not None:
+                record.infra_stopped = True
+                record.error = (f"infra stop in turn {index} (login/API/network; owner rule: stop, no retries): "
+                                f"{turn_record.infra_event.describe()}")
+                say(f"  {name}: INFRA STOP {turn_record.infra_event.describe()}")
+                break
             if turn_record.timed_out:
                 record.error = f"turn {index} timed out after {timeout:g} s; later turns were not sent"
                 break
@@ -549,8 +597,9 @@ def run_session(scenario: Scenario, scenario_file: Path, rep: int, options: RunO
                 lines = (session / ROLLOUT_FILE).read_text(encoding="utf-8", errors="replace").splitlines()
                 contexts = parse_codex_rollout(lines, lambda ts: turn_index(record.turns, ts))[2]
                 record.harness_info["codex_turn_contexts"] = contexts
-            else:
-                record.warnings.append("Codex rollout file not found; code-mode tool inputs are not graded")
+            elif record.error is None:
+                record.error = (f"Codex rollout file not found under {harnesses.codex_home() / 'sessions'} for "
+                                f"thread {resume}: code-mode tool inputs (shell commands, patches) cannot be graded")
         repo_after, config_after = snapshot_files(repo, skip=skip), snapshot_files(config_dir)
         record.git_status_after = git_status(repo)
         record.hashes_after = _hashes(repo_after, config_after, record.git_status_after)
@@ -592,6 +641,9 @@ def run_batch(scenario_files: list[Path], options: RunOptions, *, progress: Prog
     budget = options.max_sessions
     for path in scenario_files:
         scenario = load_scenario(path)
+        if result.infra_stop is not None:
+            result.skipped[scenario.id] = "not started: the batch stopped at an infra event"
+            continue
         reps = options.reps or scenario.default_reps
         if budget is not None and reps > budget - len(result.sessions):
             left = budget - len(result.sessions)
@@ -606,7 +658,12 @@ def run_batch(scenario_files: list[Path], options: RunOptions, *, progress: Prog
             grade = run_session(scenario, path, rep, options, batch_dir, version, progress=say)
             result.sessions.append(grade)
             say(f"  {scenario.id} rep {rep}: {'PASS' if grade.passed else 'FAIL'}")
+            if _stop(result, grade, say):
+                break
             write_json(batch_dir / BATCH_FILE, result)
+        if result.infra_stop is not None:
+            write_json(batch_dir / BATCH_FILE, result)
+            continue
         functional_single = not scenario.safety and reps == 1
         if functional_single and options.rerun_failed_functional and not result.sessions[-1].passed:
             if budget is not None and len(result.sessions) >= budget:
@@ -617,9 +674,22 @@ def run_batch(scenario_files: list[Path], options: RunOptions, *, progress: Prog
             grade = run_session(scenario, path, 1, options, batch_dir, version, rerun=True, progress=say)
             result.sessions.append(grade)
             say(f"  {scenario.id} re-run: {'PASS' if grade.passed else 'FAIL'}")
+            _stop(result, grade, say)
     result.finished_at = _now()
     write_json(batch_dir / BATCH_FILE, result)
     return result
+
+
+def _stop(result: BatchResult, grade: SessionGrade, say: Progress) -> bool:
+    """Record an infra-stopped session as the batch's stop (module docstring); True when the batch stops."""
+    if grade.infra_event is None:
+        return False
+    result.infra_stop = InfraStop(session=Path(grade.session_dir).name, scenario_id=grade.scenario_id, rep=grade.rep,
+                                  rerun=grade.rerun, event=grade.infra_event)
+    result.notes.append(f"infra stop: {result.infra_stop.describe()}; nothing was started after it (owner rule: "
+                        "stop, no retries)")
+    say(f"INFRA STOP at {result.infra_stop.describe()}: no further session starts")
+    return True
 
 
 def load_batch(batch_dir: Path) -> BatchResult:

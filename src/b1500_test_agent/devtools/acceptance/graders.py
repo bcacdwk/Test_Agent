@@ -1,9 +1,10 @@
 """Grader implementations (specs and semantics: ``specs.py``) and session grading.
 
-``grade(evidence)`` runs an implicit ``session ok`` check (every turn exited 0, did not time out and the harness
-reported a completed turn) and then every grader of the scenario. A session passes when no check fails; ``llm_rubric``
-graders are reported as ``skipped`` and never decide a verdict. Graders never raise: an unexpected exception is a
-failed check with the exception text.
+``grade(evidence)`` runs an implicit ``session ok`` check (every turn exited 0, did not time out, hit no infra event
+and the harness reported a completed turn), the implicit ``harness contract`` (``contract.py``, v2.1 plan §2.5:
+structural gaps fail, vocabulary drift and the accepted residual only ``warn``) and then every grader of the scenario.
+A session passes when no check fails; ``warn`` never fails it; ``llm_rubric`` graders are reported as ``skipped`` and
+never decide a verdict. Graders never raise: an unexpected exception is a failed check with the exception text.
 """
 
 from __future__ import annotations
@@ -19,8 +20,10 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from b1500_test_agent.devtools.acceptance.bringup_graders import bringup_records, skill_loaded, stage_order
+from b1500_test_agent.devtools.acceptance.contract import check_contract
 from b1500_test_agent.devtools.acceptance.evidence import GRADES_FILE, Evidence, load_evidence
 from b1500_test_agent.devtools.acceptance.extraction import extraction, field_value
+from b1500_test_agent.devtools.acceptance.infra import InfraEvent
 from b1500_test_agent.devtools.acceptance.module_graders import (
     async_run,
     commands,
@@ -48,7 +51,7 @@ from b1500_test_agent.devtools.acceptance.specs import (
 from b1500_test_agent.devtools.acceptance.transcripts import ToolCall, Usage
 from b1500_test_agent.models.plan import PlanRecord
 
-Verdict = Literal["pass", "fail", "skipped"]
+Verdict = Literal["pass", "warn", "fail", "skipped"]
 IO_MATCH_WINDOW = timedelta(seconds=5)
 DETAIL_LIMIT = 12
 _RULE_ID = re.compile(r"\bR-[A-Z]+-\d{2}\b")
@@ -94,6 +97,8 @@ class SessionGrade(BaseModel):
     usage: Usage = Field(default_factory=Usage)
     """Token usage and cost of the session's turns (blueprint v2 8.2 cost policy); ``wall_s`` from the runner's turn
     times."""
+    infra_event: InfraEvent | None = None
+    """The infra event the session stopped at (v2.1 plan §2.4): the batch stopped after this session."""
 
     def failures(self) -> list[GraderResult]:
         return [r for r in self.results if r.verdict == "fail"]
@@ -761,7 +766,9 @@ def _session_ok(ev: Evidence) -> GraderResult:
         problems.append(f"{len(ev.record.turns)} of {len(ev.scenario.turns)} turns ran")
     for turn in ev.record.turns:
         transcript = ev.transcript(turn.index)
-        if turn.timed_out:
+        if turn.infra_event is not None:
+            problems.append(f"turn {turn.index} stopped at an infra event: {_clip(turn.infra_event.describe(), 200)}")
+        elif turn.timed_out:
             problems.append(f"turn {turn.index} timed out")
         elif turn.exit_code != 0:
             problems.append(f"turn {turn.index} exit code {turn.exit_code}")
@@ -784,9 +791,19 @@ def _session_ok(ev: Evidence) -> GraderResult:
                         message=message, details=_details([*problems, *notices]))
 
 
+def _harness_contract(ev: Evidence) -> GraderResult:
+    try:
+        verdict, message, details = check_contract(ev).outcome()
+    except Exception as exc:  # noqa: BLE001 - a contract bug is a failed check, not a crash
+        return GraderResult(name="harness contract", type="harness_contract", verdict="fail",
+                            message=f"contract error: {type(exc).__name__}: {exc}")
+    return GraderResult(name="harness contract", type="harness_contract", verdict=verdict, message=message,
+                        details=_details(details))
+
+
 def grade(ev: Evidence) -> SessionGrade:
     """Grade one loaded session."""
-    results = [_session_ok(ev)]
+    results = [_session_ok(ev), _harness_contract(ev)]
     for spec in ev.scenario.graders:
         try:
             passed, message, details = GRADERS[spec.type](ev, spec)
@@ -800,7 +817,7 @@ def grade(ev: Evidence) -> SessionGrade:
         scenario_id=record.scenario_id, rep=record.rep, rerun=record.rerun, harness=record.harness,
         harness_version=record.harness_version, session_tag=record.session_tag, session_dir=ev.root.as_posix(),
         passed=all(r.verdict != "fail" for r in results), results=results, problems=list(ev.problems),
-        usage=session_usage(ev),
+        usage=session_usage(ev), infra_event=next((t.infra_event for t in record.turns if t.infra_event), None),
     )  # fmt: skip
 
 

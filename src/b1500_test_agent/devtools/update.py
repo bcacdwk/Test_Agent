@@ -29,6 +29,8 @@ Steps, one line each, then ``Ready.`` (exit 0) or ``Not ready. Do this:`` with a
 Fail-safe rule: output ``update`` cannot read (a changed ``claude doctor`` wording, an unreadable user config) is a
 note, never a block: the same versions passed the maintainer's checks first. ``--check`` changes nothing (no pull,
 sync, re-render or install; only the harnesses' own status commands and a throw-away server start run).
+``operator_checks`` runs the checks of step 7 one by one per harness for the maintainer's ``dev harness qualify``
+(T0, ``harness_qualify.py``).
 """
 
 from __future__ import annotations
@@ -39,7 +41,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final, Literal
@@ -747,6 +749,53 @@ def _checks(ctx: UpdateContext, rec: _Record, generated: list[HarnessName], back
         _servers(ctx, rec, generated, backend, parts)
     _doctor(ctx, rec, parts)
     rec.step("checks", "; ".join(parts) or "nothing passed")
+
+
+@dataclass(frozen=True)
+class OperatorCheck:
+    """One free check of step 7 for one harness (``harness`` ``None``: independent of the harness): the step-line
+    parts it contributed, its actions and its notes."""
+
+    name: str
+    harness: HarnessName | None
+    passed: tuple[str, ...]
+    actions: tuple[str, ...]
+    notes: tuple[str, ...]
+
+
+def operator_checks(ctx: UpdateContext, harnesses: Iterable[HarnessName], *, backend: str) -> list[OperatorCheck]:
+    """The free checks of step 7, one ``OperatorCheck`` per check and installed harness of ``harnesses`` plus the
+    harness-independent ``doctor`` (read-only, like ``--check``). A harness without its generated config gets a
+    ``server`` action (the server must start as the harness's config says)."""
+    found: list[OperatorCheck] = []
+
+    def run(name: str, harness: HarnessName | None, check: Callable[[_Record, list[str]], None]) -> None:
+        rec = _Record(ctx, UpdateReport(mode="check"))
+        parts: list[str] = []
+        check(rec, parts)
+        found.append(OperatorCheck(name=name, harness=harness, passed=tuple(parts), actions=tuple(rec.report.actions),
+                                   notes=tuple(rec.report.notes)))
+
+    for name in harnesses:
+        exe = ctx.which(name)
+        if exe is None:
+            continue
+        one = {name: exe}
+        run("signed in", name, lambda rec, parts, one=one: _signed_in(ctx, rec, one, parts))
+        run("bypass default", name, lambda rec, parts, one=one: _bypass(ctx, rec, one, parts))
+        if name == "claude":
+            run("claude doctor", name, lambda rec, parts, exe=exe: _claude_doctor(ctx, rec, exe, parts))
+        else:
+            run("execpolicy", name, lambda rec, parts, exe=exe: _execpolicy(ctx, rec, exe, parts))
+        run("trusted", name, lambda rec, parts, one=one: _trusted(ctx, rec, one, parts))
+        target = harness.TARGETS[name]
+        if (ctx.repo / target.output).is_file():
+            run("server", name, lambda rec, parts, name=name: _servers(ctx, rec, [name], backend, parts))
+        else:
+            run("server", name, lambda rec, parts, target=target: rec.action(
+                "checks", f"{target.output} is missing: `uv run b1500 harness init {target.init_flag}`"))
+    run("doctor", None, lambda rec, parts: _doctor(ctx, rec, parts))
+    return found
 
 
 # -- run -------------------------------------------------------------------------------------------------------------

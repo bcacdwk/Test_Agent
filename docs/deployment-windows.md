@@ -380,9 +380,11 @@ robocopy config\local D:\b1500-backup\config-local /E
   - `uv run b1500 update --check` shows the same verdict and changes nothing (no pull, sync or install).
   - It refuses to run inside a Codex or Claude Code session or without a terminal: type it yourself.
   - A new harness version reaches this PC only through `validated.yaml`, after the maintainer qualified it on the
-    Mac; `uv run b1500 doctor` warns at every session start while an installed harness differs ("run
-    `uv run b1500 update`"). After a version change repeat the interactive checks of steps 8.2, 8.5 and, for Claude
-    Code, 9.4–9.5 (they cannot be checked without you).
+    Mac (`uv run b1500 dev harness qualify`, [acceptance/README.md](acceptance/README.md)); `uv run b1500 doctor`
+    warns at every session start while an installed harness differs ("run `uv run b1500 update`"). After a version
+    change repeat the interactive checks of steps 8.2, 8.5 and, for Claude Code, 9.4–9.5 (they cannot be checked
+    without you), and the maintainer runs `uv run b1500 dev harness qualify --windows` once on this PC (T0, the
+    probes and S16 on the simulator, about 0.5–0.8 USD and 0.4–0.6 M Codex tokens; `update` notes it until then).
   - With a wheelhouse install (`UV_OFFLINE`), an update that changes `uv.lock` stops with "a new wheelhouse is
     needed" (§"Offline wheelhouse").
 

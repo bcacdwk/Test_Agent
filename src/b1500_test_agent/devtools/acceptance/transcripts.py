@@ -31,7 +31,8 @@ Token usage per turn (blueprint v2 8.2 cost policy) is read into ``TurnTranscrip
 ``cache_read_input_tokens``; ``total_cost_usd``, the API-equivalent estimate for a subscription login).
 
 ``sanitize_lines`` prepares a real transcript for committing as a fixture (paths replaced, account details and
-long signatures dropped).
+long signatures dropped; the Claude ``init`` keeps its built-in tool names and the project's ``b1500-*`` skills, the
+evidence of the harness contract, ``contract.py``).
 """
 
 from __future__ import annotations
@@ -512,17 +513,18 @@ def parse_turn(harness: HarnessName, lines: Iterable[str], *, turn: int = 1, std
 # -- fixtures --------------------------------------------------------------------------------------------------------
 
 _SIGNATURE = re.compile(r'"signature":\s*"[^"]*"')
-_CLAUDE_INIT_DROP = ("slash_commands", "terminal_slash_commands", "skills", "plugins", "agents", "memory_paths",
+_CLAUDE_INIT_DROP = ("slash_commands", "terminal_slash_commands", "plugins", "agents", "memory_paths",
                      "messaging_socket_path", "capabilities")
-_CORE_TOOLS = frozenset({"Bash", "Edit", "Read", "Write", "Skill", "Glob", "Grep", "Task", "NotebookEdit",
-                         "ToolSearch", "WebSearch", "WebFetch", "PowerShell", "MultiEdit"})
+PROJECT_SKILL_PREFIX = "b1500-"
+"""Skills a sanitized ``init`` keeps (the user's own skills and plugins are left out)."""
 
 
 def sanitize_lines(lines: Iterable[str], replacements: Mapping[str, str], *,
                    drop_types: Iterable[str] = ("rate_limit_event",)) -> list[str]:
     """A real transcript prepared for committing: each ``replacements`` key (raw and JSON-escaped) replaced by its
-    value (longest first), lines of ``drop_types`` removed, Claude ``init`` trimmed to the core and ``mcp__``
-    tools, account fields and thinking signatures blanked."""
+    value (longest first), lines of ``drop_types`` removed, Claude ``init`` without the user's slash commands,
+    plugins, agents and memory paths and with only the project's skills (built-in and ``mcp__`` tool names stay),
+    account fields and thinking signatures blanked."""
     drop = set(drop_types)
     pairs: list[tuple[str, str]] = []
     for old, new in sorted(replacements.items(), key=lambda kv: -len(kv[0])):
@@ -544,9 +546,9 @@ def sanitize_lines(lines: Iterable[str], replacements: Mapping[str, str], *,
             if record.get("type") == "system" and record.get("subtype") == "init":
                 for key in _CLAUDE_INIT_DROP:
                     record.pop(key, None)
-                tools = record.get("tools")
-                if isinstance(tools, list):
-                    record["tools"] = [t for t in tools if t in _CORE_TOOLS or str(t).startswith("mcp__")]
+                skills = record.get("skills")
+                if isinstance(skills, list):
+                    record["skills"] = [s for s in skills if str(s).startswith(PROJECT_SKILL_PREFIX)]
             for key in ("credential_expires_at", "rate_limit_info"):
                 record.pop(key, None)
             line = json.dumps(record, ensure_ascii=False)

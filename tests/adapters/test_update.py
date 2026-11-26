@@ -14,9 +14,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
-import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -25,92 +22,10 @@ from typer.testing import CliRunner
 
 from b1500_test_agent.adapters.cli import app
 from b1500_test_agent.adapters.cli import core as cli
-from b1500_test_agent.devtools import harness, update
-from b1500_test_agent.devtools.doctor import DoctorCheck, DoctorReport
+from b1500_test_agent.devtools import update
+from b1500_test_agent.devtools.doctor import DoctorCheck
 from b1500_test_agent.devtools.update import UpdateContext, UpdateReport
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-FAKE = Path(__file__).with_name("fake_tools.py")
-WINDOWS = os.name == "nt"
-COMMITTED = (".claude/settings.json", ".codex/rules/b1500.rules", "scripts/hooks/b1500_guard.py", "pyproject.toml",
-             "config/harness/codex.config.toml", "config/harness/mcp.json", "config/harness/validated.yaml",
-             ".codex/config.example.toml", ".mcp.example.json")
-DROP = ("CODEX_HOME", "CLAUDE_CONFIG_DIR", "UV_OFFLINE", "DISABLE_AUTOUPDATER", "DISABLE_UPDATES")
-
-
-def wrapper(folder: Path, tool: str, name: str | None = None) -> Path:
-    """A launcher of ``fake_tools.py <tool>`` named ``name`` (``tool`` by default) in ``folder``."""
-    folder.mkdir(parents=True, exist_ok=True)
-    stem = name or tool
-    if WINDOWS:
-        path = folder / f"{stem}.cmd"
-        path.write_text(f'@"{sys.executable}" -I -S "{FAKE}" {tool} %*\r\n', encoding="utf-8")
-    else:
-        path = folder / stem
-        path.write_text(f'#!/bin/sh\nexec "{sys.executable}" -I -S "{FAKE}" {tool} "$@"\n', encoding="utf-8")
-        path.chmod(0o755)
-    return path
-
-
-@dataclass
-class Station:
-    """A clone, a home folder and the fakes; ``run`` calls ``update.run_update`` over them."""
-
-    tmp: Path
-    repo: Path
-    home: Path
-    environ: dict[str, str]
-    answers: list[bool] = field(default_factory=list)
-    asked: list[str] = field(default_factory=list)
-    lines: list[str] = field(default_factory=list)
-    smoke_ok: bool = True
-    doctor_checks: list[DoctorCheck] = field(default_factory=list)
-
-    @property
-    def world_file(self) -> Path:
-        return self.tmp / "world.json"
-
-    def world(self) -> dict[str, Any]:
-        return json.loads(self.world_file.read_text(encoding="utf-8"))
-
-    def set(self, **sections: dict[str, Any]) -> None:
-        world = self.world()
-        for key, values in sections.items():
-            world.setdefault(key, {}).update(values)
-        self.world_file.write_text(json.dumps(world), encoding="utf-8")
-
-    def calls(self, tool: str | None = None) -> list[list[str]]:
-        log = self.tmp / "calls.jsonl"
-        rows = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()] if log.is_file() else []
-        return [row for row in rows if tool is None or row[0] == tool]
-
-    def ran(self, *words: str) -> bool:
-        """True when a logged call starts with ``words`` (``git -C <repo>`` counted as ``git``)."""
-        for row in self.calls(words[0]):
-            args = row[1:]
-            if args[:1] == ["-C"]:
-                args = args[2:]
-            if args[:len(words) - 1] == list(words[1:]):
-                return True
-        return False
-
-    def ask(self, question: str) -> bool:
-        self.asked.append(question)
-        return self.answers.pop(0) if self.answers else False
-
-    def ctx(self, *, interactive: bool = True, lab: bool = False, windows: bool = WINDOWS,
-            environ: dict[str, str] | None = None) -> UpdateContext:
-        return UpdateContext(
-            repo=self.repo, environ=self.environ if environ is None else environ, windows=windows, home=self.home,
-            interactive=interactive, ask=self.ask, say=self.lines.append,
-            station=(lab, self.tmp / "state", "visa" if lab else "sim"),
-            smoke=lambda config, backend: (self.smoke_ok, "10 tools" if self.smoke_ok else "timed out (startup)"),
-            doctor_report=lambda: DoctorReport(ok=all(c.status != "FAIL" for c in self.doctor_checks),
-                                               checks=self.doctor_checks or [DoctorCheck(name="python", status="PASS",
-                                                                                         detail="ok")]))
-
-    def run(self, *, check: bool = False, continued: bool = False, **kwargs: Any) -> UpdateReport:
-        return update.run_update(self.ctx(**kwargs), check=check, continued=continued)
+from tests.adapters.stations import WINDOWS, Station, make_station, wrapper
 
 
 def step(report: UpdateReport, name: str) -> update.UpdateStep:
@@ -123,37 +38,7 @@ def actions(report: UpdateReport) -> str:
 
 @pytest.fixture
 def station(tmp_path: Path) -> Station:
-    tmp = tmp_path.resolve()
-    repo, home, bin_dir = tmp / "clone with space", tmp / "home", tmp / "bin"
-    for rel in COMMITTED:
-        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(REPO_ROOT / rel, repo / rel)
-    assert harness.init(repo, ["codex", "claude"]).ok
-    for tool in ("git", "uv", "npm"):
-        wrapper(bin_dir, tool)
-    npm_prefix = tmp / "npm"
-    if WINDOWS:  # npm on Windows: %APPDATA%\npm\codex.cmd next to node_modules\@openai\codex
-        codex_dir = npm_prefix
-        (npm_prefix / "node_modules" / "@openai" / "codex").mkdir(parents=True)
-    else:  # npm on POSIX: <prefix>/bin/codex next to <prefix>/lib/node_modules/@openai/codex
-        codex_dir = npm_prefix / "bin"
-        (npm_prefix / "lib" / "node_modules" / "@openai" / "codex").mkdir(parents=True)
-    wrapper(codex_dir, "codex")
-    wrapper(home / ".local" / "bin", "claude")  # the native build's launcher folder
-    (home / ".codex").mkdir(parents=True)
-    (home / ".codex" / "config.toml").write_text(f'model = "x"\n\n[projects.{json.dumps(repo.as_posix())}]\n'
-                                                 'trust_level = "trusted"\n', encoding="utf-8")
-    (home / ".claude").mkdir(parents=True)
-    (home / ".claude" / ".claude.json").write_text(json.dumps({"projects": {repo.as_posix(): {
-        "hasTrustDialogAccepted": True}}}), encoding="utf-8")
-    (home / ".claude" / "settings.json").write_text('{"theme": "dark"}', encoding="utf-8")
-    base = {k: v for k, v in os.environ.items() if k not in DROP and not update.agent_markers({k: v})
-            and not k.startswith("B1500_")}
-    environ = {**base, "PATH": os.pathsep.join(str(p) for p in (bin_dir, codex_dir, home / ".local" / "bin")),
-               "FAKE_TOOLS_WORLD": str(tmp / "world.json"), "FAKE_TOOLS_LOG": str(tmp / "calls.jsonl"),
-               "CODEX_HOME": str(home / ".codex"), "CLAUDE_CONFIG_DIR": str(home / ".claude")}
-    (tmp / "world.json").write_text(json.dumps({"claude": {"repo": repo.as_posix()}}), encoding="utf-8")
-    return Station(tmp=tmp, repo=repo, home=home, environ=environ)
+    return make_station(tmp_path)
 
 
 # -- the ready path, a clean pull, --continue ---------------------------------------------------------------------
@@ -374,6 +259,16 @@ def test_a_failed_installer_is_reported(station: Station) -> None:
     report = station.run()
     assert "the installer failed (npm error code EACCES)" in actions(report)
     assert "`npm install -g @openai/codex@0.170.0`" in actions(report)
+
+
+def test_a_failed_installers_non_ascii_message_arrives_intact(station: Station) -> None:
+    """CI fix from 06c2dbe: the installer's own words (UTF-8 from the child) reach the action unchanged on every
+    OS, never as replacement characters."""
+    station.set(claude={"version": "2.1.320", "install": "fail"})
+    station.answers = [True]
+    report = station.run()
+    assert "the installer failed (Installation failed — could not download “claude” ✗)" in actions(report)
+    assert "�" not in actions(report)
 
 
 def test_a_foreign_install_method_gets_its_switch_command_and_no_install(station: Station) -> None:

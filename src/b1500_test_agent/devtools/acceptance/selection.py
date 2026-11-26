@@ -39,12 +39,13 @@ GLOBAL_TOUCHES: tuple[str, ...] = (
     "config/harness/codex.config.toml", "config/harness/mcp.json", "scripts/hooks/**",
     "src/b1500_test_agent/adapters/mcp_server.py",
     "src/b1500_test_agent/devtools/harness.py", "src/b1500_test_agent/devtools/acceptance/runner.py",
+    "src/b1500_test_agent/devtools/acceptance/infra.py",
     "src/b1500_test_agent/devtools/acceptance/harnesses.py", "src/b1500_test_agent/devtools/acceptance/approver.py",
     "src/b1500_test_agent/devtools/acceptance/scenario.py", "config/policy.example.yaml",
 )  # fmt: skip
 """Files every session depends on (always-loaded instructions, entry skill, permission and harness wiring, the tool
-surface, the runner): a change to any of them affects every scenario. Of ``config/harness/`` only the two MCP launch
-templates count: a bump of ``validated.yaml`` (v2.1 plan §2.1) changes no session."""
+surface, the runner with its infra watcher): a change to any of them affects every scenario. Of ``config/harness/``
+only the two MCP launch templates count: a bump of ``validated.yaml`` (v2.1 plan §2.1) changes no session."""
 MIRROR = (".claude/skills/", ".agents/skills/")
 _REPORT_NAME = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})-(?P<harness>[a-z]+)-(?P<version>.+)\.md$")
 _COMMIT_LINE = re.compile(r"^- Repository commit: `?(?P<sha>[0-9a-f]{7,40})`?", re.MULTILINE)

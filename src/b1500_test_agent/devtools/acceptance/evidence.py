@@ -9,8 +9,9 @@ One folder per session (the runner writes it; ``acceptance grade`` re-reads it):
         config/             the temporary B1500_CONFIG_DIR (copied examples + overlays)
         data/               the temporary B1500_DATA_DIR: runs/ (archive, index.jsonl), state/ (audit/ with the
                             server's tool_call events, plans/, sim/<scenario>.state.json with the command log)
-        transcripts/        turn-<n>.jsonl, turn-<n>.stderr.txt, codex-rollout.jsonl (Codex), prompts.jsonl
-                            (Claude permission prompts answered by the runner)
+        transcripts/        turn-<n>.jsonl, turn-<n>.stderr.txt, turn-<n>.prompt.txt (the prompt, sent on standard
+                            input), codex-rollout.jsonl (Codex), prompts.jsonl (Claude permission prompts answered by
+                            the runner)
         mcp/                per-turn harness MCP configs
         changed/            copies of repository / config files the session added or changed
         grades.json         SessionGrade
@@ -30,6 +31,7 @@ from typing import Any, Literal
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 
 from b1500_test_agent.config import load_yaml
+from b1500_test_agent.devtools.acceptance.infra import InfraEvent
 from b1500_test_agent.devtools.acceptance.scenario import Scenario, load_scenario
 from b1500_test_agent.devtools.acceptance.transcripts import (
     FileWrite,
@@ -76,6 +78,9 @@ class TurnRecord(BaseModel):
     transcript: str
     stderr: str
     approve_confirm_tool: bool = True
+    infra_event: InfraEvent | None = None
+    """The first login/API/network event of the turn (``infra.py``): the runner killed the turn there and stopped
+    the batch."""
 
 
 class FileChange(BaseModel):
@@ -126,6 +131,8 @@ class SessionRecord(BaseModel):
     notes: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     error: str | None = None
+    infra_stopped: bool = False
+    """A turn hit an infra event (v2.1 plan §2.4): the session is invalid and the batch stopped after it."""
 
 
 @dataclass

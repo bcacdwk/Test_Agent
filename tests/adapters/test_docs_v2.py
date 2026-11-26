@@ -51,7 +51,9 @@ def test_the_residual_risk_section_names_every_handed_over_residual() -> None:
     for needle in ("`ERSSP?` reports the commanded selector state", "Sources without compliance",
                    "SPGU `high_z` residual (OD-3)", "`Isc<=X A residual`", "WGFMU (no compliance)", "R-GNDU-01",
                    "Cancel latency", "Codex headless turn end (WP7.7)", "`aborted`", "SIGTERM", "`cancelled`",
-                   "Locked bus", "latches the fault", "R-FAULT-01", "`busy`"):
+                   "Locked bus", "latches the fault", "R-FAULT-01", "`busy`",
+                   "Harness built-ins outside the guard hook (owner decision OD21-5 = c, v2.1)", "`Monitor`",
+                   "`harness contract` WARN", "Interactive-only facts"):
         assert needle in residuals, needle
 
 

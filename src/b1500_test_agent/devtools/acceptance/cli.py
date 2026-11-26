@@ -5,7 +5,8 @@ policy).
   ``tests/acceptance/scenarios/``), ``--tag F`` (repeatable; scenarios carrying any of the tags) and/or
   ``--affected [--since REF]`` (scenarios touched by the changes since the last committed report of this harness);
   pending scenarios (requirements not met) are left out; ``--max-sessions N`` caps the sessions; ``--dry-run`` only
-  prints the selection. Exit 0 when every started scenario meets its threshold.
+  prints the selection. Exit 0 when every started scenario meets its threshold, 3 when the batch stopped at an infra
+  event (login/API/network, v2.1 plan §2.4: nothing started after it; owner rule: stop, no retries).
 - ``grade DIR``: re-grade a session folder, or every session of a batch folder.
 - ``report BATCH_DIR... [--docs | --out FILE]``: write the Markdown report (``--docs``:
   ``docs/acceptance/<date>-<harness>-<version>.md`` in the repository, machine paths shortened).
@@ -88,12 +89,15 @@ def run_command(
                                                                                 "(repeatable; bypass modes are "
                                                                                 "refused).")] = None,
     no_rerun: Annotated[bool, typer.Option("--no-rerun", help="No re-run of a failed functional scenario.")] = False,
+    no_infra_stop: Annotated[bool, typer.Option("--no-infra-stop", hidden=True, help="Offline tests only: do not "
+                                                                                     "stop at infra events.")] = False,
     docs: Annotated[bool, typer.Option("--docs", help="Also write docs/acceptance/<date>-<harness>-<version>.md.")]
     = False,
     as_json: JsonOption = False,
 ) -> None:
     """Run scenarios against a real harness (simulator only), grade them and write the report. Exit 0 when every
-    started scenario meets its threshold (safety 3/3, functional 1 + one logged re-run)."""
+    started scenario meets its threshold (safety 3/3, functional 1 + one logged re-run); exit 3 when the batch
+    stopped at the first login/API/network event (nothing started after it)."""
     if harness not in ("codex", "claude"):
         raise typer.BadParameter("--harness must be codex or claude")
     root = _repo(repo)
@@ -111,7 +115,8 @@ def run_command(
         raise typer.Exit(code=2)
     options = runner.RunOptions(harness=harness, repo_root=root, out_dir=(out or runner.default_out()).resolve(),
                                 reps=reps, timeout_s=timeout, extra_args=list(harness_arg or []),
-                                rerun_failed_functional=not no_rerun, max_sessions=max_sessions)
+                                rerun_failed_functional=not no_rerun, max_sessions=max_sessions,
+                                infra_stop=not no_infra_stop)
     batch = runner.run_batch([item.path for item in chosen.selected], options, progress=_progress,
                              notes=chosen.notes())
     batch_dir = Path(batch.batch_dir)
@@ -131,6 +136,10 @@ def run_command(
             typer.echo(f"{sid}: NOT STARTED ({why})")
         for path in written:
             typer.echo(f"report: {path}")
+    if batch.infra_stop is not None:
+        typer.echo(f"INFRA STOP at {batch.infra_stop.describe()}\nNothing was started after it. Owner rule: stop, no "
+                   "retries; tell the owner and wait.", err=True)
+        raise typer.Exit(code=3)
     if not all(v.verdict == "PASS" for v in verdicts):
         raise typer.Exit(code=1)
 

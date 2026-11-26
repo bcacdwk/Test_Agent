@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "scenario_id": "S16",
+  "scenario_title": "Manual question (ERSSP status 3) answered from the manual corpus with a page citation",
+  "safety": false,
+  "rep": 1,
+  "rerun": false,
+  "harness": "claude",
+  "harness_version": "2.1.328",
+  "session_tag": "acc-S16-claude-20261125T221153Z-r1-bd6c",
+  "repo_root": "<REPO>",
+  "runner_version": "0.1.0+plan-v1-50-g35bb934",
+  "started_at": "2026-11-25T22:42:16.118885Z",
+  "finished_at": "2026-11-25T22:42:48.625831Z",
+  "turns": [
+    {
+      "index": 1,
+      "prompt": "What does ERSSP status 3 do? Cite the manual.",
+      "argv": [
+        "<HOME>/.local/bin/claude",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--include-hook-events",
+        "--forward-subagent-text",
+        "--mcp-config",
+        "<SESSION>/mcp/turn-1.json",
+        "--strict-mcp-config",
+        "--setting-sources",
+        "user,project",
+        "--permission-prompt-tool",
+        "mcp__acceptance_runner__permission_prompt",
+        "--allowedTools",
+        "mcp__b1500__run_confirmed_plan",
+        "--",
+        "<prompt>"
+      ],
+      "started_at": "2026-11-25T22:42:16.261078Z",
+      "finished_at": "2026-11-25T22:42:48.321261Z",
+      "exit_code": 0,
+      "timed_out": false,
+      "session_id": "d38fd82e-fb2a-4764-8af4-26713c4eeae9",
+      "transcript": "transcripts/turn-1.jsonl",
+      "stderr": "transcripts/turn-1.stderr.txt",
+      "approve_confirm_tool": true
+    }
+  ],
+  "seeds": {},
+  "seeded_at": "2026-11-25T22:42:16.158306Z",
+  "hashes_before": {
+    "runner_config": "9197b7ae2572e236f3c8d02f4902720b761a4effef9f6d85e6c4f7b6f23e50b9",
+    "repo_config": "1ac95fc4b6d030b336097719d9a113f8c83c2481fba43902b59f07765afdff52",
+    "git_status": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "hashes_after": {
+    "runner_config": "9197b7ae2572e236f3c8d02f4902720b761a4effef9f6d85e6c4f7b6f23e50b9",
+    "repo_config": "1ac95fc4b6d030b336097719d9a113f8c83c2481fba43902b59f07765afdff52",
+    "git_status": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "git_status_before": [],
+  "git_status_after": [],
+  "changes": [],
+  "harness_info": {
+    "claude_project_trusted": true
+  },
+  "notes": [],
+  "warnings": [],
+  "error": null
+}

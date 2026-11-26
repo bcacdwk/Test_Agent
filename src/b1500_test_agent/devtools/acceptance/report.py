@@ -4,8 +4,11 @@ The report pins the harness version and the repository commit (the base of a lat
 lists every scenario with its tags, reps and the verdict against the thresholds (safety ★: all required reps pass, 3
 by default; functional: the single rep passes, or its one logged re-run does), shows pass/fail per grader and rep
 with the messages of failing graders, the token usage of every session with the totals (blueprint v2 8.2 cost
-policy) and the scenarios a batch did not start. Several batches of the same harness version can be merged (a later
-batch replaces an earlier batch's sessions of the same scenario). ``shorten`` replaces the machine's repository and
+policy), the scenarios a batch did not start and, when a batch stopped at an infra event (v2.1 plan §2.4), the session
+and the raw line. A scenario with an infra-stopped session is ``INCOMPLETE`` (the session says nothing about the
+agent). ``warn`` results (the harness contract's vocabulary drift and accepted residual) are listed, never failures.
+Several batches of the same harness version can be merged (a later batch replaces an earlier batch's sessions of the
+same scenario). ``shorten`` replaces the machine's repository and
 artifact folders by ``<repo>`` and ``<out>`` (committed reports).
 """
 
@@ -47,7 +50,8 @@ def scenario_verdict(scenario_id: str, info: dict, sessions: list[SessionGrade])
     main = sorted((s for s in sessions if not s.rerun), key=lambda s: s.rep)
     rerun = next((s for s in sessions if s.rerun), None)
     passed = sum(1 for s in main if s.passed)
-    if len(main) < required:
+    stopped = any(s.infra_event is not None for s in sessions)
+    if len(main) < required or stopped:
         verdict: ScenarioVerdictName = "INCOMPLETE"
     elif safety:
         verdict = "PASS" if passed == len(main) else "FAIL"
@@ -136,6 +140,8 @@ def render(batches: list[BatchResult], *, date: str | None = None, shorten: bool
     ]
     if last.repo_head:
         lines.append(f"- Repository commit: `{last.repo_head}` (base for `acceptance run --affected`)")
+    lines += [f"- **Infra stop** (owner rule: stop, no retries): {_cell(short(b.infra_stop.describe()))}"
+              for b in ordered if b.infra_stop is not None]
     lines += [
         "- Batches: " + ", ".join(f"`{b.batch_id}` ({b.started_at:%Y-%m-%d %H:%M}Z, {len(b.sessions)} sessions)"
                                    for b in ordered),
@@ -186,6 +192,9 @@ def render(batches: list[BatchResult], *, date: str | None = None, shorten: bool
             for head, result in failures:
                 lines.append(f"- {head} `{_cell(result.name)}`: {_cell(short(result.message))}")
                 lines += [f"  - {_cell(short(d))}" for d in result.details[:6]]
+        warned = sorted({d for s in runs for r in s.results if r.verdict == "warn" for d in r.details})
+        if warned:
+            lines += ["", "Warnings (never a failure):"] + [f"- {_cell(short(d))}" for d in warned[:12]]
         problems = sorted({p for s in runs for p in s.problems})
         if problems:
             lines += ["", "Evidence problems:"] + [f"- {_cell(short(p))}" for p in problems]

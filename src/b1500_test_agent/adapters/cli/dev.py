@@ -4,7 +4,8 @@ runs an asynchronous simulator run through it), ``coverage [--write|--check]`` (
 ``devtools/coverage.py``), ``sync-harness [--check]``
 (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``lint-skills`` (skill schema, budgets, links; package
 ``devtools/skills/``), ``gen-index [--check]`` (generated card index ``cards/README.md``), ``sim-console`` (raw FLEX,
-simulator only) and ``acceptance`` (M3 harness acceptance runner, ``devtools/acceptance/cli.py``).
+simulator only), ``acceptance`` (M3 harness acceptance runner, ``devtools/acceptance/cli.py``) and ``harness qualify``
+(the maintainer's ladder for a harness version, v2.1 plan §2.3, ``devtools/harness_qualify.py``).
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import warnings
+from datetime import date
 from pathlib import Path
 from typing import Annotated
 
@@ -19,7 +21,18 @@ import typer
 
 from b1500_test_agent.adapters.cli import core
 from b1500_test_agent.adapters.cli.core import DEFAULT_MCP_APP_SPEC, JsonOption
-from b1500_test_agent.devtools import budget, coverage, harness, mcp_smoke, recipe_check, sim_console, sync_harness
+from b1500_test_agent.devtools import (
+    budget,
+    coverage,
+    harness,
+    harness_qualify,
+    mcp_smoke,
+    recipe_check,
+    sim_console,
+    sync_harness,
+    update,
+)
+from b1500_test_agent.devtools.acceptance import runner
 from b1500_test_agent.devtools.acceptance.cli import acceptance_app
 from b1500_test_agent.devtools.skills import index as card_index
 from b1500_test_agent.devtools.skills import lint as lint_skills
@@ -27,6 +40,57 @@ from b1500_test_agent.paths import find_repo_root
 
 dev_app = typer.Typer(help="Developer tools (never needed for lab operation).", no_args_is_help=True)
 dev_app.add_typer(acceptance_app, name="acceptance")
+harness_app = typer.Typer(help="Maintainer: qualify a harness version before operators get it (v2.1 plan §2.3).",
+                          no_args_is_help=True)
+dev_app.add_typer(harness_app, name="harness")
+
+
+@harness_app.command("qualify")
+def harness_qualify_command(
+    harness_name: Annotated[str | None, typer.Option("--harness", help="codex or claude (default: every installed "
+                                                                       "harness).")] = None,
+    candidate: Annotated[str | None, typer.Option("--candidate", help="Install this version (x.y.z or latest) with "
+                                                                      "the one installer first; needs your own "
+                                                                      "terminal. A FAIL puts the validated version "
+                                                                      "back.")] = None,
+    up_to: Annotated[int, typer.Option("--up-to", min=0, max=2, help="Highest tier: 0 free checks, 1 probes, 2 "
+                                                                     "canary (default; only a full ladder bumps).")]
+    = 2,
+    escalate: Annotated[bool, typer.Option("--escalate", help="T3: run the scenarios mapped to a failed or at-risk "
+                                                              "surface with the §8.2 reps.")] = False,
+    max_sessions: Annotated[int | None, typer.Option("--max-sessions", min=1, help="Cap the T3 sessions.")] = None,
+    windows: Annotated[bool, typer.Option("--windows", help="Lab PC: T0 + T1 + S16 on the installed, validated "
+                                                            "version; records data/state/harness/windows.json, no "
+                                                            "bump.")] = False,
+    pin: Annotated[bool, typer.Option("--pin", help="On PASS also write the sanitized T1 sessions to "
+                                                    "tests/fixtures/transcripts/<harness>-<version>/.")] = False,
+    out: Annotated[Path | None, typer.Option("--out", help=f"Session artifacts (default ${runner.ENV_OUT} or "
+                                                           "<system temp>/b1500-acceptance).")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout", min=1, help="Per-turn timeout in seconds.")] = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Qualify a harness version: T0 free checks, T1 probes, T2 canary (S4, S5, S16), T3 with --escalate. A PASS of
+    the full ladder writes docs/acceptance/<date>-<harness>-<version>-qualify.md and bumps
+    config/harness/validated.yaml (you commit both). Exit 0 PASS, 1 FAIL, 2 refused, 3 stopped at a login/API/network
+    event (nothing runs after it)."""
+    if harness_name not in (None, "codex", "claude"):
+        raise typer.BadParameter("--harness must be codex or claude")
+    ops = update.UpdateContext.default(interactive=sys.stdin.isatty(), ask=lambda _q: False,
+                                       say=lambda text: typer.echo(text, err=True))
+    ctx = harness_qualify.QualifyContext(ops=ops, out_dir=(out or runner.default_out()).resolve(), today=date.today(),
+                                         run_batch=harness_qualify.default_batch_runner(ops.say),
+                                         run_tests=harness_qualify.default_test_runner)
+    opts = harness_qualify.QualifyOptions(harness=harness_name, candidate=candidate,  # type: ignore[arg-type]
+                                          up_to=up_to, escalate=escalate, max_sessions=max_sessions, windows=windows,
+                                          pin=pin, timeout_s=timeout)
+    try:
+        report = harness_qualify.run_qualify(ctx, opts)
+    except harness_qualify.QualifyRefused as exc:
+        typer.echo(f"refused: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(report.model_dump_json(indent=2) if as_json else harness_qualify.format_summary(report))
+    if report.exit_code:
+        raise typer.Exit(code=report.exit_code)
 
 
 @dev_app.command("tool-budget")

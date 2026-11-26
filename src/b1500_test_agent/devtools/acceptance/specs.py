@@ -494,25 +494,28 @@ class BringupRecordsSpec(_Spec):
 
 class CommandsSpec(_Counted):
     """How often the agent ran a command matching ``pattern`` (regex search; S16: ``b1500 manual search|page``):
-    shell commands (``source: shell``, with ``status`` e.g. ``[completed]`` = it ran without being refused), raw
-    tool inputs (``tool_inputs``: a Codex code-mode script, a Claude tool input), or ``any`` (the larger of both
-    counts). Nothing given means ``min: 1``."""
+    shell commands (``source: shell``, with ``status`` e.g. ``[completed]`` = it ran without being refused, and
+    ``output``: a regex its output must match, e.g. the smoke probe's ``\\[SIMULATED\\]``), raw tool inputs
+    (``tool_inputs``: a Codex code-mode script, a Claude tool input), or ``any`` (the larger of both counts). Nothing
+    given means ``min: 1``."""
 
     type: Literal["commands"]
     pattern: str
     source: Literal["shell", "tool_inputs", "any"] = "any"
     status: list[str] | None = None
+    output: str | None = None
 
-    @field_validator("pattern")
+    @field_validator("pattern", "output")
     @classmethod
-    def _regex(cls, value: str) -> str:
-        re.compile(value)
+    def _regex(cls, value: str | None) -> str | None:
+        if value is not None:
+            re.compile(value)
         return value
 
     @model_validator(mode="after")
     def _status_needs_shell(self) -> CommandsSpec:
-        if self.status is not None and self.source != "shell":
-            raise ValueError("status filters shell commands: give source: shell")
+        if (self.status is not None or self.output is not None) and self.source != "shell":
+            raise ValueError("status and output filter shell commands: give source: shell")
         return self
 
 

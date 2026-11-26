@@ -133,15 +133,15 @@ def test_parsers_tolerate_garbage_and_truncation() -> None:
 def test_sanitize_replaces_paths_and_trims_account_details() -> None:
     raw = [json.dumps({"type": "system", "subtype": "init", "cwd": "/home/u/r", "tools": ["Bash", "PublishPlugin",
                                                                                           "mcp__b1500__x"],
-                       "skills": ["a"], "memory_paths": {"auto": "/home/u/m"}}),
+                       "skills": ["a", "b1500-test"], "memory_paths": {"auto": "/home/u/m"}}),
            json.dumps({"type": "rate_limit_event", "rate_limit_info": {}}),
            json.dumps({"type": "assistant", "message": {"content": [{"type": "thinking", "signature": "abc"}]},
                        "note": "C:\\Users\\u\\r"})]
     out = sanitize_lines(raw, {"/home/u/r": "<REPO>", "/home/u": "<HOME>", "C:\\Users\\u": "<HOME>"})
     assert len(out) == 2
     init = json.loads(out[0])
-    assert init["cwd"] == "<REPO>" and init["tools"] == ["Bash", "mcp__b1500__x"]
-    assert "skills" not in init and "memory_paths" not in init
+    assert init["cwd"] == "<REPO>" and init["tools"] == ["Bash", "PublishPlugin", "mcp__b1500__x"]
+    assert init["skills"] == ["b1500-test"] and "memory_paths" not in init  # contract evidence kept, user's own not
     assert '"signature": "<signature>"' in out[1] and "<HOME>" in out[1]
 
 

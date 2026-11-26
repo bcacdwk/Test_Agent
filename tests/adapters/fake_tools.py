@@ -4,12 +4,16 @@ fake executables on PATH cover every row of ``b1500 update``; no real installer,
 The tests put a tiny wrapper per tool on ``PATH`` (``tool`` with a ``#!/bin/sh`` line, ``tool.cmd`` on Windows) that
 runs ``python fake_tools.py <tool> <args...>``. State lives in the JSON file ``$FAKE_TOOLS_WORLD``; every call is
 appended to ``$FAKE_TOOLS_LOG`` (one JSON list ``[tool, *args]`` per line), so a test can assert that nothing was
-pulled, synced or installed. Installers change the world (the next ``--version`` reads the new version).
+pulled, synced or installed. Installers change the world (the next ``--version`` reads the new version). Output is
+written as UTF-8 bytes, as the real Node and Rust CLIs write to a pipe: the fakes run with ``-I -S``, where Python's
+own stdout would use the Windows code page (the CI failure of 06c2dbe).
 
 World keys (all optional): ``git`` {branch, default, dirty, head, new_head, pull: ok|uptodate|diverged|offline|
-error, lock_changed, behind}; ``uv`` {sync: ok|fail, check: ok|differs, continue_exit}; ``npm`` {install: ok|fail};
-``codex`` {version, login: bool, execpolicy: forbid|allow|garbage, version_text}; ``claude`` {version, login: bool,
-doctor: clean|invalid|garbage, install: ok|fail|stays, repo}.
+error, lock_changed, behind}; ``uv`` {sync: ok|fail, check: ok|differs, continue_exit}; ``npm`` {install: ok|fail,
+latest}; ``codex`` {version, login: bool, execpolicy: forbid|allow|garbage, version_text, help_drop: [flags]};
+``claude`` {version, login: bool, doctor: clean|invalid|garbage, install: ok|fail|stays, repo, latest, help_drop}.
+``--help`` prints the flags the real CLIs document (codex-cli 0.170.0 ``exec`` / ``exec resume``, Claude Code
+2.1.328), minus ``help_drop`` (``dev harness qualify`` T0, ``tests/adapters/test_harness_qualify.py``).
 """
 
 from __future__ import annotations
@@ -27,7 +31,28 @@ def _world() -> tuple[Path, dict[str, Any]]:
 
 
 def _say(text: str, *, err: bool = False) -> None:
-    (sys.stderr if err else sys.stdout).write(text + "\n")
+    stream = sys.stderr if err else sys.stdout
+    stream.flush()
+    stream.buffer.write((text + "\n").encode("utf-8"))
+    stream.buffer.flush()
+
+
+CODEX_EXEC_HELP = ("-c, --config <key=value>", "--enable <FEATURE>", "-i, --image <FILE>", "-m, --model <MODEL>",
+                   "-p, --profile <CONFIG_PROFILE_V2>", "-s, --sandbox <SANDBOX_MODE>", "-C, --cd <DIR>",
+                   "--skip-git-repo-check", "--ephemeral", "--json", "-o, --output-last-message <FILE>")
+CODEX_RESUME_HELP = ("-c, --config <key=value>", "--last", "--all", "-m, --model <MODEL>", "--json")
+CLAUDE_HELP = ("-p, --print", "--output-format <format>", "--verbose", "--include-hook-events",
+               "--forward-subagent-text", "--mcp-config <configs...>", "--strict-mcp-config",
+               "--setting-sources <sources>", "--allowedTools, --allowed-tools <tools...>",
+               "-r, --resume [value]", "--permission-prompts <target>  (the SDK host or --permission-prompt-tool)")
+
+
+def _help(title: str, flags: tuple[str, ...], drop: list[str]) -> int:
+    _say(f"{title}\n\nOptions:")
+    for line in flags:
+        if not set(drop) & set(line.replace(",", " ").split()):
+            _say(f"  {line}")
+    return 0
 
 
 def git(world: dict[str, Any], args: list[str]) -> int:
@@ -104,7 +129,8 @@ def npm(world: dict[str, Any], args: list[str]) -> int:
         if state.get("install", "ok") != "ok":
             _say("npm error code EACCES", err=True)
             return 1
-        world.setdefault("codex", {})["version"] = args[2].rsplit("@", 1)[1]
+        version = args[2].rsplit("@", 1)[1]
+        world.setdefault("codex", {})["version"] = state.get("latest", "0.172.0") if version == "latest" else version
         _say("changed 1 package in 2s")
         return 0
     _say(f"fake npm: unsupported {args}", err=True)
@@ -116,6 +142,10 @@ def codex(world: dict[str, Any], args: list[str]) -> int:
     if args == ["--version"]:
         _say(state.get("version_text") or f"codex-cli {state.get('version', '0.170.0')}")
         return 0
+    if args == ["exec", "--help"]:
+        return _help("Run Codex non-interactively", CODEX_EXEC_HELP, state.get("help_drop", []))
+    if args == ["exec", "resume", "--help"]:
+        return _help("Resume a previous session by id", CODEX_RESUME_HELP, state.get("help_drop", []))
     if args == ["login", "status"]:
         if state.get("login", True):
             _say("Logged in using ChatGPT")
@@ -151,12 +181,14 @@ def claude(world: dict[str, Any], args: list[str]) -> int:
     if args[:1] == ["install"]:
         mode = state.get("install", "ok")
         if mode == "fail":
-            _say("Installation failed: could not download", err=True)
+            _say("Installation failed — could not download “claude” ✗", err=True)
             return 1
         if mode == "ok":
-            state["version"] = args[1]
-        _say(f"Claude Code successfully installed! Version: {args[1]}")
+            state["version"] = state.get("latest", "2.1.330") if args[1] == "latest" else args[1]
+        _say(f"Claude Code successfully installed! Version: {state.get('version', version)}")
         return 0
+    if args == ["--help"]:
+        return _help("Usage: claude [options] [command] [prompt]", CLAUDE_HELP, state.get("help_drop", []))
     if args[:2] == ["auth", "status"]:
         return 0 if state.get("login", True) else 1
     if args == ["doctor"]:

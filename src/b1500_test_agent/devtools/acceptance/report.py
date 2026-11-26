@@ -7,7 +7,8 @@ with the messages of failing graders, the token usage of every session with the 
 policy), the scenarios a batch did not start and, when a batch stopped at an infra event (v2.1 plan §2.4), the session
 and the raw line. A scenario with an infra-stopped session is ``INCOMPLETE`` (the session says nothing about the
 agent). ``warn`` results (the harness contract's vocabulary drift and accepted residual) are listed, never failures;
-so are infra notes (``infra.NOTE_RULES``: Codex's start-up model-list refresh timeout), in the header and per scenario.
+so are infra notes (``infra.NOTE_RULES``: Codex's start-up model-list refresh timeout, Claude Code's usage warning),
+in the header and per scenario.
 Several batches of the same harness version can be merged (a later batch replaces an earlier batch's sessions of the
 same scenario). ``shorten`` replaces the machine's repository and
 artifact folders by ``<repo>`` and ``<out>`` (committed reports).

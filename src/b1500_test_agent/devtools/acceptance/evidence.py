@@ -83,7 +83,7 @@ class TurnRecord(BaseModel):
     the batch."""
     infra_notes: list[InfraNote] = Field(default_factory=list)
     """Known lines the infra watcher read and let pass (``infra.NOTE_RULES``: Codex's start-up model-list refresh
-    timeout); never a stop, listed by ``session ok`` and the reports."""
+    timeout, Claude Code's usage warning); never a stop, listed by ``session ok`` and the reports."""
 
 
 class FileChange(BaseModel):

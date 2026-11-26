@@ -6,13 +6,20 @@ the session ``infra_stopped``, starts no further session (no next rep, no re-run
 ``dev harness qualify`` exit 3 with the raw line. Owner rule: on any API, login or network error stop at once, no
 retries; the human decides when to go on.
 
-**Infra notes** (owner decision 2026-11-26, plan §11 "Codex startup notice"): exactly one known line is a note, never
-a stop, because the session goes on normally: Codex's background refresh of its model list at start-up,
-``ERROR codex_models_manager::manager: failed to refresh available models: request timed out`` (``NOTE_RULES``). The
-match is narrow: that harness, stderr only, the whole line (an optional ISO timestamp in front, nothing after it); any
-other wording, level, module, status or stream still stops. The watcher reads on past a note, so a real error later
-in the same turn still stops it; the runner records every note line of the turn's stderr (``scan_notes`` into
-``TurnRecord.infra_notes``), and ``session ok`` and the reports list them.
+**Infra notes** (``NOTE_RULES``, the owner's list): two known lines are notes, never a stop, because the session goes
+on normally. Each match is narrow; anything near it still stops.
+
+- Codex's background refresh of its model list at start-up (owner decision 2026-11-26, plan §11 "Codex startup
+  notice"), ``ERROR codex_models_manager::manager: failed to refresh available models: request timed out``: that
+  harness, stderr only, the whole line (an optional ISO timestamp in front, nothing after it); any other wording,
+  level, module, status or stream stops.
+- Claude Code's usage warning (owner decision 2026-11-27): a stdout ``rate_limit_event`` whose ``rate_limit_info``
+  status is ``allowed_warning`` while every window it lists (``unifiedWindows``, at least one) is ``allowed`` (batch
+  20261126T150801Z: the seven-day window at 52 %). Any other status (``rejected``, a limit, an unknown one), a window
+  that is not ``allowed`` or a warning without its windows stops; the overage fields are no window and are not read.
+
+The watcher reads on past a note, so a real error later in the same turn still stops it; the runner records every
+note line of the turn (``scan_notes`` into ``TurnRecord.infra_notes``), and ``session ok`` and the reports list them.
 
 Generic by construction (any failed completion stops), so it needs no table per harness release:
 
@@ -22,7 +29,8 @@ Generic by construction (any failed completion stops), so it needs no table per 
 - **Claude Code** stdout: a ``result`` with ``is_error``, a subtype other than ``success`` or an ``api_error_status``;
   an ``assistant`` message carrying an ``error`` (authentication, billing, rate limit, server); a ``system`` event
   whose subtype names a retry or an error (``api_retry``); a ``rate_limit_event`` whose status is not ``allowed``
-  (the informational ``allowed`` events, 84 in the WP11.5 batch, never stop); an ``error`` event.
+  (the informational ``allowed`` events, 84 in the WP11.5 batch, never stop; the usage warning above is a note); an
+  ``error`` event.
 - **stderr** (both, and non-JSON stdout lines): auth (401/403, not logged in, invalid API key, expired token), HTTP
   429/5xx and rate or usage limits, DNS and connection failures, timeouts of a request; lines below the warning level
   (``INFO``/``DEBUG``/``TRACE``) and Codex lines about the agent's own tool calls (an execution-policy ``Rejected``,
@@ -36,6 +44,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final, Literal
@@ -80,13 +89,29 @@ _STDERR_RULES: tuple[tuple[InfraKind, re.Pattern[str]], ...] = (
 
 @dataclass(frozen=True)
 class NoteRule:
-    """One known line that is an infra note, not a stop (module docstring): its harness, the full-line pattern
-    (matched against the stripped stderr line) and what it means, for people."""
+    """One known line that is an infra note, not a stop (module docstring): its harness, what it means for people and
+    how it is matched: a stderr line by its full-line ``pattern`` (against the stripped line), or a stdout JSON event
+    by the predicate ``event``."""
 
     name: str
     harness: str
-    pattern: re.Pattern[str]
     summary: str
+    pattern: re.Pattern[str] | None = None
+    event: Callable[[dict[str, Any]], bool] | None = None
+
+
+def claude_usage_warning(record: dict[str, Any]) -> bool:
+    """A Claude Code ``rate_limit_event`` with status ``allowed_warning`` whose windows (``unifiedWindows``, at least
+    one) are all ``allowed`` (module docstring). Anything else, a missing window list included, is no note."""
+    if record.get("type") != "rate_limit_event":
+        return False
+    info = record.get("rate_limit_info")
+    if not isinstance(info, dict) or info.get("status") != "allowed_warning":
+        return False
+    windows = info.get("unifiedWindows")
+    if not isinstance(windows, dict) or not windows:
+        return False
+    return all(isinstance(window, dict) and window.get("status") == "allowed" for window in windows.values())
 
 
 NOTE_RULES: Final[tuple[NoteRule, ...]] = (
@@ -98,8 +123,15 @@ NOTE_RULES: Final[tuple[NoteRule, ...]] = (
         summary=("Codex's background refresh of its model list timed out at start-up; the session goes on (owner "
                  "decision 2026-11-26: a note, never a stop)"),
     ),
+    NoteRule(
+        name="claude usage warning",
+        harness="claude",
+        event=claude_usage_warning,
+        summary=("Claude Code warns that a usage window is filling up (status allowed_warning, every window still "
+                 "allowed); the session goes on (owner decision 2026-11-27: a note, never a stop)"),
+    ),
 )
-"""The owner's list of infra notes: one entry. Add a line only on the owner's decision; never a broad pattern."""
+"""The owner's list of infra notes: two entries. Add one only on the owner's decision; never a broad pattern."""
 
 
 class InfraNote(BaseModel):
@@ -173,14 +205,31 @@ def _text(record: dict[str, Any]) -> str:
     return " ".join(str(b.get("text", "")) for b in blocks if isinstance(b, dict) and b.get("type") == "text")
 
 
+def _event_note(harness: str | None, record: dict[str, Any]) -> NoteRule | None:
+    """The stdout note rule of ``harness`` that a parsed JSON event matches (``NOTE_RULES``)."""
+    return next((rule for rule in NOTE_RULES
+                 if rule.harness == harness and rule.event is not None and rule.event(record)), None)
+
+
 def note_of(harness: str | None, line: str, *, stream: Stream = "stderr", turn: int | None = None) \
         -> InfraNote | None:
-    """The infra note of ``line`` when it is one of ``harness``'s known note lines on stderr (``NOTE_RULES``)."""
+    """The infra note of ``line`` when it is one of ``harness``'s known note lines (``NOTE_RULES``): a whole stderr
+    line, or a stdout JSON event."""
     text = line.strip()
-    if stream != "stderr" or not text:
+    if not text:
+        return None
+    if stream == "stdout":
+        try:
+            record = json.loads(text)
+        except ValueError:
+            return None
+        found = _event_note(harness, record) if isinstance(record, dict) else None
+        return None if found is None else InfraNote(name=found.name, stream=stream, line=_clip(text), turn=turn,
+                                                    summary=found.summary)
+    if stream != "stderr":
         return None
     for rule in NOTE_RULES:
-        if rule.harness == harness and rule.pattern.fullmatch(text):
+        if rule.harness == harness and rule.pattern is not None and rule.pattern.fullmatch(text):
             return InfraNote(name=rule.name, stream=stream, line=_clip(text), turn=turn, summary=rule.summary)
     return None
 
@@ -246,7 +295,7 @@ def classify_stdout(harness: str, line: str, *, turn: int | None = None) -> Infr
         record = json.loads(text)
     except ValueError:
         return classify_text(text, stream="stdout", turn=turn)
-    if not isinstance(record, dict):
+    if not isinstance(record, dict) or _event_note(harness, record) is not None:
         return None
     return _codex_record(record, text, turn) if harness == "codex" else _claude_record(record, text, turn)
 
@@ -335,9 +384,11 @@ def scan_turn(harness: str, stdout_lines: list[str], stderr_lines: list[str], *,
     return events
 
 
-def scan_notes(harness: str, stderr_lines: list[str], *, turn: int | None = None) -> list[InfraNote]:
-    """Every infra note of one recorded turn's stderr (``NOTE_RULES``)."""
-    return [n for line in stderr_lines if (n := note_of(harness, line, turn=turn)) is not None]
+def scan_notes(harness: str, stderr_lines: list[str], *, stdout_lines: list[str] | None = None,
+               turn: int | None = None) -> list[InfraNote]:
+    """Every infra note of one recorded turn (``NOTE_RULES``): its stdout events first, then its stderr lines."""
+    notes = [n for line in stdout_lines or [] if (n := note_of(harness, line, stream="stdout", turn=turn)) is not None]
+    return notes + [n for line in stderr_lines if (n := note_of(harness, line, turn=turn)) is not None]
 
 
 def scan_session(session_dir: Path) -> list[InfraEvent]:

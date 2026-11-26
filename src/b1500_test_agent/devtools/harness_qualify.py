@@ -33,7 +33,8 @@ their surfaces and the T3 set, and puts a candidate back to the validated versio
 partial ladder (report under ``work/harness/``, never a bump). ``--windows`` (the lab PC, OD21-3 = a) runs its fixed
 ladder T0 + T1 + S16 on the installed, validated version, writes no bump and records the qualification in
 ``<state>/harness/windows.json`` (``update`` notes while it is missing) with its report under ``work/harness/``.
-Infra notes (``infra.NOTE_RULES``: Codex's start-up model-list refresh timeout) are listed per session, never a stop.
+Infra notes (``infra.NOTE_RULES``: Codex's start-up model-list refresh timeout, Claude Code's usage warning) are
+listed per session, never a stop.
 Exit codes: 0 PASS, 1 FAIL (or nothing to qualify), 2 refused, 3 infra stop.
 """
 

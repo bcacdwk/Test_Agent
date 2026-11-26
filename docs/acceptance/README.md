@@ -194,7 +194,7 @@ The runner watches every turn's stdout and stderr while it runs (`infra.py`) and
 harness's login, API or network path failed: Codex `turn.failed` and any `error` event (the transient reconnect and
 HTTPS-fallback notices included); Claude Code a `result` with `is_error`, another subtype or an API status, an
 `assistant` message with an `error`, a retry or error `system` event, a `rate_limit_event` whose status is not
-`allowed`; stderr lines with 401/403, "not logged in", an invalid key or expired token, 429/5xx, rate or usage limits,
+`allowed` (except the usage warning below); stderr lines with 401/403, "not logged in", an invalid key or expired token, 429/5xx, rate or usage limits,
 DNS and connection failures or a request timeout (Codex lines about the agent's own tool calls are not read); and a
 turn that ended without a completion event. Then it kills the turn's process tree, marks the session
 `infra_stopped`, starts nothing more (no rep, scenario or re-run; `skipped` names the rest), writes the raw line into
@@ -204,17 +204,22 @@ stop. Shapes are pinned in `tests/fixtures/transcripts/infra/` (ATV-36: logged-o
 call for Claude Code, only unauthenticated 401s for Codex) and `tests/acceptance/test_infra_stop.py`.
 `--no-infra-stop` exists for offline tests only (hidden).
 
-**Infra note** (owner decision 2026-11-26): exactly one line is a note, never a stop: Codex's start-up
-`ERROR codex_models_manager::manager: failed to refresh available models: request timed out` (a background refresh of
+**Infra notes** (owner decisions 2026-11-26 and 2026-11-27): exactly two lines are notes, never a stop. First, Codex's
+start-up `ERROR codex_models_manager::manager: failed to refresh available models: request timed out` (a background refresh of
 the model list; the session goes on with the list it has; 14 of the 65 local Codex sessions of 2026-11-24/25 carried
 it, 13 of them completed). The match is narrow (`infra.NOTE_RULES`): Codex, stderr, the whole line with an optional
 timestamp in front; another level, module, wording, status or anything after it stops, the same line from Claude Code
 or on stdout stops, and no "timed out" rule is loosened. The watcher reads on past the note, so every other error in
 the same session still stops at once (login/auth, HTTP 401/403/429/5xx, DNS/connection, e.g. the ChatGPT connector's
 `rmcp` connection error that followed the note in WP11.5 S2-r2, reconnects, the HTTPS fallback, `turn.failed`, error
-events). The runner records each note in the turn (`session.json` `infra_notes`), `session ok` lists it, `acceptance
-run` prints the count after the session's verdict, and the report shows the total in its header and the raw lines
-under the scenario ("Infra notes (never a stop)"), like the qualify report.
+events). Second, Claude Code's usage warning (it stopped the WP21.9 batch `20261126T150801Z` in S17-r1's first turn,
+pinned in `claude-2.1.328-usage-warning.jsonl`): a stdout `rate_limit_event` whose `rate_limit_info` status is
+`allowed_warning` while every window it lists (`unifiedWindows`, at least one) is `allowed`; the overage fields are no
+window and are not read. Any other status (`rejected`, a limit, an unknown one), a window that is not `allowed` or a
+warning without its windows stops, and so does every error after the warning in the same session. The runner records
+each note in the turn (`session.json` `infra_notes`), `session ok` lists it, `acceptance run` prints the count after
+the session's verdict, and the report shows the total in its header and the raw lines under the scenario ("Infra
+notes (never a stop)"), like the qualify report.
 
 ## Maintainer: qualify a harness version (v2.1 plan §2.3)
 

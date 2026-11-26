@@ -1,5 +1,6 @@
-"""Stop at the first infra event (v2.1 plan §2.4, WP21.2 AC; owner rule OD21-4 = a) and the one infra note (WP21.8,
-owner decision 2026-11-26: Codex's start-up "failed to refresh available models: request timed out" is a note).
+"""Stop at the first infra event (v2.1 plan §2.4, WP21.2 AC; owner rule OD21-4 = a) and the two infra notes (WP21.8,
+owner decision 2026-11-26: Codex's start-up "failed to refresh available models: request timed out"; owner decision
+2026-11-27: Claude Code's usage warning, a ``rate_limit_event`` ``allowed_warning`` whose windows are all ``allowed``).
 
 Pinned on real lines (``tests/fixtures/transcripts/infra/``: the ATV-36 logged-out runs of both harnesses, the 84
 informational ``rate_limit_event`` lines of the WP11.5 Claude batch, a real Codex reconnect that gave up, the recorded
@@ -7,7 +8,9 @@ probes) and on forged ones per pattern. Through the real runner with the scripte
 line stops the batch after that session (no next session, no re-run), the turn's process is killed at once, and
 ``acceptance run`` exits 3; the 84 allowed rate-limit events do not stop anything; the model-refresh timeout alone
 lets the batch run on (a note in the session, the grade and the report), and a real error in the same session still
-stops it.
+stops it; the same for the real Claude Code usage warning that stopped the WP21.9 batch 20261126T150801Z (pinned in
+``claude-2.1.328-usage-warning.jsonl``), while forged variants of it (another status, a window not ``allowed``, no
+windows) stop.
 """
 
 from __future__ import annotations
@@ -33,6 +36,9 @@ CONNECTOR = ('2026-11-25T20:51:08.824368Z ERROR rmcp::transport::worker: worker 
              'closed, when Client(HttpRequest(HttpRequest("http/request failed: error sending request for url '
              '(https://chatgpt.com/backend-api/ps/mcp)")))')
 """The next real line of the same stderr: a connection error, still a stop."""
+USAGE_WARNING = (INFRA / "claude-2.1.328-usage-warning.jsonl").read_text(encoding="utf-8").strip()
+"""The real line that stopped the WP21.9 Claude batch 20261126T150801Z (S17-r1 turn 1): ``allowed_warning``, seven-day
+window at 52 %, both windows ``allowed``. Owner decision 2026-11-27: a note."""
 
 
 def _lines(path: Path) -> list[str]:
@@ -104,7 +110,7 @@ def test_the_note_is_narrow() -> None:
         event = infra.classify_text(REFRESH, harness=harness, stream=stream)  # type: ignore[arg-type]
         assert event is not None and event.kind == "network"
     assert infra.classify_stdout("codex", REFRESH) is not None  # a non-JSON stdout line still stops
-    assert [r.name for r in infra.NOTE_RULES] == ["codex model-list refresh timeout"]
+    assert [r.name for r in infra.NOTE_RULES] == ["codex model-list refresh timeout", "claude usage warning"]
 
 
 NEAR_MISSES = [
@@ -126,6 +132,73 @@ def test_lines_near_the_note_still_stop(line: str, kind: str) -> None:
     assert infra.note_of("codex", line) is None
     event = infra.classify_text(line, harness="codex")
     assert event is not None and event.kind == kind
+
+
+def test_the_real_claude_usage_warning_is_a_note() -> None:
+    """Owner decision 2026-11-27: the line that stopped batch 20261126T150801Z is a note on Claude Code's stdout."""
+    record = json.loads(USAGE_WARNING)
+    info = record["rate_limit_info"]
+    assert record["type"] == "rate_limit_event" and info["status"] == "allowed_warning"
+    assert info["overageStatus"] == "rejected"  # overage is no window: not read
+    assert {name: w["status"] for name, w in info["unifiedWindows"].items()} == {"five_hour": "allowed",
+                                                                                 "seven_day": "allowed"}
+    assert infra.classify_stdout("claude", USAGE_WARNING, turn=1) is None
+    assert infra.scan_turn("claude", [USAGE_WARNING], [], turn=1) == []
+    note = infra.note_of("claude", USAGE_WARNING, stream="stdout", turn=1)
+    assert note is not None
+    assert (note.name, note.stream, note.turn, note.line) == ("claude usage warning", "stdout", 1, USAGE_WARNING)
+    assert "owner decision 2026-11-27" in note.describe()
+    assert infra.scan_notes("claude", [], stdout_lines=[USAGE_WARNING], turn=1) == [note]
+    for harness, stream in (("codex", "stdout"), (None, "stdout"), ("claude", "stderr")):
+        assert infra.note_of(harness, USAGE_WARNING, stream=stream) is None  # type: ignore[arg-type]
+    assert infra.scan_notes("claude", [USAGE_WARNING]) == []  # on stderr it is no note
+
+
+def _warning(status: str = "allowed_warning", windows: object = None, *, drop_windows: bool = False) -> str:
+    """The real usage warning with its status or windows changed (forged near misses)."""
+    record = json.loads(USAGE_WARNING)
+    info = record["rate_limit_info"]
+    info["status"] = status
+    if windows is not None:
+        info["unifiedWindows"] = windows
+    if drop_windows:
+        del info["unifiedWindows"]
+    return json.dumps(record)
+
+
+WARNING_STOPS = [
+    _warning("rejected"),
+    _warning("limited"),
+    _warning("allowed_warning_v2"),
+    _warning("allowed_warning", {"five_hour": {"status": "allowed"}, "seven_day": {"status": "rejected"}}),
+    _warning("allowed_warning", {"five_hour": {"status": "allowed_warning"}, "seven_day": {"status": "allowed"}}),
+    _warning("allowed_warning", {"seven_day": {"utilization": 0.52}}),
+    _warning("allowed_warning", {"seven_day": "allowed"}),
+    _warning("allowed_warning", {}),
+    _warning("allowed_warning", ["allowed"]),
+    _warning("allowed_warning", drop_windows=True),
+]
+
+
+@pytest.mark.parametrize("line", WARNING_STOPS)
+def test_lines_near_the_usage_warning_still_stop(line: str) -> None:
+    """Any other status, a window that is not ``allowed`` and a warning without its windows stop (strict)."""
+    assert infra.note_of("claude", line, stream="stdout") is None
+    event = infra.classify_stdout("claude", line, turn=1)
+    assert event is not None and event.kind == "rate_limit" and event.line == line
+
+
+def test_the_watcher_reads_past_the_usage_warning_and_stops_at_a_real_error(tmp_path: Path) -> None:
+    out, err = tmp_path / "turn-1.jsonl", tmp_path / "turn-1.stderr.txt"
+    out.write_text('{"type":"system","subtype":"init","session_id":"s"}\n' + USAGE_WARNING + "\n", encoding="utf-8")
+    err.write_text("", encoding="utf-8")
+    watcher = infra.InfraWatcher("claude", out, err, turn=1)
+    assert watcher.poll() is None
+    rejected = _warning("rejected")
+    with out.open("a", encoding="utf-8") as handle:
+        handle.write(rejected + "\n")
+    event = watcher.poll()
+    assert event is not None and event.kind == "rate_limit" and event.line == rejected
 
 
 @pytest.mark.parametrize(("harness", "folder"), [("codex", CODEX_DIR), ("claude", CLAUDE_DIR)])
@@ -358,6 +431,47 @@ def test_the_84_allowed_rate_limit_events_do_not_stop_a_batch(tmp_path: Path,
     batch, _ = _batch(tmp_path, monkeypatch, "claude", actions)
     assert batch.infra_stop is None and [s.scenario_id for s in batch.sessions] == ["TA", "TB"]
     assert all(s.passed for s in batch.sessions), [r.message for s in batch.sessions for r in s.failures()]
+
+
+def test_the_usage_warning_alone_is_a_note_and_the_batch_runs_on(tmp_path: Path,
+                                                                  monkeypatch: pytest.MonkeyPatch) -> None:
+    actions = f"    - {{say: working}}\n    - {{raw: {json.dumps(USAGE_WARNING)}}}\n    - {{say: done}}\n"
+    batch, _ = _batch(tmp_path, monkeypatch, "claude", actions)
+    assert batch.infra_stop is None and [s.scenario_id for s in batch.sessions] == ["TA", "TB"]
+    assert all(s.passed for s in batch.sessions), [r.message for s in batch.sessions for r in s.failures()]
+    grade = batch.sessions[0]
+    (note,) = grade.infra_notes
+    assert (note.name, note.stream, note.turn, note.line) == ("claude usage warning", "stdout", 1, USAGE_WARNING)
+    record = json.loads((Path(grade.session_dir) / SESSION_FILE).read_text(encoding="utf-8"))
+    assert record["infra_stopped"] is False and record["turns"][0]["infra_event"] is None
+    ok = grade.results[0]
+    assert ok.name == "session ok" and ok.verdict == "pass" and "1 infra note(s), not a stop" in ok.message
+    text = report.render([batch])
+    assert "- Infra notes (never a stop): 2 in 2 session(s), listed under their scenarios" in text
+    assert "Infra notes (never a stop):\n- r1 turn 1 stdout: note (claude usage warning)" in text
+    assert "Infra stop" not in text and "| PASS |" in text
+
+
+ASSISTANT_RATE_LIMIT = '{"type":"assistant","error":"rate_limit","message":{"content":[]}}'
+
+
+@pytest.mark.parametrize("error", [f"    - {{raw: {json.dumps(_warning('rejected'))}}}\n",
+                                   f"    - {{raw: {json.dumps(ASSISTANT_RATE_LIMIT)}}}\n",
+                                   "    - {stderr: 'API Error: 429 Too Many Requests'}\n"])
+def test_a_real_error_after_the_usage_warning_still_stops(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                                          error: str) -> None:
+    actions = (f"    - {{raw: {json.dumps(USAGE_WARNING)}}}\n    - {{say: working}}\n" + error
+               + "    - {sleep: 60}\n    - {say: never}\n")
+    batch, took = _batch(tmp_path, monkeypatch, "claude", actions)
+    assert took < 45  # killed at the real error, not at the end of the turn
+    assert [s.scenario_id for s in batch.sessions] == ["TA"] and "TB" in batch.skipped
+    stop = batch.infra_stop
+    assert stop is not None and stop.session == "TA-r1" and stop.event.line != USAGE_WARNING
+    assert stop.event.kind in {"rate_limit", "assistant_error", "http_status"}
+    grade = batch.sessions[0]
+    assert not grade.passed and grade.infra_event == stop.event
+    assert [n.line for n in grade.infra_notes] == [USAGE_WARNING]
+    assert "**Infra stop** (owner rule: stop, no retries): TA-r1:" in report.render([batch])
 
 
 def test_a_harness_that_exits_without_completing_stops_the_batch(tmp_path: Path,

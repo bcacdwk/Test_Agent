@@ -14,6 +14,7 @@ through the real runner with ``fake_agent.py`` and pins the T1 sessions.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sys
 from datetime import UTC, date, datetime
@@ -502,7 +503,9 @@ def test_cli_refusals_exit_2() -> None:
 
 def test_cli_help_states_the_default_ladder() -> None:
     result = CliRunner().invoke(app, ["dev", "harness", "qualify", "--help"], terminal_width=200)
-    text = " ".join(result.output.replace("│", " ").split())
+    # Rich adds ANSI colours on CI (GITHUB_ACTIONS / FORCE_COLOR) and may wrap inside a phrase: compare the words only.
+    ansi = re.compile(r"\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+    text = " ".join(re.sub(r"[─-╿]+", " ", ansi.sub("", result.output)).split())
     assert result.exit_code == 0 and "1 probes (default;" in text and "2 canary always" in text
 
 

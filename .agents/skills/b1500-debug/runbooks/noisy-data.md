@@ -2,7 +2,8 @@
 id: noisy-data
 title: Noisy data or a response at the noise floor
 maturity: seed
-sources: [deck slide 17, PPT_slides_content.md p.18 (grounding cause), analysis/quality.py (MIN_SNR)]
+sources: [deck slide 17, PPT_slides_content.md p.18 (grounding cause), analysis/quality.py (MIN_SNR), case
+  2026-11-04-noisy-data]
 ---
 
 # Noisy data
@@ -22,7 +23,8 @@ red flag.
 
 1. Nothing is connected: a probe is lifted or off its pad, so the SMU reads only its noise floor.
 2. Integration time too short (deck slide 17).
-3. Shield box open or environmental interference (deck slide 17).
+3. Shield box open or environmental interference (deck slide 17). Simulator: `nmos_unshielded` (landed, raised
+   floor; long integration resolves it) against `open_drain_noisy` (not landed); debug case `2026-11-04-noisy-data`.
 4. Poor grounding (deck text).
 5. The real current is below what the module resolves (MPSMU instead of HRSMU, missing ASU for sub-pA).
 

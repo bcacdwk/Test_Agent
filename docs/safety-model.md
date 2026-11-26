@@ -646,8 +646,11 @@ OD-5), asks for `run_confirmed_plan`, denies the human-only commands and edits o
 the harness settings, and runs `scripts/hooks/b1500_guard.py` before every shell or
 file-editing call. The hook fails closed (`onFailure: block`, Claude Code 2.1.295 or later): if it cannot run (for
 example `uv` missing from `PATH`), shell and edit calls are blocked until a human fixes it. Its shell check matches
-text, so any command that merely mentions a human-only command is blocked too. Whether hooks also run in
-`bypassPermissions` mode is not verified (ATV-8); the deny rules hold there.
+text, so any command that merely mentions a human-only command is blocked too. It also blocks a file edit that
+would leave a debug case (`b1500-debug/cases/`) with `status: reviewed`, or that touches a reviewed case (v2.1 D-7:
+only the human reviews a case, in their editor, and commits it; shell commands are not text-checked for this, the
+case lint and the commit review stay the backstop). Whether hooks also run in `bypassPermissions` mode is not
+verified (ATV-8); the deny rules hold there.
 
 **Read-only probe and configuration bootstrap (blueprint v2 7.1, WP6.1).** `b1500 doctor --probe` and `b1500 bringup propose-station`
 reach the instrument only through `Session.read_only`: its `ReadOnlyTransport` passes a command only when it is one query

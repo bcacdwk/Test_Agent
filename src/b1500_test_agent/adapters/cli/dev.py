@@ -4,8 +4,10 @@ runs an asynchronous simulator run through it), ``coverage [--write|--check]`` (
 ``devtools/coverage.py``), ``sync-harness [--check]``
 (generated ``.claude/skills/`` copy of ``.agents/skills/``), ``lint-skills`` (skill schema, budgets, links; package
 ``devtools/skills/``), ``gen-index [--check]`` (generated card index ``cards/README.md``), ``sim-console`` (raw FLEX,
-simulator only), ``acceptance`` (M3 harness acceptance runner, ``devtools/acceptance/cli.py``) and ``harness qualify``
-(the maintainer's ladder for a harness version, v2.1 plan §2.3, ``devtools/harness_qualify.py``).
+simulator only), ``acceptance`` (M3 harness acceptance runner, ``devtools/acceptance/cli.py``), ``harness qualify``
+(the maintainer's ladder for a harness version, v2.1 plan §2.3, ``devtools/harness_qualify.py``) and ``cases list|check|
+reproduce`` (the debug cases of skill ``b1500-debug`` and their simulator reproductions, v2.1 plan §3,
+``devtools/cases.py``).
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from b1500_test_agent.adapters.cli import core
 from b1500_test_agent.adapters.cli.core import DEFAULT_MCP_APP_SPEC, JsonOption
 from b1500_test_agent.devtools import (
     budget,
+    cases,
     coverage,
     harness,
     harness_qualify,
@@ -43,6 +46,57 @@ dev_app.add_typer(acceptance_app, name="acceptance")
 harness_app = typer.Typer(help="Maintainer: qualify a harness version before operators get it (v2.1 plan §2.3).",
                           no_args_is_help=True)
 dev_app.add_typer(harness_app, name="harness")
+cases_app = typer.Typer(help="Debug cases of skill b1500-debug: list, check and reproduce them on the simulator "
+                             "(v2.1 plan §3).", no_args_is_help=True)
+dev_app.add_typer(cases_app, name="cases")
+
+
+@cases_app.command("list")
+def cases_list_command(
+    reproduce: Annotated[bool, typer.Option("--reproduce/--no-reproduce", help="Run every reproduction on the "
+                                                                               "simulator (temporary data folders) "
+                                                                               "for its verdict.")] = True,
+    as_json: JsonOption = False,
+) -> None:
+    """List the debug cases: status (draft or reviewed by whom), runbook, lab runs, reproduction verdict [SIMULATED]
+    and open questions for the owner. Exit 1 on a case problem or a failed reproduction."""
+    report = cases.cases_report(reproduce_all=reproduce)
+    typer.echo(cases.report_json(report) if as_json else cases.format_cases(report))
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@cases_app.command("check")
+def cases_check_command(
+    reproduce: Annotated[bool, typer.Option("--reproduce", help="Also run every reproduction and check its symptom "
+                                                                "signature and discriminator.")] = False,
+    as_json: JsonOption = False,
+) -> None:
+    """Lint the case template and the cases (keys, sections, review rules, runbook links, reproduction references,
+    open questions); with --reproduce also run each reproduction. Exit 0 iff everything passes."""
+    report = cases.cases_report(reproduce_all=reproduce)
+    typer.echo(cases.report_json(report) if as_json else cases.format_cases(report, verbose=False))
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@cases_app.command("reproduce")
+def cases_reproduce_command(
+    case_id: Annotated[str, typer.Argument(help="Case id (file name without .md).")],
+    out: Annotated[Path | None, typer.Option("--out", help="Empty or new folder for data/ and report.json (default "
+                                                           "work/cases/<case>/<UTC stamp>/).")] = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Run one case's simulator reproduction (backend sim, committed config only) and show each step's run and every
+    expectation with the values it read; the runs stay in the output folder. Exit 1 when it does not reproduce."""
+    try:
+        report = cases.reproduce(case_id, out=out)
+    except (cases.CaseRefused, FileExistsError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(cases.report_json(report) if as_json else cases.format_reproduction(report))
+    if not report.ok:
+        raise typer.Exit(code=1)
 
 
 @harness_app.command("qualify")

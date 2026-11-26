@@ -1,0 +1,20 @@
+# Pin map (example; committed). Schema: b1500_test_agent.models.station.PinMap; name = file name.
+# Two-terminal contact check between the gate and drain probes of a mosfet-4t landing on the lab-shaped example
+# station: basic.contact_resistor forces `a` on the gate probe (SMU4, HRSMU) and holds `b` on the drain probe (SMU3,
+# HRSMU) at 0 V; the source and bulk probes on the GNDU stay connected. A healthy gate-drain pair reads `open` (only
+# the gate leakage flows); a resistance in range is a leakage path or short between gate and drain (runbook
+# current-too-high, First safe checks 3; debug case 2026-11-04-current-orders-too-high, simulator scenario gd_short).
+#
+# certainty: verified here because this map matches the gate (SMU4) and drain (SMU3) wiring of the mosfet-4t
+# simulator scenarios (nmos_basic, gd_short, open_drain_noisy, nmos_unshielded). On a real station set `unverified`
+# until a human has checked the wiring; every plan using an unverified map needs confirmation (unverified_pin_map,
+# rule R-PIN-02). The visa backend never reads this example file.
+
+description: 2-terminal contact check of a mosfet-4t landing; a on the gate probe (SMU4), b on the drain probe (SMU3).
+certainty: verified
+terminals:
+  a: 4
+  b: 3
+notes:
+  - Use with DUT profile resistor-generic (+-0.1 V, 1 mA), which never stresses a gate oxide.
+  - The drain SMU holds 0 V as the return side, so its current is the same path seen from the other end.

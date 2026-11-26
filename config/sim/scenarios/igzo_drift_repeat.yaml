@@ -1,0 +1,59 @@
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario; device params are typed by
+# b1500_test_agent.models.sim (DEVICE_PARAMS); consumed by the simulator (transport/sim/). Name = file name. Noise,
+# faults and timing as documented in nmos_basic.yaml.
+#
+# Debug case 2026-11-04-igzo-vth-drift (skill b1500-debug, v2.1 plan §3, ATV-37 fallback): the igzo_transient TFT
+# (wired like pin map mosfet-4t: gate SMU4, drain SMU3, source on the GNDU, no body) whose drift the measurement
+# itself drives. igzo_transient does not drift across back-to-back mosfet.idvg runs, because a DC staircase is a
+# quasi-static read in the simulator (ATV-37 failed, WP21.4); here `sweep_stress` makes every DC step age the device
+# for its duration at its gate bias, so each Id-Vg is a bias stress (deck slide 17: "the voltage stress of the
+# measurement itself shifts Vth"), and the recovery time constant (1 h) is far longer than the gap between runs and
+# the negative part of a sweep, so the shift accumulates from run to run instead of relaxing in between.
+# Truth (models/sim_devices.py MosfetDynamicsParams): Vth0 0.8 V; under gate bias V the threshold moves towards
+# 0.05 V/V x V with tau 4 s, beta 0.5, so a sweep to 3 V can shift Vth by at most 0.15 V and a sweep to 1.5 V by at
+# most 0.075 V; a shorter sweep (fewer points) stresses for less time. Moisture, temperature and light (the deck's
+# other causes) have no model. Device values as igzo_transient (typical of oxide TFTs, not a measured device).
+
+description: >-
+  IGZO TFT of igzo_transient whose DC sweeps are bias stress (sweep_stress) with a 1 h recovery: Vth rises with every
+  Id-Vg (towards 0.05 V/V of the gate bias, tau 4 s, beta 0.5); wired as pin map mosfet-4t; instant timing.
+idn: Agilent Technologies,B1500A,0,A.06.02.2023.0401
+slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
+  - {slot: 7, model: B1520A}
+interlock_closed: false
+wiring:
+  dut:
+    gate: 4
+    drain: 3
+    source: GNDU
+    bulk: null                  # thin-film transistor: no body contact
+models:
+  dut:
+    model: mosfet
+    params:
+      polarity: n
+      vth0: 0.8                 # V
+      slope_factor: 3.0         # SS about 180 mV/dec
+      beta: 2.0e-6              # A/V^2
+      theta: 0.1                # 1/V
+      lambda: 0.02              # 1/V
+      rs_ohm: 1000.0
+      gate_leak_s: 1.0e-13
+      temperature_k: 300.0
+      igzo_dvth_per_v: 0.05     # dVth_inf = 0.05 V per volt of gate bias
+      igzo_tau_s: 4.0           # s
+      igzo_beta: 0.5
+      igzo_recovery_tau_s: 3600.0   # s: recovery far slower than the gap between runs
+      sweep_stress: true        # every DC step ages the device (the measurement as a bias stress)
+noise:
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 7.0e-14}
+  rel: 1.0e-3
+  seed: 37
+faults: null
+timing: instant

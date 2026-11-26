@@ -45,9 +45,11 @@ def test_committed_examples_validate(repo_paths: Paths) -> None:
     assert set(bundle.pin_maps) == {"mosfet-4t", "diode-2t", "resistor-2t", "mosfet-3t-lab", "fefet-sel",
                                     "fecap-wgfmu", "moscap-cmu", "mosfet-4t-body", "resistor-4w",
                                     "open-smus", "capacitor-cmu", "mosfet-cp", "mosfet-split-cv", "moscap-scuu",
-                                    "fecap-cmu", "mosfet-wgfmu", "mosfet-wgfmu-body", "resistor-wgfmu", "fefet-wgfmu"}
+                                    "fecap-cmu", "mosfet-wgfmu", "mosfet-wgfmu-body", "resistor-wgfmu", "fefet-wgfmu",
+                                    "mosfet-gd-2t"}
     # WP7.1: mosfet-4t-body .. open-smus; WP8.1: capacitor-cmu; WP9.3: mosfet-cp; WP8.3: mosfet-split-cv, moscap-scuu;
-    # WP8.4: fecap-cmu; WP10.4: mosfet-wgfmu, mosfet-wgfmu-body, resistor-wgfmu; WP10.6: fefet-wgfmu
+    # WP8.4: fecap-cmu; WP10.4: mosfet-wgfmu, mosfet-wgfmu-body, resistor-wgfmu; WP10.6: fefet-wgfmu; WP21.4:
+    # mosfet-gd-2t (gate-drain contact check of debug case 2026-11-04-current-orders-too-high)
     assert set(bundle.dut_profiles) == {"nmos-generic", "fefet-generic", "diode-generic", "resistor-generic",
                                         "fefet-lab", "fecap-generic", "moscap-generic", "capacitor-100p",
                                         "dielectric-generic", "resistor-1r", "open-circuit",
@@ -311,7 +313,8 @@ def test_lab_example_is_unverified(repo_paths: Paths) -> None:
     assert all(ch is None for s in bundle.station.switches if s.kind == "selector_16440a"
                for port in s.ports.values() for ch in port.inputs.values())
     simulated = {"mosfet-4t", "diode-2t", "resistor-2t", "mosfet-4t-body", "resistor-4w", "open-smus",
-                 "mosfet-wgfmu", "mosfet-wgfmu-body", "resistor-wgfmu"}  # WP10.4: through the (unverified) RSUs
+                 "mosfet-wgfmu", "mosfet-wgfmu-body", "resistor-wgfmu",  # WP10.4: through the (unverified) RSUs
+                 "mosfet-gd-2t"}  # WP21.4: the gate and drain probes of the mosfet-4t scenarios
     assert all(bundle.pin_maps[name].certainty == "verified" for name in simulated)
     lab = {name: pm.certainty for name, pm in bundle.pin_maps.items() if name not in simulated}
     assert lab == dict.fromkeys(["mosfet-3t-lab", "fefet-sel", "fecap-wgfmu", "moscap-cmu", "capacitor-cmu",

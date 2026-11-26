@@ -206,6 +206,59 @@ def test_notebooks_are_guarded(tmp_path: Path) -> None:
                                                    "new_source": "import pyvisa"})))
 
 
+# -- debug cases (v2.1 plan D-7: only the human sets status: reviewed) ------------------------------------------------
+
+CASE_FRONT = ("---\nid: 2026-11-05-x\ntitle: x\nstatus: {status}\nreviewed_by: {by}\nrunbook: new\n---\n\n# x\n\n"
+              "## Symptom\n\nNoise.\n")
+
+
+def case_file(tmp_path: Path, status: str = "draft", by: str = "null", copy: str = ".agents") -> Path:
+    path = tmp_path / copy / "skills" / "b1500-debug" / "cases" / "2026-11-05-x.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(CASE_FRONT.format(status=status, by=by), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("copy", [".agents", ".claude"])
+def test_writing_a_reviewed_case_is_blocked(tmp_path: Path, copy: str) -> None:
+    path = case_file(tmp_path, copy=copy)
+    reviewed = CASE_FRONT.format(status="reviewed", by="A. Owner")
+    stderr = assert_blocked(run_hook(event("Write", {"file_path": str(path), "content": reviewed})))
+    assert "reviewed only by the human" in stderr and "Never edit a reviewed case" in stderr
+    windows = "C:\\lab\\test_agent\\.agents\\skills\\b1500-debug\\cases\\2026-11-05-x.md"
+    assert_blocked(run_hook(event("Write", {"file_path": windows, "content": reviewed})))
+
+
+def test_editing_a_case_to_reviewed_is_blocked(tmp_path: Path) -> None:
+    path = case_file(tmp_path)
+    flip = {"file_path": str(path), "old_string": "status: draft", "new_string": "status: reviewed"}
+    assert_blocked(run_hook(event("Edit", flip)))
+    assert_blocked(run_hook(event("MultiEdit", {"file_path": str(path), "edits": [flip]})))
+    quoted = {"file_path": str(path), "old_string": "status: draft", "new_string": "status: 'reviewed'"}
+    assert_blocked(run_hook(event("Edit", quoted)))
+
+
+def test_a_reviewed_case_is_not_edited_at_all(tmp_path: Path) -> None:
+    """Any edit of a case a human reviewed (the file as it is), even one that would downgrade it."""
+    path = case_file(tmp_path, status="reviewed", by="A. Owner")
+    assert_blocked(run_hook(event("Edit", {"file_path": str(path), "old_string": "Noise.", "new_string": "Hum."})))
+    assert_blocked(run_hook(event("Write", {"file_path": str(path), "content": CASE_FRONT.format(status="draft",
+                                                                                                by="null")})))
+
+
+def test_drafting_cases_and_other_files_pass(tmp_path: Path) -> None:
+    path = case_file(tmp_path)
+    assert_allowed(run_hook(event("Edit", {"file_path": str(path), "old_string": "Noise.", "new_string": "Hum."})))
+    template = "status: draft                    # draft (written by the agent) | reviewed (set only by a human)\n"
+    assert_allowed(run_hook(event("Write", {"file_path": str(path.with_name("_TEMPLATE.md")), "content": template})))
+    reviewed = CASE_FRONT.format(status="reviewed", by="A. Owner")
+    assert_allowed(run_hook(event("Write", {"file_path": str(tmp_path / "docs" / "notes.md"), "content": reviewed})))
+    mention = "Never set `status: reviewed` yourself.\n"  # prose, not a frontmatter line
+    assert_allowed(run_hook(event("Write", {"file_path": str(path), "content": mention})))
+    # Shell commands are not text-checked for cases (reading or grepping them stays possible)
+    assert_allowed(run_hook(event("Bash", {"command": f"grep -l 'status: reviewed' {path.parent}/*.md"})))
+
+
 def test_other_tools_pass() -> None:
     assert_allowed(run_hook(event("Read", {"file_path": str(ROOT / "README.md")})))
     assert_allowed(run_hook(event("mcp__b1500__station_status", {"refresh": True})))

@@ -14,7 +14,12 @@ are not a boundary):
 - file edits (``Write``, ``Edit``, ``MultiEdit``, ``NotebookEdit``): blocked when the new text or the resulting file
   has a statement ``import pyvisa...`` / ``from pyvisa... import`` (at a line start or after ``;``) anywhere but
   ``src/b1500_test_agent/transport/visa.py``. Dynamic imports are left to the AST lint test
-  (``tests/unit/test_lint_pyvisa.py``), so test files that spell such imports in strings stay editable.
+  (``tests/unit/test_lint_pyvisa.py``), so test files that spell such imports in strings stay editable;
+- debug cases (v2.1 plan D-7): a file edit under ``b1500-debug/cases/`` (the skill source or its generated copy) is
+  blocked when the new text, the resulting file or the file as it is has a line ``status: reviewed``: only the human
+  reviews a case (they edit the file in their editor and commit); an agent drafts with ``status: draft`` and never
+  edits a reviewed case. Shell commands are not text-checked for this (a mention is no write); the case lint and the
+  human's commit review stay the backstop, and Codex has no hook (its skill text says the same).
 
 Malformed input for a guarded tool fails closed (exit 2). Standard library only, so any Python 3.8+ runs it; it
 never touches the instrument and never writes files.
@@ -61,6 +66,16 @@ EDIT_ADVICE = (
     "Only src/b1500_test_agent/transport/visa.py may import pyvisa. Use the b1500 MCP tools for measurements "
     "and b1500_test_agent.analysis for offline analysis of archived runs."
 )
+CASE_DIR = re.compile(r"b1500-debug[/\\]+cases(?:[/\\]|$)", re.IGNORECASE)
+"""A path inside a debug-case folder (``.agents/skills/b1500-debug/cases/`` or its ``.claude/skills/`` copy)."""
+REVIEWED_LINE = re.compile(r"^[ \t]*status[ \t]*:[ \t]*[\"']?reviewed\b", re.IGNORECASE | re.MULTILINE)
+"""A YAML line that sets ``status: reviewed`` (the template's ``status: draft  # ... | reviewed`` is not one)."""
+CASE_ADVICE = (
+    "A debug case is reviewed only by the human: draft it with status: draft and reviewed_by: null, put what only "
+    "the human knows under 'Open questions for the owner' and tell them the draft waits for their review (they set "
+    "status: reviewed with their name and commit). Never edit a reviewed case; propose the change in chat."
+)
+"""Advice for a blocked debug-case write (v2.1 plan D-7)."""
 
 
 def _block(message: str) -> int:
@@ -151,11 +166,15 @@ def edited_texts(tool: str, tool_input: dict) -> list[str] | None:
 def check_edit(tool: str, tool_input: dict) -> str | None:
     """Why a file edit is blocked, or ``None`` when it may proceed."""
     path = tool_input.get("file_path") or tool_input.get("notebook_path")
-    if isinstance(path, str) and _is_visa_module(path):
-        return None
     texts = edited_texts(tool, tool_input)
     if texts is None:
         return f"the {tool} tool input has an unexpected shape (fail closed)"
+    if isinstance(path, str) and CASE_DIR.search(path):
+        current = _read_text(path)
+        if any(REVIEWED_LINE.search(text) for text in [*texts, current or ""]):
+            return f"{path} is or would become a debug case with status: reviewed. {CASE_ADVICE}"
+    if isinstance(path, str) and _is_visa_module(path):
+        return None
     for text in texts:
         match = PYVISA_IMPORT.search(text)
         if match:

@@ -2,7 +2,7 @@
 id: current-too-high
 title: Current orders of magnitude above expected
 maturity: seed
-sources: [deck slide 17, PPT_slides_content.md p.18 (Guard cause)]
+sources: [deck slide 17, PPT_slides_content.md p.18 (Guard cause), case 2026-11-04-current-orders-too-high]
 ---
 
 # Current too high
@@ -19,7 +19,7 @@ sources: [deck slide 17, PPT_slides_content.md p.18 (Guard cause)]
 2. Guard not connected: cable insulation leakage adds to a low current (deck text).
 3. Wrong pin map or swapped terminals; wrong die (the `dut_instance` label does not match what is landed).
 4. Device already broken down, shorted or defective (deck slide 17); simulator scenario `gd_short` models a
-   gate-drain short.
+   gate-drain short (SIMULATED reproduction: debug case `2026-11-04-current-orders-too-high`).
 
 ## First safe checks
 
@@ -27,7 +27,8 @@ sources: [deck slide 17, PPT_slides_content.md p.18 (Guard cause)]
    bias, and whether any point is C or T (then also see [compliance-hit](compliance-hit.md)).
 2. `station_status`: pin map and DUT profile in use, instrument errors, outputs on.
 3. Contact check (card `contact-resistor-check`, skill `b1500-test`) on the pair that carries the excess current,
-   for example gate-drain or gate-source: `short` or a low resistance confirms a leakage path.
+   for example gate-drain or gate-source: `short` or a low resistance confirms a leakage path (a healthy gate pair
+   reads `open`). The example station's gate-drain map is `mosfet-gd-2t`; on the lab station ask for the pair's map.
 4. Open-circuit floor: ask the human to lift the probes, then run the same contact-check plan. A current well above
    the floor with the probes up points at cables, Guard or fixture, not at the DUT.
 5. After the human re-lands, or lands on a neighbouring device, re-run the original plan with a new

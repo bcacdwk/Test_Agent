@@ -4,11 +4,11 @@
 # (SEL1.OUT1), or null (not connected).
 #
 # certainty: verified here because this map matches the wiring of the simulator scenarios nmos_basic, fefet_basic,
-# open_drain_noisy, gd_short, igzo_transient and dielectric_tddb (gate and bulk only); nmos_basic wires the bulk to
-# SMU5 for mosfet-4t-body, and this map never switches SMU5 on, so the simulated bulk floats at the source potential,
-# as on the GNDU. On a real station set `unverified` until a human has checked the wiring (contact
-# check); every plan using an unverified map needs confirmation (unverified_pin_map, rule R-PIN-02). The visa
-# backend never reads this example file.
+# open_drain_noisy, gd_short, nmos_unshielded, igzo_transient, igzo_drift_repeat and dielectric_tddb (gate and bulk
+# only); nmos_basic wires the bulk to SMU5 for mosfet-4t-body, and this map never switches SMU5 on, so the simulated
+# bulk floats at the source potential, as on the GNDU. On a real station set `unverified` until a human has checked
+# the wiring (contact check); every plan using an unverified map needs confirmation (unverified_pin_map, rule
+# R-PIN-02). The visa backend never reads this example file.
 
 description: 4-terminal MOSFET; gate on SMU4 and drain on SMU3 (both HRSMU, low current), source and bulk on GNDU.
 certainty: verified

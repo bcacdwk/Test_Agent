@@ -84,14 +84,16 @@ change the picture. Say what you saw, what you ruled out and what the human shou
 ## 7. Recording a case
 
 1. `annotate_run(run_id, text, tags=["debug", "<runbook id>"])` on each run involved: symptom, checks, result.
-2. Draft `.agents/skills/b1500-debug/cases/<YYYY-MM-DD>-<slug>.md` from [the case template](cases/_TEMPLATE.md)
-   with `status: draft`. Write only there (`.claude/skills/` is a generated copy and is overwritten). Tell the human
-   the draft waits for their review; never set `status: reviewed` yourself.
+2. Draft `.agents/skills/b1500-debug/cases/<YYYY-MM-DD>-<slug>.md` from [the case template](cases/_TEMPLATE.md):
+   `status: draft`, `reviewed_by: null`, `reproduction: null`; what only the human knows becomes a numbered open
+   question. Write only there (`.claude/skills/` is a generated copy). Tell the human the draft waits for them.
+3. Review is the human's (never set `status: reviewed` or edit a reviewed case): they answer the open questions in
+   the sections, set `status: reviewed` with their name, run `uv run b1500 dev lint-skills`, then commit.
 
 ## 8. Iteration policy
 
 - A case seen twice becomes a runbook entry; a validated parameter fix becomes a card recommendation.
 - The human reviews both; any change to skill, card or rule text must pass the M3 acceptance suite again.
-- Seed cases from deck slide 17, all `draft`:
+- Seed cases from deck slide 17 (`draft`; SIMULATED reproductions, `uv run b1500 dev cases list`):
   [current too high](cases/2026-11-04-current-orders-too-high.md), [noisy data](cases/2026-11-04-noisy-data.md),
-  [IGZO Vth drift](cases/2026-11-04-igzo-vth-drift.md).
+  [IGZO Vth drift](cases/2026-11-04-igzo-vth-drift.md), [C-V not S-shaped](cases/2026-11-04-cv-shape-abnormal.md).

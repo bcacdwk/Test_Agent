@@ -2,7 +2,7 @@
 id: cmu-cv-distortion
 title: C-V curve distorted (Cmax above Cox, stretch-out, humps, deep depletion, branches apart, status U/D)
 maturity: seed
-sources: [PG p52 (1-32) CMU status, PG p251 (3-71) data correction, PG p348 (4-30) MFCMU ranges, EX p320 (4-26) four-terminal pair and error correction, Nicollian & Brews (1982) ch. 5 and 9, src/b1500_test_agent/analysis/cv.py and cv_variants.py (WP8.3-8.4), catalog/kinds/cmu_correction.py (correction data read-back, WP8.6)]
+sources: [deck slide 17 (C-V not S-shaped), case 2026-11-04-cv-shape-abnormal, PG p52 (1-32) CMU status, PG p251 (3-71) data correction, PG p348 (4-30) MFCMU ranges, EX p320 (4-26) four-terminal pair and error correction, Nicollian & Brews (1982) ch. 5 and 9, src/b1500_test_agent/analysis/cv.py and cv_variants.py (WP8.3-8.4), catalog/kinds/cmu_correction.py (correction data read-back, WP8.6)]
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
@@ -24,7 +24,8 @@ sources: [PG p52 (1-32) CMU status, PG p251 (3-71) data correction, PG p348 (4-3
    a frequency of the plan not in the list (then an offset of about the open stray C). Runbook `cmu-correction-stale`.
 2. Series resistance (substrate, back contact, probe): Cp falls at high f in accumulation. Runbook
    [cmu-series-resistance](cmu-series-resistance.md).
-3. Gate leakage: a large G (D above 1) makes Cp unreliable, mostly in accumulation and inversion.
+3. Gate leakage: a large G (D above 1) makes Cp unreliable, mostly in accumulation and inversion (simulator
+   `moscap_leaky`: at 1 kHz Cp rises above Cox and loses its plateau, normal at 1 MHz).
 4. AC level too large for a curved C-V: the swing averages the transition (C = C0 + C'' Vac^2 / 4).
 5. Sweep history: from accumulation into inversion (or too fast) drives deep depletion; a light leak generates
    carriers; border traps or mobile ions split the double sweep (hysteresis above about 100 mV).
@@ -33,6 +34,9 @@ sources: [PG p52 (1-32) CMU status, PG p251 (3-71) data correction, PG p348 (4-3
 7. Only after 1-6: the device (interface traps stretch the depletion and depend on frequency; fixed charge shifts).
 
 ## First safe checks
+
+Deck order (slide 17; debug case `2026-11-04-cv-shape-abnormal`): redo the corrections, lower the AC level, then
+measure the gate leakage first.
 
 1. `get_run(run_id, include=[summary, quality, audit])`: status counts, the summary's `corr` age, the plan's
    frequencies and AC level; `get_run` of the last correction runs: result, `open_cp_f`, `short_rs_ohm`.

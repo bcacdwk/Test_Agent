@@ -215,6 +215,50 @@ def test_igzo_recovery_and_negative_bias() -> None:
     assert negative.igzo_dv == pytest.approx(negative.igzo_truth(-10.0, 100.0), rel=1e-9) and negative.igzo_dv < 0
 
 
+# -- DC sweeps as stress (sweep_stress, v2.1 WP21.4: ATV-37 fallback) ---------------------------------------------
+
+
+def test_sweep_stress_ages_only_when_the_device_opts_in() -> None:
+    """``sweep_stress(dt, v)`` is the ageing part of ``advance`` (same IGZO, BTI and HCI state) when on, a no-op when
+    off; the thermal state stays the quasi-static one ``commit`` set."""
+    v = bias(3.0, 0.05)
+    off = mosfet(**IGZO)
+    off.sweep_stress(10.0, v)
+    assert off.export_state() == mosfet(**IGZO).export_state()
+    on, held = mosfet(**IGZO, **BTI, sweep_stress=True), mosfet(**IGZO, **BTI)
+    on.sweep_stress(10.0, v)
+    held.advance(10.0, v)
+    assert on.igzo_dv == pytest.approx(held.igzo_dv, rel=1e-12) and on.igzo_dv > 0.0
+    assert on.bti_dv == pytest.approx(held.bti_dv, rel=1e-12) and on.bti_dv > 0.0
+    hot = mosfet(**SELFHEAT, sweep_stress=True)
+    hot.commit(bias(2.0, 2.0))
+    steady = hot.dt_k
+    hot.sweep_stress(1.0, bias(0.0, 0.0))
+    assert hot.dt_k == steady  # no thermal transient: the reading of a DC step is quasi-static
+
+
+def test_a_dc_sweep_ages_a_sweep_stress_device_and_the_drift_persists(make_sim) -> None:
+    """Through the simulator: an MM 2 gate sweep of a device with ``sweep_stress`` moves its IGZO drift by the
+    applied biases over the steps' duration, and a second sweep starts from that state (scenario
+    ``igzo_drift_repeat``); the same sweep of the device without it changes nothing (``igzo_transient``)."""
+    params = {**EKV, **IGZO, "igzo_tau_s": 4.0, "igzo_recovery_tau_s": 3600.0}
+    wiring = {"dut": {"gate": 4, "drain": 3, "source": "GNDU", "bulk": "GNDU"}}
+    sweep = ("CN 3,4", "DV 3,0,0.05,1E-3", "MM 2,3,4", "WV 4,1,0,0,3.0,31,1E-3", "XE")
+    shifts = []
+    for opt_in in (False, True):
+        sim = make_sim(scenario_with({"dut": {"model": "mosfet", "params": {**params, "sweep_stress": opt_in}}},
+                                     wiring))
+        run(sim, *sweep)
+        sim.read()
+        first = sim.instrument.state.devices["dut"]["igzo_dv"]
+        run(sim, "XE")
+        sim.read()
+        shifts.append((first, sim.instrument.state.devices["dut"]["igzo_dv"]))
+    (off_1, off_2), (on_1, on_2) = shifts
+    assert off_1 == off_2 == 0.0
+    assert 0.0 < on_1 < on_2 < 0.05 * 3.0  # accumulates from sweep to sweep, below dV_inf at the 3 V top
+
+
 # -- split C-V ----------------------------------------------------------------------------------------------------
 
 GEOMETRY = {"w_um": 20.0, "l_um": 10.0, "tox_nm": 10.0, "nsub_cm3": 3e17, "cov_f_per_m": 2e-10}

@@ -1,0 +1,68 @@
+# Simulator scenario (committed). Schema: b1500_test_agent.models.station.SimScenario; device params are typed by
+# b1500_test_agent.models.sim (DEVICE_PARAMS); consumed by the simulator (transport/sim/). Name = file name. The
+# slots mirror config/station.example.yaml; `wiring` is the physical wiring of the simulated prober (independent of
+# the agent's pin map); `models` holds the truth parameters tests compare extractions against; noise, faults and
+# timing as documented in nmos_basic.yaml.
+#
+# Debug case 2026-11-04-cv-shape-abnormal (skill b1500-debug, v2.1 plan §3; deck slide 17 "C-V curve not S-shaped",
+# cause "gate leakage too large, the capacitance measurement is unreliable"): the moscap_basic MOS capacitor (p-Si
+# 1e17 cm^-3, 5 nm SiO2, 100 um x 100 um, Vfb -0.86 V) with a leaky gate oxide, landed through the SCUU of CMU1 like
+# moscap_dit (pin map moscap-scuu: gate 7H/SCUU1.OUT1, bulk 7L/SCUU1.OUT2), so one landing serves the MFCMU (C-V) and
+# the SMUs (the quasi-static C-V's leakage measurement, runbook cmu-cv-distortion First safe checks 5).
+# The leakage is an ohmic conductance leak_s = 1e-6 S across the oxide (1 MOhm: 0.5 uA at 0.5 V, far above the 1 nA
+# guideline of DUT profile moscap-generic), in series with the semiconductor capacitance like every element of the
+# moscap model. At 1 kHz it is comparable to w Cox (4.3e-7 S), so the HF C-V loses its S shape: Cp peaks above Cox
+# (about 93 pF at -1.3 V against Cox 69 pF), falls again towards strong accumulation (about 78 pF at -2.5 V, D about
+# 1.9) and gives no accumulation plateau (cv_cox refuses); at 1 MHz (G / w Cox about 0.002) the curve is normal again.
+# A real oxide leaks by tunnelling, exponentially in |V|; the model has only the ohmic term. Truth: as moscap_basic
+# (Cox 69.06 pF, Vfb -0.8616 V with the border traps empty), leak_s 1e-6 S.
+
+description: >-
+  Leaky MOS capacitor (moscap_basic with a 1e-6 S oxide leakage) on CMU1 through its SCUU (gate 7H/SCUU1.OUT1, bulk
+  7L/SCUU1.OUT2: MFCMU or SMU6/SMU5 on one landing) behind the fixture parasitics; C-V not S-shaped at 1 kHz (Cp
+  above Cox, D above 1), normal at 1 MHz; instant timing.
+idn: Keysight Technologies,B1500A,SIM0000001,A.06.01.2024.0101
+slots:                          # lab layout (config/station.example.yaml): SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7
+  - {slot: 1, model: B1525A}
+  - {slot: 2, model: B1530A}
+  - {slot: 3, model: B1517A}
+  - {slot: 4, model: B1517A}
+  - {slot: 5, model: B1511B}
+  - {slot: 6, model: B1511B}
+  - {slot: 7, model: B1520A}
+scuu: [7]                       # SCUU on CMU1: SMU6 (Force1) and SMU5 (Force2) reach the pads through it
+interlock_closed: false
+wiring:
+  dut:
+    gate: 7H
+    bulk: 7L
+  path:
+    high: 7H
+    low: 7L
+models:
+  dut:
+    model: moscap
+    params:
+      substrate: p
+      area_um2: 1.0e+4
+      tox_nm: 5.0
+      eps_ox: 3.9
+      nsub_cm3: 1.0e+17
+      phi_ms_v: -0.85
+      qf_cm2: 5.0e+10
+      f_inv_hz: 10.0
+      tau_inv_s: 0.05
+      rs_ohm: 20.0
+      leak_s: 1.0e-6            # S; truth of the leakage (1 MOhm through the oxide)
+      hysteresis_v: 0.03
+      hysteresis_vc_v: 1.5
+      hysteresis_width_v: 0.1
+  path:
+    model: fixture
+    params: {}                  # blueprint 4.2 defaults (models.sim_devices.FixtureParams)
+noise:
+  floor_a: {MPSMU: 1.0e-11, HRSMU: 1.0e-13}
+  rel: 2.0e-4
+  seed: 29
+faults: null
+timing: instant

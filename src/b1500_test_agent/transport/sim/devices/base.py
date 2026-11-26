@@ -1,6 +1,6 @@
-"""Shared pieces of the simulator device models: the ``Device``/``StatefulDevice``/``DynamicDevice``/``AcDevice``/
-``PumpedDevice`` protocols, voltage, drive and state types, physical constants and numerically safe helpers
-(blueprint 4.1, 4.2).
+"""Shared pieces of the simulator device models: the ``Device``/``StatefulDevice``/``DynamicDevice``/
+``SweepStressDevice``/``AcDevice``/``PumpedDevice`` protocols, voltage, drive and state types, physical constants and
+numerically safe helpers (blueprint 4.1, 4.2).
 
 Sign convention: currents flow from the instrument into the device terminal (an SMU forcing +V into a resistor
 to ground measures a positive current). A terminal voltage of ``None`` is floating.
@@ -88,6 +88,19 @@ class DynamicDevice(Protocol):
     def advance(self, dt: float, v: Voltages) -> dict[str, float]:
         """Hold ``v`` for ``dt`` seconds (``dt`` ≥ 0) and return the terminal currents at the end of the interval plus
         the mean displacement current over it."""
+        ...
+
+
+@runtime_checkable
+class SweepStressDevice(Protocol):
+    """A device that a DC measurement step ages (``MosfetDynamicsParams.sweep_stress``, v2.1): ``sweep_stress``
+    holds the step's applied voltages ``v`` for its duration ``dt`` for the ageing physics only (the reading of the
+    step stays quasi-static: no displacement current, no thermal transient)."""
+
+    name: str
+
+    def sweep_stress(self, dt: float, v: Voltages) -> None:
+        """Age the device for ``dt`` seconds (≥ 0) at ``v``; a no-op unless the device opts in."""
         ...
 
 

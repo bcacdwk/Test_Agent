@@ -42,6 +42,7 @@ from b1500_test_agent.transport.sim.devices.base import (
     PeriodicDrive,
     PumpedDevice,
     StatefulDevice,
+    SweepStressDevice,
 )
 from b1500_test_agent.transport.sim.devices.basic import CapacitorDevice, DiodeDevice, OpenDevice, ResistorDevice
 from b1500_test_agent.transport.sim.devices.dielectric import DielectricDevice
@@ -106,8 +107,9 @@ class Circuit:
     """All devices of a scenario and their physical wiring (independent of the agent's pin map).
 
     Units evaluate it three ways: ``channel_currents`` (a quasi-static trial, state unchanged), ``commit`` (apply DC
-    levels quasi-statically) and ``advance`` (hold levels for a time step: kinetics, self-heating, ageing,
-    breakdown, displacement currents); ``pumped_currents`` adds what a periodic drive pumps (charge pumping).
+    levels quasi-statically, followed by ``sweep_stress`` for the step's duration: ageing of the devices that opt in)
+    and ``advance`` (hold levels for a time step: kinetics, self-heating, ageing, breakdown, displacement currents);
+    ``pumped_currents`` adds what a periodic drive pumps (charge pumping).
     Small-signal models are reached through ``devices`` (``AcDevice``, ``Mosfet.gate_admittance``,
     ``FixtureDevice``); attached noise through ``noise_on``.
     """
@@ -123,6 +125,9 @@ class Circuit:
         }
         self.dynamic: dict[str, DynamicDevice] = {
             name: device for name, device in self.devices.items() if isinstance(device, DynamicDevice)
+        }
+        self.swept: dict[str, SweepStressDevice] = {
+            name: device for name, device in self.devices.items() if isinstance(device, SweepStressDevice)
         }
         self.noise: dict[str, NoiseSource] = {
             name: device for name, device in self.devices.items() if isinstance(device, NoiseSource)
@@ -217,6 +222,15 @@ class Circuit:
         routes = self.routes()
         for name, device in self.stateful.items():
             device.commit(self.terminal_voltages(name, levels, routes))
+
+    def sweep_stress(self, dt: float, levels: Mapping[Node, float]) -> None:
+        """A DC measurement step held ``levels`` for ``dt`` seconds (≥ 0): every ``SweepStressDevice`` ages for it
+        (only the devices whose parameters opt in change; the step's reading was taken quasi-statically)."""
+        if dt < 0.0:
+            raise ValueError(f"sweep_stress needs dt >= 0, got {dt}")
+        routes = self.routes()
+        for name, device in self.swept.items():
+            device.sweep_stress(dt, self.terminal_voltages(name, levels, routes))
 
     def advance(self, dt: float, levels: Mapping[Node, float]) -> dict[Node, float]:
         """Hold ``levels`` for ``dt`` seconds (≥ 0): every dynamic device evolves; returns the current (A) of each

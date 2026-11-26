@@ -86,7 +86,7 @@ ProblemCode = Literal[
     "skill_layout", "generated_marker", "frontmatter", "budget", "link", "anchor", "card_sections", "card_recipe",
     "recipe_card", "card_knowledge", "card_debug", "analysis_method", "card_status", "param_table", "param_range",
     "example_plan", "card_confirmation", "citation", "card_layout", "card_modules", "card_routes", "card_stage",
-    "card_index", "stage", "command",
+    "card_index", "stage", "command", "case",
 ]
 
 _KEBAB = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
@@ -233,6 +233,8 @@ class LintReport(StrictModel):
     knowledge: list[str] = Field(default_factory=list)
     runbooks: list[str] = Field(default_factory=list)
     stages: list[str] = Field(default_factory=list)
+    cases: list[str] = Field(default_factory=list)
+    """Debug case files (``b1500-debug/cases/*.md`` whose frontmatter validated; ``devtools/skills/cases.py``)."""
     example_plans: list[ExamplePlanCheck] = Field(default_factory=list)
     always_loaded: AlwaysLoadedBudget | None = None
     notes: list[str] = Field(default_factory=list)

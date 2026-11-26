@@ -73,6 +73,7 @@ def test_negative_cases_exist() -> None:
     assert {"missing-index-row", "bad-citation-page", "card-outside-family-folder", "card-modules-routes",
             "card-family-mismatch", "card-stage-not-run", "card-manual-form", "stage-files",
             "unknown-command", "recipe-without-card"} <= set(CASES)
+    assert "debug-case" in CASES  # WP21.4: the debug-case lint (v2.1 plan §3 item 4)
 
 
 def test_repository_skills_are_clean() -> None:

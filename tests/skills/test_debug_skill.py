@@ -3,8 +3,9 @@
 Budgets, frontmatter and links are checked by ``b1500 dev lint-skills`` (``test_lint_skills.py``). These tests pin
 the runbook ids that card ``debug:`` lists name (and that the lint resolves them), the fixed runbook structure, the
 symptom x family router (WP11.1: every family has a row, and the ``any`` rows plus a family's row reach every runbook
-the family's cards name), the human-only fault clear, the interrupted-run runbook, and the case template with the
-deck's three seed cases, which stay ``draft`` until a human reviews them.
+the family's cards name), the human-only fault clear, the interrupted-run runbook, and the case template v2 (v2.1
+plan §3) with the deck's four seed cases, which stay ``draft`` until a human reviews them, each linked both ways with
+its runbook and reproduced on the simulator (``tests/integration/test_debug_cases.py``).
 """
 
 from __future__ import annotations
@@ -42,13 +43,16 @@ LONG_RUN_CARDS = ("reliability/bti-stress-measure", "reliability/hci-silc", "rel
 RUNBOOK_SECTIONS = ("Symptom", "Likely causes", "First safe checks", "Physical checks to ask the human", "Do not",
                     "Stop and call safe_shutdown")
 RUNBOOK_KEYS = ("id", "title", "maturity", "sources")
-CASE_KEYS = ("id", "title", "status", "reviewed_by", "runbook", "backend", "station", "device", "runs", "sources")
+CASE_KEYS = ("id", "title", "status", "reviewed_by", "runbook", "backend", "station", "device", "runs", "sources",
+             "reproduction", "open_questions")  # template v2 (v2.1 plan §3 item 1)
 CASE_SECTIONS = ("Symptom", "Observed data and status codes", "Physical checks", "Instrument checks",
-                 "DUT hypotheses", "Resolution", "Reproducible", "Proposed follow-up")
-SEED_CASES = {  # deck slide 17: the owner's three debug records
+                 "DUT hypotheses", "Resolution", "Reproducible", "Proposed follow-up",
+                 "Simulator reproduction (SIMULATED)", "Open questions for the owner")
+SEED_CASES = {  # deck slide 17: the owner's four debug records (the C-V shape item since v2.1)
     "2026-11-04-current-orders-too-high": "current-too-high",
     "2026-11-04-noisy-data": "noisy-data",
     "2026-11-04-igzo-vth-drift": "vth-drift-igzo",
+    "2026-11-04-cv-shape-abnormal": "cmu-cv-distortion",
 }
 SKILL_PARTS = ("First moves", "Triage order (deck slide 17)", "Symptom router (family x symptom)",
                "Safe software checks", "Physical checks: ask the human", "Forbidden \"fixes\"", "Recording a case",
@@ -108,6 +112,10 @@ def test_skill_names_the_safe_checks_forbidden_fixes_and_case_recording() -> Non
     recording = _section(doc, "7. Recording a case")
     assert "annotate_run" in recording and "status: draft" in recording and "cases/_TEMPLATE.md" in recording
     assert ".agents/skills/b1500-debug/cases/" in recording  # never the generated .claude/skills copy
+    review = recording[recording.index("3. Review is the human's"):]  # v2.1: the three review steps
+    order = [review.index(item) for item in ("answer the open questions", "set `status: reviewed` with their name",
+                                             "uv run b1500 dev lint-skills", "then commit")]
+    assert order == sorted(order) and "never set `status: reviewed`" in review
 
 
 def _router_rows(doc: MarkdownDoc) -> dict[str, set[str]]:
@@ -206,6 +214,20 @@ def test_seed_cases_from_the_deck_are_drafts_for_human_review() -> None:
         doc = _doc(f"cases/{name}.md")
         assert doc.front["status"] == "draft" and doc.front["runbook"] == runbook
         assert "deck slide 17" in doc.front["sources"]
+        assert doc.front["backend"] == "visa" and doc.front["runs"] == []  # the deck's facts, no simulated run
+        assert "TODO(owner)" not in "\n".join(doc.lines)  # v2.1: numbered open questions instead
+        assert any(name in str(source) for source in _doc(f"runbooks/{runbook}.md").front["sources"])
+        assert f"cases/{name}.md" in {t for t, _ in _doc("SKILL.md").links}  # SKILL part 8 lists it
+
+
+def test_runbooks_describe_the_simulator_reproductions() -> None:
+    """v2.1 plan §3 item 3: ``vth-drift-igzo`` no longer claims that no scenario models it; ``cmu-cv-distortion``
+    carries the deck's order."""
+    igzo = "\n".join(_doc("runbooks/vth-drift-igzo.md").lines)
+    assert "No simulator scenario models this" not in igzo and "igzo_drift_repeat" in igzo
+    cv = _section(_doc("runbooks/cmu-cv-distortion.md"), "First safe checks")
+    order = [cv.index(item) for item in ("redo the corrections", "lower the AC level", "gate leakage first")]
+    assert order == sorted(order)
 
 
 def test_lint_resolves_every_runbook_id_in_a_card(tmp_path: Path) -> None:
@@ -213,6 +235,10 @@ def test_lint_resolves_every_runbook_id_in_a_card(tmp_path: Path) -> None:
     shutil.copytree(POSITIVE, root)
     shutil.rmtree(root / ".agents/skills/b1500-debug")
     shutil.copytree(SKILL_DIR, root / ".agents/skills/b1500-debug")
+    for case in (root / ".agents/skills/b1500-debug/cases").glob("2*.md"):  # the fixture has only mosfet.idvg:
+        text = case.read_text(encoding="utf-8")  # the reproductions are linted on the repository (test_lint_cases)
+        case.write_text(text[:text.index("reproduction:\n")] + "reproduction: null\n"
+                        + text[text.index("open_questions:"):], encoding="utf-8")
     card = root / FIXTURE_CARD
     text = card.read_text(encoding="utf-8")
     old = "debug: [noisy-data, compliance-hit]"

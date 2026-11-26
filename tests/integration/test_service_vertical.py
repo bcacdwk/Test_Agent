@@ -45,7 +45,8 @@ def test_vertical_path_status_validate_run_get_analyze(world: World, monkeypatch
                                "fecap-cmu": "unverified",  # WP8.4
                                "mosfet-wgfmu": "verified", "mosfet-wgfmu-body": "verified",
                                "resistor-wgfmu": "verified",  # WP10.4 (through the unverified RSUs)
-                               "fefet-wgfmu": "unverified"}  # WP10.6
+                               "fefet-wgfmu": "unverified",  # WP10.6
+                               "mosfet-gd-2t": "verified"}  # WP21.4
     assert "nmos-generic" in status.dut_profiles
     assert status.config is not None and status.config.ok and status.limits is not None
 

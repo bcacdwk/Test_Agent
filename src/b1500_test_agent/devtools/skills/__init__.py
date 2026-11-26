@@ -54,6 +54,13 @@ Checks (problem ``code`` in brackets)
   ``STAGE_SECTIONS``; every other ``stages/*.md`` is named after a ``STAGES`` entry, has ``StageFrontmatter``
   (``stage`` = the file's stage, ``title``, registered ``recipes``, ``version``) and the six sections;
   ``records/`` holds only ``_TEMPLATE.yaml``, a mapping with ``RECORD_KEYS``, empty ``reviewer`` and ``H...`` runs.
+- Debug cases [``case``] (``cases``, v2.1 plan §3): ``b1500-debug/cases/_TEMPLATE.md`` and every case have the
+  frontmatter keys of ``CASE_KEYS`` in order and the ten sections of ``CASE_SECTIONS``; a case validates against
+  ``CaseFrontmatter`` (``status: draft`` with ``reviewed_by: null``; ``reviewed`` with a name and no open question;
+  ``runs`` of its own backend only), its runbook's ``sources`` name it, every scenario, recipe, parameter, pin map, DUT
+  profile and analysis method of its ``reproduction`` exists and every expectation parses, ``open_questions`` counts
+  the numbered questions, and ``TODO(owner)`` appears only in "Open questions for the owner" (the reproductions
+  themselves run in ``b1500 dev cases check --reproduce`` and ``tests/integration/test_debug_cases.py``).
 - Citations [``citation``] (``citations``): every manual citation (``PG p433 (4-115)``, legacy ``PG PDF 433``) in
   the skills, recipes, source docstrings and docs names a catalog document and a page inside it; with the committed
   corpus its printed label and quoted keyword must match the page (``references/manuals/catalog.yaml``, blueprint 5.2).
@@ -86,7 +93,8 @@ Card section 4 contract ("Recipe and parameters"; for ``cards/_TEMPLATE.md`` and
 Modules: ``common`` (names, schemas, stage list, report models, the ``Lint`` context), ``markdown`` (Markdown model),
 ``layout`` (skill folders and ``SKILL.md`` frontmatter), ``links`` (links and anchors), ``budgets`` (line, byte and
 token budgets), ``params`` (card parameter tables), ``cards`` (cards, example plans, the card-recipe graph),
-``index`` (generated card index, ``gen-index``), ``stages`` (bring-up skill), ``citations`` (manual citations),
+``index`` (generated card index, ``gen-index``), ``stages`` (bring-up skill), ``cases`` (debug cases and the
+expectation grammar of their reproductions), ``citations`` (manual citations),
 ``commands`` (``b1500`` commands) and ``lint`` (``lint_skills``, ``format_report``).
 """
 

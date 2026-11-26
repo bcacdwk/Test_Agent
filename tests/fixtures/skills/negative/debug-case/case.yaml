@@ -1,0 +1,15 @@
+description: >-
+  Debug cases (v2.1 plan §3): an agent-set review without a name, an inline TODO(owner), a missing section; a
+  reproduction with an unknown scenario, pin map and parameter, a runbook that does not name the case, a miscounted
+  question list and no regenerate command.
+expect:
+  - {code: frontmatter, file: .agents/skills/b1500-debug/cases/2026-11-05-bad-review.md, contains: "status reviewed needs reviewed_by"}
+  - {code: case, file: .agents/skills/b1500-debug/cases/2026-11-05-bad-review.md, contains: "TODO(owner) outside the section 'Open questions for the owner'"}
+  - {code: case, file: .agents/skills/b1500-debug/cases/2026-11-05-bad-review.md, contains: "(has Symptom · Observed data and status codes · Physical checks · Instrument checks · DUT hypotheses · Resolution · Reproducible · Simulator reproduction (SIMULATED)"}
+  - {code: case, file: .agents/skills/b1500-debug/cases/2026-11-05-bad-reproduction.md, contains: "reproduction scenario 'nmos_nowhere' is neither in config/sim/scenarios/ nor an alias"}
+  - {code: case, file: .agents/skills/b1500-debug/cases/2026-11-05-bad-reproduction.md, contains: "step 'symptom': scenario 'nmos_nowhere' is neither"}
+  - {code: case, file: .agents/skills/b1500-debug/cases/2026-11-05-bad-reproduction.md, contains: "pin map 'mosfet-9t' is not in config/pinmaps/"}
+  - {code: case, file: .agents/skills/b1500-debug/cases/2026-11-05-bad-reproduction.md, contains: "mosfet.idvg has no parameter(s) ['vg_steps']"}
+  - {code: case, file: .agents/skills/b1500-debug/cases/2026-11-05-bad-reproduction.md, contains: "runbook noisy-data's sources do not name this case"}
+  - {code: case, file: .agents/skills/b1500-debug/cases/2026-11-05-bad-reproduction.md, contains: "open_questions is 2 but the section 'Open questions for the owner' has 1"}
+  - {code: case, file: .agents/skills/b1500-debug/cases/2026-11-05-bad-reproduction.md, contains: "`uv run b1500 dev cases reproduce 2026-11-05-bad-reproduction`"}

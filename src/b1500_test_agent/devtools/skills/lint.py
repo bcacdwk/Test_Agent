@@ -25,6 +25,7 @@ from b1500_test_agent.devtools.skills.cards import (
     find_card_paths,
     validate_examples,
 )
+from b1500_test_agent.devtools.skills.cases import Case, check_cases
 from b1500_test_agent.devtools.skills.citations import check_citations
 from b1500_test_agent.devtools.skills.commands import check_commands
 from b1500_test_agent.devtools.skills.common import (
@@ -110,6 +111,12 @@ def lint_skills(root: Path | None = None, *, recipes_dir: Path | None = None, co
     stages: dict[str, StageFrontmatter] = {}
     if BRINGUP_SKILL in skills:
         stages = check_bringup(lint, base / BRINGUP_SKILL, registry)
+    cases: list[Case] = check_cases(lint, debug_dir, registry, runbooks) if DEBUG_SKILL in skills else []
+    if cases:
+        lint.notes.append(f"debug cases: {len(cases)} ({sum(c.front.status == 'reviewed' for c in cases)} reviewed, "
+                          f"{sum(c.front.open_questions for c in cases)} open questions for the owner, "
+                          f"{sum(c.front.reproduction is not None for c in cases)} with a simulator reproduction: "
+                          "`uv run b1500 dev cases check --reproduce` runs them)")
     catalog_ids = manual_ids(root)
     cards: list[Card] = []
     card_paths = find_card_paths(entry_dir) if ENTRY_SKILL in skills else []
@@ -150,10 +157,11 @@ def lint_skills(root: Path | None = None, *, recipes_dir: Path | None = None, co
     stage_files = sorted(lint.rel(base / BRINGUP_SKILL / STAGES_DIR / p.name)
                          for p in (base / BRINGUP_SKILL / STAGES_DIR).glob("*.md") if not p.name.startswith("_")) \
         if BRINGUP_SKILL in skills and (base / BRINGUP_SKILL / STAGES_DIR).is_dir() else []
+    case_files = sorted(lint.rel(c.doc.path) for c in cases)
     return LintReport(ok=not problems, root=root.as_posix(), skills=skills,
                       cards=[lint.rel(p) for p in card_paths], knowledge=knowledge,
-                      runbooks=runbooks, stages=stage_files, example_plans=examples, always_loaded=budget,
-                      notes=lint.notes, problems=dedupe(problems))
+                      runbooks=runbooks, stages=stage_files, cases=case_files, example_plans=examples,
+                      always_loaded=budget, notes=lint.notes, problems=dedupe(problems))
 
 
 def manual_ids(root: Path) -> set[str] | None:
@@ -188,8 +196,8 @@ def format_report(report: LintReport) -> str:
     """Human-readable report: verdict and counts, the always-loaded budget, notes and problems."""
     verdict = "clean" if report.ok else f"{len(report.problems)} PROBLEM(S)"
     lines = [(f"skills: {verdict} ({len(report.skills)} skills, {len(report.cards)} cards, "
-              f"{len(report.knowledge)} knowledge files, {len(report.runbooks)} runbooks, {len(report.stages)} "
-              f"stage files; root {report.root})")]
+              f"{len(report.knowledge)} knowledge files, {len(report.runbooks)} runbooks, {len(report.cases)} "
+              f"debug cases, {len(report.stages)} stage files; root {report.root})")]
     for check in report.example_plans:
         lines.append(f"  example plan {check.card}: {check.recipe_id} on {check.sim_scenario} -> {check.status}, "
                      f"tier {check.tier or '-'}")

@@ -2,7 +2,7 @@
 id: vth-drift-igzo
 title: IGZO or oxide TFT Vth differs from run to run
 maturity: seed
-sources: [deck slide 17, PPT_slides_content.md p.18 (temperature cause)]
+sources: [deck slide 17, PPT_slides_content.md p.18 (temperature cause), case 2026-11-04-igzo-vth-drift]
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
@@ -14,7 +14,9 @@ sources: [deck slide 17, PPT_slides_content.md p.18 (temperature cause)]
   fit uncertainty), often in one direction with every run.
 - Hysteresis between sweep directions, or a slow return between sessions.
 
-No simulator scenario models this: it is a hardware runbook.
+Simulator (cause 2 only): `igzo_drift_repeat` makes every DC sweep a bias stress, so Vth rises from run to run
+and less with a narrower or shorter sweep (debug case `2026-11-04-igzo-vth-drift`); `igzo_transient` drifts under a
+held bias (sampling, bias stress). Moisture, temperature and light have no model.
 
 ## Likely causes
 

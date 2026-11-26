@@ -669,11 +669,13 @@ class SmuUnit:
         zero_at: float | None = None
         last = len(table) - 1
         period = delay + max(meas_total, sdelay)
+        previous_end = 0.0
         for i, row in enumerate(table):
             if sweep:  # hold, then per step: force, wait delay, measure; next step after max(meas, Sdelay)
                 meas_start, nominal_end = hold + i * period + delay, hold + (i + 1) * period
             else:
                 meas_start, nominal_end = 0.0, meas_total
+            step_s, previous_end = factor * (nominal_end - previous_end), nominal_end
             end = t0 + factor * nominal_end
             step_ends.append(end)
             stamp = t0 + factor * meas_start - self._timer_zero
@@ -701,6 +703,7 @@ class SmuUnit:
             blocks.append(block)
             if self.circuit.has_state:  # the step's voltages act on the device before the next step
                 self.circuit.commit(applied)
+                self.circuit.sweep_stress(step_s, applied)  # opt-in ageing for the step's duration (hold included)
                 device_states.append(self.circuit.export_state())
             if self._wm[0] == 2 and any(s in "CTVX" for s in statuses):
                 aborted = True  # automatic abort: later steps carry dummy data (PDF 553)

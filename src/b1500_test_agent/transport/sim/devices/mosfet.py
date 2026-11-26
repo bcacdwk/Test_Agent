@@ -166,7 +166,8 @@ class Mosfet(MosfetEkv):
     ``U_T = k(T0 + ΔT)/q``.
 
     - ``terminal_currents`` (DC trial) and ``commit`` are quasi-static: self-heating at its steady state
-      ``ΔT = Rth·|Id·Vds|`` (solved self-consistently, Rth·P → Vth/mobility shift), no ageing.
+      ``ΔT = Rth·|Id·Vds|`` (solved self-consistently, Rth·P → Vth/mobility shift), no ageing; with
+      ``sweep_stress`` on, ``sweep_stress(dt, v)`` then ages the device for each DC step's duration (v2.1).
     - ``advance(dt, v)`` ages the device under ``v`` (BTI power law with log recovery, HCI power law, IGZO stretched
       exponential; effective-time laws of ``kinetics``) and relaxes ``ΔT`` towards the new steady state with
       ``tau_th_s``; it returns the currents at the end of the interval (a pulse shorter than ``tau_th_s`` stays cold).
@@ -299,10 +300,21 @@ class Mosfet(MosfetEkv):
     def commit(self, v: Voltages) -> None:
         self.dt_k = self.steady_dt(v)
 
-    def advance(self, dt: float, v: Voltages) -> dict[str, float]:
+    def _biases(self, v: Voltages) -> tuple[float | None, float | None]:
+        """``(Vgs, Vds)`` in terminal polarity (``None`` when a terminal floats)."""
         vg, vd, vs = v.get("gate"), v.get("drain"), v.get("source")
         vgs = None if vg is None or vs is None else self.sign * (vg - vs)
         vds = None if vd is None or vs is None else self.sign * (vd - vs)
+        return vgs, vds
+
+    def sweep_stress(self, dt: float, v: Voltages) -> None:
+        """A DC measurement step at ``v`` for ``dt`` seconds ages the device when ``sweep_stress`` is on (the
+        measurement as a bias stress, v2.1); the step's reading and the thermal state stay quasi-static."""
+        if self.params.sweep_stress and dt > 0.0:
+            self._age(dt, *self._biases(v))
+
+    def advance(self, dt: float, v: Voltages) -> dict[str, float]:
+        vgs, vds = self._biases(v)
         if dt > 0.0:
             self._age(dt, vgs, vds)
         steady = self.steady_dt(v)

@@ -146,10 +146,11 @@ class VisaWorld:
         return {ENV_HOME: str(self.root), ENV_DATA_DIR: str(self.data), **bus.env()}
 
     def audit_events(self) -> list[AuditEvent]:
-        """Every audit event under the data directory (daily files and run folders)."""
+        """Every audit event under the data directory (daily files and run folders; the bring-up step ledgers under
+        ``state/bringup/`` are no audit)."""
         events = []
         for path in sorted(self.data.rglob("*.jsonl")):
-            if path.name in ("index.jsonl", "notes.jsonl"):
+            if path.name in ("index.jsonl", "notes.jsonl") or path.parent.name == "bringup":
                 continue
             events += [AuditEvent.from_json_line(line) for line in path.read_text(encoding="utf-8").splitlines()]
         return events

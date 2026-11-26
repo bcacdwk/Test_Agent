@@ -3,9 +3,10 @@
 One test per stage (``hw_s0`` ... ``hw_l10``) checks every record of that stage: the reviewed records in
 ``validation/hw/`` and the drafts in ``work/bringup/records/``. ``records.py`` lists the checks: the WP6.3 schema,
 hardware runs (``H...``) that exist in ``data/runs`` on backend visa with intact files, recipe digests that match the
-current recipes, verified cleanups and passing ``LOP?`` positive controls behind every passing record, and a reviewer
-on every committed record. A stage without records yet is skipped. The checks only read files; they never touch
-the instrument.
+current recipes, verified cleanups and passing ``LOP?`` positive controls behind every passing record, a reviewer
+on every committed record and, for a passing stage record of schema version 2 (v2.1), every step of the stage
+passed in its embedded step list. A stage without records yet is skipped. The checks only read files; they never
+touch the instrument.
 
 Run at the end of a bring-up day on the lab PC, before the records are reviewed and transferred (7.5 step 10):
 ``$env:B1500_HW = "1"; uv run pytest -m hardware -rs``.
@@ -25,6 +26,7 @@ from tests.hardware.records import (
     check_file,
     read_record,
     record_files,
+    required_steps,
     stage_of,
     stray_files,
 )
@@ -47,9 +49,10 @@ def test_stage_records(stage: str, files: list[RecordFile], record_schema: Recor
     if not mine:
         pytest.skip(f"no record of stage {stage} yet (validation/hw/, work/bringup/records/)")
     problems: list[str] = []
+    stage_steps = required_steps(hw_config.paths.repo_root)
     for file in mine:
         problems += check_file(file, record_schema, archive=run_archive, recipes=recipes,
-                               repo_root=hw_config.paths.repo_root)
+                               repo_root=hw_config.paths.repo_root, stage_steps=stage_steps)
     assert not problems, f"{len(problems)} problem(s) in the stage {stage} records:\n" + "\n".join(problems)
 
 

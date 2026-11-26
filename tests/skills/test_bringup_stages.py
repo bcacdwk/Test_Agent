@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from b1500_test_agent.bringup import frontmatter, load_stage
+from b1500_test_agent.bringup_ledger import frontmatter, load_stage
 from b1500_test_agent.devtools.skills.commands import named_commands
 from b1500_test_agent.devtools.skills.common import STAGE_SECTIONS
 from b1500_test_agent.devtools.skills.markdown import parse_markdown

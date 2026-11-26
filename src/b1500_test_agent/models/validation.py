@@ -21,6 +21,16 @@ recipe.
 formatting do not count; any change to roles, parameters, quality, analyses, kind or version does, so a promotion
 stays valid exactly as long as the validated measurement is unchanged. Each run of a record also keeps the raw file
 digest of its manifest (``RecordRun.recipe_file_sha256``).
+
+**Steps and the step ledger** (v2.1 plan §4.1). ``.agents/skills/b1500-bringup/steps.yaml`` (``StepsFile``) lists
+every step in execution order: the deployment group ``D1``… (session 0), the session start ``R1``… and end ``E1``…
+groups (every session) and per stage its numbered items (``L1.P1`` = physical step 1, ``L1.A4`` = agent step 4 of the
+stage file) plus one review step ``<stage>.R``. ``StepSpec.verify`` names how ``b1500 bringup done`` verifies a step
+on hardware; ``rehearsal`` how the simulator ledger takes it. The ledger ``<data>/state/bringup/ledger-<backend>.jsonl``
+holds one ``LedgerEntry`` per ``done`` call, written only by the CLI and hash-chained (``prev_sha256`` = the previous
+entry's ``sha256``, which covers the entry itself), so a hand edit shows in ``b1500 bringup check``. Records of
+schema version 2 embed the stage's ledger entries (``ValidationRecord.steps``): the reviewer signs the step list and
+it travels with the records.
 """
 
 from __future__ import annotations
@@ -34,9 +44,9 @@ from pydantic import AwareDatetime, Field, JsonValue, model_validator
 
 from b1500_test_agent.models.analysis import ExtractionResult, Identifier, QualityReport, RunId
 from b1500_test_agent.models.bringup import ProbeReport
-from b1500_test_agent.models.common import ResultEnvelope, Sha256Hex, StrictModel
+from b1500_test_agent.models.common import Backend, ResultEnvelope, Sha256Hex, StrictModel
 from b1500_test_agent.models.recipe import Recipe, RecipeId
-from b1500_test_agent.models.run import RunManifest
+from b1500_test_agent.models.run import RunManifest, RunOutcome
 
 StageId = Literal["S0", "L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10"]
 """Bring-up stage ids (blueprint v2 7.4); hardware tests, records and cards share them."""
@@ -72,6 +82,17 @@ FIXTURES_DIR: Final = "fixtures"
 STAGE_RECORD_PREFIX: Final = "stage-"
 """Reviewed stage records are ``validation/hw/stage-<stage id in lower case>.yaml`` (a recipe id has a dot, so the
 two name spaces never collide)."""
+STEPS_FILE: Final[tuple[str, ...]] = (".agents", "skills", BRINGUP_SKILL, "steps.yaml")
+"""Repository-relative path of the step sequence (``StepsFile``; the canonical skill source)."""
+LEDGER_DIR: Final = "bringup"
+"""Folder under ``<data>/state/`` of the step ledgers ``ledger-<backend>.jsonl`` (written only by the CLI)."""
+RECORD_SCHEMA_VERSION: Final = 2
+"""Schema version of the records ``b1500 bringup record`` drafts (2: with the stage's ledger steps; v2 records
+without the key are version 1 and still load)."""
+GENESIS_SHA256: Final = "0" * 64
+"""``prev_sha256`` of the first ledger entry."""
+DEFERRAL_ITEMS: Final = range(1, 15)
+"""The numbered hardware deferrals of blueprint v2 7.6 (items 1-14) that ``StepSpec.items`` may name."""
 
 DEFINITION_EXCLUDED: Final[frozenset[str]] = frozenset({"status", "provenance", "card", "sha256"})
 """Recipe fields left out of ``recipe_definition_sha256`` (the fields a promotion edits, and the file digest)."""
@@ -186,6 +207,250 @@ class StageFrontmatter(StrictModel):
         return keys
 
 
+# == Bring-up steps and the step ledger (v2.1 plan §4.1) =============================================================
+
+StepId = Annotated[str, Field(pattern=r"^(?:[DRE][1-9][0-9]?|(?:S0|L[0-9]|L10)\.(?:[PA][1-9][0-9]?|R))$")]
+"""``D1`` (deployment), ``R1`` (session start), ``E1`` (session end), ``L1.P1`` / ``L1.A4`` (physical / agent item
+of a stage file), ``L1.R`` (the stage's review step)."""
+StepWho = Literal["agent", "human", "both"]
+VerifyKind = Literal["run", "probe", "config", "proposal", "record", "capture", "observation", "hw_suite", "confirm",
+                     "review", "station", "doctor", "ledger"]
+"""How ``b1500 bringup done`` verifies a step (machine unless noted): ``run`` archived runs of the step's recipes on
+the ledger's backend (outcome, cleanup verified, ``LOP?`` positive control on hardware, files unchanged, quality not
+untrusted); ``probe`` the newest probe record without FAIL; ``config`` the adopted files (``config check`` valid,
+local, equal to the proposal); ``proposal`` schema-valid files under ``work/bringup/``; ``record`` draft records of
+the stage (not failing); ``capture`` fixture files; ``observation`` the required ``--observe`` keys; ``hw_suite`` the
+JUnit file of ``pytest -m hardware`` (no failure, nothing skipped by the gate); ``confirm`` the human's own words and
+name (human); ``review`` reviewed records of the stage in ``validation/hw/``; ``station`` ``station_status`` state
+clean (no fault, lock holder or running run; no instrument I/O); ``doctor`` ``b1500 doctor`` without FAIL;
+``ledger`` ``b1500 bringup check`` without a gap."""
+RehearsalMode = Literal["run_sim", "refusal", "human_done", "skip"]
+"""How the simulator ledger takes a step: ``run_sim`` verified like on hardware (simulator runs ``S…``); ``refusal``
+the hardware evidence is refused on the simulator by design (records, fixtures): recorded as rehearsed;
+``human_done`` the human's ``done`` (kind ``confirm``); ``skip`` not rehearsed (lab-only facts)."""
+ConfigItemKind = Literal["settings", "station", "policy", "pinmap", "dut"]
+StepVerdict = Literal["pass", "fail"]
+LedgerActor = Literal["agent", "human_via_agent", "human"]
+"""Who ran ``b1500 bringup done``: an agent session (``human_via_agent`` when it recorded the human's words) or the
+human in their own terminal."""
+EffectiveKind = Literal["run", "probe", "config", "proposal", "record", "capture", "observation", "hw_suite",
+                        "confirm", "review", "station", "doctor", "ledger", "refusal"]
+RunbookId = Annotated[str, Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")]
+AtvId = Annotated[str, Field(pattern=r"^ATV-[1-9][0-9]?$")]
+GROUPS: Final[dict[str, str]] = {"deployment": "D", "session_start": "R", "session_end": "E"}
+"""``StepsFile`` group -> step id prefix."""
+
+
+def step_group(step_id: str) -> str:
+    """``D``, ``R``, ``E`` or the stage id of a step (``L1.A4`` -> ``L1``)."""
+    return step_id.split(".", 1)[0] if "." in step_id else step_id[0]
+
+
+class StepSpec(StrictModel):
+    """One step of ``steps.yaml`` (module docstring). ``recipes``: the recipes whose runs the step takes (each needs
+    a run unless listed in ``optional``); ``outcomes``: the run outcomes it accepts (default completed, with or
+    without flags); ``keys``: ``--observe`` keys it needs; ``config``: the configuration items it adopts or proposes;
+    ``must_pass``: doctor lines that must PASS; ``feeds``: stage check ids its evidence feeds; ``on_fail``: debug
+    runbooks of a failure; ``reconfirm``: asked again after a break; ``after_record``: the step follows the drafting
+    of the stage record (the human's go-on, the transfer), so the record cannot list it; ``items``/``atv``: the
+    blueprint v2 7.6 items and ATVs it settles. ``text`` (deployment and session steps only; a stage step's text is its
+    stage file item)."""
+
+    id: StepId
+    who: StepWho
+    verify: VerifyKind
+    rehearsal: RehearsalMode
+    text: str | None = None
+    recipes: list[RecipeId] = Field(default_factory=list)
+    optional: list[RecipeId] = Field(default_factory=list)
+    outcomes: list[RunOutcome] = Field(default_factory=list)
+    keys: list[Identifier] = Field(default_factory=list)
+    config: list[ConfigItemKind] = Field(default_factory=list)
+    must_pass: list[NonEmptyStr] = Field(default_factory=list)
+    feeds: list[Identifier] = Field(default_factory=list)
+    on_fail: list[RunbookId] = Field(default_factory=list)
+    reconfirm: bool = False
+    after_record: bool = False
+    items: list[int] = Field(default_factory=list)
+    atv: list[AtvId] = Field(default_factory=list)
+
+    @property
+    def group(self) -> str:
+        return step_group(self.id)
+
+    @property
+    def after_drafting(self) -> bool:
+        """The step happens when or after the stage's records are drafted (verify ``record`` or ``review``, or
+        ``after_record``): a stage record cannot list it; its reviewed records stand for it."""
+        return self.verify in ("record", "review") or self.after_record
+
+    @property
+    def is_review(self) -> bool:
+        return self.id.endswith(".R")
+
+    @property
+    def required_recipes(self) -> list[str]:
+        return [r for r in self.recipes if r not in self.optional]
+
+    @model_validator(mode="after")
+    def _consistent(self) -> StepSpec:
+        stage_step = "." in self.id
+        problems = []
+        if stage_step == (self.text is not None):
+            problems.append("a deployment or session step gives text; a stage step takes its text from the stage file"
+                            if stage_step else "a deployment or session step needs text")
+        if not stage_step and (self.reconfirm or self.feeds or self.after_record):
+            problems.append("reconfirm, feeds and after_record belong to stage steps")
+        kind = self.id.split(".")[-1][:1] if stage_step else ""
+        if kind == "P" and self.who != "human":
+            problems.append("a physical item (P) is the human's")
+        if kind == "A" and self.who == "human":
+            problems.append("an agent item (A) is the agent's (who: agent or both)")
+        if kind == "R" and (self.who != "human" or self.verify != "review"):
+            problems.append("the review step <stage>.R is the human's, verify review")
+        if self.verify == "run" and not self.recipes:
+            problems.append("verify run needs recipes")
+        if set(self.optional) - set(self.recipes) or len(set(self.recipes)) != len(self.recipes):
+            problems.append("optional must be a subset of recipes; recipes are listed once")
+        if self.outcomes and self.verify not in ("run", "capture"):
+            problems.append("outcomes belong to verify run or capture")
+        if self.verify == "observation" and not self.keys:
+            problems.append("verify observation needs keys")
+        if (self.verify in ("config", "proposal")) != bool(self.config):
+            problems.append("config names the items of verify config or proposal (and only those)")
+        if self.must_pass and self.verify != "doctor":
+            problems.append("must_pass belongs to verify doctor")
+        if any(item not in DEFERRAL_ITEMS for item in self.items):
+            problems.append(f"items are blueprint v2 7.6 items {DEFERRAL_ITEMS.start}-{DEFERRAL_ITEMS.stop - 1}")
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
+
+
+class StepsFile(StrictModel):
+    """``steps.yaml``: the whole bring-up in execution order (module docstring). ``stages`` lists, per stage with a
+    stage file and in stage order, every numbered item of the file once plus the review step ``<stage>.R``."""
+
+    version: Annotated[int, Field(ge=1)]
+    deployment: list[StepSpec]
+    session_start: list[StepSpec]
+    session_end: list[StepSpec]
+    stages: dict[StageId, list[StepSpec]]
+
+    @model_validator(mode="after")
+    def _consistent(self) -> StepsFile:
+        problems = []
+        for group, prefix in GROUPS.items():
+            stray = [s.id for s in getattr(self, group) if step_group(s.id) != prefix]
+            if stray:
+                problems.append(f"{group} holds {prefix}<n> steps only, not {stray}")
+        for stage, steps in self.stages.items():
+            stray = [s.id for s in steps if step_group(s.id) != stage]
+            if stray:
+                problems.append(f"stage {stage} holds {stage}.<item> steps only, not {stray}")
+            if [s.id for s in steps].count(f"{stage}.R") != 1:
+                problems.append(f"stage {stage} has exactly one review step {stage}.R")
+        if list(self.stages) != [s for s in STAGE_ORDER if s in self.stages]:
+            problems.append(f"stages are listed in stage order ({', '.join(STAGE_ORDER)})")
+        ids = [s.id for s in self.all()]
+        twice = sorted({i for i in ids if ids.count(i) > 1})
+        if twice:
+            problems.append(f"step ids listed twice: {twice}")
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
+
+    def all(self) -> list[StepSpec]:
+        """Every step: deployment, the stages in order, session start, session end."""
+        return [*self.deployment, *(s for steps in self.stages.values() for s in steps), *self.session_start,
+                *self.session_end]
+
+    def get(self, step_id: str) -> StepSpec | None:
+        return next((s for s in self.all() if s.id == step_id), None)
+
+
+class EvidenceItem(StrictModel):
+    """One piece of evidence: what it is (run id, repository-relative path, config item) and its sha256 then."""
+
+    ref: NonEmptyStr
+    sha256: Sha256Hex | None = None
+
+
+class HumanWords(StrictModel):
+    """The human's own words in chat, quoted, and their name (``--human "QUOTE" --by NAME``)."""
+
+    quote: NonEmptyStr
+    by: NonEmptyStr
+
+
+class StepEvidence(StrictModel):
+    """What one ``done`` call verified: runs (manifest digest), the probe record, files under ``work/`` (proposals,
+    draft records, a JUnit report: ``drafts``), the fixture folder, adopted configuration files, observations,
+    reference values of stage checks, the human's words and the machine facts read (doctor lines, station state)."""
+
+    runs: list[EvidenceItem] = Field(default_factory=list)
+    probe: EvidenceItem | None = None
+    drafts: list[EvidenceItem] = Field(default_factory=list)
+    fixtures: EvidenceItem | None = None
+    config: list[EvidenceItem] = Field(default_factory=list)
+    observe: dict[Identifier, NonEmptyStr] = Field(default_factory=dict)
+    references: dict[Identifier, float] = Field(default_factory=dict)
+    human: HumanWords | None = None
+    facts: list[str] = Field(default_factory=list)
+
+    def summary(self) -> str:
+        """One line for records and ``check`` output."""
+        parts = [f"runs {', '.join(r.ref for r in self.runs)}" if self.runs else "",
+                 f"probe {self.probe.ref}" if self.probe else "",
+                 f"files {', '.join(d.ref for d in self.drafts)}" if self.drafts else "",
+                 f"fixtures {self.fixtures.ref}" if self.fixtures else "",
+                 f"config {', '.join(c.ref for c in self.config)}" if self.config else "",
+                 ", ".join(f"{k}={v}" for k, v in self.observe.items()),
+                 ", ".join(f"{k}={v:g}" for k, v in self.references.items()),
+                 f'"{self.human.quote}" ({self.human.by})' if self.human else "", *self.facts]
+        return "; ".join(p for p in parts if p)
+
+
+class LedgerEntry(StrictModel):
+    """One line of the step ledger (module docstring): the step, when, on which backend and station profile
+    (``station`` = sha256 of the station file), who, how it was verified (``verify``: the effective kind, ``refusal``
+    for a rehearsed record or capture), the evidence, the verdict with its reason and the hash chain."""
+
+    seq: Annotated[int, Field(ge=1)]
+    step: StepId
+    ts: AwareDatetime
+    backend: Backend
+    station: Sha256Hex | None = None
+    actor: LedgerActor
+    verify: EffectiveKind
+    evidence: StepEvidence = Field(default_factory=StepEvidence)
+    verdict: StepVerdict
+    reason: str = ""
+    prev_sha256: Sha256Hex
+    sha256: Sha256Hex
+
+
+def ledger_entry_sha256(data: dict[str, JsonValue]) -> str:
+    """The ``sha256`` of a ledger entry: canonical JSON of the entry (``model_dump(mode="json")``) without the
+    ``sha256`` key itself."""
+    body = {k: v for k, v in data.items() if k != "sha256"}
+    text = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+class RecordStep(StrictModel):
+    """A ledger entry as a record embeds it (schema version 2): step, how it was verified, verdict, time, actor, the
+    evidence in one line and the entry's ``sha256`` (it names the ledger line)."""
+
+    step: StepId
+    verify: EffectiveKind
+    verdict: StepVerdict
+    ts: AwareDatetime
+    actor: LedgerActor
+    evidence: str = ""
+    entry_sha256: Sha256Hex
+
+
 # == Validation records ===============================================================================================
 
 
@@ -244,8 +509,11 @@ class RecordMeasurement(StrictModel):
 
 class ValidationRecord(StrictModel):
     """A hardware validation record (see the module docstring). Drafts have ``reviewer: ""``; only a human fills
-    ``reviewer``/``reviewed_on``. ``recipe_id`` ``None`` = a stage record."""
+    ``reviewer``/``reviewed_on``. ``recipe_id`` ``None`` = a stage record. ``schema_version`` 2 (drafts since v2.1)
+    adds ``steps``: the ledger entries of the record's stage when it was drafted; version 1 (v2 records, no key) has
+    none."""
 
+    schema_version: Literal[1, 2] = 1
     stage: StageId
     recipe_id: RecipeId | None = None
     recipe_version: Annotated[int, Field(ge=1)] | None = None
@@ -263,9 +531,17 @@ class ValidationRecord(StrictModel):
     reviewer: str = ""
     reviewed_on: dt.date | None = None
     notes: list[str] = Field(default_factory=list)
+    steps: list[RecordStep] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _consistent(self) -> ValidationRecord:
+        if self.schema_version == 1 and self.steps:
+            raise ValueError("steps belong to schema_version 2 records")
+        foreign = sorted({s.step for s in self.steps if step_group(s.step) != self.stage})
+        if foreign:
+            raise ValueError(f"steps of a stage {self.stage} record are {self.stage}.<item> steps, not {foreign}")
+        if len({s.step for s in self.steps}) != len(self.steps):
+            raise ValueError("steps lists each step once (its latest ledger entry)")
         simulated = [r for r in self.runs if not r.startswith("H")]
         if simulated:
             raise ValueError(f"runs must be hardware runs (H...); simulator runs are never recorded: {simulated}")
@@ -381,7 +657,7 @@ class RecipeFacts(StrictModel):
 
 
 RecordItemState = Literal["reviewed", "draft", "missing"]
-StageStateName = Literal["signed", "review", "in_progress", "open", "no_stage_file"]
+StageStateName = Literal["signed", "rehearsed", "review", "in_progress", "open", "no_stage_file"]
 
 
 class StageRecordItem(StrictModel):
@@ -393,15 +669,20 @@ class StageRecordItem(StrictModel):
 
 
 class StageProgress(StrictModel):
-    """One stage of ``b1500 bringup status``: ``signed`` (every record reviewed and passing), ``review`` (every
-    record drafted, some still unreviewed), ``in_progress`` (some records), ``open`` (none), ``no_stage_file`` (the
-    stage file is missing or unreadable; every stage has a committed one since WP10.8)."""
+    """One stage of ``b1500 bringup status``: ``signed`` (every record reviewed and passing and every step of the
+    stage passed: in the ledger of this station or in the step lists of its reviewed records), ``rehearsed`` (the
+    simulator: every rehearsable step passed in the simulator ledger; a rehearsal never signs a stage), ``review``
+    (every record drafted, some still unreviewed or steps missing), ``in_progress`` (some records or steps),
+    ``open`` (none), ``no_stage_file`` (the stage file is missing or unreadable; every stage has a committed one since
+    WP10.8). ``steps_done``/``steps_total``: passed steps of the stage (``None`` without a readable ``steps.yaml``)."""
 
     stage: StageId
     title: str
     file: str | None = None
     state: StageStateName
     records: list[StageRecordItem] = Field(default_factory=list)
+    steps_done: int | None = None
+    steps_total: int | None = None
 
 
 class BringupStatus(ResultEnvelope):
@@ -410,6 +691,8 @@ class BringupStatus(ResultEnvelope):
 
     stages: list[StageProgress] = Field(default_factory=list)
     next_stage: StageId | None = None
+    next_step: StepId | None = None
+    ledger: str | None = None
     reviewed: list[str] = Field(default_factory=list)
     drafts: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
@@ -442,4 +725,72 @@ class RecordDraft(ResultEnvelope):
     stage: StageId | None = None
     path: str | None = None
     record: ValidationRecord | None = None
+    notes: list[str] = Field(default_factory=list)
+
+
+# == Results of b1500 bringup next | done | check ======================================================================
+
+
+class StepView(StrictModel):
+    """One step as ``b1500 bringup next`` shows it: id, group (``D``, ``R``, ``E`` or the stage), who, how it is
+    verified on this backend (``verify``), its state (``open``; ``failed``: the last ``done`` recorded a failure;
+    ``reconfirm``: asked again after a break), the text (stage file item or ``steps.yaml``), the expected values of the
+    checks it feeds, the pass rule, the exact ``done`` line, the abort route and the runbooks of a failure."""
+
+    id: StepId
+    group: str
+    who: StepWho
+    verify: EffectiveKind
+    state: Literal["open", "failed", "reconfirm"]
+    text: str
+    expected: list[str] = Field(default_factory=list)
+    rule: str = ""
+    done: str = ""
+    abort: list[str] = Field(default_factory=list)
+    on_fail: list[RunbookId] = Field(default_factory=list)
+    last_reason: str | None = None
+
+
+class NextStep(ResultEnvelope):
+    """Result of ``b1500 bringup next`` (read-only): the ledger, the next step (``None`` when nothing is open), the
+    steps to confirm again after a break, the review steps still open, the passed steps per group and notes."""
+
+    ledger: str | None = None
+    step: StepView | None = None
+    reconfirm: list[StepId] = Field(default_factory=list)
+    awaiting_review: list[StepId] = Field(default_factory=list)
+    progress: dict[str, str] = Field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
+
+
+class StepDone(ResultEnvelope):
+    """Result of ``b1500 bringup done``: the entry appended (``recorded``; ``ok`` = verdict pass) or why nothing was
+    written (``status: refused``), and the next step."""
+
+    ledger: str | None = None
+    recorded: bool = False
+    entry: LedgerEntry | None = None
+    next: StepView | None = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class LedgerGap(StrictModel):
+    """A gap ``b1500 bringup check`` found: a step without a passing entry, an entry whose evidence no longer
+    verifies, or a broken hash chain (``step`` ``-``)."""
+
+    step: str
+    reason: str
+
+
+class LedgerCheck(ResultEnvelope):
+    """Result of ``b1500 bringup check``: the scope (a stage, ``all`` or ``recorded``: everything up to the next
+    step), how many entries were read and re-verified, the gaps (``ok`` iff none) and notes (evidence that moved or
+    changed legitimately, steps recorded out of order)."""
+
+    ledger: str | None = None
+    scope: str = "recorded"
+    entries: int = 0
+    verified: int = 0
+    gaps: list[LedgerGap] = Field(default_factory=list)
+    progress: dict[str, str] = Field(default_factory=dict)
     notes: list[str] = Field(default_factory=list)

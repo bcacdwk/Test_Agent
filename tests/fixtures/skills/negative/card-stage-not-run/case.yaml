@@ -1,4 +1,4 @@
-description: The card's bring-up stage file does not run the card's recipe (and names an unregistered one).
+description: The card's bring-up stage file does not run the card's recipe (and names an unregistered one); the stage's step that runs the card's recipe no longer fits the stage either.
 edits:
   - file: .agents/skills/b1500-bringup/stages/l4-mosfet.md
     old: "recipes: [mosfet.idvg]"
@@ -9,3 +9,4 @@ edits:
 expect:
   - {code: stage, file: .agents/skills/b1500-bringup/stages/l4-mosfet.md, contains: "recipes lists mosfet.idvg_pulsed, which is not a registered recipe"}
   - {code: card_stage, file: .agents/skills/b1500-test/cards/smu/mosfet-idvg.md, contains: "bring-up stage L4 does not run ['mosfet.idvg']"}
+  - {code: steps, file: .agents/skills/b1500-bringup/steps.yaml, contains: "L4.A1: recipe mosfet.idvg is run by neither stage L4 nor an earlier stage"}

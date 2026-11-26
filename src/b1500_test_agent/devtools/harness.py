@@ -11,10 +11,12 @@ The committed examples are the same templates rendered with the placeholder ``<A
 
 The committed, path-free harness files are checked for their wiring, not rendered: ``.claude/settings.json`` (allow
 exactly the nine other ``mcp__b1500__*`` tools plus the five read-only ``uv run b1500 manual|bringup ...`` commands
-of OD-5, ``ask`` exactly ``run_confirmed_plan``, the deny rules incl. ``config init|adopt``, the ``PreToolUse`` guard
-hook), ``.codex/rules/b1500.rules`` (the eight ``forbidden`` prefix rules: ``fault``, ``run --confirm``, ``config
-init``, ``config adopt``, each with and without ``uv run``) and ``scripts/hooks/b1500_guard.py``. The OD-5 lines are
-the owner-authorized change set of ``docs/deployment-windows.md`` "Harness permissions" (WP6.1).
+of OD-5 and the three step-ledger commands ``uv run b1500 bringup next|done|check`` of OD21-6, ``ask`` exactly
+``run_confirmed_plan``, the deny rules incl. ``config init|adopt``, the ``PreToolUse`` guard hook),
+``.codex/rules/b1500.rules`` (the eight ``forbidden`` prefix rules: ``fault``, ``run --confirm``, ``config init``,
+``config adopt``, each with and without ``uv run``) and ``scripts/hooks/b1500_guard.py``. The OD-5 lines are the
+owner-authorized change set of ``docs/deployment-windows.md`` "Harness permissions" (WP6.1); the OD21-6 lines were
+applied the same way at WP21.5 (v2.1 plan §9).
 ``check`` reports drift between templates and rendered files and every wiring problem; ``doctor`` reuses it.
 """
 
@@ -49,12 +51,19 @@ CONFIRM_TOOL = "run_confirmed_plan"
 
 CODEX_DEFAULT_MODE = "auto"
 CODEX_TOOL_MODES: dict[str, str] = {"run_plan": "approve", CONFIRM_TOOL: "prompt", "safe_shutdown": "approve"}
-CLAUDE_ALLOW_COMMANDS = frozenset({
+CLAUDE_ALLOW_OD5 = frozenset({
     "Bash(uv run b1500 manual *)", "Bash(uv run b1500 bringup status*)", "Bash(uv run b1500 bringup propose-station*)",
     "Bash(uv run b1500 bringup capture*)", "Bash(uv run b1500 bringup record*)",
 })  # fmt: skip
 """Read-only CLI commands Claude Code may run without asking (owner decision OD-5, applied once at WP6.1 as written
 in ``docs/deployment-windows.md`` "Harness permissions")."""
+CLAUDE_ALLOW_OD21_6 = frozenset({
+    "Bash(uv run b1500 bringup next*)", "Bash(uv run b1500 bringup done*)", "Bash(uv run b1500 bringup check*)",
+})  # fmt: skip
+"""The step-ledger commands (owner decision OD21-6, v2.1 plan §9, applied once at WP21.5): read-only on the
+instrument; ``done`` appends to the CLI-written ledger under ``data/state/bringup/``."""
+CLAUDE_ALLOW_COMMANDS = CLAUDE_ALLOW_OD5 | CLAUDE_ALLOW_OD21_6
+"""Every CLI command Claude Code may run without asking."""
 CLAUDE_ALLOW = (frozenset(f"mcp__{SERVER_NAME}__{tool}" for tool in TOOL_NAMES if tool != CONFIRM_TOOL)
                 | CLAUDE_ALLOW_COMMANDS)
 CLAUDE_ASK = frozenset({f"mcp__{SERVER_NAME}__{CONFIRM_TOOL}"})

@@ -2,7 +2,8 @@
 propose-station``), ``bringup_status`` (``status``), ``capture`` (``capture RUN_ID…|probe``) and ``record``
 (``record STAGE --run H…``).
 
-Imports only ``service`` and ``models`` (layering test): the instrument is read through the service's read-only
+Imports only ``service``, ``models`` and the step modules ``bringup_ledger`` / ``bringup_steps`` (layering test;
+they never import this module): the instrument is read through the service's read-only
 inventory reading (``B1500Admin.read_inventory``: ``*IDN?`` and ``UNT?``, queries only), the configuration through
 ``B1500Service.config``, archived runs and probe records through ``service/evidence.py``. Nothing here writes
 ``config/local/`` or ``validation/hw/``: proposals, fixtures and draft records go to ``work/bringup/``; only the human
@@ -11,9 +12,15 @@ moves a draft record to ``validation/hw/``.
 
 **Status** (``bringup_status``): for every stage in order (``models.validation.STAGES``) the records that sign it
 off (``StageFrontmatter.record_keys``: one per recipe with checks, plus the stage record) looked up among the
-reviewed records in ``validation/hw/`` and the drafts in ``work/bringup/records/``; the next stage is the first one
-not signed (every stage S0, L0-L10 has a committed stage file since WP10.8; a missing or unreadable one is not
-ready).
+reviewed records in ``validation/hw/`` and the drafts in ``work/bringup/records/``, and its steps (v2.1 plan §4.1):
+``steps a/b`` = the required steps of the stage (``steps.yaml``) that passed, in the step ledger of this station or in
+the step lists of the stage's reviewed records (schema version 2; a step that follows the drafting, kind ``record``
+or ``review`` or ``after_record``, also counts once every record of the stage is reviewed: those records stand for
+it). A stage is ``signed`` only when every
+record is reviewed and every step passed; on the simulator a stage whose rehearsable steps all passed is
+``rehearsed`` (never signed). The next stage is the first one neither signed nor rehearsed (every stage S0, L0-L10 has
+a committed stage file since WP10.8; a missing or unreadable one is not ready); ``next_step`` is the ledger's next
+step (``b1500 bringup next``). Records of schema version 1 (v2, without steps) still load and count as records.
 
 **Capture** (``capture``): the instrument answers of hardware runs (``H…``, backend visa, run files unchanged since
 the run) or of a hardware probe record become anonymized golden fixtures in the ``tests/fixtures/flex/`` format
@@ -30,7 +37,9 @@ of one recipe that has checks in the stage (or ``recipe_id`` names it), else the
 copied from the runs (analysis results, quality noise per column, ``kind_result``, cleanup verification, probe
 lines), never edited; each stage check (``StageFrontmatter.checks``) is matched with them and judged against its
 tolerance when a reference was given (``references``: check id, optionally ``@RUN_ID``, to value) or not needed.
-``reviewer`` stays empty.
+``reviewer`` stays empty. The draft is schema version 2 and embeds the step ledger's entries of the stage
+(``ValidationRecord.steps``): the reviewer signs the step list and it travels with the record; a stage record whose
+steps are incomplete gets a note naming them.
 
 **The proposal** = the active station profile (``config/local/station.yaml``; the committed example while there is
 none) fitted to the live inventory:
@@ -64,6 +73,8 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
+from b1500_test_agent import bringup_steps
+from b1500_test_agent.bringup_ledger import load_record, load_stage
 from b1500_test_agent.models.bringup import StationProposal
 from b1500_test_agent.models.common import Backend, ErrorCode
 from b1500_test_agent.models.routing import SwitchSpec
@@ -81,7 +92,7 @@ from b1500_test_agent.models.validation import (
     BRINGUP_WORK_DIR,
     DRAFTS_DIR,
     FIXTURES_DIR,
-    STAGE_FILES_DIR,
+    RECORD_SCHEMA_VERSION,
     STAGE_ORDER,
     STAGES,
     VALIDATION_DIR,
@@ -104,7 +115,6 @@ from b1500_test_agent.models.validation import (
     StageStateName,
     ValidationRecord,
     reviewed_record_problems,
-    stage_file_name,
 )
 from b1500_test_agent.service import B1500Admin, B1500Service
 from b1500_test_agent.service import evidence as evidence_reader
@@ -324,36 +334,6 @@ def _bringup_dir(bundle: Any) -> Path:
     return Path(bundle.paths.work_dir) / BRINGUP_WORK_DIR
 
 
-def frontmatter(text: str) -> Any:
-    """The YAML frontmatter of a Markdown file (``None`` when it has none)."""
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return None
-    end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
-    return None if end is None else yaml.safe_load("\n".join(lines[1:end]))
-
-
-def load_stage(repo_root: Path, stage: str) -> tuple[Path, StageFrontmatter | None, str | None]:
-    """``(path, frontmatter, problem)`` of the stage file of ``stage`` (frontmatter ``None`` when the file is missing
-    or does not validate; ``problem`` says why in the latter case)."""
-    path = Path(repo_root).joinpath(*STAGE_FILES_DIR, stage_file_name(stage))
-    if not path.is_file():
-        return path, None, None
-    try:
-        return path, StageFrontmatter.model_validate(frontmatter(path.read_text(encoding="utf-8"))), None
-    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValidationError) as exc:
-        return path, None, f"{path.name}: unreadable stage frontmatter ({type(exc).__name__})"
-
-
-def load_record(path: Path) -> ValidationRecord:
-    """A record file (raises ``ValueError`` with the reason when it is not one)."""
-    try:
-        return ValidationRecord.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
-    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValidationError) as exc:
-        reason = exc.errors()[0]["msg"] if isinstance(exc, ValidationError) else type(exc).__name__
-        raise ValueError(f"{path.name} is not a validation record: {reason}") from None
-
-
 def _refused(result_type: Any, backend: Backend, message: str, steps: Sequence[str] = (), **extra: Any) -> Any:
     return result_type(ok=False, status="refused", error_code="invalid_input", backend=backend,
                        simulated=backend == "sim", message=message, next_steps=list(steps), **extra)
@@ -367,13 +347,14 @@ def _simulated_runs(sources: Iterable[str]) -> list[str]:
 
 
 def bringup_status(service: B1500Service) -> BringupStatus:
-    """Stages done and next, from ``validation/hw/`` and ``work/bringup/records/`` (module docstring)."""
-    return B1500Admin(service).call("bringup_status", {}, BringupStatus, _status)
+    """Stages done and next, from ``validation/hw/``, ``work/bringup/records/`` and the step ledger (module
+    docstring)."""
+    return B1500Admin(service).call("bringup_status", {}, BringupStatus, lambda bundle: _status(service, bundle))
 
 
-def _reviewed_records(bundle: Any, notes: list[str]) -> dict[tuple[str, str | None], str]:
+def _reviewed_records(bundle: Any, notes: list[str]) -> dict[tuple[str, str | None], tuple[str, ValidationRecord]]:
     folder = Path(bundle.paths.repo_root).joinpath(*VALIDATION_DIR)
-    found: dict[tuple[str, str | None], str] = {}
+    found: dict[tuple[str, str | None], tuple[str, ValidationRecord]] = {}
     for path in sorted(folder.glob("*.yaml")) if folder.is_dir() else []:
         try:
             record = load_record(path)
@@ -384,7 +365,7 @@ def _reviewed_records(bundle: Any, notes: list[str]) -> dict[tuple[str, str | No
         if problems:
             notes.append(f"validation/hw/{path.name}: {'; '.join(problems)} (not counted)")
             continue
-        found[(record.stage, record.recipe_id)] = bundle.paths.display(path)
+        found[(record.stage, record.recipe_id)] = (bundle.paths.display(path), record)
     return found
 
 
@@ -401,19 +382,40 @@ def _draft_records(bundle: Any, notes: list[str]) -> dict[tuple[str, str | None]
     return found
 
 
-def _stage_state(items: list[StageRecordItem]) -> StageStateName:
+def _stage_steps(stage: str, items: list[StageRecordItem], found: bringup_steps.Progress,
+                 signed_steps: set[str]) -> tuple[int | None, int | None]:
+    """``(passed, required)`` steps of ``stage`` (module docstring); ``(None, None)`` without its steps."""
+    specs = found.required.get(stage)
+    if specs is None:
+        return None, None
+    reviewed = bool(items) and all(item.state == "reviewed" for item in items)
+    done = sum(s.id in found.passed or s.id in signed_steps or (reviewed and s.after_drafting) for s in specs)
+    return done, len(specs)
+
+
+def _stage_state(items: list[StageRecordItem], done: int | None, total: int | None, backend: Backend
+                 ) -> StageStateName:
     states = {item.state for item in items}
-    if states == {"reviewed"}:
+    complete = total is not None and done == total
+    if states == {"reviewed"} and complete:
         return "signed"
+    if backend == "sim" and complete:
+        return "rehearsed"
     if "missing" not in states:
         return "review"
-    return "in_progress" if states - {"missing"} else "open"
+    return "in_progress" if states - {"missing"} or done else "open"
 
 
-def _status(bundle: Any) -> BringupStatus:
+def _status(service: B1500Service, bundle: Any) -> BringupStatus:
     notes: list[str] = []
     reviewed = _reviewed_records(bundle, notes)
     drafts = _draft_records(bundle, notes)
+    found = bringup_steps.progress(service, bundle)
+    notes += found.problems
+    backend: Backend = bundle.backend
+    signed_steps: dict[str, set[str]] = {}
+    for (stage, _recipe), (_path, record) in reviewed.items():
+        signed_steps.setdefault(stage, set()).update(s.step for s in record.steps if s.verdict == "pass")
     stages: list[StageProgress] = []
     for stage in STAGE_ORDER:
         path, front, problem = load_stage(bundle.paths.repo_root, stage)
@@ -427,28 +429,36 @@ def _status(bundle: Any) -> BringupStatus:
             key = (stage, recipe_id)
             state: RecordItemState = "reviewed" if key in reviewed else "draft" if key in drafts else "missing"
             items.append(StageRecordItem(recipe_id=recipe_id, state=state,
-                                         path=reviewed.get(key) or drafts.get(key)))
+                                         path=reviewed[key][0] if key in reviewed else drafts.get(key)))
+        done, total = _stage_steps(stage, items, found, signed_steps.get(stage, set()))
         stages.append(StageProgress(stage=stage, title=front.title, file=bundle.paths.display(path),
-                                    state=_stage_state(items), records=items))
-    current = next((s for s in stages if s.state != "signed"), None)
-    backend = bundle.backend
+                                    state=_stage_state(items, done, total, backend), records=items, steps_done=done,
+                                    steps_total=total))
+    current = next((s for s in stages if s.state not in ("signed", "rehearsed")), None)
     flag = "SIMULATED " if backend == "sim" else ""
     if current is None:
-        message, steps = f"{flag}every bring-up stage is signed", ["L10: hand the reviewed records over (OD-7)"]
+        final = "rehearsed (a rehearsal signs nothing)" if any(s.state == "rehearsed" for s in stages) else "signed"
+        message, steps = f"{flag}every bring-up stage is {final}", ["L10: hand the reviewed records over (OD-7)"]
     elif current.state == "no_stage_file":
         message = f"{flag}next stage {current.stage} ({current.title}) has no stage file: not ready"
         steps = [(f"stop here: the stage file of {current.stage} is missing or unreadable (it is committed with "
                   "the repository: restore it with git, or ask the developer)")]
     else:
-        message = f"{flag}next stage {current.stage}: {current.title} ({current.state})"
+        counted = f", steps {current.steps_done}/{current.steps_total}" if current.steps_total is not None else ""
+        message = f"{flag}next stage {current.stage}: {current.title} ({current.state}{counted})"
         steps = [f"read {current.file} and work it from its preconditions"]
         if current.state == "review":
             steps = [f"the human reviews the drafts of {current.stage} and moves them to validation/hw/ (human only)"]
+    if found.next_step is not None:
+        steps.append(f"next step {found.next_step}: `uv run b1500 bringup next` shows it, `uv run b1500 bringup "
+                     "done` records it")
     if backend == "sim":
         steps.append("simulator: a rehearsal; no record is ever drafted from simulator runs")
     return BringupStatus(ok=True, status="ok", backend=backend, simulated=backend == "sim", message=message,
                          next_steps=steps, stages=stages, next_stage=current.stage if current else None,
-                         reviewed=sorted(reviewed.values()), drafts=sorted(drafts.values()), notes=notes)
+                         next_step=found.next_step, ledger=found.ledger,
+                         reviewed=sorted(path for path, _record in reviewed.values()),
+                         drafts=sorted(drafts.values()), notes=notes)
 
 
 # == capture =========================================================================================================
@@ -786,6 +796,7 @@ def _record(service: B1500Service, bundle: Any, stage: str, run_ids: list[str], 
         version, digest = recipe.version, recipe.definition_sha256
     checks = front.checks_for(key)
     measurements = _measurements(checks, facts, probe_facts, parsed)
+    steps, missing_steps = bringup_steps.record_steps(service, bundle, stage)
     first = facts[0].manifest if facts else None
     identity = first.identity if first else (probe_facts.report.identity if probe_facts else None)
     started = first.started_at.astimezone(UTC) if first else now
@@ -793,7 +804,8 @@ def _record(service: B1500Service, bundle: Any, stage: str, run_ids: list[str], 
             f"{len(facts)} hardware run(s){' and ' + probe_facts.path if probe_facts else ''}; values copied from "
             "the run archive, never edited")]
     draft = ValidationRecord(
-        stage=stage, recipe_id=key, recipe_version=version, recipe_sha256=digest,
+        schema_version=RECORD_SCHEMA_VERSION, stage=stage, recipe_id=key, recipe_version=version,
+        recipe_sha256=digest,
         station=RecordStation(name=bundle.station.name, idn=identity.raw if identity else "",
                               firmware=identity.firmware if identity else ""),
         dut=RecordDut(profile=(first.plan.request.dut_profile or "") if first else "",
@@ -801,7 +813,7 @@ def _record(service: B1500Service, bundle: Any, stage: str, run_ids: list[str], 
         runs=[f.manifest.run_id for f in facts], evidence=[_run_record(f) for f in facts],
         probe=probe_facts.path if probe_facts else None, measurements=measurements,
         result=_result(measurements, checks), operator=operator.strip(), date=started.date().isoformat(),
-        notes=[*notes, *auto])  # type: ignore[arg-type]
+        notes=[*notes, *auto], steps=steps)  # type: ignore[arg-type]
     folder = _bringup_dir(bundle) / DRAFTS_DIR
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / f"{stage}-{key or 'stage'}-{_stamp(now)}.yaml"
@@ -816,6 +828,10 @@ def _record(service: B1500Service, bundle: Any, stage: str, run_ids: list[str], 
         c.id == m.check and c.tolerance is not None for c in checks)})
     remarks = [(f"checks without a decision: {', '.join(open_checks)} (give the human's reference values with "
                "--reference CHECK=VALUE, or the reviewer judges them)")] if open_checks else []
+    if key is None and missing_steps:
+        remarks.append(f"steps of {stage} not passed yet: {', '.join(missing_steps[:12])} (record them with `uv run "
+                       f"b1500 bringup done`, then draft the stage record again: the record lists {len(steps)} "
+                       "ledger steps)")
     steps = [(f"show the human {shown}; the reviewer checks it against the raw runs, fills reviewer and reviewed_on "
              f"and moves it to validation/hw/{draft.file_name()} (human only)")]
     return RecordDraft(ok=True, status="ok", backend=backend, simulated=False, stage=stage, path=shown,

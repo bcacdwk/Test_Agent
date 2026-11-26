@@ -1,0 +1,19 @@
+description: Bring-up steps that do not match the stage file (v2.1 plan §4.1) - a numbered item without a step, a step without an item, an unregistered recipe, a check id the stage lacks (so its real check is fed by no step), an unknown runbook and an unknown command in a session step.
+edits:
+  - file: .agents/skills/b1500-bringup/steps.yaml
+    old: "{id: L4.P1, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}"
+    new: "{id: L4.P2, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}"
+  - file: .agents/skills/b1500-bringup/steps.yaml
+    old: "recipes: [mosfet.idvg], feeds: [vth], on_fail: [compliance-hit]"
+    new: "recipes: [mosfet.idvg, mosfet.idvd], feeds: [vth_ext], on_fail: [gate-blowup]"
+  - file: .agents/skills/b1500-bringup/steps.yaml
+    old: "text: \"`station_status` clean.\""
+    new: "text: \"`station_status` clean; `uv run b1500 bringup finish`.\""
+expect:
+  - {code: steps, file: .agents/skills/b1500-bringup/steps.yaml, contains: "item P1 of l4-mosfet.md (physical step 1) has no step L4.P1"}
+  - {code: steps, file: .agents/skills/b1500-bringup/steps.yaml, contains: "step L4.P2 names no numbered item of l4-mosfet.md"}
+  - {code: steps, file: .agents/skills/b1500-bringup/steps.yaml, contains: "L4.A1: recipe mosfet.idvd is not registered"}
+  - {code: steps, file: .agents/skills/b1500-bringup/steps.yaml, contains: "L4.A1: feeds vth_ext, which is not a check of stage L4"}
+  - {code: steps, file: .agents/skills/b1500-bringup/steps.yaml, contains: "check vth of stage L4 is fed by no step"}
+  - {code: steps, file: .agents/skills/b1500-bringup/steps.yaml, contains: "L4.A1: on_fail names runbook gate-blowup, which does not exist"}
+  - {code: steps, file: .agents/skills/b1500-bringup/steps.yaml, contains: "R1: "}

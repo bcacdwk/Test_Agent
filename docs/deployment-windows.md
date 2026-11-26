@@ -440,9 +440,11 @@ uv run b1500 manual status
 ## Harness permissions
 
 Owner decision OD-5 (blueprint v2 §12, decided 2026-11-18): the configuration bootstrap is the human's, read-only
-manual and bring-up commands need no approval. Coding agents may never edit `.claude/settings*.json` or `.codex/**`
-(both are edit-denied), so this one change set was applied once by the orchestrator at WP6.1, exactly as written
-here, with the shell; the applied diff is logged in `docs/design/progress.md` (WP6.1 row).
+manual and bring-up commands need no approval. Owner decision OD21-6 (v2.1 plan §9, decided 2026-11-26): the three
+step-ledger commands `bringup next|done|check` need no approval either. Coding agents may never edit
+`.claude/settings*.json` or `.codex/**` (both are edit-denied), so each change set was applied once by the
+orchestrator, exactly as written here, with the shell (OD-5 at WP6.1, OD21-6 at WP21.5); the applied diffs are
+logged in `docs/design/progress.md` (WP6.1 and WP21.5 rows).
 `b1500 harness init --codex --claude --check` and `b1500 doctor` check that the files carry these lines
 (`devtools/harness.py`), and
 `tests/adapters/test_harness_permissions.py` asserts the applied state. Nobody adds other lines without a new owner
@@ -467,6 +469,15 @@ allowed without asking):
 "Bash(uv run b1500 bringup propose-station*)",
 "Bash(uv run b1500 bringup capture*)",
 "Bash(uv run b1500 bringup record*)"
+```
+
+and, by OD21-6, the step-ledger commands (`next` reads, `done` verifies the evidence and appends to the CLI-written
+ledger under `data/state/bringup/`, `check` re-verifies it; none of them sends anything to the instrument):
+
+```json
+"Bash(uv run b1500 bringup next*)",
+"Bash(uv run b1500 bringup done*)",
+"Bash(uv run b1500 bringup check*)"
 ```
 
 **Codex, `.codex/rules/b1500.rules`.** Four `forbidden` prefix rules, each with `match`/`not_match` examples that

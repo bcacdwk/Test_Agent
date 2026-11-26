@@ -39,6 +39,7 @@ from tests.hardware.records import (
     read_record,
     record_files,
     record_problems,
+    required_steps,
     stage_of,
     stray_files,
 )
@@ -223,6 +224,30 @@ def test_the_l1_stage_record_rests_on_a_passing_positive_control(station: Statio
     assert found[1:] == [f"run {station.idvg}: measured values but took no LOP? positive control"]
 
 
+def test_a_schema_2_stage_record_that_claims_pass_lists_every_step(station: Station) -> None:
+    """Check 7 (v2.1 plan §4.1, WP21.5): the step list embedded in a passing schema-2 stage record covers every step
+    of the stage (``required_steps`` of the committed ``steps.yaml``: record, review and after-record steps left
+    out); schema-1 records and recipe records carry no such duty."""
+    required = required_steps(REPO_ROOT)
+    assert required["S0"][:3] == ("S0.A1", "S0.A2", "S0.P1") and "S0.A5" not in required["S0"]
+    assert "S0.A6" not in required["S0"] and "S0.R" not in required["S0"] and len(required["S0"]) == 12
+    assert "L10.P5" not in required["L10"] and "L10.A4" not in required["L10"] and "L10.P4" in required["L10"]
+    file = draft("S0-stage.yaml")
+    complete = replace(stage_record("S0"), schema_version=2, steps=dict.fromkeys(required["S0"], "pass"))
+    assert record_problems(complete, file, archive=station.archive, recipes=recipes(), digest=digest,
+                           repo_root=REPO_ROOT, stage_steps=required) == []
+    gaps = dict(complete.steps, **{"S0.P5": "fail"})
+    del gaps["S0.A4"]
+    found = record_problems(replace(complete, steps=gaps), file, archive=station.archive, recipes=recipes(),
+                            digest=digest, repo_root=REPO_ROOT, stage_steps=required)
+    assert len(found) == 1 and found[0].startswith("a schema-2 stage record that claims pass lists every step of "
+                                                   "stage S0 as passed; 2 not: S0.P5, S0.A4")
+    for exempt in (replace(complete, steps=gaps, schema_version=1), replace(complete, steps=gaps, result=""),
+                   replace(recipe_record(station), schema_version=2, steps={})):
+        assert record_problems(exempt, file, archive=station.archive, recipes=recipes(), digest=digest,
+                               repo_root=REPO_ROOT, stage_steps=required) == []
+
+
 def test_a_probe_record_must_be_a_passing_visa_probe(station: Station, tmp_path: Path) -> None:
     root = station.world.root
     assert problems(stage_record("L0", probe=station.probe_ok), draft("L0.yaml"), station.archive, root) == []
@@ -353,6 +378,7 @@ def test_the_binding_reads_wp63_records(wp63: types.ModuleType, tmp_path: Path) 
         assert (view.stage, view.recipe_id, view.runs, view.reviewer, view.result) == (
             "L2", "basic.contact_resistor", (run_id,), "", "pass")
         assert view.recipe_sha256 == schema.recipe_sha256(recipe) and view.evidence == {run_id: recipe.sha256}
+        assert view.schema_version == 2 and view.steps == {}  # v2.1 drafts: schema 2 (no ledger in this world)
         archive = RunArchive(world.data)
         assert check_file(file, schema, archive=archive, recipes=recipes(), repo_root=world.root) == []
         reviewed = review(path, world.root / "validation" / "hw")

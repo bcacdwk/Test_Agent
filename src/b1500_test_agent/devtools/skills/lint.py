@@ -50,7 +50,7 @@ from b1500_test_agent.devtools.skills.common import (
 from b1500_test_agent.devtools.skills.index import check_index
 from b1500_test_agent.devtools.skills.layout import check_skill_front, skill_files
 from b1500_test_agent.devtools.skills.links import check_links
-from b1500_test_agent.devtools.skills.stages import check_bringup, missing_stage_notes
+from b1500_test_agent.devtools.skills.stages import check_bringup, check_steps, missing_stage_notes, steps_note
 from b1500_test_agent.devtools.sync_harness import SKILL_FILE, SOURCE_DIR
 from b1500_test_agent.manuals.catalog import ManualError, load_catalog
 from b1500_test_agent.paths import find_repo_root
@@ -109,8 +109,10 @@ def lint_skills(root: Path | None = None, *, recipes_dir: Path | None = None, co
     registry = RecipeRegistry.load(lint.recipes_dir, repo_root=root)
     check_recipes(lint, registry, entry_dir)
     stages: dict[str, StageFrontmatter] = {}
+    steps = None
     if BRINGUP_SKILL in skills:
         stages = check_bringup(lint, base / BRINGUP_SKILL, registry)
+        steps = check_steps(lint, base / BRINGUP_SKILL, registry, stages, runbooks)
     cases: list[Case] = check_cases(lint, debug_dir, registry, runbooks) if DEBUG_SKILL in skills else []
     if cases:
         lint.notes.append(f"debug cases: {len(cases)} ({sum(c.front.status == 'reviewed' for c in cases)} reviewed, "
@@ -153,6 +155,8 @@ def lint_skills(root: Path | None = None, *, recipes_dir: Path | None = None, co
             lint.notes.append(message + " - estimate only, re-check with the tiktoken encoding")
     check_citations(lint)
     check_commands(lint)
+    if steps is not None:
+        lint.notes.append(steps_note(steps))
     problems = sorted(lint.problems, key=lambda p: (p.file, p.line or 0, p.code, p.message))
     stage_files = sorted(lint.rel(base / BRINGUP_SKILL / STAGES_DIR / p.name)
                          for p in (base / BRINGUP_SKILL / STAGES_DIR).glob("*.md") if not p.name.startswith("_")) \

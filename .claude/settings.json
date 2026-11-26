@@ -14,7 +14,10 @@
       "Bash(uv run b1500 bringup status*)",
       "Bash(uv run b1500 bringup propose-station*)",
       "Bash(uv run b1500 bringup capture*)",
-      "Bash(uv run b1500 bringup record*)"
+      "Bash(uv run b1500 bringup record*)",
+      "Bash(uv run b1500 bringup next*)",
+      "Bash(uv run b1500 bringup done*)",
+      "Bash(uv run b1500 bringup check*)"
     ],
     "ask": [
       "mcp__b1500__run_confirmed_plan"

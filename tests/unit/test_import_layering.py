@@ -16,12 +16,15 @@ rank components
 5    ``catalog``, ``rules``, ``archive``, ``analysis``, ``manuals`` (peers)
 6    ``service``
 7    ``adapters``, ``devtools`` (peers; ``adapters/cli/`` runs the dev tools), ``bringup`` (lab helpers; imports only
-     ``service`` and ``models``, blueprint v2 2.1)
+     ``service``, ``models`` and the step modules, blueprint v2 2.1) and the step modules of v2.1 plan §4.1:
+     ``bringup_ledger`` (stage readers, ``steps.yaml``, the ledger; ``models`` only), ``bringup_verify`` (verifiers;
+     ``service``, ``models``, ``bringup_ledger``), ``bringup_steps`` (``next``/``done``/``check``; those three and
+     ``bringup_verify``)
 ==== ==========================================================================================================
 
 Extra rules: ``analysis`` never imports ``session``, ``driver``, ``transport`` or ``catalog`` (blueprint 2 and
-``analysis/AGENTS.md``); ``manuals`` imports only ``models`` and ``paths`` and ``bringup`` only ``service`` and
-``models`` (blueprint v2 2.1); only
+``analysis/AGENTS.md``); ``manuals`` imports only ``models`` and ``paths``, ``bringup`` only ``service``, ``models``
+and the step modules (blueprint v2 2.1; the step modules never import ``bringup``); only
 ``adapters/mcp_server.py`` imports ``fastmcp`` (``devtools/`` is exempt: its token counter loads FastMCP apps, WP0.3).
 Every import statement counts, including function-level and ``TYPE_CHECKING`` imports. A new top-level module must be
 added to ``RANKS`` before it can be imported.
@@ -64,12 +67,20 @@ RANKS: dict[str, int] = {
     "adapters": 7,
     "devtools": 7,
     "bringup": 7,
+    "bringup_ledger": 7,
+    "bringup_verify": 7,
+    "bringup_steps": 7,
 }
 FORBIDDEN: dict[str, frozenset[str]] = {"analysis": frozenset({"session", "driver", "transport", "catalog"})}
 ONLY: dict[str, frozenset[str]] = {"manuals": frozenset({"models", "paths"}),
-                                   "bringup": frozenset({"service", "models"})}
+                                   "bringup": frozenset({"service", "models", "bringup_ledger", "bringup_steps"}),
+                                   "bringup_ledger": frozenset({"models"}),
+                                   "bringup_verify": frozenset({"service", "models", "bringup_ledger"}),
+                                   "bringup_steps": frozenset({"service", "models", "bringup_ledger",
+                                                               "bringup_verify"})}
 """Component -> the only other components it may import (blueprint v2 2.1: ``manuals`` imports only models/paths,
-``bringup`` only service/models)."""
+``bringup`` only service/models and the v2.1 step modules, which form a chain ledger <- verify <- steps and never
+import ``bringup``)."""
 FASTMCP_ALLOWED_FILES = frozenset({"adapters/mcp_server.py"})
 FASTMCP_ALLOWED_COMPONENTS = frozenset({"devtools"})
 _FASTMCP = re.compile(r"^fastmcp(\.|$)")

@@ -1,0 +1,14 @@
+# Step sequence of the positive fixture (schema StepsFile, models/validation.py): one stage file (L4), so one stage.
+version: 1
+deployment:
+  - {id: D1, who: human, verify: confirm, rehearsal: human_done, text: "Git, uv and Python 3.12 installed."}
+  - {id: D2, who: both, verify: doctor, rehearsal: run_sim, text: "`uv run b1500 doctor` without FAIL."}
+session_start:
+  - {id: R1, who: agent, verify: station, rehearsal: run_sim, text: "`station_status` clean."}
+session_end:
+  - {id: E1, who: agent, verify: ledger, rehearsal: run_sim, text: "`uv run b1500 bringup check` without a gap."}
+stages:
+  L4:
+    - {id: L4.P1, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}
+    - {id: L4.A1, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.idvg], feeds: [vth], on_fail: [compliance-hit]}
+    - {id: L4.R, who: human, verify: review, rehearsal: skip}

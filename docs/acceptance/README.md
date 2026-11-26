@@ -115,8 +115,8 @@ server's `tool_call` events, `state/plans/`, `state/sim/*.state.json` with the c
   (`approver.py`): it allows `run_confirmed_plan` on auto-approving turns, denies every other prompt, and logs each
   prompt with its full input (`transcripts/prompts.jsonl`). `--setting-sources user,project` leaves out the
   personal `.claude/settings.local.json`; the project allow rules of OD-5 (read-only `uv run b1500 manual …` and
-  `uv run b1500 bringup status|propose-station|capture|record`) apply, every other shell command is a prompt the
-  runner denies.
+  `uv run b1500 bringup status|propose-station|capture|record`) and OD21-6 (`uv run b1500 bringup next|done|check`)
+  apply, every other shell command is a prompt the runner denies.
 - **The prompt on standard input** (v2.1 ATV-33): no free text on the command line, so the npm `codex.cmd` shim on
   Windows (cmd.exe parses its command line) cannot garble a prompt; for a `.cmd`/`.bat` launcher any other argument
   with `& | < > ^ %` or a line break is refused with the folder to move. The Windows process group and `taskkill /T`

@@ -2,7 +2,9 @@
 # `uv run b1500 bringup record STAGE --run H...` drafts it into work/bringup/records/ from hardware runs only (run ids
 # H..., backend visa; simulator S... runs are refused). A human reviewer checks it against the raw runs, fills
 # `reviewer` and `reviewed_on` and moves it to validation/hw/<recipe_id>.yaml (recipe record) or
-# validation/hw/stage-<stage>.yaml (stage record). Measured values are copied from the runs, never edited.
+# validation/hw/stage-<stage>.yaml (stage record). Measured values are copied from the runs, never edited; the
+# stage's step ledger entries are copied into `steps` (schema version 2), so the reviewer signs the step list.
+schema_version: 2         # 2: with steps (v2 records without this key are version 1)
 stage: ""                 # bring-up stage id: S0, L0 .. L10
 recipe_id: null           # e.g. mosfet.idvg; null for a stage record
 recipe_version: null      # recipe version at the runs
@@ -28,3 +30,5 @@ date: ""                  # UTC date of the runs (YYYY-MM-DD)
 reviewer: ""              # filled only by the human reviewer
 reviewed_on: null         # date of the review (YYYY-MM-DD)
 notes: []
+steps: []                 # per ledger entry of the stage (latest per step): step, verify, verdict, ts, actor,
+                          # evidence (one line), entry_sha256 (copied by b1500 bringup record, never edited)

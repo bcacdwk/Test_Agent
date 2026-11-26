@@ -1,0 +1,243 @@
+# Bring-up steps in execution order (v2.1 plan §4.1; schema StepsFile in src/b1500_test_agent/models/validation.py).
+# `uv run b1500 bringup next` shows the next step, `uv run b1500 bringup done STEP ...` verifies and records it in the
+# step ledger (data/state/bringup/ledger-<backend>.jsonl, written only by the CLI), `uv run b1500 bringup check`
+# re-verifies the ledger. Stage steps are the numbered items of the stage files (L1.P1 = physical step 1, L1.A4 = agent
+# step 4) plus one review step <stage>.R; their text is the stage file's. `uv run b1500 dev lint-skills` keeps this file
+# and the stage files in step (every numbered item exactly once, recipes, check ids, runbooks).
+#
+# Fields: who (agent | human | both), verify (how `done` checks it on hardware), rehearsal (how the simulator ledger
+# takes it: run_sim = verified the same way, refusal = records and fixtures are refused on the simulator by design,
+# human_done = the human's own "done", skip = lab only), recipes (runs it takes; optional = not required), outcomes (run
+# outcomes it accepts; default completed or completed_with_flags), keys (--observe keys it needs), config (items it
+# adopts or proposes), must_pass (doctor lines), feeds (stage check ids), on_fail (b1500-debug runbooks), reconfirm
+# (asked again after a break), after_record (follows the drafting of the stage record, which cannot list it), items /
+# atv (blueprint v2 7.6 items and ATVs it settles).
+version: 1
+
+# Session 0 on the lab PC = docs/deployment-windows.md "First session" lines 2-8. The clone does not exist before D6
+# and the harness not before D10: record D1-D10 afterwards (the human may run `uv run b1500 bringup done` in their own
+# terminal). On the lab PC the human creates config/local with backend visa at D7, before the first `done`: from then
+# on every step lands in the hardware ledger (a simulator ledger never signs a hardware stage).
+deployment:
+  - {id: D1, who: human, verify: confirm, rehearsal: human_done,
+     text: "Git for Windows, uv (`winget install astral-sh.uv`) and Python 3.12 (`uv python install 3.12`) installed (deployment step 1)."}
+  - {id: D2, who: human, verify: confirm, rehearsal: skip, items: [1],
+     text: "Lab IT installed the Keysight IO Libraries Suite (the VISA stack) and the GPIB adapter's driver (step 1)."}
+  - {id: D3, who: human, verify: confirm, rehearsal: skip, items: [5], atv: [ATV-15],
+     text: "Lab IT installed the B1530A WGFMU Instrument Library A.03.00 or later: the x64 `wgfmu.dll` in C:\\Windows\\System32 (step 1)."}
+  - {id: D4, who: human, verify: confirm, rehearsal: human_done,
+     text: "Harness CLIs by their one install method each, signed in: Node.js LTS and `npm install -g @openai/codex`; Claude Code (optional) by its native installer with auto-update off on the lab PC (`DISABLE_AUTOUPDATER=1` in its user settings) (step 1.6)."}
+  - {id: D5, who: human, verify: confirm, rehearsal: skip,
+     text: "`setx PYTHONUTF8 1`, then a new PowerShell window (step 1)."}
+  - {id: D6, who: human, verify: confirm, rehearsal: human_done,
+     text: "The clone (`git clone REMOTE_URL C:\\b1500\\test_agent`) and the manual PDFs in the clone's parent or `B1500_MANUALS_DIR` (step 2)."}
+  - {id: D7, who: both, verify: doctor, rehearsal: run_sim,
+     text: "`uv sync --frozen`; `uv run b1500 manual status`; on the lab PC the human runs `uv run b1500 config init --visa` now (it writes config/local only, no instrument contact; stage L0 checks it); then `uv run b1500 doctor` without FAIL (steps 3, 5)."}
+  - {id: D8, who: human, verify: doctor, rehearsal: run_sim, must_pass: [harness files],
+     text: "`uv run b1500 harness init --codex` (and `--claude` for Claude Code): the generated harness configuration, checked by `uv run b1500 doctor` (step 7)."}
+  - {id: D9, who: human, verify: observation, rehearsal: human_done, keys: [trusted],
+     text: "Start each harness in the clone once and accept its trust question (`--observe trusted=<harnesses>`) (step 8)."}
+  - {id: D10, who: human, verify: observation, rehearsal: skip, keys: [update, qualify_windows], items: [12], atv: [ATV-33, ATV-38, ATV-39, ATV-40],
+     text: "`uv run b1500 update` in your own terminal ends with `Ready.`; then the maintainer's `uv run b1500 dev harness qualify --windows` once (T0, T1 and S16; writes data/state/harness/windows.json) (steps 8, 12)."}
+  - {id: D11, who: human, verify: observation, rehearsal: human_done, keys: [approval_prompt, hooks_listed], items: [12], atv: [ATV-7, ATV-8, ATV-11],
+     text: "Interactive checks (steps 8.5, 9.4-9.5): the approval prompt of `run_confirmed_plan` shows the summary; Claude Code's `/hooks` lists the guard hook."}
+  - {id: D12, who: human, verify: observation, rehearsal: skip, keys: [versions, wgfmu_library, install_route], items: [5, 12], atv: [ATV-15],
+     text: "The deployment's Recorded results: harness, uv, Git, Python and Node.js versions; WGFMU library version and DLL path; install route (PyPI or wheelhouse)."}
+
+# Start of every session after session 0 (a new session begins after the end steps or after a 12 h break).
+session_start:
+  - {id: R1, who: agent, verify: doctor, rehearsal: run_sim, must_pass: [harness versions],
+     text: "`uv run b1500 doctor`: no FAIL and `harness versions` PASS (else the human runs `uv run b1500 update` first)."}
+  - {id: R2, who: agent, verify: station, rehearsal: run_sim,
+     text: "`station_status` clean: no fault latched, no lock holder, no running run."}
+  - {id: R3, who: human, verify: confirm, rehearsal: human_done, items: [4],
+     text: "The human: EasyEXPERT exited (Start EasyEXPERT button shown), today's interlock test passed, shield box and DUT in the state the ledger expects."}
+  - {id: R4, who: agent, verify: observation, rehearsal: run_sim, keys: [reconfirm],
+     text: "`uv run b1500 bringup next`: tell the human which steps of the stage are asked again after the break (`--observe reconfirm=<step ids or none>`)."}
+
+# End of every session.
+session_end:
+  - {id: E1, who: agent, verify: station, rehearsal: run_sim,
+     text: "`safe_shutdown(\"end of session\")`, then `station_status` clean."}
+  - {id: E2, who: human, verify: hw_suite, rehearsal: skip,
+     text: "The human: `$env:B1500_HW = \"1\"; uv run pytest -m \"hardware and hw_<stage>\" -rs --junitxml work\\bringup\\hw-<UTC>.xml` for the stages touched; nothing skipped by the gate (`--draft` the JUnit file)."}
+  - {id: E3, who: agent, verify: ledger, rehearsal: run_sim,
+     text: "`uv run b1500 bringup check`: every step recorded so far still verifies."}
+  - {id: E4, who: human, verify: confirm, rehearsal: skip,
+     text: "The human backs up data\\runs\\ and config\\local\\ (deployment step 11)."}
+  - {id: E5, who: human, verify: confirm, rehearsal: skip,
+     text: "The human reviews the drafts of finished stages (`<stage>.R`) and transfers records and fixtures (v2 OD-7)."}
+
+stages:
+  S0:
+    - {id: S0.A1, who: agent, verify: observation, rehearsal: run_sim, keys: [next_stage]}
+    - {id: S0.A2, who: agent, verify: observation, rehearsal: run_sim, keys: [handed_over]}
+    - {id: S0.P1, who: human, verify: confirm, rehearsal: human_done, feeds: [interlock_test], items: [4]}
+    - {id: S0.P2, who: human, verify: confirm, rehearsal: human_done, feeds: [interlock_state]}
+    - {id: S0.P3, who: human, verify: confirm, rehearsal: human_done}
+    - {id: S0.P4, who: human, verify: confirm, rehearsal: human_done, feeds: [cables]}
+    - {id: S0.P5, who: human, verify: confirm, rehearsal: human_done, feeds: [self_test, self_cal, module_list, firmware, line_frequency], items: [11]}
+    - {id: S0.P6, who: human, verify: confirm, rehearsal: human_done, feeds: [gpib_settings], items: [1]}
+    - {id: S0.P7, who: human, verify: confirm, rehearsal: human_done, feeds: [flex_released], atv: [ATV-3]}
+    - {id: S0.P8, who: human, verify: confirm, rehearsal: human_done, feeds: [dut_set], items: [11]}
+    - {id: S0.A3, who: agent, verify: observation, rehearsal: run_sim, keys: [compared]}
+    - {id: S0.A4, who: agent, verify: doctor, rehearsal: run_sim}
+    - {id: S0.A5, who: agent, verify: record, rehearsal: refusal}
+    - {id: S0.A6, who: agent, verify: confirm, rehearsal: run_sim, after_record: true}
+    - {id: S0.R, who: human, verify: review, rehearsal: skip}
+  L0:
+    - {id: L0.P1, who: human, verify: config, rehearsal: human_done, config: [settings], items: [1], atv: [ATV-2]}
+    - {id: L0.A1, who: agent, verify: doctor, rehearsal: run_sim}
+    - {id: L0.A2, who: agent, verify: probe, rehearsal: run_sim, feeds: [visa_resources, bus, identity, inventory, status_byte, outputs, release, wgfmu_library, wgfmu_session, fault_latch], on_fail: [visa-no-connection, wgfmu-library-error], items: [1, 2, 3, 4, 5], atv: [ATV-2, ATV-10, ATV-15, ATV-16]}
+    - {id: L0.A3, who: agent, verify: probe, rehearsal: run_sim, feeds: [error_queue], on_fail: [visa-no-connection, errx-codes], items: [3]}
+    - {id: L0.A4, who: agent, verify: proposal, rehearsal: run_sim, config: [station], items: [2]}
+    - {id: L0.P2, who: human, verify: config, rehearsal: human_done, config: [station]}
+    - {id: L0.A5, who: agent, verify: probe, rehearsal: run_sim, feeds: [inventory]}
+    - {id: L0.P3, who: human, verify: config, rehearsal: human_done, config: [pinmap, dut]}
+    - {id: L0.A6, who: agent, verify: station, rehearsal: run_sim}
+    - {id: L0.P4, who: human, verify: observation, rehearsal: human_done, keys: [one_process], items: [1, 12], atv: [ATV-4, ATV-13]}
+    - {id: L0.A7, who: agent, verify: capture, rehearsal: refusal, items: [3]}
+    - {id: L0.R, who: human, verify: review, rehearsal: skip}
+  L1:
+    - {id: L1.A1, who: agent, verify: station, rehearsal: run_sim}
+    - {id: L1.A2, who: agent, verify: proposal, rehearsal: human_done, config: [pinmap, dut]}
+    - {id: L1.P1, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}
+    - {id: L1.P2, who: human, verify: config, rehearsal: human_done, config: [pinmap, dut]}
+    - {id: L1.A3, who: agent, verify: run, rehearsal: run_sim, recipes: [system.self_test, system.self_cal], feeds: [self_test_result, self_cal_result], on_fail: [errx-codes], items: [10]}
+    - {id: L1.A4, who: agent, verify: run, rehearsal: run_sim, recipes: [system.zero_check], feeds: [cleanup_lop, floor_smu3, floor_smu4, floor_smu5, floor_smu6, lop_positive_control], on_fail: [cleanup-failed-fault, current-too-high], items: [3, 4, 8], atv: [ATV-1, ATV-23]}
+    - {id: L1.A5, who: agent, verify: run, rehearsal: run_sim, recipes: [system.zero_check], feeds: [floor_smu3, floor_smu4, floor_smu5, floor_smu6], on_fail: [async-run-interrupted, noisy-data], items: [8]}
+    - {id: L1.P3, who: human, verify: confirm, rehearsal: human_done, feeds: [shutdown_drill]}
+    - {id: L1.A6, who: agent, verify: run, rehearsal: run_sim, recipes: [system.zero_check], outcomes: [aborted, cancelled, completed], feeds: [shutdown_drill, cleanup_lop], on_fail: [cleanup-failed-fault, async-run-interrupted]}
+    - {id: L1.P4, who: human, verify: confirm, rehearsal: human_done, feeds: [coexistence], atv: [ATV-4, ATV-13]}
+    - {id: L1.A7, who: agent, verify: observation, rehearsal: run_sim, keys: [coexistence], feeds: [coexistence], on_fail: [visa-no-connection]}
+    - {id: L1.A8, who: agent, verify: capture, rehearsal: refusal, recipes: [system.zero_check], items: [3]}
+    - {id: L1.R, who: human, verify: review, rehearsal: skip}
+  L2:
+    - {id: L2.A1, who: agent, verify: station, rehearsal: run_sim}
+    - {id: L2.A2, who: agent, verify: proposal, rehearsal: human_done, config: [pinmap, dut]}
+    - {id: L2.P1, who: human, verify: observation, rehearsal: human_done, keys: [dmm_100k], reconfirm: true}
+    - {id: L2.P2, who: human, verify: config, rehearsal: human_done, config: [pinmap, dut]}
+    - {id: L2.A5, who: agent, verify: run, rehearsal: run_sim, recipes: [generic.smu_multi_sweep], feeds: [multi_r, multi_cleanup], on_fail: [compliance-hit]}
+    - {id: L2.A6, who: agent, verify: run, rehearsal: run_sim, recipes: [generic.smu_spot], feeds: [r_spot, spot_cleanup], on_fail: [compliance-hit]}
+    - {id: L2.P3, who: human, verify: observation, rehearsal: human_done, keys: [dmm_1m], reconfirm: true}
+    - {id: L2.A3, who: agent, verify: run, rehearsal: run_sim, recipes: [basic.contact_resistor], feeds: [r_dmm, linearity, offset, cleanup], on_fail: [compliance-hit, noisy-data], items: [3, 8]}
+    - {id: L2.A4, who: agent, verify: observation, rehearsal: run_sim, keys: [deviation_pct], feeds: [r_dmm]}
+    - {id: L2.P4, who: human, verify: config, rehearsal: human_done, config: [station, pinmap, dut], reconfirm: true}
+    - {id: L2.A7, who: agent, verify: run, rehearsal: run_sim, recipes: [resistor.kelvin_4w], keys: [sense_landed], feeds: [r_kelvin, offset_v, kelvin_cleanup], on_fail: [compliance-hit]}
+    - {id: L2.A8, who: agent, verify: observation, rehearsal: run_sim, keys: [annotated]}
+    - {id: L2.A9, who: agent, verify: record, rehearsal: refusal}
+    - {id: L2.R, who: human, verify: review, rehearsal: skip}
+  L3:
+    - {id: L3.A1, who: agent, verify: proposal, rehearsal: human_done, config: [pinmap, dut]}
+    - {id: L3.P1, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}
+    - {id: L3.P2, who: human, verify: config, rehearsal: human_done, config: [pinmap, dut]}
+    - {id: L3.A2, who: agent, verify: run, rehearsal: run_sim, recipes: [basic.diode_iv], feeds: [n, is, rs, leakage, cleanup], on_fail: [compliance-hit, current-too-high], items: [3]}
+    - {id: L3.A3, who: agent, verify: observation, rehearsal: run_sim, keys: [reported], feeds: [n, is, rs]}
+    - {id: L3.P3, who: human, verify: confirm, rehearsal: human_done, atv: [ATV-3]}
+    - {id: L3.A4, who: agent, verify: observation, rehearsal: run_sim, keys: [easyexpert_compared], feeds: [leakage], items: [11]}
+    - {id: L3.A5, who: agent, verify: run, rehearsal: run_sim, recipes: [basic.iv_force_i], feeds: [vf_1ma, n_force_i, force_i_cleanup], on_fail: [compliance-hit], items: [3]}
+    - {id: L3.A6, who: agent, verify: record, rehearsal: refusal}
+    - {id: L3.R, who: human, verify: review, rehearsal: skip}
+  L4:
+    - {id: L4.A1, who: agent, verify: proposal, rehearsal: human_done, config: [pinmap, dut]}
+    - {id: L4.P1, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}
+    - {id: L4.P2, who: human, verify: config, rehearsal: human_done, config: [pinmap, dut]}
+    - {id: L4.P3, who: human, verify: confirm, rehearsal: human_done, atv: [ATV-3]}
+    - {id: L4.A2, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.idvg], feeds: [vth, ss, idvg_cleanup], on_fail: [compliance-hit, noisy-data], items: [11]}
+    - {id: L4.P4, who: human, verify: observation, rehearsal: human_done, keys: [prompt_shown, prompt_summary], items: [12], atv: [ATV-7, ATV-11]}
+    - {id: L4.A3, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.idvd], feeds: [ron, idvd_cleanup], on_fail: [compliance-hit]}
+    - {id: L4.A4, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.gate_leakage], feeds: [gate_leakage, leakage_cleanup], on_fail: [current-too-high, noisy-data], items: [6], atv: [ATV-28]}
+    - {id: L4.P5, who: human, verify: config, rehearsal: human_done, config: [pinmap], reconfirm: true}
+    - {id: L4.A5, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.idvg_family, mosfet.idvg_sync, mosfet.body_effect], feeds: [dibl, family_cleanup, vth_sync, sync_cleanup, body_effect, body_cleanup], on_fail: [compliance-hit]}
+    - {id: L4.A6, who: agent, verify: observation, rehearsal: run_sim, keys: [easyexpert_values], items: [11]}
+    - {id: L4.A7, who: agent, verify: record, rehearsal: refusal}
+    - {id: L4.R, who: human, verify: review, rehearsal: skip}
+  L5:
+    - {id: L5.A1, who: agent, verify: observation, rehearsal: run_sim, keys: [dc_runs]}
+    - {id: L5.P1, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}
+    - {id: L5.P3, who: human, verify: confirm, rehearsal: human_done}
+    - {id: L5.A2, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.idvg_pulsed, mosfet.idvd_pulsed], feeds: [pulsed_vs_dc, idvg_pulsed_cleanup, idvd_pulsed_ratio, idvd_pulsed_cleanup], on_fail: [compliance-hit], items: [8]}
+    - {id: L5.P2, who: human, verify: observation, rehearsal: human_done, keys: [dmm_100k], reconfirm: true}
+    - {id: L5.A3, who: agent, verify: run, rehearsal: run_sim, recipes: [basic.pulsed_spot, generic.smu_multi_pulsed], feeds: [pulsed_spot_r, pulsed_spot_cleanup, multi_pulsed_cleanup], on_fail: [compliance-hit]}
+    - {id: L5.A4, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.id_t_sampling, generic.smu_sampling], feeds: [id_t_gaps, id_t_samples, id_t_tau, id_t_cleanup, sampling_gaps, sampling_cleanup], on_fail: [smu-sampling-skips, async-run-interrupted], items: [3], atv: [ATV-22, ATV-30]}
+    - {id: L5.A5, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.vth_search], feeds: [vth_search, search_cleanup], on_fail: [compliance-hit]}
+    - {id: L5.A6, who: agent, verify: observation, rehearsal: run_sim, keys: [time_source], on_fail: [smu-sampling-skips], atv: [ATV-22]}
+    - {id: L5.R, who: human, verify: review, rehearsal: skip}
+  L6:
+    - {id: L6.A1, who: agent, verify: probe, rehearsal: run_sim}
+    - {id: L6.P1, who: human, verify: config, rehearsal: human_done, config: [pinmap, dut]}
+    - {id: L6.P2, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}
+    - {id: L6.A2, who: agent, verify: run, rehearsal: run_sim, recipes: [cmu.phase_compensation, cmu.correction_open, cmu.correction_short, cmu.correction_load], optional: [cmu.correction_load], feeds: [phase_result, phase_cleanup, open_result, open_stray_c, open_cleanup, short_result, short_r, short_cleanup, load_r, load_cleanup], on_fail: [cmu-correction-stale], items: [7], atv: [ATV-21]}
+    - {id: L6.P3, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}
+    - {id: L6.A3, who: agent, verify: run, rehearsal: run_sim, recipes: [cmu.spot], feeds: [known_c, spot_cleanup, corrst_on, store_written], on_fail: [cmu-cv-distortion, cmu-series-resistance], items: [3, 7]}
+    - {id: L6.A4, who: agent, verify: run, rehearsal: run_sim, recipes: [moscap.cv, moscap.cv_ac_level, moscap.pulsed_cv, cmu.phase_compensation, cmu.correction_open, cmu.correction_short], optional: [cmu.phase_compensation, cmu.correction_open, cmu.correction_short], feeds: [mosc_cox, mosc_vfb, mosc_nsub, mosc_hysteresis, mosc_cleanup, ac_limit, ac_level_cleanup, pulsed_dvfb, pulsed_cleanup], on_fail: [cmu-cv-distortion, cmu-correction-stale], items: [11]}
+    - {id: L6.A5, who: agent, verify: run, rehearsal: run_sim, recipes: [moscap.cf, moscap.ct, moscap.cv_multi_freq, cmu.phase_compensation, cmu.correction_open, cmu.correction_short], optional: [cmu.phase_compensation, cmu.correction_open, cmu.correction_short], feeds: [cf_dit, cf_cleanup, ct_tau, ct_cleanup, multi_freq_dit, multi_freq_cleanup], on_fail: [cmu-correction-stale, async-run-interrupted], items: [3, 7]}
+    - {id: L6.A6, who: agent, verify: run, rehearsal: run_sim, recipes: [moscap.qscv, moscap.cv, cmu.phase_compensation, cmu.correction_open, cmu.correction_short], optional: [cmu.phase_compensation, cmu.correction_open, cmu.correction_short], feeds: [qscv_offset, qscv_leakage, qscv_cox, dit_mid, qscv_cleanup, scuu_rest], on_fail: [cmu-cv-distortion, current-too-high], items: [6], atv: [ATV-28, ATV-31]}
+    - {id: L6.A7, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.cgc_cv, mosfet.cgd_cv, fecap.cv_butterfly, cmu.phase_compensation, cmu.correction_open, cmu.correction_short], optional: [fecap.cv_butterfly, cmu.phase_compensation, cmu.correction_open, cmu.correction_short], feeds: [cgc_plateau, cgc_cleanup, cgd_vth, cgd_cleanup, butterfly_vc, butterfly_cleanup], on_fail: [cmu-cv-distortion]}
+    - {id: L6.A8, who: agent, verify: observation, rehearsal: run_sim, keys: [correction_ages], items: [7]}
+    - {id: L6.R, who: human, verify: review, rehearsal: skip}
+  L7:
+    - {id: L7.A1, who: agent, verify: probe, rehearsal: run_sim, items: [3]}
+    - {id: L7.P1, who: human, verify: confirm, rehearsal: human_done}
+    - {id: L7.A2, who: agent, verify: run, rehearsal: run_sim, recipes: [system.selector_check], keys: [relays_observed], feeds: [selector_states, selector_cleanup, relays_observed], on_fail: [spgu-selector-state], items: [2, 3, 6], atv: [ATV-18]}
+    - {id: L7.A3, who: agent, verify: proposal, rehearsal: human_done, config: [station, pinmap, dut], items: [6], atv: [ATV-28]}
+    - {id: L7.P2, who: human, verify: config, rehearsal: human_done, config: [station], feeds: [wiring_recorded], items: [6], atv: [ATV-28]}
+    - {id: L7.P3, who: human, verify: config, rehearsal: human_done, config: [pinmap, dut], reconfirm: true}
+    - {id: L7.A4, who: agent, verify: run, rehearsal: run_sim, recipes: [spgu.pulse_train, spgu.alwg_sequence], keys: [pulse_level_1meg, pulse_level_ser50], feeds: [pulse_level_1meg, pulse_level_ser50, train_spst, train_waited, train_cleanup, alwg_spst, alwg_cleanup], on_fail: [spgu-load-mismatch, spgu-pulse-no-effect], items: [3, 9], atv: [ATV-19, ATV-20]}
+    - {id: L7.P4, who: human, verify: config, rehearsal: human_done, config: [station], feeds: [wiring_recorded], atv: [ATV-28]}
+    - {id: L7.A5, who: agent, verify: station, rehearsal: run_sim}
+    - {id: L7.P5, who: human, verify: config, rehearsal: human_done, config: [pinmap], reconfirm: true}
+    - {id: L7.A6, who: agent, verify: run, rehearsal: run_sim, recipes: [fefet.dual_sweep_mw], feeds: [dual_sweep_mw, dual_sweep_cleanup], on_fail: [compliance-hit], items: [13]}
+    - {id: L7.A7, who: agent, verify: run, rehearsal: run_sim, recipes: [fefet.pulse_write_read, spgu.program_smu_read], feeds: [pulse_mw, pulse_routes, pulse_rw_cleanup, spot_ratio, spot_cleanup], on_fail: [spgu-pulse-no-effect, spgu-selector-state]}
+    - {id: L7.A8, who: agent, verify: run, rehearsal: run_sim, recipes: [fefet.switching_kinetics], feeds: [kinetics_tau0, kinetics_cleanup], on_fail: [spgu-pulse-no-effect], items: [13]}
+    - {id: L7.P6, who: human, verify: config, rehearsal: human_done, config: [pinmap, dut], reconfirm: true}
+    - {id: L7.A9, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.charge_pumping], feeds: [cp_qcp, cp_cleanup], on_fail: [spgu-load-mismatch]}
+    - {id: L7.A10, who: agent, verify: observation, rehearsal: run_sim, keys: [human_observations]}
+    - {id: L7.R, who: human, verify: review, rehearsal: skip}
+  L8:
+    - {id: L8.A1, who: agent, verify: probe, rehearsal: run_sim, feeds: [session_probe], on_fail: [wgfmu-library-error], items: [5], atv: [ATV-16]}
+    - {id: L8.P1, who: human, verify: config, rehearsal: human_done, config: [station], items: [5], atv: [ATV-32]}
+    - {id: L8.P2, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}
+    - {id: L8.A2, who: agent, verify: run, rehearsal: run_sim, recipes: [system.wgfmu_self_test, system.wgfmu_self_cal], feeds: [wgfmu_self_test_result, wgfmu_self_test_cleanup, wgfmu_self_cal_result, wgfmu_self_cal_cleanup], on_fail: [wgfmu-library-error], items: [10], atv: [ATV-14]}
+    - {id: L8.P3, who: human, verify: config, rehearsal: human_done, config: [pinmap], reconfirm: true}
+    - {id: L8.A3, who: agent, verify: run, rehearsal: run_sim, recipes: [wgfmu.dc_spot], feeds: [r_wgfmu, dc_spot_cleanup], on_fail: [wgfmu-rsu-route, wgfmu-range-overflow], items: [5]}
+    - {id: L8.P4, who: human, verify: confirm, rehearsal: human_done, feeds: [rsu_vmonitor], reconfirm: true, items: [9]}
+    - {id: L8.A4, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.idvg, wgfmu.pulsed_iv, wgfmu.fast_iv, wgfmu.pulse_train], feeds: [pulsed_vs_dc, pulsed_cleanup, fast_iv_gm, fast_iv_cleanup, train_plateau, train_cleanup], on_fail: [wgfmu-rsu-route, wgfmu-range-overflow], items: [8, 9], atv: [ATV-17, ATV-32]}
+    - {id: L8.A5, who: agent, verify: run, rehearsal: run_sim, recipes: [wgfmu.custom_waveform], feeds: [lwp_values, custom_cleanup], on_fail: [wgfmu-memory-budget], items: [5]}
+    - {id: L8.A6, who: agent, verify: run, rehearsal: run_sim, recipes: [wgfmu.rtn, wgfmu.lfn], feeds: [rtn_tau_c, rtn_cleanup, lfn_gamma, lfn_cleanup], on_fail: [noisy-data, async-run-interrupted], items: [8, 13]}
+    - {id: L8.P5, who: human, verify: config, rehearsal: human_done, config: [pinmap, dut], reconfirm: true}
+    - {id: L8.A7, who: agent, verify: run, rehearsal: run_sim, recipes: [fecap.pund], feeds: [pund_pr, pund_vc, pund_cleanup], on_fail: [wgfmu-range-overflow], items: [13]}
+    - {id: L8.P6, who: human, verify: config, rehearsal: human_done, config: [pinmap], reconfirm: true}
+    - {id: L8.A8, who: agent, verify: run, rehearsal: run_sim, recipes: [fefet.fast_program_read], feeds: [fast_mw, fast_pr_cleanup], on_fail: [wgfmu-rsu-route]}
+    - {id: L8.A9, who: agent, verify: observation, rehearsal: run_sim, keys: [lock_cycle, no_fw_errors], feeds: [lock_cycle, no_fw_errors], on_fail: [wgfmu-library-error], items: [1, 5], atv: [ATV-14]}
+    - {id: L8.R, who: human, verify: review, rehearsal: skip}
+  L9:
+    - {id: L9.A1, who: agent, verify: station, rehearsal: run_sim}
+    - {id: L9.P1, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}
+    - {id: L9.A2, who: agent, verify: run, rehearsal: run_sim, recipes: [reliability.bti_sms], outcomes: [cancelled, completed], feeds: [async_progress], on_fail: [async-run-interrupted], items: [10]}
+    - {id: L9.P2, who: human, verify: confirm, rehearsal: human_done, feeds: [cancel_drill, cancel_drill_spgu, cancel_drill_wgfmu]}
+    - {id: L9.A3, who: agent, verify: run, rehearsal: run_sim, recipes: [reliability.bti_sms], outcomes: [cancelled], feeds: [async_progress, cancel_drill], on_fail: [async-run-interrupted]}
+    - {id: L9.A4, who: agent, verify: run, rehearsal: run_sim, recipes: [reliability.bti_sms], feeds: [bti_n, bti_cleanup, autocal_restored], on_fail: [stress-degradation-unexpected], items: [10]}
+    - {id: L9.P3, who: human, verify: confirm, rehearsal: human_done, feeds: [recovery_drill, recovery_drill_spgu, recovery_drill_wgfmu]}
+    - {id: L9.A5, who: agent, verify: run, rehearsal: run_sim, recipes: [reliability.bti_sms], outcomes: [aborted], feeds: [recovery_drill, autocal_restored], on_fail: [async-run-interrupted, cleanup-failed-fault]}
+    - {id: L9.A6, who: agent, verify: observation, rehearsal: run_sim, keys: [drills], feeds: [cancel_drill, recovery_drill]}
+    - {id: L9.P4, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}
+    - {id: L9.A7, who: agent, verify: run, rehearsal: run_sim, recipes: [igzo.bias_stress, reliability.hci, reliability.silc, reliability.tddb_cvs, dielectric.bdv, basic.breakdown_search], optional: [igzo.bias_stress], feeds: [igzo_dvth, igzo_cleanup, hci_m, hci_cleanup, silc_ratio, silc_cleanup, tddb_tbd, tddb_cleanup, bdv, bdv_cleanup, breakdown_search, search_bd_cleanup], on_fail: [stress-degradation-unexpected, vth-drift-igzo], items: [13]}
+    - {id: L9.P5, who: human, verify: config, rehearsal: human_done, config: [pinmap, dut], reconfirm: true}
+    - {id: L9.A8, who: agent, verify: run, rehearsal: run_sim, recipes: [fefet.endurance, fefet.retention], outcomes: [completed, completed_with_flags, cancelled, aborted], feeds: [endurance_mw, endurance_cleanup, retention_slope, retention_cleanup, cancel_drill_spgu, recovery_drill_spgu], on_fail: [async-run-interrupted, spgu-pulse-no-effect], items: [8, 13]}
+    - {id: L9.P6, who: human, verify: config, rehearsal: human_done, config: [pinmap], reconfirm: true, atv: [ATV-32]}
+    - {id: L9.A9, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.idvg, wgfmu.fast_bti], feeds: [fast_bti_n, fast_vs_smu, rsu_smu_path, fast_bti_cleanup, run_boundary], on_fail: [wgfmu-rsu-route, async-run-interrupted], items: [5, 13], atv: [ATV-32]}
+    - {id: L9.P7, who: human, verify: config, rehearsal: human_done, config: [pinmap, dut], reconfirm: true}
+    - {id: L9.A10, who: agent, verify: run, rehearsal: run_sim, recipes: [fecap.endurance_pund], outcomes: [completed, completed_with_flags, cancelled, aborted], feeds: [pund_wake_fatigue, pund_endurance_cleanup, cancel_drill_wgfmu, recovery_drill_wgfmu], on_fail: [async-run-interrupted, wgfmu-library-error], items: [13]}
+    - {id: L9.R, who: human, verify: review, rehearsal: skip}
+  L10:
+    - {id: L10.A1, who: agent, verify: observation, rehearsal: run_sim, keys: [stage_states]}
+    - {id: L10.P1, who: human, verify: confirm, rehearsal: human_done, reconfirm: true}
+    - {id: L10.P2, who: human, verify: observation, rehearsal: human_done, keys: [s1_vth, s4_confirm, s12_program_read], feeds: [s1_vth, s4_confirm, s12_program_read], items: [12], atv: [ATV-4, ATV-7, ATV-8, ATV-11, ATV-25]}
+    - {id: L10.A2, who: agent, verify: run, rehearsal: run_sim, recipes: [mosfet.idvg, mosfet.idvd, fefet.pulse_write_read], optional: [fefet.pulse_write_read], feeds: [s1_vth, s4_confirm, s12_program_read]}
+    - {id: L10.A3, who: agent, verify: observation, rehearsal: run_sim, keys: [drafts]}
+    - {id: L10.P3, who: human, verify: confirm, rehearsal: skip, after_record: true, items: [11]}
+    - {id: L10.P4, who: human, verify: hw_suite, rehearsal: skip, feeds: [hardware_tests]}
+    - {id: L10.P5, who: human, verify: confirm, rehearsal: skip, feeds: [transfer], after_record: true}
+    - {id: L10.A4, who: agent, verify: observation, rehearsal: run_sim, keys: [final_state], feeds: [stages_signed], after_record: true}
+    - {id: L10.R, who: human, verify: review, rehearsal: skip}

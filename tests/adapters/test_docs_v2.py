@@ -126,9 +126,14 @@ def test_the_dependency_lines_are_the_layering_test() -> None:
     ranks = [{RANKS[name] for name in step} for step in steps if step != ["bringup"]]
     assert all(len(r) == 1 for r in ranks) and [r.pop() for r in ranks] == [7, 6, 5, 4, 3, 2]
     assert RANKS["bringup"] > RANKS["service"]
-    architecture = _read("docs/architecture.md")
-    assert set(ONLY) == {"manuals", "bringup"}
+    architecture = " ".join(_read("docs/architecture.md").split())
+    assert set(ONLY) == {"manuals", "bringup", "bringup_ledger", "bringup_verify", "bringup_steps"}
     assert "manuals: imports only models and paths; bringup: imports only service and models" in architecture
+    # v2.1 (WP21.5): the bring-up step modules, a chain below bringup
+    assert "bringup_steps → bringup_verify → bringup_ledger" in architecture
+    assert ONLY["bringup_ledger"] == {"models"} and ONLY["bringup"] - {"service", "models"} == {"bringup_ledger",
+                                                                                                "bringup_steps"}
+    assert all(RANKS[name] == RANKS["bringup"] for name in ("bringup_ledger", "bringup_verify", "bringup_steps"))
 
 
 # -- README.md ------------------------------------------------------------------------------------------------------

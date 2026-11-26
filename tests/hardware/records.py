@@ -27,7 +27,11 @@ Checks of one record (``record_problems``), all read-only:
 5. a record that names a probe record (stage L0): a draft's probe file must exist; an existing probe file must be a
    passing probe on backend ``visa``;
 6. a reviewed record (``validation/hw/``): ``reviewer`` is filled and the schema's review rules hold (passing result,
-   file named after the record).
+   file named after the record);
+7. a stage record of schema version 2 (v2.1, with the step ledger's entries) that claims ``pass`` lists every
+   required step of its stage (``steps.yaml``; the steps that come with or after the draft left out: record and
+   review steps, ``after_record``) with verdict ``pass`` (``required_steps``). Version 1 records (v2, without steps)
+   and recipe records carry no such duty.
 
 Schema binding (the small interface to WP6.3, which defines the record schema): ``RecordSchema`` wraps
 ``b1500_test_agent.models.validation`` (``ValidationRecord``, ``recipe_definition_sha256``,
@@ -41,7 +45,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import warnings
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
@@ -165,6 +169,9 @@ class RecordView:
     evidence: Mapping[str, str] = field(default_factory=dict)
     probe: str | None = None
     review_problems: tuple[str, ...] = ()
+    schema_version: int = 1
+    steps: Mapping[str, str] = field(default_factory=dict)
+    """Step id -> verdict of the ledger entries the record embeds (schema version 2)."""
 
     @property
     def claims_pass(self) -> bool:
@@ -192,9 +199,11 @@ class RecordSchema:
         if file.committed:
             review = tuple(self.module.reviewed_record_problems(record, file.path.name))
         evidence = {item.run_id: item.recipe_file_sha256 for item in getattr(record, "evidence", None) or []}
+        steps = {item.step: item.verdict for item in getattr(record, "steps", None) or []}
         return RecordView(stage=record.stage, recipe_id=record.recipe_id, recipe_sha256=record.recipe_sha256,
                           runs=tuple(record.runs), result=record.result, reviewer=record.reviewer,
-                          evidence=evidence, probe=getattr(record, "probe", None), review_problems=review)
+                          evidence=evidence, probe=getattr(record, "probe", None), review_problems=review,
+                          schema_version=getattr(record, "schema_version", 1), steps=steps)
 
     def recipe_sha256(self, recipe: Recipe) -> str:
         """The digest a recipe record's ``recipe_sha256`` must equal (WP6.3: the recipe's definition digest)."""
@@ -210,6 +219,19 @@ def load_schema() -> RecordSchema | None:
             return None
         raise
     return RecordSchema(module)
+
+
+def required_steps(repo_root: Path) -> dict[str, tuple[str, ...]]:
+    """Stage -> the step ids a passing schema-2 stage record lists (check 7): every step of the stage in
+    ``steps.yaml`` on hardware, the steps that come with or after the draft left out. Empty without a readable
+    ``steps.yaml``."""
+    from b1500_test_agent.bringup_ledger import load_steps
+
+    try:
+        steps = load_steps(repo_root)
+    except ValueError:
+        return {}
+    return {stage: tuple(s.id for s in specs if not s.after_drafting) for stage, specs in steps.stages.items()}
 
 
 # -- the run archive ---------------------------------------------------------------------------------------------------
@@ -347,9 +369,23 @@ def _probe_problems(view: RecordView, file: RecordFile, repo_root: Path) -> list
     return problems
 
 
+def _step_problems(view: RecordView, stage_steps: Mapping[str, Sequence[str]]) -> list[str]:
+    """Check 7: a passing schema-2 stage record lists every required step of its stage as passed."""
+    required = stage_steps.get(view.stage)
+    if view.schema_version < 2 or view.recipe_id is not None or not view.claims_pass or required is None:
+        return []
+    missing = [step for step in required if view.steps.get(step) != "pass"]
+    if not missing:
+        return []
+    return [(f"a schema-2 stage record that claims pass lists every step of stage {view.stage} as passed; "
+            f"{len(missing)} not: {', '.join(missing[:10])}{' ...' if len(missing) > 10 else ''} (record them with "
+            "`uv run b1500 bringup done`, then draft the stage record again)")]
+
+
 def record_problems(view: RecordView, file: RecordFile, *, archive: RunArchive, recipes: Mapping[str, Recipe],
-                    digest: Callable[[Recipe], str], repo_root: Path) -> list[str]:
-    """Checks 2-6 of the module docstring for one validated record; empty when it holds."""
+                    digest: Callable[[Recipe], str], repo_root: Path,
+                    stage_steps: Mapping[str, Sequence[str]] | None = None) -> list[str]:
+    """Checks 2-7 of the module docstring for one validated record; empty when it holds."""
     problems: list[str] = []
     if view.recipe_id is not None:
         if not view.runs:
@@ -367,6 +403,7 @@ def record_problems(view: RecordView, file: RecordFile, *, archive: RunArchive, 
         problems += _zero_check_problems(view, archive)
     if view.probe is not None:
         problems += _probe_problems(view, file, repo_root)
+    problems += _step_problems(view, stage_steps or {})
     if file.committed:
         unreviewed = not view.reviewer.strip()
         if unreviewed:
@@ -377,8 +414,9 @@ def record_problems(view: RecordView, file: RecordFile, *, archive: RunArchive, 
 
 
 def check_file(file: RecordFile, schema: RecordSchema | None, *, archive: RunArchive, recipes: Mapping[str, Recipe],
-               repo_root: Path) -> list[str]:
-    """All checks of one record file, each problem prefixed with the file."""
+               repo_root: Path, stage_steps: Mapping[str, Sequence[str]] | None = None) -> list[str]:
+    """All checks of one record file, each problem prefixed with the file (``stage_steps``: ``required_steps`` of
+    the repository, for check 7)."""
     try:
         data = read_record(file.path)
         if schema is None:
@@ -387,5 +425,5 @@ def check_file(file: RecordFile, schema: RecordSchema | None, *, archive: RunArc
     except RecordInvalid as exc:
         return [f"{file.shown}: {exc}"]
     found = record_problems(view, file, archive=archive, recipes=recipes, digest=schema.recipe_sha256,
-                            repo_root=repo_root)
+                            repo_root=repo_root, stage_steps=stage_steps)
     return [f"{file.shown}: {problem}" for problem in found]

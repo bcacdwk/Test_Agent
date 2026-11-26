@@ -7,19 +7,31 @@ skill).
 
 WP6.3 wrote S0, L0-L4 and L10; the module closures L5-L9 (WP10.8 the last, L8). A card naming a stage whose file
 is missing gets a lint note (``missing_stage_notes``), never a problem.
+
+The step sequence ``steps.yaml`` (``check_steps``, problem code ``steps``; v2.1 plan §4.1): it validates as
+``StepsFile``; every stage with a stage file has steps and vice versa; every numbered item of a stage file (physical
+``P<n>``, agent ``A<n>``) has exactly one step and every step names an item (plus the review step ``<stage>.R``); a
+step's recipes are registered and run by its stage or an earlier one (a reference run, e.g. the DC Id-Vg of L8);
+``feeds`` are check ids of the stage and every check is fed by at least one step; ``on_fail`` names existing
+debug runbooks; the ``b1500`` commands of the deployment and session steps exist.
 """
 
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
+from typing import Any
 
 import yaml
+from pydantic import ValidationError
 
+from b1500_test_agent.bringup_ledger import stage_items
 from b1500_test_agent.catalog.registry import RecipeRegistry
 from b1500_test_agent.config import load_yaml
 from b1500_test_agent.devtools.skills.budgets import BRINGUP_MAX_LINES, STAGE_MAX_LINES, check_budget
 from b1500_test_agent.devtools.skills.cards import check_sections, section_text
+from b1500_test_agent.devtools.skills.commands import command_problems, named_commands
 from b1500_test_agent.devtools.skills.common import (
     BRINGUP_SKILL,
     RECORD_KEYS,
@@ -35,8 +47,10 @@ from b1500_test_agent.devtools.skills.common import (
     model_front,
 )
 from b1500_test_agent.devtools.sync_harness import JUNK_DIRS, JUNK_FILES, SKILL_FILE, SOURCE_DIR
+from b1500_test_agent.models.validation import StepsFile
 
 STAGE_BY_STEM = {stem: stage for stage, (stem, _goal) in STAGES.items()}
+STEPS_NAME = "steps.yaml"
 
 
 def check_bringup(lint: Lint, skill_dir: Path, registry: RecipeRegistry) -> dict[str, StageFrontmatter]:
@@ -144,3 +158,111 @@ def missing_stage_notes(cards: list[Card], stages: dict[str, StageFrontmatter]) 
     return [f"bring-up stage {stage} has no stage file ({SOURCE_DIR}/{BRINGUP_SKILL}/{STAGES_DIR}/"
             f"{STAGES[stage][0]}.md); cards waiting: {', '.join(sorted(ids))}"
             for stage, ids in sorted(waiting.items(), key=lambda item: order.index(item[0]))]
+
+
+# == steps.yaml ========================================================================================================
+
+
+def _step_lines(text: str) -> dict[str, int]:
+    """Step id -> the line of its ``id:`` in ``steps.yaml`` (for problem lines)."""
+    found: dict[str, int] = {}
+    for number, line in enumerate(text.splitlines(), 1):
+        match = re.search(r"\bid:\s*([A-Z][A-Z0-9]*(?:\.[A-Z0-9]+)?)\b", line)
+        if match:
+            found.setdefault(match[1], number)
+    return found
+
+
+def _error_line(data: Any, loc: tuple[Any, ...], lines: dict[str, int]) -> int | None:
+    """The line of the step a validation error points into (``None`` when it is not inside one step)."""
+    node = data
+    step_line = None
+    for part in loc:
+        try:
+            node = node[part]
+        except (KeyError, IndexError, TypeError):
+            break
+        if isinstance(node, dict) and isinstance(node.get("id"), str):
+            step_line = lines.get(node["id"])
+    return step_line
+
+
+def check_steps(lint: Lint, skill_dir: Path, registry: RecipeRegistry, stages: dict[str, StageFrontmatter],
+                runbooks: list[str]) -> StepsFile | None:
+    """Lint ``steps.yaml`` of the bring-up skill at ``skill_dir`` against its stage files (module docstring)."""
+    path = skill_dir / STEPS_NAME
+    stage_paths = {stage: skill_dir / STAGES_DIR / f"{stem}.md" for stage, (stem, _goal) in STAGES.items()
+                   if (skill_dir / STAGES_DIR / f"{stem}.md").is_file()}
+    if not path.is_file():
+        if stage_paths:
+            lint.add("steps", path, f"{STEPS_NAME} is missing: the stage files need their step sequence (b1500 "
+                                    "bringup next|done|check)")
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+        data = load_yaml(text.encode("utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        lint.add("steps", path, "not valid YAML: " + " ".join(str(exc).split()))
+        return None
+    lines = _step_lines(text)
+    try:
+        steps = StepsFile.model_validate(data)
+    except ValidationError as exc:
+        for error in exc.errors():
+            where = ".".join(str(part) for part in error["loc"]) or "file"
+            lint.add("steps", path, f"{where}: {error['msg']}", _error_line(data, error["loc"], lines))
+        return None
+    for stage, stage_path in stage_paths.items():
+        if stage not in steps.stages:
+            lint.add("steps", path, f"stage {stage} has a stage file ({stage_path.name}) but no steps")
+    known = set(registry.ids())
+    runbook_ids = set(runbooks)
+    run_so_far: set[str] = set()
+    for stage, specs in steps.stages.items():
+        stage_path = stage_paths.get(stage)
+        if stage_path is None:
+            lint.add("steps", path, f"stage {stage} has steps but no stage file", lines.get(specs[0].id))
+            continue
+        doc = lint.doc(stage_path)
+        items = set(stage_items("\n".join(doc.lines))) if doc is not None else set()
+        named = {spec.id.split(".", 1)[1]: spec for spec in specs if not spec.is_review}
+        for item in sorted(items - set(named), key=lambda i: (i[0], int(i[1:]))):
+            lint.add("steps", path, f"item {item} of {stage_path.name} ({'physical' if item[0] == 'P' else 'agent'} "
+                                    f"step {item[1:]}) has no step {stage}.{item}")
+        for item in sorted(set(named) - items):
+            lint.add("steps", path, f"step {stage}.{item} names no numbered item of {stage_path.name}",
+                     lines.get(f"{stage}.{item}"))
+        front = stages.get(stage)
+        run_so_far |= set(front.recipes) if front is not None else set()
+        checks = {check.id for check in front.checks} if front is not None else set()
+        fed: set[str] = set()
+        for spec in specs:
+            line = lines.get(spec.id)
+            for recipe_id in spec.recipes:
+                if recipe_id not in known:
+                    lint.add("steps", path, f"{spec.id}: recipe {recipe_id} is not registered", line)
+                elif front is not None and recipe_id not in run_so_far:  # an invalid stage file is reported there
+                    lint.add("steps", path, f"{spec.id}: recipe {recipe_id} is run by neither stage {stage} nor an "
+                                            "earlier stage", line)
+            for check_id in spec.feeds:
+                if front is not None and check_id not in checks:
+                    lint.add("steps", path, f"{spec.id}: feeds {check_id}, which is not a check of stage {stage}",
+                             line)
+            fed |= set(spec.feeds)
+            for runbook in spec.on_fail:
+                if runbook not in runbook_ids:
+                    lint.add("steps", path, f"{spec.id}: on_fail names runbook {runbook}, which does not exist",
+                             line)
+        for check_id in sorted(checks - fed):
+            lint.add("steps", path, f"check {check_id} of stage {stage} is fed by no step (feeds)")
+    for spec in [*steps.deployment, *steps.session_start, *steps.session_end]:
+        for tokens in named_commands(spec.text or ""):
+            for problem in command_problems(tokens):
+                lint.add("steps", path, f"{spec.id}: {problem}", lines.get(spec.id))
+    return steps
+
+
+def steps_note(steps: StepsFile) -> str:
+    return (f"bring-up steps: {len(steps.all())} (deployment {len(steps.deployment)}, "
+            f"{sum(len(v) for v in steps.stages.values())} in {len(steps.stages)} stages, session start "
+            f"{len(steps.session_start)}, end {len(steps.session_end)})")

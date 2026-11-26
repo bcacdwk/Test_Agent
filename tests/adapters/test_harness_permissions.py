@@ -1,10 +1,12 @@
-"""The owner-authorized OD-5 harness permission change set (blueprint v2 §12 OD-5, §0 row 32, §10.0 guardrail 5;
-WP6.1), as applied once by the orchestrator to ``.claude/settings.json`` and ``.codex/rules/b1500.rules``.
+"""The owner-authorized harness permission change sets, each applied once by the orchestrator: OD-5 (blueprint v2
+§12 OD-5, §0 row 32, §10.0 guardrail 5; WP6.1) to ``.claude/settings.json`` and ``.codex/rules/b1500.rules``, and
+OD21-6 (v2.1 plan §9; WP21.5: the three step-ledger commands ``bringup next|done|check``) to ``.claude/settings.json``.
 
-The change set is written in ``docs/deployment-windows.md`` §"Harness permissions"; these tests assert the applied
+The change sets are written in ``docs/deployment-windows.md`` §"Harness permissions"; these tests assert the applied
 files carry exactly those lines, that the document and ``devtools/harness.py`` agree, and (with the Codex CLI
 installed) that ``codex execpolicy check`` forbids the configuration bootstrap with and without ``uv run`` while
-read-only manual queries stay unmatched. Command strings are lists of argv words, never shell text.
+read-only manual queries and the bring-up commands stay unmatched. Command strings are lists of argv words, never
+shell text.
 """
 
 from __future__ import annotations
@@ -31,6 +33,11 @@ OD5_ALLOW = [
     f"Bash(uv run {B1500} bringup propose-station*)",
     f"Bash(uv run {B1500} bringup capture*)",
     f"Bash(uv run {B1500} bringup record*)",
+]
+OD21_6_ALLOW = [
+    f"Bash(uv run {B1500} bringup next*)",
+    f"Bash(uv run {B1500} bringup done*)",
+    f"Bash(uv run {B1500} bringup check*)",
 ]
 OD5_DENY = [
     f"Bash({B1500} config init*)",
@@ -61,6 +68,24 @@ def test_claude_settings_carry_the_od5_lines() -> None:
     assert harness.claude_settings_problems(SETTINGS.read_text(encoding="utf-8")) == []
 
 
+def test_claude_settings_carry_the_od21_6_lines() -> None:
+    """WP21.5: the three step-ledger commands are allowed, nothing else changed (allow = OD-5 + OD21-6 + the nine
+    tools), and ``uv run b1500 harness init --claude --check`` accepts the file."""
+    perms = json.loads(SETTINGS.read_text(encoding="utf-8"))["permissions"]
+    assert set(OD21_6_ALLOW) <= set(perms["allow"]) and not set(OD21_6_ALLOW) & set(perms["deny"])
+    tools = {f"mcp__b1500__{tool}" for tool in harness.TOOL_NAMES if tool != harness.CONFIRM_TOOL}
+    assert set(perms["allow"]) == tools | set(OD5_ALLOW) | set(OD21_6_ALLOW)
+    assert len(perms["allow"]) == len(set(perms["allow"])) == 17
+    assert harness.claude_settings_problems(SETTINGS.read_text(encoding="utf-8")) == []
+
+
+def test_a_settings_file_without_the_od21_6_lines_is_a_problem() -> None:
+    data = json.loads(SETTINGS.read_text(encoding="utf-8"))
+    data["permissions"]["allow"] = [rule for rule in data["permissions"]["allow"] if rule not in OD21_6_ALLOW]
+    problems = harness.claude_settings_problems(json.dumps(data))
+    assert problems and all(line in problems[0] for line in OD21_6_ALLOW)
+
+
 def test_codex_rules_forbid_the_configuration_bootstrap() -> None:
     text = RULES.read_text(encoding="utf-8")
     assert harness.codex_rules_problems(text) == []
@@ -72,12 +97,15 @@ def test_codex_rules_forbid_the_configuration_bootstrap() -> None:
 
 
 def test_the_code_expects_exactly_the_documented_change_set() -> None:
-    assert harness.CLAUDE_ALLOW_COMMANDS == frozenset(OD5_ALLOW)
+    assert harness.CLAUDE_ALLOW_OD5 == frozenset(OD5_ALLOW)
+    assert harness.CLAUDE_ALLOW_OD21_6 == frozenset(OD21_6_ALLOW)
+    assert harness.CLAUDE_ALLOW_COMMANDS == frozenset(OD5_ALLOW + OD21_6_ALLOW)
     assert set(OD5_DENY) <= harness.CLAUDE_DENY
     assert {tuple(p) for p in OD5_FORBIDDEN} <= set(harness.FORBIDDEN_PREFIXES)
     section = harness_section()
-    for line in [*OD5_ALLOW, *OD5_DENY]:
+    for line in [*OD5_ALLOW, *OD21_6_ALLOW, *OD5_DENY]:
         assert f'"{line}"' in section, line
+    assert "OD21-6" in section
     for prefix in OD5_FORBIDDEN:
         assert json.dumps(prefix) in section, prefix
 
@@ -91,6 +119,9 @@ def test_the_code_expects_exactly_the_documented_change_set() -> None:
          "forbidden"),
         (["uv", "run", B1500, "manual", "search", "x"], None),
         (["uv", "run", B1500, "bringup", "propose-station"], None),
+        (["uv", "run", B1500, "bringup", "next"], None),
+        (["uv", "run", B1500, "bringup", "done", "L1.A4", "--run", "H20261201T093012Z-1a2b"], None),
+        (["uv", "run", B1500, "bringup", "check", "--all"], None),
         (["uv", "run", B1500, "config", "check"], None),
     ],
 )

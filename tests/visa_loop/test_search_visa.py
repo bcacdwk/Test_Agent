@@ -6,7 +6,9 @@ the ramp ends a human would choose) through ``B1500Service`` as on the lab PC: `
 ``first_hw_run`` (plus ``destructive`` and the envelope reasons of the breakdown recipes), the confirmed run completes
 with its cleanup verified by ``LOP?`` (and the ``LOP?`` positive control right after ``CN``), the bus opened, locked,
 unlocked and closed once, the search setup sent before the one ``XE`` in the PG example order, the result read in
-several VISA chunks, and the same ``data.csv`` bytes as the simulator backend produces for the same request.
+several VISA chunks, and the same ``data.csv`` bytes as the simulator backend produces for the same request. The
+local station records the RSU "From SMU" inputs as the scenario cables them (none), as bring-up L8 does: with them
+unknown, R-RSU-01 blocks the 30 V BDV ramp on visa (WP21.13).
 """
 
 from __future__ import annotations
@@ -42,6 +44,7 @@ one or two elements)."""
 @pytest.mark.parametrize("case", SEARCH_CASES, ids=[c["recipe_id"] for c in SEARCH_CASES])
 def test_search_recipe_runs_on_backend_visa_with_cleanup_verified(case: dict[str, Any], world: VisaWorld,
                                                                   tmp_path: Path) -> None:
+    world.record_rsu_inputs(case["scenario"])
     bus = world.bus(case["scenario"], chunk_size=case["chunk"])
     service = world.service(bus)
     validation, result = run_to_end(service, case)

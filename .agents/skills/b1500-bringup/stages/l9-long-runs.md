@@ -56,7 +56,8 @@ covered per bus by these drills (debug runbook `async-run-interrupted`).
 - L5 signed off; `uv run b1500 bringup status` names L9; `station_status` clean; no other run active.
 - Sacrificial devices of the L4 type (BTI, HCI, SILC), an IGZO TFT if the lab has one, a capacitor with the
   dielectric profile (TDDB, BDV) and a diode (breakdown search), each with a DUT profile whose stress envelope the
-  owner signed; references from the lab where they exist (else the checks are recorded only).
+  owner signed; lab references where they exist (else recorded only). SMU4/SMU3 feed the RSUs since L8 (+-25 V,
+  WG p20 (1-8)): a stress or ramp above 25 V needs a landing on an SMU no RSU is cabled to (else R-RSU-01 blocks).
 - Auto-calibration state known (`*LRN? 31` in the L1 record).
 
 ## 2. Physical steps (human)
@@ -72,9 +73,8 @@ covered per bus by these drills (debug runbook `async-run-interrupted`).
 4. Re-land on the next sacrificial device for each recipe of agent step 7 and confirm.
 5. Land a spare FeFET (pin map `fefet-sel`, the L7 wiring; DUT profile with the gate's pulse `max_count` reviewed
    for 2 x 10^6 pulses); confirm in chat.
-6. Fast BTI: land a sister MOSFET on the RSU outputs (gate RSU201, drain RSU202; pin map `mosfet-wgfmu`), with SMU4
-   and SMU3 cabled to the RSUs' "From SMU" inputs (WG p20 (1-8) "From SMU") so that `mosfet-4t` reaches it too;
-   optionally a scope on the RSU201 V Monitor; confirm the cabling in chat.
+6. Fast BTI: a sister MOSFET on the RSU outputs (gate RSU201, drain RSU202; pin map `mosfet-wgfmu`; `mosfet-4t`
+   reaches it through the From SMU inputs L8 recorded); optionally a scope on the RSU201 V Monitor; confirm in chat.
 7. Land a spare FeCap of the L8 film (top RSU201, bottom RSU202; pin map `fecap-wgfmu`, DUT profile with the pulse
    `max_count` reviewed for 2 x 10^7 pulses); confirm.
 

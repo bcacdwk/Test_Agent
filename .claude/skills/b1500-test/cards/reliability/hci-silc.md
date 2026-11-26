@@ -43,6 +43,7 @@ leakage check ([gate-leakage](../smu/gate-leakage.md)).
 
 - Example pin map `mosfet-4t` with DUT profile `nmos-generic` (gate, drain ≤ 3 V, 1 mA): the profile is the
   human's. HCI damage sits at the drain end: a reverse read needs a pin map with drain and source swapped.
+- SMU4/SMU3 on the RSUs' "From SMU" inputs (lab layout after L8) take at most +-25 V (WG p20 (1-8), R-RSU-01).
 - Routes: none in every phase (direct SMU and GNDU wiring).
 
 ## 3. Pre-run checklist

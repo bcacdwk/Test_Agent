@@ -42,8 +42,8 @@ reads at `vg_recovery`. DESTRUCTIVE (part of the shift is permanent). nMOS PBTI 
 | bulk | `bulk`: ground (SMU) / optional SMU bias `vb` (WGFMU) | GNDU / SMU5 (MPSMU) | WGFMU: body bias held, Ib read between executions |
 
 - SMU: pin map `mosfet-4t`, profile `nmos-generic`; WGFMU: `mosfet-wgfmu` (bulk SMU5: `mosfet-wgfmu-body`),
-  `nmos-wgfmu`. With SMU4/SMU3 on the RSUs' "From SMU" inputs a DC Id-Vg on `mosfet-4t` before and after a fast run
-  reaches the same device (the RSU's SMU path, ATV-32, stage L9). Never invent pin maps or profiles.
+  `nmos-wgfmu`. With SMU4/SMU3 on the RSUs' "From SMU" inputs (then at most +-25 V, 100 mA: WG p20 (1-8), R-RSU-01)
+  DC Id-Vg on `mosfet-4t` before and after a fast run reaches its device (ATV-32). Never invent pin maps or profiles.
 - Routes per phase: WGFMU RSU20x.OUT -> wgfmu (`waveform`), then rest (`unverified_topology` until verified); SMU: none.
 
 ## 3. Pre-run checklist

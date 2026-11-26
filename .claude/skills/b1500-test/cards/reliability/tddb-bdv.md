@@ -88,8 +88,8 @@ sim_scenario: dielectric_tddb
 ```
 
 BDV on the same film: `{recipe_id: dielectric.bdv, params: {method: linear, v_stop: 10.0}}`; quasi-pulsed on scenario
-`dielectric_thick` with DUT `dielectric-thick`: `{v_stop: 30.0}`; junction: `basic.breakdown_search` on `diode-2t`
-(scenario `diode_basic`) with `{v_stop: -20.0}`.
+`dielectric_thick` with DUT `dielectric-thick`: `{v_stop: 30.0}` (an SMU on an RSU's From SMU input takes at most
++-25 V: R-RSU-01); junction: `basic.breakdown_search` on `diode-2t` (scenario `diode_basic`) with `{v_stop: -20.0}`.
 
 ## 5. Limits and confirmation
 

@@ -17,6 +17,14 @@ switch routes. Values are compared exactly; there is no tolerance and no bypass.
   also a WGFMU DC level (no vectors, the level as ``v0``).
 - ``check_sequence``: a WGFMU channel's whole output sequence before ``add_sequence`` (total output time with every
   repeat, stored values): the counts a single pattern cannot show (``driver/wgfmu.py``, WP10.3).
+
+RSU "From SMU" input (WP21.13; WG p20 (1-8) "Or the RSU will be damaged" above +-25 V at the From SMU input;
+WG p16 (1-4) "Maximum current: 100 mA"): an SMU the station records on an RSU's ``smu`` input
+(``routing.rsu_smu_inputs``) is held to ``WGFMU_SPEC.smu_mode_max_v`` and ``smu_mode_max_a`` on top of its envelope,
+whatever the RSU's state: ``check`` (|V| = the forced voltage or the voltage compliance, |I| = the compliance or the
+forced current) and ``check_pulse`` (an SMU pulse's level) refuse with ``rsu_input_exceeded``; ``check_route`` refuses
+an RSU output switched to its SMU path (not its ``rest``) when the SMU on that input is unknown or its envelope
+exceeds the input. R-RSU-01 blocks the same plans at validation, so a refusal here means a body left its plan.
 """
 
 from __future__ import annotations
@@ -25,9 +33,9 @@ import math
 from collections.abc import Sequence
 from typing import Literal
 
-from b1500_test_agent.driver.modules import SPGU_SPEC
+from b1500_test_agent.driver.modules import SPGU_SPEC, WGFMU_SPEC
 from b1500_test_agent.models.plan import ChannelEnvelope, CompiledEnvelope, PulseEnvelope, WaveformLimits
-from b1500_test_agent.models.routing import Route, SwitchSpec
+from b1500_test_agent.models.routing import RSU_KIND, Route, RsuSmuInput, SwitchSpec, rsu_smu_inputs
 from b1500_test_agent.models.sources import on_grid, open_load_voltage
 
 ViolationReason = Literal[
@@ -39,6 +47,7 @@ ViolationReason = Literal[
     "route_not_allowed",
     "no_waveform_envelope", "invalid_waveform", "vectors_exceed_envelope", "off_grid", "time_exceeds_envelope",
     "points_exceed_envelope",
+    "rsu_input_exceeded",
 ]  # fmt: skip
 
 
@@ -82,8 +91,8 @@ class OutputGuard:
     WGFMU vectors): channel in the plan allowlist and every level inside its compiled envelope. Raises
     EnvelopeViolation; nothing is sent.
 
-    ``switches``: the station's declared switches (their ``rest`` states may always be restored); without them only
-    the plan's own routes pass ``check_route``.
+    ``switches``: the station's declared switches (their ``rest`` states may always be restored; an SMU on an RSU's
+    "From SMU" input is held to that input's limits); without them only the plan's own routes pass ``check_route``.
     """
 
     def __init__(self, envelope: CompiledEnvelope, *, switches: Sequence[SwitchSpec] = ()) -> None:
@@ -91,6 +100,10 @@ class OutputGuard:
         self._channels: dict[int, ChannelEnvelope] = {_normalize(ch): env for ch, env in envelope.channels.items()}
         self._waveform: dict[int, WaveformLimits] = {_normalize(ch): w for ch, w in envelope.waveform.items()}
         self._switches: dict[str, SwitchSpec] = {s.id: s for s in switches}
+        self._rsu_inputs: dict[int, list[RsuSmuInput]] = {}
+        for item in rsu_smu_inputs(switches):
+            if item.channel is not None:
+                self._rsu_inputs.setdefault(_normalize(item.channel), []).append(item)
 
     @property
     def switches(self) -> tuple[SwitchSpec, ...]:
@@ -119,11 +132,13 @@ class OutputGuard:
         """Refuse a source setting outside the envelope.
 
         ``quantity`` is what the channel forces: ``"V"`` (``level`` in V, ``compliance`` in A) or ``"I"`` (``level``
-        in A, ``compliance`` in V). For a sweep, call once per end point.
+        in A, ``compliance`` in V). For a sweep, call once per end point. A channel on an RSU's "From SMU" input also
+        stays within the input's +-25 V and 100 mA (module docstring).
 
         Raises:
             EnvelopeViolation: channel not allowed, non-finite value, |level| above the envelope, zero compliance,
-                or |compliance| above the envelope.
+                |compliance| above the envelope, or a level the RSU input it is cabled to cannot take
+                (``rsu_input_exceeded``).
             ValueError: If ``quantity`` is neither ``"V"`` nor ``"I"``.
         """
         if quantity not in ("V", "I"):
@@ -155,6 +170,27 @@ class OutputGuard:
                 limit=comp_limit,
                 **details,
             )
+        v_abs, i_abs = (abs(level), abs(compliance)) if quantity == "V" else (abs(compliance), abs(level))
+        self._check_rsu_input(ch, v_abs, i_abs, quantity=quantity, level=level, compliance=compliance)
+
+    def _check_rsu_input(self, ch: int, v_abs: float, i_abs: float | None, *, quantity: str, level: float,
+                         compliance: float | None = None) -> None:
+        """Refuse |V| above ``WGFMU_SPEC.smu_mode_max_v`` or |I| above ``smu_mode_max_a`` on a channel the station
+        records on an RSU's "From SMU" input (WG p20 (1-8), WG p16 (1-4)); other channels pass."""
+        inputs = self._rsu_inputs.get(_normalize(ch)) if isinstance(ch, int) else None
+        if not inputs:
+            return
+        where = ", ".join(item.target for item in inputs)
+        details = {"channel": ch, "quantity": quantity, "level": level, "compliance": compliance}
+        max_v, max_a = WGFMU_SPEC.smu_mode_max_v, WGFMU_SPEC.smu_mode_max_a
+        if v_abs > max_v:
+            raise EnvelopeViolation("rsu_input_exceeded", f"channel {ch}: |V| {v_abs:g} V exceeds the +-{max_v:g} V "
+                                    f"of the RSU From SMU input it is cabled to ({where}); above it the RSU is "
+                                    "damaged (WG p20 (1-8))", limit=max_v, **details)
+        if i_abs is not None and i_abs > max_a:
+            raise EnvelopeViolation("rsu_input_exceeded", f"channel {ch}: |I| {i_abs:g} A exceeds the {max_a:g} A "
+                                    f"of the RSU SMU path it is cabled to ({where}; WG p16 (1-4) \"SMU mode\")",
+                                    limit=max_a, **details)
 
     # -- v2: pulses ------------------------------------------------------------------------------------------------
 
@@ -166,12 +202,12 @@ class OutputGuard:
         the open-load level at the DUT, ``max(|base|, |peak|) (SER + 50) / SER`` (2x at 50 Ohm); for an SMU pulse it
         is the set level. ``count`` is the number of pulses of this start; a count below 1 (free run) is refused.
         Width within ``[min_width_s, max_width_s]``, ``width / period <= max_duty``, ``count <= max_count`` and
-        ``count x width <= max_on_time_s``.
+        ``count x width <= max_on_time_s``. An SMU pulse on an RSU's "From SMU" input stays within +-25 V.
 
         Raises:
             EnvelopeViolation: see ``ViolationReason`` (``no_pulse_envelope``, ``free_run``, ``invalid_pulse``,
                 ``pulse_level_exceeds_envelope``, ``pulse_width_outside_envelope``, ``duty_exceeds_envelope``,
-                ``count_exceeds_envelope``, ``on_time_exceeds_envelope``, ``non_finite``).
+                ``count_exceeds_envelope``, ``on_time_exceeds_envelope``, ``non_finite``, ``rsu_input_exceeded``).
         """
         env = self.channel_envelope(ch)
         pulse = self._pulse(ch, env)
@@ -198,6 +234,8 @@ class OutputGuard:
             raise EnvelopeViolation("pulse_level_exceeds_envelope", f"channel {ch}: {v_dut:g} V at the DUT (open "
                                     f"load) exceeds the pulse envelope {limit_v:g} V", channel=ch,
                                     quantity="V_dut", level=v_dut, limit=limit_v)
+        if not is_pgu:  # an SMU pulse on an RSU's From SMU input
+            self._check_rsu_input(ch, v_dut, None, quantity="V_dut", level=v_dut)
         if not pulse.min_width_s <= width_s <= pulse.max_width_s:
             raise EnvelopeViolation("pulse_width_outside_envelope", f"channel {ch}: width {width_s:g} s is outside "
                                     f"{pulse.min_width_s:g}..{pulse.max_width_s:g} s", channel=ch,
@@ -260,21 +298,46 @@ class OutputGuard:
     def check_route(self, route: Route) -> None:
         """Refuse a switch route that is neither one of the plan's routes (``envelope.routes``) nor a declared
         output returning to its switch's ``rest`` state; a declared switch must also be able to take the state on
-        that output (``pgu_open`` only on selector CH 1).
+        that output (``pgu_open`` only on selector CH 1). A plan route that puts an RSU output on its SMU path (not
+        its ``rest``) also needs the SMU on that "From SMU" input recorded and, when it is a plan channel, an envelope
+        within the input's +-25 V and 100 mA (WG p20 (1-8), WG p16 (1-4)).
 
         Raises:
-            EnvelopeViolation: ``route_not_allowed``.
+            EnvelopeViolation: ``route_not_allowed`` (also for an RSU SMU path whose input is unknown) or
+                ``rsu_input_exceeded``.
         """
         switch = self._switches.get(route.switch)
         if switch is not None and not switch.allows(route.output, route.state):
             raise EnvelopeViolation("route_not_allowed", f"route {route}: {switch.id} cannot take that state on "
                                     f"{route.output}", quantity="route")
         if route in self.envelope.routes:
+            if switch is not None:
+                self._check_rsu_route(route, switch)
             return
         if switch is not None and route.output in switch.ports and route.state == switch.rest:
             return
         raise EnvelopeViolation("route_not_allowed", f"route {route} is neither a route of the plan nor the rest "
                                 "state of a declared switch", quantity="route")
+
+    def _check_rsu_route(self, route: Route, switch: SwitchSpec) -> None:
+        """An RSU output switched to its SMU path (other than its ``rest``): the SMU on its "From SMU" input must be
+        recorded (an unknown SMU could pass any level to the DUT) and, when that SMU is a plan channel, its envelope
+        must fit the input (+-25 V, 100 mA)."""
+        if switch.kind != RSU_KIND or route.state != "smu" or route.state == switch.rest:
+            return
+        port = switch.ports[route.output]
+        if "smu" not in port.inputs:
+            return  # nothing cabled to the From SMU input: the SMU path leaves the terminal floating
+        channel = port.inputs["smu"]
+        if channel is None:
+            raise EnvelopeViolation("route_not_allowed", f"route {route}: the SMU on the From SMU input of "
+                                    f"{route.target} is unknown (station inputs.smu: null), so no limit bounds what "
+                                    "this path passes to the DUT", quantity="route")
+        env = self._channels.get(_normalize(channel))
+        if env is None:
+            return  # not a plan channel: the allowlist keeps it from sourcing anything
+        self._check_rsu_input(channel, env.max_abs_v, env.max_abs_i, quantity="route", level=env.max_abs_v,
+                              compliance=env.max_abs_i)
 
     # -- v2: WGFMU waveforms ---------------------------------------------------------------------------------------
 

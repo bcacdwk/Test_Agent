@@ -141,7 +141,7 @@ MODULE_RULES: Final[dict[str, tuple[str, ...]]] = {
     "HV-SPGU": ("R-SPGU-01", "R-PULSE-01", "R-PULSE-02", "R-PULSE-03"),
     "16440A selector x2": ("R-ROUTE-01", "R-ROUTE-02"),
     "WGFMU": ("R-WG-01", "R-WG-02", "R-PULSE-01", "R-PULSE-02", "R-PULSE-03"),
-    "RSU": ("R-WG-01", "R-ROUTE-01", "R-ROUTE-02"),
+    "RSU": ("R-WG-01", "R-ROUTE-01", "R-ROUTE-02", "R-RSU-01"),
     "Mainframe (system)": ("R-IL-01", "R-CAL-01", "R-CAL-02"),
 }
 """The rules that bound one module (on top of ``KERNEL_RULES``)."""
@@ -203,7 +203,8 @@ MODES: Final[tuple[Mode, ...]] = (
     Mode("WGFMU", "Fast IV (patterns, measure events)", "wgfmu_waveform", "wgfmu.pulsed_iv", "wgfmu:fastiv"),
     Mode("WGFMU", "PG (50 Ohm pulse output; `gate_mode: pg`)", "wgfmu_waveform", "wgfmu.pulse_train", "wgfmu:pg"),
     Mode("RSU", "WGFMU path (connect: RSU -> wgfmu)", "wgfmu_waveform", "wgfmu.pulsed_iv", "route:rsu:wgfmu"),
-    Mode("RSU", "SMU path (WGFMU disconnected, SMU on the RSU's SMU input; ATV-32)", "smu_staircase", "mosfet.idvg",
+    Mode("RSU", "SMU path (WGFMU disconnected, SMU on the RSU's From SMU input, at most +-25 V / 100 mA (R-RSU-01); "
+         "ATV-32)", "smu_staircase", "mosfet.idvg",
          "test:tests/integration/test_recipes_fast_bti.py::test_the_rsu_smu_path_reaches_the_same_transistor"),
 )
 """The in-scope modes of blueprint v2 1.2 and one recipe that reaches each (verified by compiling it)."""

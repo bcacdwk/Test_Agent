@@ -3,6 +3,7 @@ domain: 11-switching-routing
 maturity: seed
 sources:
   - blueprint v2 0 (decision 8), 0.1 (ERSSP facts), 2.3 (routing models), 2.6 (cleanup steps 5 and 8), 2.8 (R-ROUTE)
+  - "B1530A WGFMU User's Guide Ed. 8 (WG) p16, p19-20: RSU paths and the From SMU input limit (R-RSU-01, v2.1 WP21.13)"
   - "B1500 Programming Guide Ed. 15 (PG), PDF pages cited inline"
   - "16440A SMU/Pulse Generator Selector User's Guide Ed. 6 (SEL), PDF pages cited inline"
   - lwp/matlab_B1500/lib/SPGU_pulse.m (ERMOD 1, ERSSP 0..3 to PGU and back to SMU)
@@ -112,6 +113,11 @@ through declared outputs and never claims a wiring it cannot read back.
 - An SMU through an RSU (the DC reference of fast I-V, the SMU bias of a combined recipe) needs that SMU's Force
   cable on the From SMU input, recorded as `inputs.smu` (ATV-32); recabling only with the DUT lifted. The V Monitor
   (BNC) shows the WGFMU output to a high-impedance scope and is grounded while the RSU is on its SMU path.
+- The From SMU input takes at most +-25 V, or the RSU is damaged (WG p20 (1-8)), and the SMU path 100 mA (WG p16
+  (1-4) "SMU mode"), in every RSU state. So the SMU recorded there (SMU4/SMU3 in the lab layout after L8) stays
+  within +-25 V and 100 mA in every plan, whatever the pin map calls it (`mosfet-4t` on an RSU landing drives SMU4
+  and SMU3 through the RSUs): R-RSU-01 blocks more, the guard refuses it. Work above 25 V (BDV, TDDB, SILC,
+  breakdown search) needs an SMU no RSU is cabled to; ask the human for that landing, never invent one.
 - Firmware code 3001 "RSU is not connected": wrong channel number or no RSU on that channel (WG p152 (4-82)).
   Symptoms and checks: runbook `wgfmu-rsu-route` (skill `b1500-debug`); the stage check is bring-up L8.
 
@@ -128,6 +134,10 @@ through declared outputs and never claims a wiring it cannot read back.
   safe_shutdown").
 - R-ROUTE-02: any route through an `unverified` switch, or a switch target in an `unverified` pin map, needs
   confirmation (`unverified_topology`).
+- R-RSU-01: an SMU recorded on an RSU's From SMU input above +-25 V or 100 mA is blocked; so is an RSU route to
+  `smu` whose input is `null`; on hardware, while any RSU input is `null`, every SMU plan above those limits is
+  blocked (it may be the SMU cabled there) until the human records the wiring at L8 (the SMU channel, or the `smu`
+  side deleted when nothing is cabled). The guard refuses the same levels per command (`rsu_input_exceeded`).
 
 ## Cleanup and verification
 
@@ -170,7 +180,9 @@ through declared outputs and never claims a wiring it cannot read back.
   manual names the condition but no code).
 - Plans bind against the station profile with one simulator-only addition: a selector input recorded `null` takes the
   scenario's cabling of that port (`ConfigBundle.planning_station`), so the lab example rehearses routed plans
-  (still `unverified_topology`). On hardware a `null` input blocks (R-PIN-01) until the human records it.
+  (still `unverified_topology`); an RSU's `null` From SMU input takes the scenario's `rsu_smu` (`nmos_wgfmu`,
+  `nmos_bti`: SMU4 -> RSU201, SMU3 -> RSU202), so there SMU4/SMU3 stay within +-25 V (R-RSU-01). On hardware a `null`
+  input blocks (R-PIN-01, R-RSU-01) until the human records it.
 
 ## Troubleshooting routes
 
@@ -181,3 +193,4 @@ through declared outputs and never claims a wiring it cannot read back.
 | fault latched, `switches_after` not open | selector will not return to rest | keep the fault; skill `b1500-debug` (`cleanup-failed-fault`) |
 | SMU read through a selector at the noise floor | route on PGU or open, wrong port wired | `station_status` switches; the pin map's switch target; selector check |
 | plan blocked "input ... not recorded" | selector input wiring `null` | bring-up L7 (selector check, human records wiring) |
+| plan blocked R-RSU-01 "From SMU input" | an SMU on an RSU input above 25 V, or the RSU input `null` (hardware) | stay within 25 V, or the human's landing on an SMU no RSU is cabled to; L8 records the RSU inputs |

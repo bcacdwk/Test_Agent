@@ -1,8 +1,9 @@
 """Table test per v2 rule id (blueprint v2 2.8, 8.1 ``unit/``): ok / confirm / block (and info) rows for R-PULSE-01..03,
 R-SPGU-01, R-ROUTE-01/02, R-CMU-01, R-CORR-01 (live part, multi-record coverage), R-WG-01/02, R-RUN-02, R-GNDU-01,
-R-ASU-01, R-CAL-02 and the v1 changes (R-LIM-01 module rows and I-forcing, R-COMP-01, R-ALWAYS-01 physical setup,
-R-PIN-01 on both MFCMU sides); the SER arithmetic table; the correction-record source protocol; the R-QUAL-* letters
-of MFCMU status codes and WGFMU flags. Live parts are tested with synthetic ``LiveState`` values."""
+R-ASU-01, R-RSU-01 (WP21.13), R-CAL-02 and the v1 changes (R-LIM-01 module rows and I-forcing, R-COMP-01,
+R-ALWAYS-01 physical setup, R-PIN-01 on both MFCMU sides); the SER arithmetic table; the correction-record source
+protocol; the R-QUAL-* letters of MFCMU status codes and WGFMU flags. Live parts are tested with synthetic
+``LiveState`` values."""
 
 from __future__ import annotations
 
@@ -32,6 +33,7 @@ from tests.unit.rules_factory import (
     FORCE,
     context,
     engine,
+    force,
     live_state,
     pin_map,
     recipe,
@@ -126,6 +128,14 @@ CURRENT_FORCE = {"force": {"function": "bias_i", "measure": ["V"], "settings": {
                  "source": {"function": "ground", "allow_gndu": True}}
 CURRENT_ENTRY = ChannelEnvelope(role="force", max_abs_v=5.0, max_abs_i=1e-3, function="bias_i")
 KELVIN = {"force": {**FORCE["roles"]["force"], "kelvin": True}, "source": FORCE["roles"]["source"]}
+RSU_SMU3 = v2.lab_station(rsu_smu={202: 3})
+"""SMU3's Force on RSU202's "From SMU" input (the lab layout of scenario nmos_wgfmu: SMU3 -> RSU202, drain)."""
+RSU_UNKNOWN = v2.lab_station(rsu_smu={201: None})
+"""RSU201's "From SMU" input recorded unknown (``inputs.smu: null``, the example station's state before L8)."""
+RSU_V = f"{WG}.smu_mode_max_v (WG p20 (1-8))"
+RSU_A = f"{WG}.smu_mode_max_a (WG p16 (1-4))"
+RSU201_SMU = Route(switch="RSU201", output="OUT", state="smu")
+RSU202_SMU = Route(switch="RSU202", output="OUT", state="smu")
 TWO_FREQ = recipe(v2.CV_REC, params={**v2.CV_REC["params"], "freq2": {"unit": "Hz", "default": 1e3}})
 
 
@@ -513,6 +523,46 @@ CASES: list[Case] = [
          (F("block", None, "an asu switch on channel 6", STA + "switches"),)),
     Case("asu-no-such-range", "R-ASU-01", partial(context, rec=v2.IRANGE_REC, params={"irange": 1.0}),
          (F("block", 1.0, ANY, f"{SPEC}.MODULE_SPECS[HRSMU]"),)),
+    # R-RSU-01 (WP21.13): an SMU on an RSU's "From SMU" input stays within +-25 V / 100 mA (WG p20 (1-8))
+    Case("rsu-ok-nothing-on-the-from-smu-input", "R-RSU-01", partial(force, 30.0, 1e-3, channel=3,
+                                                                     station_profile=v2.lab_station())),
+    Case("rsu-ok-cabled-smu-at-25v", "R-RSU-01", partial(force, 25.0, 1e-3, channel=3, station_profile=RSU_SMU3)),
+    Case("rsu-cabled-smu-above-25v", "R-RSU-01", partial(force, 25.5, 1e-3, channel=3, station_profile=RSU_SMU3),
+         (F("block", 25.5, 25.0, RSU_V),)),
+    Case("rsu-cabled-smu-negative-level", "R-RSU-01", partial(force, -30.0, 1e-3, channel=3, station_profile=RSU_SMU3),
+         (F("block", 30.0, 25.0, RSU_V),)),
+    Case("rsu-cabled-smu-compliance-above-100ma", "R-RSU-01",
+         partial(force, 1.0, 0.2, channel=3, station_profile=RSU_SMU3), (F("block", 0.2, 0.1, RSU_A),)),
+    Case("rsu-cabled-current-source-vcomp-above-25v", "R-RSU-01",
+         partial(context, rec=recipe(FORCE, roles=CURRENT_FORCE), pm=pin_map(name="force-1", force=3),
+                 du=wide_dut(), station_profile=RSU_SMU3,
+                 extra_envelope={3: CURRENT_ENTRY.model_copy(update={"max_abs_v": 30.0})}),
+         (F("block", 30.0, 25.0, RSU_V),)),
+    Case("rsu-ok-other-smu-not-cabled", "R-RSU-01", partial(force, 30.0, 1e-3, channel=5, station_profile=RSU_SMU3)),
+    Case("rsu-cabled-subchannel-number", "R-RSU-01",
+         partial(force, 30.0, 1e-3, channel=3, station_profile=v2.lab_station(rsu_smu={202: 301})),
+         (F("block", 30.0, 25.0, RSU_V),)),
+    Case("rsu-role-through-the-rsu-smu-path", "R-RSU-01",
+         partial(force, 30.0, 1e-3, channel="RSU202.OUT", station_profile=RSU_SMU3, routes=[RSU202_SMU],
+                 routes_by_phase={"main": [RSU202_SMU]}),
+         (F("block", 30.0, 25.0, RSU_V),)),
+    Case("rsu-ok-rsu-declared-absent", "R-RSU-01",
+         partial(force, 30.0, 1e-3, channel=3, station_profile=v2.lab_station(rsu_smu={202: 3},
+                                                                              rsu={"present": False}))),
+    Case("rsu-smu-route-with-unknown-input", "R-RSU-01",
+         partial(context, station_profile=RSU_UNKNOWN, routes=[RSU201_SMU], routes_by_phase={"main": [RSU201_SMU]}),
+         (F("block", None, "the SMU channel on the From SMU input", STA + "switches[2].ports.OUT.inputs.smu"),)),
+    Case("rsu-unknown-input-blocks-smu-above-25v-on-visa", "R-RSU-01",
+         partial(force, 30.0, 1e-3, channel=5, station_profile=RSU_UNKNOWN, backend="visa"),
+         (F("block", 30.0, 25.0, STA + "switches[2].ports.OUT.inputs.smu"),)),
+    Case("rsu-ok-unknown-input-on-the-simulator", "R-RSU-01",
+         partial(force, 30.0, 1e-3, channel=5, station_profile=RSU_UNKNOWN)),
+    Case("rsu-ok-unknown-input-smu-within-25v-on-visa", "R-RSU-01",
+         partial(force, 20.0, 1e-3, channel=5, station_profile=RSU_UNKNOWN, backend="visa")),
+    Case("rsu-unknown-input-other-rsu-records-the-channel", "R-RSU-01",
+         partial(force, 30.0, 1e-3, channel=3, station_profile=v2.lab_station(rsu_smu={201: None, 202: 3}),
+                 backend="visa"),
+         (F("block", 30.0, 25.0, RSU_V),)),
     # v1 rules, v2 changes
     Case("lim1-ok-wgfmu-in-spec", "R-LIM-01", v2.wgfmu),
     Case("lim1-ok-cmu-in-spec", "R-LIM-01", v2.cv),
@@ -590,7 +640,8 @@ def test_new_rule_outcomes_are_covered() -> None:
         ("R-CMU-01", "block", None), ("R-CMU-01", "confirm", "soft_cmu"), ("R-CORR-01", "block", None),
         ("R-CORR-01", "info", None), ("R-WG-01", "block", None), ("R-WG-02", "block", None),
         ("R-RUN-02", "info", None), ("R-RUN-02", "confirm", "long_run"), ("R-RUN-02", "block", None),
-        ("R-GNDU-01", "block", None), ("R-ASU-01", "block", None), ("R-CAL-02", "info", None),
+        ("R-GNDU-01", "block", None), ("R-ASU-01", "block", None), ("R-RSU-01", "block", None),
+        ("R-CAL-02", "info", None),
         ("R-ALWAYS-01", "confirm", "physical_setup"),
     ]:
         assert row in seen, row

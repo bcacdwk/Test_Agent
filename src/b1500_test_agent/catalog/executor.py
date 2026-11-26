@@ -247,8 +247,10 @@ class Executor(RunningRuns):
                 return make_bus(bundle.settings, sink, scenario=bundle.sim_scenario, faults=bundle.sim_faults,
                                 state_dir=state_dir)
 
+            # The planning station: the switches the plan rules read (on the simulator a null selector or RSU input
+            # takes the scenario's cabling), so the guard holds an SMU on an RSU's From SMU input as R-RSU-01 does.
             self._session = Session(bundle.settings, factory, sink, state_dir=state_dir, adapter=self.adapter,
-                                    switches=bundle.station.switches)
+                                    switches=bundle.planning_station().switches)
             self._session.on_recovery = functools.partial(self._finalize_orphan, bundle)
             self._session_key = key
         return self._session

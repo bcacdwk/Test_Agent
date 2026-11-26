@@ -7,7 +7,7 @@ and every legacy atom, flow and command of the v0.2 taxonomy is mapped or out of
 (`references/driver-map/`, `scripts/build_driver_map.py --check`). Regenerate with
 `uv run b1500 dev coverage --write`; `uv run b1500 dev coverage --check` is part of the gate.
 
-Totals: 68 recipes (68 sim_validated), 14 kinds, 34 cards, 31 rules, 12 bring-up stage files; ledger 411 mapped, 248 out of scope, 0 open.
+Totals: 68 recipes (68 sim_validated), 14 kinds, 34 cards, 32 rules, 12 bring-up stage files; ledger 411 mapped, 248 out of scope, 0 open.
 
 Against blueprint v2 §3: recipes 68 (plan 68); kinds 14 (plan 14); cards 34 (plan 33).
 - cards: WP10.6 split the FeCap card `fecap-pund` of blueprint v2 6.3 in two: `fecap-cv-butterfly` (MFCMU C-V, stage L6) and `fecap-pund` (WGFMU PUND and its endurance, stage L8), because the recipes sit on different modules and bring-up stages; the recipe and kind totals match the plan.
@@ -26,7 +26,7 @@ Kernel rules (every plan, every module): `R-CFG-01`, `R-FAULT-01`, `R-REC-01`, `
 | HV-SPGU | spgu | PG 2/3-level (count or duration, SER), ALWG; never free run | `pulse_read`, `spgu_pulse` | 8 | `charge-pumping`, `fefet-endurance-retention`, `fefet-pulse-write-read`, `fefet-switching-kinetics`, `spgu-pulse-train` | `R-SPGU-01`, `R-PULSE-01`, `R-PULSE-02`, `R-PULSE-03` | `units/spgu.py`, `units/spgu_output.py` | `fefet_lab` (fefet), `nmos_cv` (fixture, mosfet) | L7, L9 |
 | 16440A selector x2 | spgu | control mode (ERMOD) on; port states (ERSSP, ERSSP?) open, SMU, PGU, PGU open | `pulse_read`, `spgu_pulse` | 9 | `charge-pumping`, `fefet-endurance-retention`, `fefet-pulse-write-read`, `fefet-switching-kinetics`, `selector-check`, `spgu-pulse-train` | `R-ROUTE-01`, `R-ROUTE-02` | `units/switch.py` | `fefet_lab` (fefet), `lab_station` (-), `nmos_cv` (fixture, mosfet) | L7, L9 |
 | WGFMU | wgfmu | library session, DC/Fast IV/PG/SMU modes, patterns, events, sequences, chunked readback | `pulse_read`, `stress_measure`, `wgfmu_waveform` | 11 | `bti-stress-measure`, `fecap-pund`, `fefet-pulse-write-read`, `wgfmu-custom-waveform`, `wgfmu-pulsed-iv`, `wgfmu-rtn-noise` | `R-WG-01`, `R-WG-02`, `R-PULSE-01`, `R-PULSE-02`, `R-PULSE-03` | `wgfmu.py`, `wgfmu_engine.py`, `wgfmu_bulk.py`, `wgfmu_checks.py` | `fecap_basic` (fecap, fixture), `fefet_lab` (fefet), `nmos_bti` (dielectric, mosfet), `nmos_rtn` (mosfet, noise), `nmos_wgfmu` (mosfet) | L8, L9 |
-| RSU | wgfmu | WGFMU or SMU path per channel (connect/disconnect) | `pulse_read`, `stress_measure`, `wgfmu_waveform` | 11 | `bti-stress-measure`, `fecap-pund`, `fefet-pulse-write-read`, `wgfmu-custom-waveform`, `wgfmu-pulsed-iv`, `wgfmu-rtn-noise` | `R-WG-01`, `R-ROUTE-01`, `R-ROUTE-02` | `wgfmu.py`, `wgfmu_checks.py` | `fecap_basic` (fecap, fixture), `fefet_lab` (fefet), `nmos_bti` (dielectric, mosfet), `nmos_rtn` (mosfet, noise), `nmos_wgfmu` (mosfet) | L8, L9 |
+| RSU | wgfmu | WGFMU or SMU path per channel (connect/disconnect) | `pulse_read`, `stress_measure`, `wgfmu_waveform` | 11 | `bti-stress-measure`, `fecap-pund`, `fefet-pulse-write-read`, `wgfmu-custom-waveform`, `wgfmu-pulsed-iv`, `wgfmu-rtn-noise` | `R-WG-01`, `R-ROUTE-01`, `R-ROUTE-02`, `R-RSU-01` | `wgfmu.py`, `wgfmu_checks.py` | `fecap_basic` (fecap, fixture), `fefet_lab` (fefet), `nmos_bti` (dielectric, mosfet), `nmos_rtn` (mosfet, noise), `nmos_wgfmu` (mosfet) | L8, L9 |
 | Mainframe (system) | system | identity, inventory, errors, status byte, output state, self-test, self-calibration, auto-calibration, zero check | `smu_spot`, `system` | 5 | `self-test-cal`, `zero-check` | `R-IL-01`, `R-CAL-01`, `R-CAL-02` | `instrument.py`, `units/core.py`, `faults.py`, `state.py`, `flex.py`, `format.py` | `lab_station` (-), `resistor_100k` (resistor) | L1, L8 |
 
 ## Modes
@@ -65,7 +65,7 @@ Each in-scope measurement or operation mode, the kind that implements it and one
 | WGFMU | Fast IV (patterns, measure events) | `wgfmu_waveform` | `wgfmu.pulsed_iv` | `wgfmu:fastiv` |
 | WGFMU | PG (50 Ohm pulse output; `gate_mode: pg`) | `wgfmu_waveform` | `wgfmu.pulse_train` | `wgfmu:pg` |
 | RSU | WGFMU path (connect: RSU -> wgfmu) | `wgfmu_waveform` | `wgfmu.pulsed_iv` | `route:rsu:wgfmu` |
-| RSU | SMU path (WGFMU disconnected, SMU on the RSU's SMU input; ATV-32) | `smu_staircase` | `mosfet.idvg` | `test:tests/integration/test_recipes_fast_bti.py::test_the_rsu_smu_path_reaches_the_same_transistor` |
+| RSU | SMU path (WGFMU disconnected, SMU on the RSU's From SMU input, at most +-25 V / 100 mA (R-RSU-01); ATV-32) | `smu_staircase` | `mosfet.idvg` | `test:tests/integration/test_recipes_fast_bti.py::test_the_rsu_smu_path_reaches_the_same_transistor` |
 
 ## Ledger
 

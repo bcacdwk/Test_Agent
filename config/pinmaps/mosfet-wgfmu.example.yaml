@@ -16,4 +16,5 @@ terminals:
 notes:
   - The bulk is left out (floating at the source potential on the simulator); mosfet-wgfmu-body adds it on SMU5.
   - The RSU's normal path is its SMU input (WG p19 (1-7)); a DC reference with SMUs on the same landing needs the
-    SMUs cabled to the RSU inputs (scenario nmos_wgfmu) and pin map mosfet-4t.
+    SMUs cabled to the RSU inputs (scenario nmos_wgfmu) and pin map mosfet-4t. An SMU on an RSU's From SMU input
+    takes at most +-25 V and 100 mA (WG p20 (1-8), R-RSU-01).

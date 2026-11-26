@@ -7,7 +7,8 @@ registry coverage (``test_registry_coverage``) and the refusal check (``tests/sa
 see exactly the cases the suite runs; nothing is listed by hand.
 
 ``prepare`` applies the per-family configuration the suite's tests write before such a run (recorded selector wiring,
-SCUU recorded present, the load standard, extra local files) and ``correct`` the MFCMU corrections a C-V plan needs.
+SCUU recorded present, the load standard, extra local files; the RSU "From SMU" inputs as the scenario cables them,
+WP21.13) and ``correct`` the MFCMU corrections a C-V plan needs.
 """
 
 from __future__ import annotations
@@ -120,6 +121,8 @@ def prepare(world: Any, recipe: Recipe, case: dict[str, Any]) -> None:
         with_load_standard(world)
     for rel, data in case.get("config", {}).items():
         world.write_local(rel, data)
+    # The RSU inputs as bring-up L8 records them (the search suite does: R-RSU-01 blocks its 30 V BDV while unknown).
+    world.record_rsu_inputs(case["scenario"])
 
 
 def correct(service: B1500Service, recipe: Recipe, case: dict[str, Any]) -> None:

@@ -47,9 +47,12 @@ def _switch(switch_id: str) -> dict[str, Any]:
 
 
 def lab_station(*, sel1: Mapping[str, Any] | None = None, rsu: Mapping[str, Any] | None = None,
-                asu3: Mapping[str, Any] | None = None) -> StationProfile:
+                asu3: Mapping[str, Any] | None = None, rsu_smu: Mapping[int, int | None] | None = None
+                ) -> StationProfile:
     """The example station with SEL1 wired (OUT1: SMU5/SPGU 101, OUT2: SMU6/SPGU 102), both RSUs and SEL1 verified
-    and present; ``sel1``/``rsu``/``asu3`` replace fields of those switches."""
+    and present; ``sel1``/``rsu``/``asu3`` replace fields of those switches. ``rsu_smu`` (WP21.13) records the SMU on
+    an RSU's "From SMU" input by WGFMU channel (``{202: 3}``; ``None`` = unknown, which makes that RSU unverified);
+    without it the RSUs have no SMU input (nothing cabled)."""
     switches = []
     for spec in example_station().switches:
         data = spec.model_dump(mode="json")
@@ -60,7 +63,11 @@ def lab_station(*, sel1: Mapping[str, Any] | None = None, rsu: Mapping[str, Any]
             data.update(sel1 or {})
         elif spec.kind == "rsu":
             index = data["ports"]["OUT"]["index"]
-            data.update(certainty="verified", ports={"OUT": {"index": index, "inputs": {"wgfmu": index}}})
+            inputs: dict[str, int | None] = {"wgfmu": index}
+            if rsu_smu is not None and index in rsu_smu:
+                inputs["smu"] = rsu_smu[index]
+            certainty = "unverified" if inputs.get("smu", 0) is None else "verified"
+            data.update(certainty=certainty, ports={"OUT": {"index": index, "inputs": inputs}})
             data.update(rsu or {})
         elif spec.id == "ASU3":
             data.update(asu3 or {})

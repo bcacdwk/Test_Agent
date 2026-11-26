@@ -568,7 +568,8 @@ class WgfmuSpec(StrictModel):
 
     No compliance (it covers the full scale of the current range). Force ranges 3 V (-3..3), 5 V (-5..5), -10 V
     (-10..0), 10 V (0..10); PG mode: 50 Ohm output, -5..5 V open load (3 V or 5 V range), voltage measurement only;
-    current measurement in Fast IV or DC mode only (1 uA to 10 mA ranges); SMU pass-through mode up to +-25 V, 100 mA.
+    current measurement in Fast IV or DC mode only (1 uA to 10 mA ranges); SMU pass-through mode up to +-25 V, 100 mA,
+    and the RSU's "From SMU" input takes at most +-25 V in any state (WG p20 (1-8): above it the RSU is damaged).
     ALWG: 10 ns grid, at most 2,048 vectors per pattern and 512 sequences per channel, vector time 10 ns to
     10995.11627775 s, sequence count 1 to 1,099,511,627,776; about 4,000,000 stored values per channel; measure
     interval 10 ns to 1.34217728 s, average 0 or 10 ns to 0.020971512 s and at most the interval; range events need
@@ -587,7 +588,12 @@ class WgfmuSpec(StrictModel):
         "1ua": 1e-6, "10ua": 1e-5, "100ua": 1e-4, "1ma": 1e-3, "10ma": 1e-2})
     current_modes: frozenset[str] = frozenset({"fastiv", "dc"})
     smu_mode_max_v: float = 25.0
+    """Largest |V| at the RSU's "From SMU" input and on its SMU path (WG p20 (1-8) CAUTION "Maximum input voltage to
+    the From SMU terminal is +-25 V ... Or the RSU will be damaged"; WG p16 (1-4) "SMU mode"). It bounds the SMU
+    cabled to that input whatever the RSU's state (R-RSU-01 at validation, ``OutputGuard`` per command)."""
     smu_mode_max_a: float = 0.1
+    """Largest current on the RSU's SMU path (WG p16 (1-4) "Maximum current: 100 mA"); R-RSU-01 and the
+    ``OutputGuard`` hold the SMU cabled to the From SMU input to it."""
     max_output_a: float = 0.1
     """Current assumed to return from one WGFMU channel without a pulse envelope (R-GNDU-01): the RSU path's 100 mA
     (SMU mode). TODO(verify) the Fast IV short-circuit current at bring-up stage L8."""
@@ -600,7 +606,7 @@ class WgfmuSpec(StrictModel):
     interval_s: tuple[float, float] = (1e-8, 1.34217728)
     average_s: tuple[float, float] = (1e-8, 0.020971512)
     range_event_spacing_s: float = 2e-6
-    sources: tuple[str, ...] = ("WG p16 (1-4)", "WG5 p24 (1-14)", "WG p125 (4-55)", "WG p128 (4-58)",
+    sources: tuple[str, ...] = ("WG p16 (1-4)", "WG p20 (1-8)", "WG5 p24 (1-14)", "WG p125 (4-55)", "WG p128 (4-58)",
                                 "WG p153 (4-83)")
 
     def range_bounds(self, mode: str, force_range: str) -> tuple[float, float]:

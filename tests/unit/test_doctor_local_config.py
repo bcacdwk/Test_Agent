@@ -90,6 +90,24 @@ def test_visa_null_selector_inputs_behind_a_pin_map_warn_until_recorded(repo: Pa
     assert "all 1 pulse/AC terminals of the pin maps covered" in check.detail
 
 
+def test_visa_notes_that_unknown_rsu_inputs_block_smus_above_25_v(repo: Path, repo_paths: Paths) -> None:
+    """WP21.13: an RSU's unknown "From SMU" input blocks every SMU plan above +-25 V on hardware (R-RSU-01); the
+    check names it until stage L8 records the wiring (an SMU channel, or the smu side deleted), and never on the
+    simulator, where the scenario's cabling stands in."""
+    note = "RSU From SMU input unknown (RSU201.OUT, RSU202.OUT)"
+    assert note not in check_local_config(load_config(repo_paths)).detail  # simulator
+    visa_core(repo)
+    check = check_local_config(load_config(repo_paths))
+    assert note in check.detail and "R-RSU-01" in check.detail and "stage L8" in check.detail
+    station = read_yaml(local(repo, "station.yaml"))
+    for switch in station["switches"]:
+        if switch["kind"] == "rsu":
+            switch["ports"]["OUT"]["inputs"] = ({"wgfmu": 201, "smu": 4} if switch["id"] == "RSU201" else
+                                                {"wgfmu": 202})
+    write_yaml(local(repo, "station.yaml"), station)
+    assert "RSU From SMU input unknown" not in check_local_config(load_config(repo_paths)).detail
+
+
 def test_visa_missing_pulse_envelope_on_an_spgu_terminal_warns(repo: Path, repo_paths: Paths) -> None:
     visa_core(repo)
     record_selector(repo)

@@ -54,6 +54,7 @@ from b1500_test_agent.errors import InvalidConfigError
 from b1500_test_agent.manuals import search as manual_search
 from b1500_test_agent.manuals.catalog import ManualError, ManualPaths
 from b1500_test_agent.models.policy import DutProfile
+from b1500_test_agent.models.routing import rsu_smu_inputs
 from b1500_test_agent.models.station import PinMap, Settings, StationProfile, cmu_side, switch_target
 from b1500_test_agent.paths import Paths
 from b1500_test_agent.service import TOOL_NAMES
@@ -237,8 +238,9 @@ def check_local_config(bundle: ConfigBundle | None) -> DoctorCheck:
 
     - **Switch wiring**: a ``null`` input or ``present: null`` on a switch a pin map routes through blocks those
       routes on hardware (R-PIN-01, R-ROUTE-01) until the human records it (stages L6-L8) or deletes a side that is
-      not cabled. On the simulator the scenario's cabling stands in for selector inputs (``planning_station``), so
-      there the gaps are listed, never warned about.
+      not cabled. On the simulator the scenario's cabling stands in for selector and RSU inputs
+      (``planning_station``), so there the gaps are listed, never warned about. On hardware an RSU's unknown "From
+      SMU" input also blocks every SMU plan above +-25 V or 100 mA (R-RSU-01): a note says so.
     - **DUT envelopes**: every pin-map terminal a source without compliance (HV-SPGU, WGFMU) or the MFCMU can reach
       needs a ``pulse``/``ac`` envelope in a DUT profile that fits the landing (declares every terminal not on the
       GNDU); without one, pulses (R-PULSE-02) or C-V (R-CMU-01) there are blocked. A human declares them; the agent
@@ -283,6 +285,11 @@ def check_local_config(bundle: ConfigBundle | None) -> DoctorCheck:
                      "in for selector inputs; on hardware these routes stay blocked until stages L6-L8 record them)")
     if idle:
         notes.append(f"unrecorded on switches no pin map uses: {_listed(idle)}")
+    unknown_rsu = [item.target for item in rsu_smu_inputs(station.switches) if item.channel is None]
+    if unknown_rsu and visa:
+        notes.append(f"RSU From SMU input unknown ({_listed(unknown_rsu)}): every SMU plan above +-25 V or 100 mA "
+                     "stays blocked (R-RSU-01, WG p20 (1-8)) until the human records which SMU feeds each RSU or "
+                     "deletes the smu side when none is cabled (stage L8)")
     if unverified:
         notes.append(f"switches unverified (plans through them need confirmation, unverified_topology): "
                      f"{', '.join(unverified)}")

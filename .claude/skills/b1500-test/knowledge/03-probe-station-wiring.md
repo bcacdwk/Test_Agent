@@ -178,6 +178,7 @@ analysis ([06](06-analysis-extraction.md#resistance-fit)); the physics of contac
 - `switches` declares the switch accessories (16440A selectors `SEL1`/`SEL2`, WGFMU `RSU201`/`RSU202`, SCUU, ASU):
   `present` (`null` = unknown), `certainty` and, per DUT-side output, the channel wired to each input (`null` = not
   recorded yet). A pin map reaches a pad through one with `SEL1.OUT1`; plans through an unrecorded input or an
-  `unverified` switch are blocked or need confirmation. Recording the selector wiring is bring-up stage L7.
+  `unverified` switch are blocked or need confirmation. Recording the selector wiring is bring-up stage L7, the
+  RSUs' From SMU inputs L8 (the SMU there takes +-25 V at most: R-RSU-01, [11](11-switching-routing.md#rsu-of-the-wgfmu)).
 - When a measurement depends on an unknown wiring fact (guarded low-current path, Kelvin sense), say so in the
   report's assumptions and ask the human to confirm or record it.

@@ -41,7 +41,8 @@ reads Id-Vg at log-spaced cumulative stress times; with `recovery_time` it reads
 | source | `source`: ground | GNDU | |
 
 - Example pin map `mosfet-4t` with DUT profile `nmos-generic` (3 V): no IGZO DUT profile is committed; for an IGZO
-  sample ask the human for its pins and limits (never invent them). Typical IGZO stresses (10-20 V) need a profile.
+  sample ask the human for its pins and limits (never invent them). Typical IGZO stresses (10-20 V) need a profile;
+  SMU4/SMU3 on the RSUs' "From SMU" inputs (lab layout after L8) take at most +-25 V (WG p20 (1-8), R-RSU-01).
 - Routes: none in every phase (direct SMU and GNDU wiring).
 
 ## 3. Pre-run checklist

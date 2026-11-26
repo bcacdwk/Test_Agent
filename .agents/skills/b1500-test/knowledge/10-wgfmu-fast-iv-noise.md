@@ -50,7 +50,9 @@ the code wins on any difference and a change to either must change both.
   values per channel (AN-RTN p5 (5), WG p125 (4-55) "setMeasureEvent"). The time stamp of an averaged point is
   the centre of its window (WG p126 (4-56)). Readback runs in 100,000-value chunks (the lab code and the kernel).
 - The RSU switches between its SMU input and the WGFMU; the kernel connects it only for the waveform and returns it
-  in the cleanup (knowledge 11, RSU of the WGFMU).
+  in the cleanup (knowledge 11, RSU of the WGFMU). Its From SMU input takes at most +-25 V (WG p20 (1-8): above it
+  the RSU is damaged) and the SMU path 100 mA, in any RSU state: the SMU cabled there stays within that in every
+  plan (R-RSU-01, the guard).
 
 ## Fast I-V pulses ramps and timing
 

@@ -55,7 +55,7 @@ from b1500_test_agent.models.common import (
     StrictModel,
 )
 from b1500_test_agent.models.policy import DutProfile, Policy
-from b1500_test_agent.models.routing import SELECTOR_KIND
+from b1500_test_agent.models.routing import RSU_KIND, SELECTOR_KIND, SwitchPort, SwitchSpec
 from b1500_test_agent.models.sim import SimFaultProfile
 from b1500_test_agent.models.station import (
     PinMap,
@@ -194,6 +194,16 @@ def _fingerprint(paths: Paths, found: list[_Found]) -> str:
 # -- Bundle ----------------------------------------------------------------------------------------------------------
 
 
+def _scenario_cabling(scenario: SimScenario, switch: SwitchSpec, port: SwitchPort) -> dict[str, int | None]:
+    """The simulator scenario's cabling of one switch port by input side: a 16440A selector port's SMU and SPGU
+    channels (``SimScenario.selectors``), an RSU's SMU on its "From SMU" input (``SimScenario.rsu_smu`` of the RSU's
+    WGFMU channel, its port index)."""
+    if switch.kind == SELECTOR_KIND:
+        cabling = scenario.selectors.get(port.index)
+        return {} if cabling is None else {"smu": cabling.smu, "pgu": cabling.pgu}
+    return {"smu": scenario.rsu_smu.get(port.index)}
+
+
 class ConfigBundle(StrictModel):
     """A validated configuration: the parsed items, the files used (path + sha256) and the effective paths.
 
@@ -224,32 +234,32 @@ class ConfigBundle(StrictModel):
         return self.files[key].sha256
 
     def planning_station(self) -> StationProfile:
-        """The station profile plans bind against and the plan rules read (binding, compile, ``RuleContext``,
-        R-CFG-01).
+        """The station profile plans bind against, the plan rules read (binding, compile, ``RuleContext``, R-CFG-01)
+        and the session's ``OutputGuard`` holds (``Executor.session``).
 
         Hardware (``visa``): the configured profile. Simulator: the configured profile, except that a 16440A selector
         input recorded ``null`` (wiring unknown) takes the simulator scenario's cabling of the same ``ERSSP`` port
         (``SimScenario.selectors``: the rehearsal wiring the simulated mainframe really has), so a lab-shaped example
-        station can rehearse routed plans. Recorded inputs are never replaced, ``certainty`` stays as configured
-        (R-ROUTE-02 still asks for ``unverified_topology``), and on hardware a null input keeps blocking (R-PIN-01)
-        until a human records it at bring-up stage L7 (blueprint v2 ATV-28). ``station`` itself stays the file's
-        content (proposals and status read it)."""
+        station can rehearse routed plans; likewise an RSU's "From SMU" input recorded ``null`` takes the scenario's
+        ``rsu_smu`` SMU of that WGFMU channel, so the simulator holds that SMU to the input's +-25 V (R-RSU-01) as the
+        hardware does once L8 records it (WP21.13). Recorded inputs are never replaced, ``certainty`` stays as
+        configured (R-ROUTE-02 still asks for ``unverified_topology``), and on hardware a null input keeps blocking
+        (R-PIN-01, R-RSU-01) until a human records it at bring-up stage L7 or L8 (blueprint v2 ATV-28). ``station``
+        itself stays the file's content (proposals and status read it)."""
         scenario = self.sim_scenario
         station = self.station
-        if self.backend != "sim" or scenario is None or not scenario.selectors:
+        if self.backend != "sim" or scenario is None or not (scenario.selectors or scenario.rsu_smu):
             return station
         switches = []
         changed = False
         for switch in station.switches:
-            if switch.kind != SELECTOR_KIND:
+            if switch.kind not in (SELECTOR_KIND, RSU_KIND):
                 switches.append(switch)
                 continue
             ports = {}
             for output, port in switch.ports.items():
-                cabling = scenario.selectors.get(port.index)
                 inputs = dict(port.inputs)
-                for side in ("smu", "pgu"):
-                    wired = getattr(cabling, side) if cabling is not None else None
+                for side, wired in _scenario_cabling(scenario, switch, port).items():
                     if side in inputs and inputs[side] is None and wired is not None:
                         inputs[side] = wired  # type: ignore[index]
                         changed = True

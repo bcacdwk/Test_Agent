@@ -56,6 +56,8 @@ before the library sees it (R-WG-02), the ranges only bound the reading. Enduran
 1. Mount RSU201 and RSU202 near the probes, cable WGFMU 201 -> RSU201 and 202 -> RSU202, and SMU4/SMU3 Force to the
    RSUs' From SMU inputs, with no DUT on the RSU outputs (WG p20 (1-8)); tell the agent which SMU feeds which RSU,
    check its proposal and adopt it: `uv run b1500 config adopt work/bringup/station.proposed.yaml --as station`.
+   From then on SMU4/SMU3 take at most +-25 V and 100 mA (the input's limit, WG p20 (1-8); R-RSU-01 and the guard
+   hold it): work above 25 V needs an SMU no RSU is cabled to. Recable a From SMU input only after recording it.
 2. Lift the probes (RSU outputs open) for agent step 2; confirm in chat.
 3. Land the 100 kOhm standard between the RSU201 output and ground (pin map `resistor-wgfmu`); confirm.
 4. Land the L4 MOSFET: gate RSU201, drain RSU202, source GNDU (pin map `mosfet-wgfmu`; through the RSU SMU paths the
@@ -68,7 +70,8 @@ before the library sees it (R-WG-02), the ranges only bound the reading. Enduran
 
 1. `uv run b1500 bringup status`; `station_status`; `uv run b1500 doctor --probe --wgfmu-session` (read-only:
    `session_probe`). Wiring of step 1: `uv run b1500 bringup propose-station`, write the `smu` inputs of the RSUs
-   into `work/bringup/station.proposed.yaml`, show the diff, hand the adoption over, stop.
+   into `work/bringup/station.proposed.yaml` (an RSU with no SMU cabled: delete its `smu` side; while any is `null`
+   R-RSU-01 blocks every SMU plan above +-25 V), show the diff, hand the adoption over, stop.
 2. Open terminals: `system.wgfmu_self_test`, then `system.wgfmu_self_cal` (pin map `open-smus`): validate
    (`system_self_test`/`system_self_cal`, `first_hw_run`), summary and the open-terminal question, stop, consent,
    run; report `kind_result` (result, failed units).

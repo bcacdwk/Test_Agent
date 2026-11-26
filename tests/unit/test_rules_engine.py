@@ -60,11 +60,13 @@ TABLE: dict[str, set[str]] = {
     "R-ROUTE-01": {"plan", "pre_execute"},
     "R-ROUTE-02": {"plan"},
     "R-ASU-01": {"plan"},
+    "R-RSU-01": {"plan"},
     "R-CMU-01": {"plan"},
     "R-CORR-01": {"plan", "pre_execute"},
 }
-"""Blueprint v1 4.2 + v2 2.8 in registration order (family modules core, limits, run, pulse, route, cmu). ``pre``
-rules that read live state also run at ``plan`` when a snapshot exists."""
+"""Blueprint v1 4.2 + v2 2.8 in registration order (family modules core, limits, run, pulse, route, cmu), plus the
+v2.1 plan's R-RSU-01 (section 12, WP21.13) in the route family. ``pre`` rules that read live state also run at
+``plan`` when a snapshot exists."""
 
 
 # -- Registry --------------------------------------------------------------------------------------------------------

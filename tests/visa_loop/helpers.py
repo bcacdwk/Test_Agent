@@ -126,6 +126,23 @@ class VisaWorld:
         settings["visa"].update(visa)
         self.write_local("settings.yaml", settings)
 
+    def record_rsu_inputs(self, scenario: str) -> None:
+        """Record in ``config/local/station.yaml`` which SMU feeds each RSU's "From SMU" input as committed scenario
+        ``scenario`` cables it (``SimScenario.rsu_smu``; no entry: the ``smu`` side deleted, nothing cabled), as the
+        human does at bring-up L8. Until then the inputs are unknown and R-RSU-01 blocks every SMU plan above
+        +-25 V on visa (WP21.13)."""
+        path = self.local / "station.yaml"
+        station = yaml.safe_load(path.read_text(encoding="utf-8"))
+        cabling = load_scenario(scenario).rsu_smu
+        for switch in station["switches"]:
+            if switch["kind"] != "rsu":
+                continue
+            for port in switch["ports"].values():
+                port["inputs"].pop("smu", None)
+                if port["index"] in cabling:
+                    port["inputs"]["smu"] = cabling[port["index"]]
+        self.write_local("station.yaml", station)
+
     def bus(self, scenario: str, **kwargs: Any) -> LoopBus:
         """A ``LoopBus`` in this world's bus directory simulating committed scenario ``scenario``."""
         return LoopBus(self.bus_dir, load_scenario(scenario), **kwargs)

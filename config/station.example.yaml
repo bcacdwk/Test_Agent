@@ -41,6 +41,9 @@ topology:                       # null = unknown
 # inputs: the channel wired to each input side of an output; null = wiring unknown (routes through it are blocked on
 # hardware until a human records it at bring-up stage L7); present: null = unknown; rest = the state the cleanup
 # restores and verifies. certainty: verified only after a human has checked the wiring (then no input may be null).
+# An RSU's smu input is its "From SMU" terminal: +-25 V and 100 mA at most, or the RSU is damaged (WG p20 (1-8)). The
+# SMU recorded there is held to that in every plan; while it is null, every SMU plan above it is blocked on hardware
+# (R-RSU-01) until bring-up stage L8 records the SMU, or deletes the smu side when none is cabled.
 switches:
   - id: SEL1                    # first 16440A SMU/PGU selector: ERSSP ports 0 (CH 1) and 1 (CH 2), PG p433 (4-115)
     kind: selector_16440a
@@ -64,7 +67,7 @@ switches:
     present: true
     certainty: unverified
     ports:
-      OUT: {index: 201, inputs: {wgfmu: 201, smu: null}}   # smu: the SMU wired to the RSU's SMU input, if any
+      OUT: {index: 201, inputs: {wgfmu: 201, smu: null}}   # smu: the SMU wired to the RSU's From SMU input, if any
     rest: open
   - id: RSU202
     kind: rsu

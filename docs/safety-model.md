@@ -38,6 +38,8 @@ risks of this design are collected in section "Residual risks (v2)".
    below 1, i.e. free run, is refused), `check_ac` (MFCMU AC level, DC bias, frequency), `check_route` (a switch
    route is one of the plan's routes or returns a declared output to its `rest` state; `pgu_open` only on selector
    CH 1) and `check_waveform` (every WGFMU level, the 10 ns grid, the vector count and time, before `add_vectors`).
+   An SMU the station records on an RSU's "From SMU" input is held to that input's ±25 V and 100 mA on top of its
+   envelope (`rsu_input_exceeded`, v2.1 WP21.13; WG p20 (1-8): above it the RSU is damaged).
 4. **Quality classification** after the run: each data point's status code makes it ok, limited or untrusted.
 
 Configuration is re-read (by digest) on every service call, so a rule change applies to the next call.
@@ -109,6 +111,7 @@ plan (`plan:...`) or a state file (`data/state/fault.json`). "pre" = `pre_execut
 | R-ROUTE-01 | plan, pre | Every route of the plan (allowed routes, routes per phase, role `via`) resolves to a declared switch output that can take the state (`pgu_open` only on CH 1, ports 0 and 2); on visa the switch is `present: true`; phases apply only allowed routes or `rest` and name every allowed route; one source per switch output per phase; Kelvin roles never through a selector (Force only); pre: every output of the involved switches and every present selector port reads back its `rest` state | block | `station.yaml#switches[i].*`, `plan:routes_by_phase.*`, `plan:envelope.routes`, recipe `#roles.<role>.kelvin`, `live:switch_states.<switch>.<output>` |
 | R-ROUTE-02 | plan | A route through a switch recorded `certainty: unverified`, or switch outputs mapped by an `unverified` pin map | confirm `unverified_topology` | `station.yaml#switches[i].certainty`, `pinmaps/<name>.yaml#certainty` |
 | R-ASU-01 | plan | A role's measurement range (setting `irange`, or `asu_1pa: true` = the 1 pA range; live since WP7.1: `mosfet.gate_leakage` option `asu_1pa`) exists on its SMU; a range that needs an ASU (1 pA HRSMU, 1–100 pA B1511B MPSMU) only with a declared ASU recorded `present: true`. On the instrument a missing ASU makes `RI ch,8` an error, which the kind's `ERRX?` drain turns into an abort before `XE` | block | `station.yaml#switches[i].present`, `code:…MODULE_SPECS[<type>]` |
+| R-RSU-01 | plan | An SMU cabled to an RSU's "From SMU" input (`switches[].ports.<out>.inputs.smu` of an RSU not recorded absent) stays within ±25 V and 100 mA whatever the RSU's state (WG p20 (1-8) "Or the RSU will be damaged", WG p16 (1-4) "SMU mode"; the 42 V ceiling does not protect it): every envelope channel recorded there (\|V\| = forced voltage or voltage compliance, \|I\| = compliance or forced current; a role bound through the RSU's SMU path or on the SMU's own channel alike); a plan route that puts an RSU output on its SMU path (not its `rest`) with that input unknown (`null`); on visa, while any RSU's input is unknown, every SMU channel of the plan above the limits (it may be the one cabled there) until bring-up L8 records the wiring or deletes the `smu` side. On the simulator the scenario's `rsu_smu` stands in for a `null` input (`planning_station`). The guard refuses the same levels per command (`rsu_input_exceeded`). v2.1 WP21.13 | block | `code:…WGFMU_SPEC.smu_mode_max_v (WG p20 (1-8))`, `code:…WGFMU_SPEC.smu_mode_max_a (WG p16 (1-4))`, `station.yaml#switches[i].ports.<out>.inputs.smu` |
 | R-CMU-01 | plan | Every MFCMU source role (`cmu_high`) has an AC envelope inside the module (1 kHz–5 MHz, 10–250 mVrms, \|DC\| ≤ 25 V), the hard \|V\| limit and the `ac` envelope of every DUT terminal on the MFCMU (missing → block); above `policy.cmu` → confirm. The MFCMU has no compliance: kinds book its current as the nominal peak AC current into a short through the smallest range, `sqrt(2) x Vac / 50 Ohm`, which R-DUT-01 compares with the terminals' `max_abs_i` (`dut_envelope` above it) | block / confirm `soft_cmu` | `code:…CMU_SPEC (UG p73 (2-33))`, `duts/<name>.yaml#terminals.<t>.ac`, `policy.yaml#cmu.*` |
 | R-CORR-01 | plan, pre | Capacitance (MFCMU) plans, except the correction recipes themselves: for every MFCMU used, records of each kind in `corrections.require` (default phase, open, short) from the server-written correction store, measured with this station profile and pin map, at most `corrections.max_age_h` old at validation, every plan frequency covered by some fresh record; the age of the oldest record in use is recorded (info, `corr <age>` in the summary); pre (and at validation with a snapshot): `CORRST?` on for every required open/short/load, phase compensation in effect, the records' `*IDN?` = the instrument's (WP8.2: the executor reads `CORRST?`/`ADJ?`/`*LRN? 90` before every MFCMU plan and discards the records of corrections the instrument lost; a device clear in a cleanup clears the store); every block names the renewing recipe and the card `cmu/cmu-correction` (next step) | block / info | `policy.yaml#corrections.*`, `data/state/corrections/<cmu>.json`, `live:cmu_corrections.<cmu>.*`, `live:identity` |
 | R-QUAL-01/02/03 | post | Per-point status counts by class (info); limited points, excluded from fits (warn); untrusted points, extraction refused unless forced (warn), with the meaning of each letter. Unknown status letters count as untrusted. MFCMU `EEE` codes map to letters (A/D overflow or invalid → `V`, IV amplifier saturation → `D`, NULL loop unbalance → `U`; `cmu_status_letter`), WGFMU flags too (range overflow → `V`, error → `X`; `wgfmu_status_letter`) | report | recipe `#quality` or `policy.yaml#quality` |
@@ -207,6 +210,15 @@ presence (`present: null`) blocks on hardware; unverified wiring needs confirmat
 selector's SMU path carries Force only, so a Kelvin role never uses it; the PGU-open state exists only on CH 1. On the
 simulator only, a `null` selector input takes the scenario's cabling of that port (`ConfigBundle.planning_station`,
 WP9.3), so the lab example rehearses routed plans; the confirmation stays, and on hardware the input still blocks.
+**RSU "From SMU" input (v2.1 WP21.13).** An RSU's SMU input takes at most ±25 V ("Or the RSU will be damaged", WG p20
+(1-8)) and its SMU path 100 mA (WG p16 (1-4)), in every RSU state: the SMU cabled there sees the input even while the
+RSU is on its WGFMU path or open. R-RSU-01 therefore bounds the SMU the station records on an RSU's `inputs.smu`
+(whatever the pin map calls it: `mosfet-4t` on an RSU landing drives SMU4/SMU3 through the RSUs), blocks an RSU SMU
+path whose input is unknown, and, on hardware, blocks every SMU plan above the limits while any RSU input is `null`;
+the guard refuses the same levels per command and the session's guard reads the planning station (on the simulator a
+`null` RSU input takes the scenario's `rsu_smu`, so `nmos_wgfmu`/`nmos_bti` hold SMU4/SMU3 to ±25 V). After bring-up
+L8 cables SMU4/SMU3 to the RSUs, work above ±25 V (BDV, TDDB, SILC, breakdown search) needs an SMU no RSU is cabled
+to.
 
 **Pulse sources.** The HV-SPGU and the WGFMU have no compliance: their envelopes have no current limit
 (`max_abs_i: null`), and the pulse/waveform envelope bounds them instead. Free-running output cannot be expressed (a
@@ -524,8 +536,11 @@ mechanism; this list gives the limit.
 - The RSU relays have no read-back: the library's acceptance of `disconnect` and `close_session` is the evidence
   (L8). An SCUU or ASU that does not answer is treated as not installed: nothing to restore, plans through it blocked.
 - Unknown wiring (`null` inputs) and presence (`present: null`) block on hardware; on the simulator the scenario's
-  cabling stands in for selector inputs. Wiring the human records wrongly is not detectable before the L7 scope check
-  (`unverified_topology` keeps every routed plan confirmed until `certainty: verified`).
+  cabling stands in for selector and RSU inputs. Wiring the human records wrongly is not detectable before the L7
+  scope check (`unverified_topology` keeps every routed plan confirmed until `certainty: verified`).
+- The RSU "From SMU" limit (R-RSU-01, guard) protects the SMU the station records on each RSU input: an SMU cabled
+  there but recorded as another channel, or as nothing (`smu` side deleted), is held only by the 42 V ceiling and can
+  damage the RSU above ±25 V. Recabling a From SMU input means recording it again before the next run (L8).
 
 **Sources without compliance.**
 - HV-SPGU (decision 9): its envelope bounds the open-load level at the DUT, `|V|·(SER+50)/SER`, twice the set level

@@ -13,11 +13,14 @@ transaction cleanup returns every declared output to ``rest``.
 Facts encoded here: ``ERSSP`` status 0 = all open, 1 = SMU, 2 = PGU, 3 = PGU open (semiconductor relay open), port 0/1
 = first selector output 1/2, port 2/3 = second selector output 1/2 (PG p433 (4-115)); the PGU-open state exists only
 on CH 1 of each selector, i.e. ports 0 and 2, and the SMU path carries Force only, Sense stays open (PG p154 (2-66)).
+An RSU's ``smu`` input is its "From SMU" terminal (WG p20 (1-8)): ``rsu_smu_inputs`` lists which SMU is cabled there,
+the channels R-RSU-01 and the ``OutputGuard`` hold to the input's +-25 V and 100 mA whatever the RSU's state.
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Final, Literal
+from collections.abc import Iterable
+from typing import Annotated, Final, Literal, NamedTuple
 
 from pydantic import Field, model_validator
 
@@ -76,6 +79,9 @@ change; the simulator keeps a switched output open for this long."""
 
 SELECTOR_KIND: Final = "selector_16440a"
 """``SwitchSpec.kind`` of the 16440A SMU/PGU selector."""
+
+RSU_KIND: Final = "rsu"
+"""``SwitchSpec.kind`` of the B1531A remote-sense and switch unit of a WGFMU channel."""
 
 
 def split_switch_target(target: str) -> tuple[str, str] | None:
@@ -166,6 +172,49 @@ class SwitchSpec(StrictModel):
         if port is None or side is None:
             return None
         return port.inputs.get(side)  # type: ignore[call-overload]
+
+
+class RsuSmuInput(NamedTuple):
+    """The "From SMU" input of one RSU output (WG p20 (1-8)): ``channel`` is the SMU whose Force is cabled there,
+    ``None`` when the station records the wiring as unknown (``inputs.smu: null``)."""
+
+    switch: str
+    output: str
+    channel: int | None
+
+    @property
+    def target(self) -> str:
+        """The RSU output, e.g. ``RSU201.OUT``."""
+        return f"{self.switch}.{self.output}"
+
+
+def same_channel(a: int, b: int) -> bool:
+    """True when ``a`` and ``b`` address the same channel (PG Table 4-1: ``n`` and ``n*100+1`` are one subchannel)."""
+    return (a * 100 + 1 if 1 <= a <= 10 else a) == (b * 100 + 1 if 1 <= b <= 10 else b)
+
+
+def rsu_smu_inputs(switches: Iterable[SwitchSpec]) -> list[RsuSmuInput]:
+    """The From SMU inputs of every RSU output the station does not record absent (``present`` true or unknown), in
+    declaration order. An output without an ``smu`` input side has nothing cabled there and is left out; ``null``
+    comes back as ``channel=None`` (unknown wiring).
+
+    The input takes at most +-25 V ("Or the RSU will be damaged", WG p20 (1-8)) and the SMU path 100 mA (WG p16
+    (1-4) "SMU mode") whatever the RSU's state: the SMU cabled there sees the input even while the RSU is on its
+    WGFMU path or open. R-RSU-01 and ``OutputGuard`` hold that SMU to it."""
+    found: list[RsuSmuInput] = []
+    for switch in switches:
+        if switch.kind != RSU_KIND or switch.present is False:
+            continue
+        for output, port in switch.ports.items():
+            if "smu" in port.inputs:
+                found.append(RsuSmuInput(switch.id, output, port.inputs["smu"]))
+    return found
+
+
+def rsu_inputs_of(switches: Iterable[SwitchSpec], channel: int) -> list[RsuSmuInput]:
+    """The RSU From SMU inputs (``rsu_smu_inputs``) that the station records ``channel`` as cabled to."""
+    return [item for item in rsu_smu_inputs(switches)
+            if item.channel is not None and same_channel(item.channel, channel)]
 
 
 class Route(StrictModel):

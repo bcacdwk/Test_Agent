@@ -1,8 +1,10 @@
 # Knowledge index (skill b1500-test)
 
-Background knowledge behind the test cards, one file per domain of the owner's deck (slides 4 and 10-17). Load only
-the sections a card links or a question needs; never read every file. Knowledge explains; it never overrides the
-skill's rules, a card, a recipe, the policy or a DUT profile, and it never authorises an instrument action.
+Background knowledge behind the test cards, one file per domain of the owner's deck (slides 4 and 10-17; the deck
+gave the structure, not the numbers). Load only the sections a card links or a question needs; never read every
+file. Knowledge explains; it never overrides the skill's rules, a card, a recipe, the policy or a DUT profile, and it
+never authorises an instrument action. A value marked `TODO(owner)`, `TODO(verify)` or `TODO(cite)` is a blank:
+say it is unknown and how to get it ([Conventions](#conventions)).
 
 ## Domains
 
@@ -12,7 +14,7 @@ skill's rules, a card, a recipe, the policy or a DUT profile, and it never autho
 | [02 B1500A instrument](02-b1500-instrument.md) | modules and limits, GNDU and its 4.2 A return budget, channel numbering, `UNT?`, measurement modes, status letters, integration time, errors, interlock, self-test/cal, FLEX glossary | choosing modules or presets; reading status counts, errors, a plan's FLEX preview or an audit log |
 | [02b SMU modes and long runs](02b-smu-modes.md) | sampling MM 10, pulsed MM 3/4/5/27/28, search MM 9/14/15, quasi-static C-V MM 13, zero-check floor, SMU conditioning (FL, SSR, AZ, AV, RM), long runs (async, CM 0, recovery) | planning or reading a sampling, pulsed, search, QSCV or long SMU run; a conditioning question |
 | [03 probe station and wiring](03-probe-station-wiring.md) | signal path, triax, guard, Kelvin and four-wire R, ASU/SCUU/selector, shielding and grounding, probe contact, contact checks | low-current or low-resistance work; a fresh landing; suspect wiring or noise |
-| [04 ferroelectric and oxide](04-ferroelectric-oxide.md) | Ec/Pr/Ps, FeFET operation, memory window by dual sweep, read disturb, pulse write/read, endurance, NLS switching kinetics, retention, PUND (reserved), IGZO TFTs | FeFET or FeCap requests; oxide TFT measurements |
+| [04 ferroelectric and oxide](04-ferroelectric-oxide.md) | Ec/Pr/Ps, FeFET operation, memory window by dual sweep, read disturb, pulse write/read, endurance, NLS switching kinetics, retention, FeCap P-V and PUND, IGZO TFTs | FeFET or FeCap requests; oxide TFT measurements |
 | [05 reliability and defects](05-reliability-defects.md) | gate leakage safe envelope, BTI/HCI/TDDB, breakdown voltage ramps, Dit, SILC and trapping, IGZO instability, wake-up/imprint/fatigue | gate leakage; drift or hysteresis; any stress or breakdown request |
 | [06 analysis and extraction](06-analysis-extraction.md) | run table and trust, quality gate, gm, Vth (3 methods), SS, Ion/Ioff, Ron/gds, R, diode fit, leakage, MW, plots, reporting rules | before `analyze_run`; writing the report; ad-hoc analysis |
 | [06b time series, pulsed and search runs](06b-analysis-time-pulse.md) | sampling summary and relaxation fit, time to breakdown and Weibull, pulsed vs DC (two-run), pulse plateau, Vth by search, breakdown voltage, program/read memory window, switching kinetics (NLS), endurance, retention | analysing a sampling, TDDB, pulsed, search, program/read, kinetics, endurance or retention run |
@@ -253,14 +255,34 @@ ranges and error codes. Prefer PG, WG, SEL and CC; WG5 only where an extract cit
 - Frontmatter: `domain`, `maturity` (`seed` = generated from sources, unreviewed; `draft` = reworked, still
   unreviewed; `reviewed` = checked by a human), `sources` (at least one), `last_reviewed` (date of the human
   review, else null). Only a human sets `reviewed` and `last_reviewed`; all files start as `seed`.
-- `TODO(verify)` marks a fact that is plausible or typical but not checked against a primary source or the
-  owner's devices. Treat it as orientation, never as a limit or a pass/fail criterion.
+- Provenance (owner, 2026-11-26: not writing beats writing something at random). Every number has a source: a
+  manual page, a lab file under `lwp/` (the owner's real code and data, read-only, next to the repository), the code
+  (named as a software default) or textbook physics and method conventions (the relation or bound itself). A number
+  without one is left blank with one marker that names what is unknown and how to get it, in one short line:
+  - `TODO(owner)`: only the owner knows it (device, film, process, station, lab practice). A colon and the exact
+    question follow the marker, ending with `?`; it goes on the owner's question list.
+  - `TODO(verify)[<step ids>]`: a hardware measurement gives it; the brackets name the bring-up steps of
+    `.agents/skills/b1500-bringup/steps.yaml` that record it (`TODO(verify)[L2.A8]`; several separated by commas).
+  - `TODO(cite)`: a literature value or claim that needs a checked source (a book or paper page actually read).
+- A blank is reported, never filled. A value marked `TODO(owner)`, `TODO(verify)` or `TODO(cite)`, or called
+  unknown, is not a value: say that it is unknown for the human's device, then ask the human or name the bring-up
+  step. Never fill it from general knowledge, the simulator or an example file, and never use it as a typical value,
+  an expectation or a pass/fail criterion. Re-measure on your own only inside ranges that have a source or that the
+  human gave; device ranges without one (FeFET program, read and sweep levels, stress levels, IGZO time scales)
+  need the human's values first.
+- Simulator values appear only labelled "simulator example (scenario `<name>`), not a real-device value"; they
+  are never expectations for a real device. Recipe, analysis and policy defaults are named as such ("recipe
+  default", "example default: set it per device"), never as device recommendations. A bring-up tolerance that a step
+  needs is a "provisional criterion" with its basis (or "basis: none"), and the owner confirms it before signing.
 - Deck citations: "deck slide N" is slide N of the owner's 2026-11-04 deck (title = slide 1; domains 1-8 = slides
   10-17). The deck text file `PPT_slides_content.md` labels those slides as pages 11-18 (it adds a domain overview
-  page) and carries a few values not shown on the slides; those are cited as "deck text".
+  page) and carries a few values not shown on the slides ("deck text"). The deck illustrates the plan; it is not a
+  source for numbers or lab facts (owner, 2026-11-26).
 - Manual citations: `PG p433 (4-115)` = document id (table above), physical 1-based PDF page, printed page label;
   an optional quoted keyword must occur on the page. Older text writes "PG PDF 433" (same page) and "CCG" for CC.
-  `b1500 dev lint-skills` checks every citation against the catalog. Manual definitions win over the deck.
+  `b1500 dev lint-skills` checks every citation against the catalog. Manual definitions win over the deck. Lab
+  files are named by path (`lwp/1530/ch1_wave_pt.csv`); a lab script's settings are what the lab ran, not a
+  validated device condition.
 - Links stay inside the skill folder (lint rule); repository files are named as code spans.
 - Maintenance (human-reviewed changes): each file stays at or below 300 lines, a domain that outgrows it becomes a
   folder `knowledge/NN-name/`; after an edit run `uv run b1500 dev lint-skills` and `uv run b1500 dev sync-harness`.

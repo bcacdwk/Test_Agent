@@ -5,13 +5,14 @@ sources:
   - blueprint v2 2.7 (kind cmu_measure), 2.10 (cv.py), 3.2 (MFCMU catalogue), 4.2 (moscap, mosfet +cv targets)
   - "B1500 Programming Guide Ed. 15 (PG), PDF pages cited inline"
   - "AN-CV: IV and CV with the MFCMU and SCUU (application note), PDF pages cited inline"
-  - Nicollian & Brews, MOS Physics and Technology (Wiley 1982) ch. 5, 9; Sze & Ng, Physics of Semiconductor Devices (2007) ch. 4
-  - Koomen, Solid-State Electron. 16, 801 (1973); Sodini et al., Solid-State Electron. 25, 833 (1982) (split C-V)
   - src/b1500_test_agent/analysis/cv.py, catalog/kinds/cmu_measure.py (v2 WP8.3)
   - src/b1500_test_agent/analysis/cv_variants.py, catalog/kinds/cmu_variants.py (v2 WP8.4)
-  - Zerbst, Z. Angew. Phys. 22, 30 (1966) (C-t recovery); Miller et al., J. Appl. Phys. 68, 6463 (1990) (FeCap C-V)
   - src/b1500_test_agent/analysis/qscv.py, dit.py, catalog/kinds/smu_qscv.py (v2 WP8.5; QSCV, Dit over the gap)
-  - Castagne & Vapaille, Surf. Sci. 28, 157 (1971) (high-low); Nicollian & Goetzberger, BSTJ 46, 1055 (1967)
+  - "literature, not checked against a copy (TODO(cite)): Nicollian & Brews, MOS Physics and Technology (Wiley 1982)
+    ch. 5, 9; Sze & Ng, Physics of Semiconductor Devices (2007) ch. 4; Koomen, Solid-State Electron. 16, 801 (1973)
+    and Sodini et al., Solid-State Electron. 25, 833 (1982) (split C-V); Zerbst, Z. Angew. Phys. 22, 30 (1966)
+    (C-t); Miller et al., J. Appl. Phys. 68, 6463 (1990) (FeCap C-V); Castagne & Vapaille, Surf. Sci. 28, 157 (1971)
+    (high-low); Nicollian & Goetzberger, BSTJ 46, 1055 (1967) (conductance)"
   - CMU closure (v2 WP8.6) - correction data read-back (CORRDT?), bring-up stage L6, runbooks cmu-cv-distortion and cmu-series-resistance
 last_reviewed: null
 ---
@@ -59,7 +60,8 @@ docstrings are the source); every value they return is derived. Debugging is ski
 - Every C-V run needs fresh phase, open and short corrections of the same pin map (rule R-CORR-01; card
   `cmu/cmu-correction`).
 - All 15 MFCMU recipes are `sim_validated` (the module closed with WP8.6); on hardware they are validated at bring-up
-  stage L6 (skill `b1500-bringup`: corrections, a reference capacitor within 1 %, MOS-C against EasyEXPERT, QSCV
+  stage L6 (skill `b1500-bringup`: corrections, a reference capacitor within 1 % of its certificate, MOS-C against
+  EasyEXPERT, QSCV
   against the HF Cox of the same landing), until then every hardware plan needs `first_hw_run` confirmation.
 
 ## Impedance models Cp-G Cs-Rs Z-theta
@@ -73,7 +75,8 @@ docstrings are the source); every value they return is derived. Debugging is ski
   (w Rs C)^2)`, 1 % at `w Rs C` = 0.1 (69 pF at 1 MHz: Rs = 230 Ohm).
 - `impedance_convert` reports a run in another pair at one point per frequency and can remove a series resistance:
   given (`series_r: value`, `rs_ohm`) or estimated in strong accumulation (`series_r: accumulation`): `Rs =
-  G_ma / (G_ma^2 + w^2 C_ma^2)` from the parallel values at the largest capacitance (Nicollian & Brews eq. 5.12).
+  G_ma / (G_ma^2 + w^2 C_ma^2)` from the parallel values at the largest capacitance (the standard series-resistance
+  correction; reference not checked).
   The C-V methods take `rs_ohm` to correct before extracting. Full converted curves: `convert_table` (ad-hoc,
   `work/<run_id>/`).
 
@@ -84,13 +87,15 @@ docstrings are the source); every value they return is derived. Debugging is ski
 - Uncorrected, the open capacitance of cables and probe (about 0.3 pF in the simulator) adds to every reading; the
   short path (resistance, inductance) matters above about 1 MHz and for large capacitances.
 - Corrections act only at listed frequencies: list every C-V frequency in the correction recipes' `freqs_hz` (the
-  23 default frequencies cover 1 kHz to 5 MHz in 1-2-5 steps). A C-f sweep's list (4 per decade, log) is not in
-  them: run open and short with `freqs_hz` = the C-f list (plus the C-V frequencies); the new list clears the old
-  corrections of that MFCMU, so all are measured again (phase, open, short).
+  23 default frequencies of `CLCORR 2`: 1-2-5 steps from 1 kHz to 1 MHz, then 1.2, 1.5, 2, 2.5, 2.7, 3, 3.2, 3.5,
+  3.7, 4, 4.2, 4.5 and 5 MHz; PG p379 (4-61)). A C-f sweep's list (4 per decade, log) is not in them: run open and
+  short with `freqs_hz` = the C-f list (plus the C-V frequencies); the new list clears the old corrections of that
+  MFCMU (PG p384 (4-66)), so all are measured again (phase, open, short).
 - Each data correction reads its data back (`CORRDT?`, medians over the list in the run's `kind_result`): the open's
-  stray capacitance `open_cp_f` (lifted probes: below a few pF; tens of pF = the probes were on a device) and the
-  short's `short_rs_ohm`/`short_ls_h` (cable and probe: below about 1 Ohm, tens of nH). Implausible values mean the
-  human's probe state was wrong: repeat that correction before any C-V.
+  stray capacitance `open_cp_f` and the short's `short_rs_ohm`/`short_ls_h`. Normal values for this station are
+  recorded at bring-up L6 (`TODO(verify)[L6.A2]`); L6's provisional criteria fail `open_cp_f` above 5 pF or
+  `short_rs_ohm` above 5 Ohm. A value far from the recorded one means the human's probe state was wrong: repeat
+  that correction before any C-V.
 - Known-capacitor check: `cmu.spot` on a reference capacitor reads its value within its tolerance after the
   corrections (bring-up stage L6).
 
@@ -101,15 +106,18 @@ docstrings are the source); every value they return is derived. Debugging is ski
   Background: [01](01-device-physics.md#mos-capacitor-c-v-regions).
 - Sweep from inversion towards accumulation (p substrate: + to -) with a hold at the start: the inversion layer is
   in equilibrium and excess carriers recombine as the bias falls. Sweeping from accumulation into inversion faster
-  than the generation lifetime (ms to s) drives the surface into deep depletion: C falls below Cmin.
-- 1 MHz is the usual high frequency; low frequencies (below about 1 kHz) let minority carriers and traps respond.
+  than the inversion layer can form (thermal generation; the recovery time of the device is what `moscap.ct`
+  measures) drives the surface into deep depletion: C falls below Cmin.
+- 1 MHz is the usual high frequency. Interface traps respond at lower frequencies; minority carriers usually only
+  far below the MFCMU's 1 kHz floor: for the low-frequency curve use QSCV ([below](#quasi-static-c-v)).
 - MFCMU limits: 1 kHz to 5 MHz, 10 to 250 mVrms, DC bias within +-25 V (UG p73 (2-33) "MFCMU"). Keep the AC level
   small (10 to 50 mVrms) against the bias resolution; more than 50 mVrms needs `soft_cmu` confirmation.
 
 ## Oxide capacitance and EOT
 
 - Cmax is Cox in series with the accumulation-layer capacitance, so it lies a few % below Cox for thin oxides
-  (about 3 % for 5 nm SiO2 at 1.6 V beyond flatband).
+  (classical estimate: about 3 % for 5 nm SiO2 at 1.6 V beyond flatband; quantum confinement makes the gap larger
+  in thin oxides).
 - `cv_cox` extrapolates: in strong accumulation `Cs = Q/(2 kT/q)`, so `1/C = 1/Cox + 2 (kT/q) / Q` with the
   accumulation charge `Q`. Over the tail with `C >= acc_frac x Cmax` (default 0.85) `Q = Q0 + int C dV`, the offset
   Q0 is chosen for the straightest line of 1/C against 1/Q, and the intercept is 1/Cox. No flatband voltage needed.
@@ -118,11 +126,13 @@ docstrings are the source); every value they return is derived. Debugging is ski
 
 ## Doping from 1/C^2
 
-- In depletion `1/C^2 = 1/Cox^2 + 2 (V - Vfb - kT/q) / (q eps_s N A^2)` exactly, so `N = 2 / (q eps_s A^2
+- In depletion (depletion approximation with the kT/q Debye correction) `1/C^2 = 1/Cox^2 + 2 (V - Vfb - kT/q) /
+  (q eps_s N A^2)`, so `N = 2 / (q eps_s A^2
   |d(1/C^2)/dV|)` from the slope; depth `W = eps_s A (1/C - 1/Cox)`.
 - `cv_doping_profile` fits the slope only where the band bending `psi = |int_Vfb^V (1 - C/Cox) dV|` lies between
   4 kT/q and `2 phi_B - 3 kT/q` (`phi_B = (kT/q) ln(N/ni)`): nearer flatband the Debye tail, nearer threshold the
-  inversion charge bend the line. Silicon `eps_s = 11.7 eps0`, `ni = 1e10 cm^-3`, 300 K (options).
+  inversion charge bend the line. Silicon defaults `eps_s = 11.7 eps0`, `ni = 1e10 cm^-3`, 300 K (options: set
+  them for another substrate).
 - Reported: `nsub` (cm^-3) with the fit window and depth range; needs `geometry.area_um2`. A non-uniform profile
   shows as a curved 1/C^2 plot (`plot_cv`).
 
@@ -140,8 +150,9 @@ docstrings are the source); every value they return is derived. Debugging is ski
 - MOS capacitor (`cv_vth`): `Vth = Vfb + 2 phi_B + sqrt(2 q eps_s N 2 phi_B) / Cox'` from the fitted Cox, N, Vfb:
   the strong-inversion onset of the ideal electrostatics, not a crossing of the measured curve.
 - Split C-V (`cv_vth` on `mosfet.cgc_cv`/`cgd_cv`): the onset of the inversion capacitance, the maximum of
-  `d^2 Cgc / dVg^2` in the rising part. It agrees with the 2 phi_B threshold within a few tens of mV; an I-V Vth
-  (linear extrapolation, constant current) of the same device differs by definition: report the method.
+  `d^2 Cgc / dVg^2` in the rising part. It is close to, but not identical with, the 2 phi_B threshold (size of the
+  difference: `TODO(cite)`); an I-V Vth (linear extrapolation, constant current) of the same device differs by
+  definition: report the method.
 
 ## Hysteresis
 
@@ -160,9 +171,9 @@ docstrings are the source); every value they return is derived. Debugging is ski
   and the drain overlap are seen, about `Cox W L / 2 + Cov` in strong inversion.
 - `cv_cox` on Cgc removes the floor (overlap capacitance, `c_floor`) and extrapolates the plateau like the
   accumulation of a MOS capacitor (inversion charge `Q = int c dV`): `cox` = Cox W L; Cox per area and EOT with the
-  DUT profile's W and L. Cmax alone lies 1-3 % low (inversion-layer capacitance).
-- Use a low frequency (100 kHz) so the channel resistance does not cut the measured capacitance near threshold;
-  long channels need lower frequencies (the channel is an RC line).
+  DUT profile's W and L. Cmax alone lies below Cox W L (inversion-layer capacitance; more for thinner oxides).
+- Use a frequency low enough that the channel follows, so its resistance does not cut the measured capacitance near
+  threshold (the recipe default 100 kHz is an example; long channels need lower: the channel is an RC line).
 - Split C-V also gives the inversion charge `Qi(Vg) = int Cgc dVg` for effective mobility (with an Id-Vg at small
   Vd on the same device): an ad-hoc analysis in `work/`.
 
@@ -196,7 +207,8 @@ docstrings are the source); every value they return is derived. Debugging is ski
 ## Pulsed C-V
 
 - `moscap.pulsed_cv` rests the gate at `v_base` and pulses it to each level (PWDCV; width >= 8 ms above 200 kHz,
-  10 ms up to 200 kHz, 50 ms up to 10 kHz; period 0 = width + 2 ms); C is read during the pulse.
+  10 ms up to 200 kHz, 50 ms up to 10 kHz; period 0 = width + 2 ms; PG p487-488 (4-169) "PTDCV"); C is read during
+  the pulse.
 - From an accumulation base each point starts with no inversion charge and with emptied border traps: in inversion
   the pulse is shorter than the inversion-layer formation, so C stays below the HF minimum (deep depletion; the
   1/C^2 line continues, a deeper doping profile); in accumulation and depletion it equals a DC C-V swept from the
@@ -235,12 +247,14 @@ docstrings are the source); every value they return is derived. Debugging is ski
   leakage is measured before and after the transition (`linteg`) and interpolated to it (`QSL 1,1`, normal mode;
   `operation: compatible` = 4155C/4156C formula). Start and stop are not measured; the step must divide the span.
 - It is the low-frequency curve: interface traps and (with enough time) the inversion layer follow. The curve
-  dips near flatband/midgap by `q Dit A` in series with Cox and rises back to Cox in inversion; a sweep from
+  dips in depletion (towards midgap), where `q Dit A` adds in parallel to the semiconductor capacitance in series
+  with Cox, and rises back to Cox in inversion; a sweep from
   inversion to accumulation after `hold_s` stays in equilibrium (long generation times need a longer hold).
 - Range `irange_a` (QSR, fixed): the charge current `C cvoltage / cinteg` plus the leakage must fit (an MPSMU from
   1 nA; a 1 GOhm path leak at 2 V is 2 nA: 10 nA range); compliance or overflow aborts the sweep (error 242).
 - Offset: `offset: measure` (probes lifted, `physical_setup`) stores the path's guard capacitance in the instrument
-  (`QSZ 2`, a fraction of a pF); later runs with `offset: cancel` subtract it (`QSZ 1`). Without it C reads high by
+  (`QSZ 2`; its size for this station is recorded at bring-up L6, `TODO(verify)[L6.A6]`); later runs with
+  `offset: cancel` subtract it (`QSZ 1`). Without it C reads high by
   the offset: small for Cox, a bias of the high-low Dit (it lands on `C_LF`).
 - Methods: `cv_cox` (accumulation extrapolation, as for HF), `plot_cv` (C and leakage against `dc_v`),
   `dit_high_low` with an HF C-V; flatband, doping and Vth refuse a QSCV run (they need the HF curve).
@@ -256,7 +270,9 @@ docstrings are the source); every value they return is derived. Debugging is ski
 - Conductance (`dit_conductance`, `moscap.cv_multi_freq`): at each bias `Gp/w` over the frequencies, continuum fit
   -> Dit and tau; a bias counts when its peak lies inside the band. Energy from the HF depletion width (`psi = q N
   W^2 / (2 eps_s) + kT/q`). At room temperature 1 kHz..1 MHz reaches only the traps about 0.15-0.35 eV from midgap
-  towards the majority band (tau grows e-fold per kT/q towards midgap); midgap needs high-low (or a cold chuck).
+  towards the majority band for a capture cross-section near 1e-16 cm^2 (v_th 1e7 cm/s, ni 1e10 cm^-3 assumed; each
+  decade of sigma shifts it by about 0.06 eV; tau grows e-fold per kT/q towards midgap); midgap needs high-low (or a
+  cold chuck).
 - The two methods should agree where they overlap; a C_LF above C_HF in accumulation, negative Dit or a step in the
   profile mean the curves are not of one state (hysteresis, a re-landing, stale corrections, an uncancelled offset).
 - Charge pumping (`mosfet.charge_pumping`, card `spgu/charge-pumping`) gives a mean Dit of a MOSFET's channel.

@@ -58,11 +58,13 @@ the code wins on any difference and a change to either must change both.
 ## Fast I-V pulses ramps and timing
 
 - `wgfmu.pulsed_iv`: one gate pulse per level, Id averaged over the flat top minus `settle` at both ends: the
-  isothermal, trap-free transfer curve; compare with DC Id-Vg (`pulsed_vs_dc`, knowledge 06b).
+  transfer curve with less self-heating and less slow-trap charging than DC (reduced, not removed); compare with DC
+  Id-Vg (`pulsed_vs_dc`, knowledge 06b).
 - `wgfmu.fast_iv`: microsecond up/down ramps, one point per interval: fast hysteresis; `wgfmu.pulse_train`: many
   identical pulses with several points per plateau: drift over a train. Its `gate_mode: pg` runs the gate channel in
   PG mode (WG p16 (1-4)): the set level is the open-load level behind 50 Ohm (an insulated gate sees all of it, a
-  50 Ohm load half), 5 V ranges only (R-WG-02), no measurement on that channel; the drain stays in Fast IV.
+  50 Ohm load half), 5 V ranges only (R-WG-02); the kernel does not measure on that channel (PG mode could measure
+  voltage, WG p16 (1-4)); the drain stays in Fast IV.
 - A shorter window is faster but noisier: averaging n samples (5 ns each) lowers white noise as 1/sqrt(n)
   (AN-RTN p7 (7) figure 6). Keep the window on the flat top: edges and cable ringing bias the average.
 
@@ -88,7 +90,8 @@ the code wins on any difference and a change to either must change both.
 - Kind `pulse_read` with a `wgfmu` pulse role (`pulse_wgfmu.py`): the schedules of the SPGU path (cycles, endurance
   checkpoints, grid, retention) with WGFMU pulses, bipolar cycling bursts (one cycle pattern repeated up to 10^6 times
   per entry) and WGFMU reads (`wgfmu_read` `sweep` or `pund`), one execution per step inside one library phase (the
-  output stays at its rest level between executions; TODO(verify) at L8 that `WGFMU_update` keeps it there).
+  output stays at its rest level between executions; that `WGFMU_update` keeps it there is a bring-up L8 check,
+  `TODO(verify)[L8.A9, L8.P4]`).
 - Simulator: a vertex step holds the level at its end, so a pulse's leading edge counts as time at the level for
   switching kinetics; long unmeasured repeats (cycling) are stepped in aggregated chunks with the devices' cycle
   counter (wake-up/fatigue exact, retention between pulses approximate).
@@ -109,7 +112,8 @@ the code wins on any difference and a change to either must change both.
 
 ## Low-frequency noise physics
 
-- Drain-current noise below ~1 MHz: `S_I(f) = A / f^gamma` with gamma about 0.7..1.3, plus a white floor and, in
+- Drain-current noise below ~1 MHz: `S_I(f) = A / f^gamma` with gamma near 1 (a commonly quoted range of about
+  0.7..1.3 needs a checked source, `TODO(cite)`), plus a white floor and, in
   small devices, RTN Lorentzians. Many traps with spread time constants add up to 1/f.
 - Normalized PSD `S_I/I^2` compares devices and biases. Number fluctuation (McWhorter): `S_I/I^2` follows
   (gm/I)^2 over bias; mobility fluctuation (Hooge): `S_I/I^2 = alpha_H / (N f)`, falling as 1/I. Input-referred gate
@@ -196,21 +200,24 @@ likely two-level RTN), `noise_rel` = std/|mean|, `drift_rel` = linear slope x du
   self-calibration, DC into the 100 kOhm standard through the RSU (I(R) +-3 %), pulsed vs DC Id-Vg through the RSU
   SMU inputs (explained), the fast ramp and a pulse train, the lab's own waveform files, RTN and LFN records, a
   FeCap PUND, the fast FeFET program/read; a scope on the RSU V Monitor shows each waveform and 0 V after it.
-- `TODO(verify)` at L8: releasing the FLEX lock is enough for the library session (ATV-14; fallback
-  `settings.wgfmu.flex_during_phase: close`); `initialize` leaves an SMU bias alone (ATV-17); the RSU SMU path
-  (ATV-32); an accepted `disconnect` = the relay opened; the error-string format; the readback time of 504,000
-  points; real noise floors and bandwidth with the lab's cables.
+- Hardware facts behind the simulator's assumptions are bring-up L8 records; the stage file `l8-wgfmu.md`
+  (Expected values) lists them with their checks: releasing the FLEX lock is enough for the library session
+  (ATV-14; fallback `settings.wgfmu.flex_during_phase: close`), `initialize` leaves an SMU bias alone (ATV-17), the
+  RSU SMU path (ATV-32), an accepted `disconnect` = the relay opened, the error-string format, the readback time of
+  504,000 points, real noise floors and bandwidth with the lab's cables
+  (`TODO(verify)[L8.A4, L8.A6, L8.A7, L8.A10, L8.A11]`).
 
 ## Simulator behaviour
 
 - Attached `noise` device (scenario `nmos_rtn`): white noise per range, 1/f^gamma by spectral shaping (one
   independent realisation per measurement event, so no correlation below 1/record), one RTN trap sampled exactly
   at the point times (not averaged over the window), plus the WGFMU floor averaged as 1/sqrt(n).
-- `nmos_rtn` truth: gamma 1, `S_I/I^2 = 1e-5/f`, tau_c 1 ms, tau_e 0.5 ms, dI/I 5 % (corner 477 Hz); at the card's
-  bias (Vg 1 V, Vd 0.1 V) Id is about 11.7 uA. The realisation advances with every run (persisted call counter).
+- `nmos_rtn` truth (simulator example, not a real-device value): gamma 1, `S_I/I^2 = 1e-5/f`, tau_c 1 ms,
+  tau_e 0.5 ms, dI/I 5 % (corner 477 Hz); at the card's bias (Vg 1 V, Vd 0.1 V) Id is about 11.7 uA. The
+  realisation advances with every run (persisted call counter).
 - Blueprint 4.2 targets met by the defaults: gamma +-0.1, tau_c and tau_e +-20 % (about 5,000 transitions),
-  dI/I +-10 % (tests/integration/test_recipes_noise.py). Real noise floors, bandwidths and trap statistics are
-  bring-up and device facts (stage L8; TODO(verify)).
+  dI/I +-10 % (tests/integration/test_recipes_noise.py). Real noise floors and bandwidths are bring-up facts
+  (`TODO(verify)[L8.A6]`); trap statistics are device facts that runs give.
 
 ## Troubleshooting noise records
 

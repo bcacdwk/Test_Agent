@@ -27,9 +27,10 @@ Contents: [Sampling MM 10](#sampling-measurement-mm-10) · [Pulsed](#pulsed-meas
 Kind `smu_sampling` (recipes `mosfet.id_t_sampling`, `generic.smu_sampling`, `reliability.tddb_cvs`); PG sampling
 measurements PG p112-114 (2-24), `MT` PG p474-476 (4-156).
 
-- On the trigger the synchronous sources (`MV`/`MI`) force their base value, `hold_base` later their bias value
-  (the time origin, `t_s = 0`), `hold_bias` later the first sample; then one sample per `interval` (2 ms to 65 s
-  in 1 ms steps; below 2 ms linear only). DC sources (`DV`/`DI`) are set before the trigger and keep their level.
+- On the trigger the synchronous sources (`MV`/`MI`) force their base value, `hold_base` later their bias value (the
+  time origin, `t_s = 0`), `hold_bias` later the first sample; then one sample per `interval` (2 ms to 65 s in 1 ms
+  steps; 0.1 ms to 2 ms linear only; PG p474-475 (4-156)). DC sources (`DV`/`DI`) are set before the trigger and keep
+  their level.
 - Each sample carries its sampling index (`FMT 1,1`) and, with `TSC 1`, a time stamp per channel (time since `TSR`);
   `t_s` comes from the stamps. A sample that would start while the channels are busy is skipped (index gap).
 - `MSC 2,2`: compliance of any channel, overflow or oscillation stops the sampling at once (later data read
@@ -45,8 +46,9 @@ Kind `smu_pulsed` (card `smu-pulsed-iv`); PG p93-105 (2-5), `PT` PG p486-487 (4-
   measurement (pulsed ADC, `AIT 2,3,<time>`) ends with the pulse. MM 3: one pulse, one reading; MM 4: one pulse per
   step of a `PWV` pulsed sweep; MM 5: a `WV`/`WI` staircase with one `PV` pulse per step; MM 27/28: up to ten
   channels pulse together (`MCPNX` bias, `MCPWNX` sweep, `WNX` staircase) and measure in parallel.
-- HR/MP/HPSMU: width 500 us-2 s in 100 us steps, period 5 ms-5 s with period >= width + 2 ms (10 ms above 100 ms),
-  no delay, one common width (R-PULSE-01, PG p462 (4-144)); MM 4/5 sweep linearly only (error 226).
+- HR/MP/HPSMU: width 500 us-2 s in 100 us steps, period 5 ms-5 s with period >= width + 2 ms (10 ms above 100 ms)
+  (PG p486-487 (4-168) "PT"); no delay, one common width (R-PULSE-01, PG p462 (4-144), Table 4-27); MM 4/5 sweep
+  linearly only (error 226, PG p579 (5-7)).
 - Auto ranging in a pulsed measurement means the compliance range (PG p337 (4-19)): set a tight compliance or
   `irange` for small pulsed currents. A pulse far shorter than the thermal time constant reads the device cold.
 
@@ -64,11 +66,13 @@ Kind `smu_qscv` (recipe `moscap.qscv`, card `moscap-dit`); PG p115-117 (2-27), e
 - The `QSV` SMU sweeps start -> stop (start and stop not measured); per step it moves `cvoltage` around the step
   voltage over `cinteg` and integrates the charge, with the leakage measured before and after (`linteg`): `C = (I -
   Leak) cinteg / (V - V0)` (`QSL 1,1`). A step equal to cvoltage joins the transitions (PG p116 (2-28)).
-- `QSR` is a fixed range (10 pA..1 uA; an MPSMU from 1 nA) for the charge current `C cvoltage / cinteg` plus the
-  leakage; `QSM 2` stops at compliance, overflow or oscillation (error 242, dummy data). `QSZ 2` measures the path
-  offset with the probes lifted (`physical_setup`), `QSZ 1` subtracts it; `QSO` (smart operation) stays off.
+- `QSR` is a fixed range (10 pA..1 uA, PG p496 (4-178); an MPSMU from 1 nA without an ASU, PG p337 (4-19)) for
+  the charge current `C cvoltage / cinteg` plus the leakage; `QSM 2` stops at compliance, overflow or oscillation
+  (error 242, PG p580 (5-8); dummy data). `QSZ 2` measures the path offset with the probes lifted
+  (`physical_setup`), `QSZ 1` subtracts it (PG p499 (4-181)); `QSO` (smart operation) stays off.
 - The run's `kind_result` keeps `offset_f` (offset run) and `leakage_max_a` (largest |leakage| of the sweep): the
-  bring-up L6 checks (offset below 5 pF, leakage below 1 nA).
+  bring-up L6 checks compare them with the stage's provisional criteria (offset below 5 pF; leakage below the L6
+  MOS-C's gate leakage limit from its DUT profile, 1 nA in the example), not with general limits.
 - Through an SCUU (`SSP 7,3`) the same landing then gives the MFCMU C-V: [08](08-capacitance-cv.md#quasi-static-c-v).
 
 ## Zero check floor
@@ -116,7 +120,9 @@ initial settings below (a kind that uses one restores it in its cleanup).
   on); a hold forces the stress level with one monitor sample per block (`stress_measure`, card
   `bti-stress-measure`).
 - Asynchronous runs send `CM 0` first and the cleanup restores the auto-calibration state read by `*LRN? 31`
-  (R-CAL-02): auto-calibration after 30 min would otherwise run with outputs off in the middle of a stress.
+  (R-CAL-02): auto-calibration starts once every SMU output has been off for 30 min and needs open terminals
+  (PG p379 (4-61)), and a long run can hold the outputs off that long with the probes landed (retention waits); a
+  job that may leave the device connected should disable it (PG p79 (1-59)).
 - A killed server (codex-cli ends it at every headless turn end) leaves the outputs and `CM 0` as they were until
   the next transaction: it finds the in-flight marker, runs the recovery cleanup (`AB`, `DZ`, `CL`, verify),
   restores auto-calibration from the marker and finalizes the run `aborted` (bring-up drill: L9; skill

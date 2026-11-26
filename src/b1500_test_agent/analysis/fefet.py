@@ -8,8 +8,10 @@ start), and
 
     MW = Vth_fwd - Vth_rev
 
-which is positive for the counter-clockwise loop of an n-channel FeFET swept upwards first (programming on the way
-up lowers Vth for the way down). A negative MW gets a warning (sweep direction or polarity). Any method offset (e.g.
+which is positive for the counter-clockwise ferroelectric loop of a FeFET swept upwards first (the positive excursion
+leaves polarization charge at the channel that lowers Vth for the way down), for n- and p-channel devices alike: the
+sign follows the sweep direction, not the channel type. A negative MW gets a warning (a downward-first sweep, or
+charge trapping dominating). Any method offset (e.g.
 (n - 1)·Vd/2 of linear extrapolation, or I_crit below the model threshold current) is the same on both branches and
 cancels in MW. Per branch, Ion and Ioff come from ``ion_ioff`` (``v_on``/``v_off``, default the sweep ends).
 
@@ -107,7 +109,9 @@ def memory_window(
     warnings = [f"fwd: {w}" for w in fwd.warnings] + [f"rev: {w}" for w in rev.warnings]
     if value < 0:
         warnings.append("Negative memory window: Vth_fwd < Vth_rev (clockwise loop). Check the sweep direction "
-                        "(fwd = first branch) and the device polarity.")
+                        "(fwd = first branch; a downward-first sweep flips the sign of a ferroelectric loop); swept "
+                        "upward first, a clockwise loop means charge trapping dominates, for n- and p-channel "
+                        "devices alike.")
     results = [out.ok("memory_window", value, "V", excluded=excluded,
                       points_used=fwd.points_used + rev.points_used,
                       fit={"vth_fwd": fwd.value, "vth_rev": rev.value}, warnings=warnings),

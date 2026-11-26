@@ -77,10 +77,11 @@ through declared outputs and never claims a wiring it cannot read back.
 - Ratings: SMU input 200 V / 1 A, PGU input 40 V / 0.4 A peak to peak into 50 Ohm (SEL p27 (21) "Maximum Voltage");
   residual resistance 0.2 Ohm (SMU path) and 3.4 Ohm (PGU path), leakage below 100 fA at 100 V (SEL p29 (23)
   "Residual resistance"). The kernel's 42 V / 100 mA ceiling stays far below.
-- Power-on and `*RST`: control mode off and every output open is the assumption (ATV-18). The kernel never relies
-  on it: every route and every cleanup sends `ERMOD 1` and reads `ERSSP?` back. `TODO(verify)` at L7.
-- The manual gives no switching time; the kernel waits 10 ms after a selector change (relays break before make)
-  `TODO(verify)` at L7.
+- Power-on: control mode off and every output open are the initial settings (PG p419 (4-101), PG p433 (4-115));
+  no tool sends `*RST`. The kernel never relies on them: every route and every cleanup sends `ERMOD 1` and reads
+  `ERSSP?` back (the hardware states: bring-up L7, ATV-18, `TODO(verify)[L7.A2]`).
+- The manual gives no switching time; the kernel waits 10 ms after a selector change (relays break before make),
+  a conservative choice whose sufficiency bring-up L7 checks on the scope (`TODO(verify)[L7.A4]`).
 - Lab code (`lwp` `SPGU_pulse.m`): `ERMOD 1`, all four ports `ERSSP p,2` before the pulses, `ERSSP p,1` after. The
   kernel does the same per declared output, through the guard, verified, and returns to `rest` (open) afterwards.
   `IV_sweep.m` sends `ERSSP p,0` (all open), not "to SMU".
@@ -112,7 +113,8 @@ through declared outputs and never claims a wiring it cannot read back.
   channel and closes the session.
 - An SMU through an RSU (the DC reference of fast I-V, the SMU bias of a combined recipe) needs that SMU's Force
   cable on the From SMU input, recorded as `inputs.smu` (ATV-32); recabling only with the DUT lifted. The V Monitor
-  (BNC) shows the WGFMU output to a high-impedance scope and is grounded while the RSU is on its SMU path.
+  (BNC) shows the WGFMU output to a high-impedance scope and is grounded while the RSU is on its SMU path
+  (WG p20 (1-8)).
 - The From SMU input takes at most +-25 V, or the RSU is damaged (WG p20 (1-8)), and the SMU path 100 mA (WG p16
   (1-4) "SMU mode"), in every RSU state. So the SMU recorded there (SMU4/SMU3 in the lab layout after L8) stays
   within +-25 V and 100 mA in every plan, whatever the pin map calls it (`mosfet-4t` on an RSU landing drives SMU4

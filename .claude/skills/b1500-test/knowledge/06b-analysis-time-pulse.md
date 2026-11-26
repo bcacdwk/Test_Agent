@@ -56,8 +56,9 @@ a finished DC run of the same roles and bias (`mosfet.idvg` for `mosfet.idvg_pul
 - Over the common x window the DC run is interpolated at the pulsed x: `pulsed_minus_dc` and `pulsed_over_dc` at
   `v` (default the x of the largest pulsed current: the highest power), `max_rel_difference` = the largest
   |Delta|/|I_dc| where |I_dc| >= `min_current_a` (default 1 % of its maximum).
-- Reading: pulsed > DC on an n-type transistor, growing with Id x Vd, is DC self-heating (mobility loss); a
-  difference at negligible power is charge trapping (slow traps fill during DC) or a mismatch of the runs (rerun DC).
+- Reading (a general reading, not checked against a source): pulsed > DC on an n-type transistor, growing with
+  Id x Vd, is DC self-heating (mobility loss); a difference at negligible power is charge trapping (slow traps fill
+  during DC) or a mismatch of the runs (rerun DC).
 
 ## Pulse plateau
 
@@ -79,7 +80,8 @@ Implemented (`vth_search_value`, WP7.5; recipe `mosfet.vth_search`, kind `smu_se
 - The instrument bisects the gate until the drain current is within `limit_rel` (1 %) of I_crit x W/L and returns the
   gate voltage there (`gate_V`, status `N`) and the drain current it read: Vth = that voltage (`fit`:
   `i_measured_a`, `target`, `rel_error`). It is the constant-current Vth ([06](06-analysis-extraction.md#vth-constant-current))
-  at the same criterion and drain bias, without interpolation; 1 % of the current is ~0.4 mV at 80 mV/dec.
+  at the same criterion and drain bias, without interpolation; 1 % of the current is about 0.4 mV of gate voltage
+  for an example swing of 80 mV/dec (SS x log10(1.01)).
 - Status `G` (target not between start and stop): `failed`, widen the range; `S` (automatic abort: gate or drain
   compliance) or an untrusted drain reading: refused unless `force`.
 
@@ -123,7 +125,8 @@ Implemented (`switching_kinetics_fit`, WP9.5; `fefet.switching_kinetics`, kind `
   spread: a large spread means incomplete resets).
 - `reset` grids: NLS least squares over every usable point, `Vth = V0 + A(V) (1 - exp(-(w / tau(V))^beta))`,
   `tau(V) = tau0 exp((Va / |V|)^alpha)`; `V0` and one `A(V)` per amplitude are linear (projected out), `tau0`, `Va`,
-  `beta` (and `alpha` with option `alpha: null`, else fixed at 2) by Levenberg-Marquardt from a per-amplitude grid
+  `beta` (and `alpha` with option `alpha: null`, else fixed at 2: an assumption, not a measured value; literature
+  basis `TODO(cite)`) by Levenberg-Marquardt from a per-amplitude grid
   start. Needs 2 amplitudes (3 with free `alpha`), 3 widths per amplitude and more points than parameters. Results
   `tau0` (s; `fit`: `va`, `alpha`, `beta`, `v0`, `rms`, `r2`, `tau0_rel_se`, `tau@<V>V`, `window@<V>V`), `beta`
   (`beta_se`), `va` (V, `va_se`), `alpha` (when fitted); window = the width span. An amplitude whose `tau(V)` lies

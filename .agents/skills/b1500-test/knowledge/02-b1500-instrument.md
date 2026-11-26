@@ -2,27 +2,28 @@
 domain: 02-b1500-instrument
 maturity: seed
 sources:
-  - deck slide 11 (module table, channel numbering, UNT?)
-  - deck slide 3 (MCP layer, I-V sweep command sequence)
-  - deck slides 8 and 9 (safety, status codes, pre-measurement checklist)
+  - "deck slides 3, 8, 9 and 11: topics only (illustrative, not evidence: owner 2026-11-26)"
   - "B1500 Series Programming Guide Ed. 15 (PG), PDF pages cited inline"
   - "B1500A User's Guide Ed. 17 (UG), PDF pages cited inline"
   - references/manuals/structured (command parameters, command summary, error codes, initial settings)
   - code tables in src/b1500_test_agent/driver/modules.py and models/station.py
+  - "lab: the UNT? snapshot lwp/matlab_B1500/B1500_Config.mat (config/station.example.yaml) and the lwp MATLAB scripts"
 last_reviewed: null
 ---
 
 # B1500A instrument (knowledge domain 2)
 
-Seeded from deck slide 11. What the mainframe and its modules can do, how channels are numbered, and how to read
+What the mainframe and its modules can do, how channels are numbered, and how to read
 status letters, errors and the FLEX preview of a plan. FLEX appears here only so that plans and audit logs can be
 understood: the agent never sends FLEX. Every instrument action goes through the `b1500` tools (validate a plan,
 run it); there is no raw-command tool and none may be improvised. PDF page numbers are physical PDF pages.
 
 ## Mainframe slots and GNDU
 
-- Ten module slots plus the built-in ground unit (GNDU) (UG PDF 44). HPSMU, HCSMU and HVSMU occupy two slots. With a
-  WGFMU the sum of the module ratings must stay below 60 (lab: 37; WG p17).
+- Ten module slots plus the built-in ground unit (GNDU) (UG p44 (2-4)). The HPSMU occupies two slots (UG p44 (2-4));
+  HCSMU and HVSMU (two slots each, PG p334 (4-16)) are not B1500A modules (UG p58 (2-18)). With a WGFMU the sum of
+  the module ratings must stay below 60 (WG p17 (1-5)); the modules of the lab's `UNT?` snapshot
+  (`lwp/matlab_B1500/B1500_Config.mat`) sum to 37 (SPGU 12 + WGFMU 10 + four SMUs at 2 + MFCMU 7).
 - GNDU: a 0 V source, the measurement ground reference, Force and Sense in one connector; it sinks up to 4.2 A (UG
   p58 (2-18) "4.2 A"). Its cable must be the 16493L GNDU cable (4.2 A; an ordinary triax cable is rated 1 A, UG PDF
   93). It measures nothing: a terminal whose current matters (substrate current, charge pumping) needs an SMU at 0 V.
@@ -37,13 +38,13 @@ run it); there is no raw-command tool and none may be improvised. PDF page numbe
 
 ## SMU and module table
 
-Deck slide 11, corrected against the User's Guide. DC values; v1 sources DC only.
+From the User's Guide (page per row). DC values; v1 sources DC only.
 
 | Type | Model | Slots | Max DC V / I / P | Smallest ranges | Notes |
 |---|---|---|---|---|---|
 | HPSMU | B1510A | 2 | ±200 V / ±1 A / 20 W | 2 V, 1 nA | power devices (UG PDF 60) |
 | MPSMU | B1511B | 1 | ±100 V / ±100 mA / 2 W | 0.5 V, 1 nA (1 pA with ASU) | general I-V; ASU only on B1511B (UG PDF 44, 63) |
-| HRSMU | B1517A | 1 | ±100 V / ±100 mA / 2 W | 0.5 V, 10 pA (1 pA with ASU) | low current; 1 fA resolution on the 1 pA range (UG PDF 69-70) |
+| HRSMU | B1517A | 1 | ±100 V / ±100 mA / 2 W | 0.5 V, 10 pA (1 pA with ASU) | low current; on the 1 pA range output resolution 1 fA, measurement resolution 100 aA (UG p70-71 (2-30), Tables 2-12, 2-14) |
 | MCSMU | B1514A | 1 | ±30 V / ±100 mA / 3 W | 0.2 V, 10 uA | 1 A and 30 W in pulse mode only (UG PDF 67) |
 | MFCMU | B1520A | 1 | DC bias ±25 V (±100 V via SMU + SCUU) | — | 1 kHz-5 MHz, 10-250 mVrms; one per mainframe (UG PDF 73) |
 | HVSPGU | B1525A | 1 | ±40 V open load, ±20 V into 50 ohm | — | 2 pulse channels, PG or ALWG (UG PDF 76) |
@@ -51,8 +52,8 @@ Deck slide 11, corrected against the User's Guide. DC values; v1 sources DC only
 
 - HRSMU/MPSMU output envelope: up to 100 mA at |V| ≤ 20 V, 50 mA to 40 V, 20 mA to 100 V (UG Table 2-12,
   PDF 70; PG Tables 4-6/4-7, PDF 341-342). Rule R-LIM-01 checks every plan against these corners.
-- Deck slide 11 lists MCSMU as 30 V / 1 A: 1 A is pulse only, DC is 100 mA. The deck also notes the owner's
-  station has no MCSMU, and WGFMU/HVSPGU matter most after SMU I-V (deck slide 7).
+- The lab's `UNT?` snapshot (`lwp/matlab_B1500/B1500_Config.mat`) lists no MCSMU: slots 1-7 hold SPGU, WGFMU, two
+  HRSMUs, two MPSMUs and the MFCMU; slots 8-10 are not recorded until bring-up L0 reads them.
 - On top of module ratings, v1 caps every plan at 42 V and 100 mA in code; the example policy asks for confirmation
   above 10 V or 10 mA compliance. `station_status` shows the live limits; the human owns them.
 - Low current: prefer an HRSMU (smallest native range 10 pA) on the terminal whose current matters (drain for
@@ -63,10 +64,12 @@ Deck slide 11, corrected against the User's Guide. DC values; v1 sources DC only
 - PG Table 4-1 (PDF 334): an SMU or MFCMU in slot n is channel n (also written n01). The two subchannels of a
   WGFMU or HVSPGU in slot n are n01 and n02 (the lab WGFMU in slot 2: 201, 202). A two-slot module uses the lower
   slot number.
-- Deck slide 11 says channels 11-20 are the subchannels of slots 1-10. That contradicts PG Table 4-1 and the
-  WGFMU channel ids 101-1002; the manual wins `TODO(verify)` whether any firmware mode accepts 11-20.
+- Commands take channel numbers 1-10 and 101-1002 (PG p334 (4-16), Table 4-1). The numbers 11-20 exist only in
+  the channel field of the binary data format, for subchannel 2 of slots 1-10 (PG p67 (1-47), Table 1-14); the
+  kernel reads ASCII data.
 - `UNT?` returns model and revision per slot, `[FrameModel,FrameRevision;]Slot1Model,Slot1Revision;...`
-  (PG PDF 545); an empty slot is assumed to read `0,0` (confirmed only at hardware bring-up). Rule R-INV-01 compares
+  (PG PDF 545); an empty slot is assumed to read `0,0`, which the manual does not document (`TODO(verify)[L0.A2]`:
+  the bring-up probe reads slots 8-10, which the lab snapshot does not record). Rule R-INV-01 compares
   it with the station profile before every run, and `station_status` reports the inventory.
 - Status letters and data blocks name channels by letter: `A`-`J` = slots 1-10, `a`-`j` = their subchannel 2,
   `V` = GNDU (PG Table 1-11, PDF 54).
@@ -91,21 +94,22 @@ multi-channel sweeps; WP7.1 the spot, mode 1; WP7.3 the pulsed modes; WP7.5 the 
 | 17-20, 22, 23, 26 | spot C, C-V, pulsed C, C-f, C-V(AC level), C-t | MFCMU | driver + simulator (WP8.1); recipes M8 |
 | 27, 28 | multi-channel pulsed spot / sweep | SMU | `smu_pulsed` with two pulse or measuring roles |
 
-WGFMU waveforms run through the B1530A instrument library and SPGU pulses through their own commands, not through
-`MM` (the old stub listed them under sampling and pulsed sweep) `TODO(verify)` against the B1530A guide.
+WGFMU waveforms run through the B1530A instrument library (WG p14 (1-2), WG p85 (4-15)) and SPGU pulses through
+their own commands (`SRP`/`SPP`, PG p144 (2-56)), not through `MM`: the commands required before `XE` cover SMU and
+CMU modes only (PG p571 (4-253), Table 4-33).
 
 The SMU modes beyond the staircase (sampling, pulsed, search), the zero-check floor, the SMU conditioning commands
 (filter, series resistor, ADC zero, averaging, auto-range operation) and long SMU runs: [02b](02b-smu-modes.md).
 
 ## Measurement sequence and cleanup
 
-Deck slide 3 sketches one I-V sweep: reset, data format, ADC, enable channels, mode, measured quantity, range,
+One I-V sweep is a fixed sequence: reset, data format, ADC, enable channels, mode, measured quantity, range,
 sweep source, trigger, wait, read, zero, disconnect. In v1 the recipe kind compiles that sequence from the plan;
 `validate_plan` returns it as the plan's FLEX preview (writes only) so a human can audit it.
 
 - Every run is one transaction: rules re-checked under the instrument lock, output guard on every source command,
-  then cleanup abort, SPGU stop, zero, switches to rest, disconnect, verify (deck slide 8: zero and disconnect after
-  any error and after every measurement), whatever happened. Unverified cleanup latches a fault that only a human
+  then cleanup abort, SPGU stop, zero, switches to rest, disconnect, verify (zero and disconnect after any error
+  and after every measurement), whatever happened. Unverified cleanup latches a fault that only a human
   clears. Switches to rest: every declared 16440A port `ERMOD 1` + `ERSSP p,0`, SCUU/ASU paths, all read back
   ([11](11-switching-routing.md#cleanup-and-verification)).
 - SPGU stop (cleanup step 2, mainframes with an HV-SPGU, e.g. the lab's slot 1): `SPST?` and, while it reads 1,
@@ -119,7 +123,7 @@ sweep source, trigger, wait, read, zero, disconnect. In v1 the recipe kind compi
   latches the fault (`cleanup_unverified`): report it, `safe_shutdown`, skill `b1500-debug`.
 - Before `XE` the instrument needs channels enabled, a mode and its sources (PG PDF 571-572); missing pieces are
   instrument errors, which v1 drains with `ERRX?` and treats as a reason to abort before triggering.
-- The deck's pre-measurement checklist (slide 9) maps to rules: modules and channel map via `UNT?` (R-INV-01),
+- The pre-measurement checklist maps to rules: modules and channel map via `UNT?` (R-INV-01),
   calibration state (R-CAL-01), C-V correction (R-CORR-01), compliance set (R-COMP-01).
 
 ## Lab scripts vs the kernel
@@ -129,7 +133,8 @@ measurement as `mosfet.idvg` on pin map `mosfet-3t-lab` with these deliberate di
 `tests/integration/test_lab_idvg_sequence.py`):
 
 - No `*RST`: it drops MFCMU corrections, sets the SPGU to free-run, resets the selector paths and hides the
-  instrument's prior state (PG PDF 179-180); only kind `system` may send it.
+  instrument's prior state (PG p179 (2-91), Table 2-12; PG p180 (2-92), Table 2-13; `ERMOD` and `ERSSP` initial
+  settings: PG p419 (4-101), PG p433 (4-115)); only kind `system` may send it.
 - `FMT 1,1` instead of `FMT 21,1`: one status letter per value, which the kernel keeps; the lab parser keeps only
   the number, so its compliance and overflow points look like readings.
 - Compliances: drain 1 mA (lab 100 mA for a 0.4 uA device), gate 1 uA (lab 10 mA), source the sum of the two;
@@ -183,14 +188,14 @@ Measurement status letter `A` of each data element (PG Table 1-10, PDF 53):
 | `G`, `S` | search: target not found / stopped (quasi-pulsed: timing, early compliance); the search analyses read them | untrusted |
 | `U`, `D` | CMU null-loop unbalance / CMU IV amplifier saturation | untrusted |
 
-- Deck slide 9 glosses `V` as "output overvoltage or unstable" and `D` as "data invalid"; the manual definitions
-  above win. Any other letter (or none) counts as untrusted. Source-data elements carry `W`/`E` instead (sweep step
-  intermediate/last, PG Table 1-7, PDF 52); they are not measurement statuses.
-- Severity for SMUs: N < G < S < T < C < V < X (PG PDF 51).
+- The manual definitions above are the only ones used. Any other letter (or none) counts as untrusted. Source-data
+  elements carry `W`/`E` instead (sweep step intermediate/last, PG Table 1-7, PDF 52); they are not measurement
+  statuses.
+- Severity for SMUs: N < G < S < T < C < V < X; for the quasi-pulsed spot N < T < C < V < X < G or S (PG p51 (1-31)).
 - In `data.csv` each measured value has a `<role>_<V|I>_status` column; trust and refusal rules:
   [06](06-analysis-extraction.md#run-table-and-trust-classes).
-- Deck slide 9 suggests re-measuring when more than 10 % of points are abnormal; v1 warns when more than 5 % of the
-  points inside a fit window are limited and refuses extraction on any untrusted point.
+- v1 warns when more than 5 % of the points inside a fit window are limited (a software default) and refuses
+  extraction on any untrusted point.
 
 ## Integration time and ranging
 
@@ -198,7 +203,8 @@ Measurement status letter `A` of each data element (PG Table 1-10, PDF 53):
   HVSMU), high-speed for pulses. Integration (`AIT`, PG PDF 356-359): auto, manual sample count, power-line cycles
   (PLC, 1-100), or time.
 - v1 recipes expose only an `integration` preset: `short` = high-speed ADC auto with N = 1 (fastest, noisiest),
-  `medium` (default) = 1 PLC, `long` = 16 PLC. Estimates assume 50 Hz (20 ms per PLC).
+  `medium` (default) = 1 PLC, `long` = 16 PLC. Time estimates assume 50 Hz (20 ms per PLC), the code's assumption
+  until bring-up records the lab's line frequency (`TODO(verify)[S0.P5]`).
 - Longer integration lowers noise and improves repeatability at the cost of time; low currents and low voltages
   need it most (PG PDF 80). Raising the preset is an autonomous re-measure knob (skill part 7) as long as the
   new plan stays `ok` and inside the run-time limit.
@@ -231,11 +237,12 @@ Measurement status letter `A` of each data element (PG Table 1-10, PDF 53):
 - Self-test `*TST?` (PG PDF 540) and self-calibration `*CAL?` (PG PDF 376) are recipes `system.self_test` and
   `system.self_cal` (simulator and hardware); they always need confirmation and require open measurement terminals
   (UG PDF 142): ask the human to lift the probes first. Both leave every module in the `CL` state; a failed module
-  stays disabled until service (PG PDF 541).
-- Auto calibration (`CM`, PG PDF 79): when on, the instrument self-calibrates every 30 minutes after a
-  measurement and needs open terminals; with a DUT left connected it may calibrate badly or put unexpected output on
-  the terminals. Initial setting after reset: off (PG Table 2-13, PDF 180). Deck slide 9: "may auto-calibrate every
-  30 minutes". Rule R-CAL-01 records the state as a warning.
+  stays disabled until the `RCV` command re-enables it (PG p541 (4-223)). The kernel never sends `RCV`: report the
+  failed slot to the human.
+- Auto calibration (`CM`): when on, the instrument self-calibrates every 30 minutes once every SMU output switch has
+  been off for 30 minutes (PG p379 (4-61)), and it needs open terminals; a batch job that may leave the device
+  connected for over 30 minutes after the measurements should disable it (PG p79 (1-59)). Initial setting after
+  reset: off (PG Table 2-13, PDF 180). Rule R-CAL-01 records the state as a warning.
 
 ## MFCMU phase compensation and correction
 

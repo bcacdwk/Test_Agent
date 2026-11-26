@@ -57,6 +57,16 @@ def test_a_clockwise_loop_gives_a_negative_window_with_a_warning() -> None:
     assert any("Negative memory window" in w for w in mw.warnings)
 
 
+def test_the_negative_window_warning_names_sweep_direction_and_trapping_not_the_channel_type() -> None:
+    """v2.1 WP21.10 (knowledge audit 04:69): the sign of a ferroelectric MW follows the sweep direction, not the
+    channel type (after the positive excursion the polarization lowers Vth of n- and p-channel FeFETs alike), so the
+    warning must not send the reader to the device polarity."""
+    mw = memory_window(loop(subthreshold_id(UP, v0=VTH_REV), subthreshold_id(UP, v0=VTH_FWD)))[0]
+    (warning,) = [w for w in mw.warnings if "Negative memory window" in w]
+    assert "sweep direction" in warning and "downward-first" in warning and "charge trapping" in warning
+    assert "n- and p-channel" in warning and "device polarity" not in warning
+
+
 def test_a_refused_branch_refuses_the_window() -> None:
     status = ["N"] * (2 * UP.size)
     status[UP.size + 20] = "X"  # in the reverse branch

@@ -2,9 +2,7 @@
 domain: 06-analysis-extraction
 maturity: seed
 sources:
-  - deck slide 6 (Vth by linear extrapolation, quality check)
-  - deck slide 9 (status codes, report rules)
-  - deck slide 15 (domain 6 seed; Vth three methods, SS, gm, gds, on/off, C-V extraction)
+  - "deck slides 6, 9 and 15: topics only (illustrative, not evidence: owner 2026-11-26)"
   - src/b1500_test_agent/analysis/mosfet.py, mosfet_family.py (gm, Vth methods, SS, gm_max, Ion/Ioff, output, DIBL)
   - src/b1500_test_agent/analysis/resistor.py, diode.py, leakage.py, fefet.py, plots.py (M2 methods, forward voltage)
   - src/b1500_test_agent/analysis/reliability.py (plot_timeseries)
@@ -15,7 +13,7 @@ last_reviewed: null
 
 # Analysis and extraction (knowledge domain 6)
 
-Seeded from deck slide 15. Definitions here are identical to the docstrings of the code in
+Definitions here are identical to the docstrings of the code in
 `src/b1500_test_agent/analysis/` (`quality.py`, `dataset.py`, `mosfet.py`, `mosfet_family.py`, `resistor.py`,
 `diode.py`, `leakage.py`, `fefet.py`, `plots.py`, `reliability.py`); the code wins on any difference and a change to
 either must change both (synced in WP2.5, WP5.7). `list_recipes` and `analyze_run` say which methods apply to a run.
@@ -55,8 +53,8 @@ where it is defined: [06b](06b-analysis-time-pulse.md#smu-method-index).
   acquisition order within each segment (needs at least 7 points). SNR = value range / sigma.
 - SNR below 10 (`MIN_SNR`) = at the noise floor: normal for a leakage or bias current, a red flag for the response
   being analysed. Extractions refuse a noise-dominated response unless forced.
-- Limited points inside a fit window above `max_limited_fraction_in_fit` (recipe default 0.05) give a warning.
-  Deck slide 9 suggests re-measuring when more than 10 % of all points are abnormal; v1 checks the fit window.
+- Limited points inside a fit window above `max_limited_fraction_in_fit` (recipe default 0.05, a software default)
+  give a warning; v1 checks the fit window, not the whole run.
 
 ## Transconductance gm
 
@@ -70,7 +68,7 @@ Implemented (`gm`, used inside the Vth methods):
 
 ## Vth linear extrapolation
 
-Implemented (`vth_linear_extrapolation`, M1; default of `mosfet.idvg`; deck slide 6):
+Implemented (`vth_linear_extrapolation`, M1; default of `mosfet.idvg`):
 
 - Fit Id = a + b Vg by least squares through the window; Vg0 = -a/b (Vg-axis intercept); report
   Vth = Vg0 - Vd/2 when `subtract_half_vd` (default true), because linear-region Id is proportional to
@@ -89,10 +87,11 @@ Implemented (`vth_linear_extrapolation`, M1; default of `mosfet.idvg`; deck slid
 
 ## Vth constant current
 
-Implemented (`vth_constant_current`, M2; option of `memory_window`, the usual definition for TFTs).
+Implemented (`vth_constant_current`, M2; option of `memory_window`; a common convention).
 
 - Vth = the gate voltage at which |Id| first reaches the critical current I_crit = `i_crit_a` x `w_over_l`
-  (`i_crit_a` alone without `w_over_l`; default 100 nA; deck slide 15: W/L x 100 nA), walking the trusted points
+  (`i_crit_a` alone without `w_over_l`; default 100 nA, an example criterion: set it per device and report it),
+  walking the trusted points
   in the direction of increasing |Id| (rising Vg for n-type, falling Vg for p-type). log10|Id| is interpolated
   linearly in Vg between the two bracketing points. More than one crossing gives a warning.
 - No crossing on the trusted curve: `failed`, no value. Report the criterion with the value.
@@ -227,10 +226,11 @@ Implemented (`memory_window`, M2; recipe `fefet.dual_sweep_mw`).
 - The threshold voltage of each branch of a double sweep is extracted with one transfer-curve method
   (`vth_method`: `vth_constant_current` (default; I_crit = `i_crit_a` x `w_over_l`), `vth_linear_extrapolation` or
   `vth_max_gm`) on segment `fwd` (the first branch, start → stop) and `rev` (stop → start); MW = Vth_fwd - Vth_rev.
-- Positive for the counter-clockwise loop of an n-channel FeFET swept upwards first; a negative MW gets a warning
-  (sweep direction, polarity, or charge trapping dominating:
-  [04](04-ferroelectric-oxide.md#fefet-memory-window-by-dual-sweep)). Method offsets (for example (n - 1)·Vd/2 of
-  linear extrapolation, or I_crit below the threshold current) are the same on both branches and cancel in MW.
+- Positive for the counter-clockwise ferroelectric loop of a FeFET swept upwards first, n- or p-channel alike; a
+  negative MW gets a warning (a downward-first sweep, or charge trapping dominating; the channel type does not flip
+  the sign: [04](04-ferroelectric-oxide.md#fefet-memory-window-by-dual-sweep)). Method offsets (for example
+  (n - 1)·Vd/2 of linear extrapolation, or I_crit below the threshold current) are the same on both branches and
+  cancel in MW.
 - Results: `memory_window`, `vth_fwd`, `vth_rev` (V), `ion_fwd`, `ioff_fwd`, `ion_rev`, `ioff_rev` (A; per-branch
   on/off ratio in the Ion result's `fit`, from `ion_ioff` with `v_on`/`v_off`). When a branch Vth is refused or
   fails, the call returns both branch results with their outcomes and a non-ok `memory_window`.
@@ -260,13 +260,13 @@ Implemented (`plot_timeseries`, WP5.7; never refuses, never extracts).
 
 ## Reporting rules measured versus derived
 
-Seeded from deck slide 9 (report conditions, point counts, abnormal points with their status codes, the method
-used; separate measured from derived).
+Report the conditions, the point counts, the abnormal points with their status codes and the method used; keep
+measured and derived apart.
 
 - Measured: V and I read by the instrument, with units and status-letter counts. Derived: every result of an
   analysis method (`derived: true`) with method, window or criterion, points used and excluded, warnings.
-- Name the method and window, for example "Vth = 0.43 V (linear extrapolation at max gm, Vd/2 corrected,
-  window 0.55-0.63 V, 5 points)"; deck slide 9 example: "Vth by linear extrapolation, fit Vgs 0.5-1.5 V".
+- Name the method and window, in the form "Vth = <value> V (linear extrapolation at max gm, Vd/2 corrected,
+  window <lo>-<hi> V, 5 points)".
 - A `refused` or `failed` result is no value: report the reason, never a guess; forced results carry the flag and why.
 - Backend `sim`: every value is SIMULATED; say so in the first line of the report.
 - Ad-hoc analysis (skill part 9) is derived too: cite the script path in `work/<run_id>/` and the method.

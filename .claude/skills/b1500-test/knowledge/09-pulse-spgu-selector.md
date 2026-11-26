@@ -44,15 +44,16 @@ the pad depends on the declared load, and what bounds every output. Routing thro
   0.08 A into a short. A DUT terminal declared `impedance: high_z` makes this an accepted residual the plan summary
   shows (`Isc<=0.08 A residual`); otherwise it must stay within the hard current limit (R-SPGU-01).
 - `CORRSER?` measures the load during one pulse (PG p386 (4-68) "CORRSER?"); the kernel uses only mode 0 (no
-  automatic `SER` change) and no recipe runs it yet (bring-up L7 checks pulses into a known 1 MOhm load instead).
+  automatic `SER` change) and no recipe runs it yet: it needs a load of 40 Ohm to at most 5 kOhm (PG p142 (2-54)), so
+  bring-up L7 checks pulses into a known 1 MOhm load on a scope instead.
 
 ## PG pulse trains
 
-- One pulse period for every channel (`SPPER`, 20 ns to 10 s on a 10 ns grid). Per channel one pulse source
-  (two-level) or the sum of two (three-level: e.g. +4 V then -4 V within one period; PG p146 (2-58)). Per source:
-  delay, width, leading and trailing time (`SPT`), base and peak (`SPV`).
-- Timing limits (R-PULSE-01): width >= leading / 0.8; period >= delay + width + trailing / 0.8 (errors 2111/2112);
-  transitions 8 ns to 0.4 s; levels on 1 mV.
+- One pulse period for every channel (`SPPER`, 20 ns to 10 s on a 10 ns grid; PG p512 (4-194)). Per channel one pulse
+  source (two-level) or the sum of two (three-level: e.g. +4 V then -4 V within one period; PG p146 (2-58)). Per
+  source: delay, width, leading and trailing time (`SPT`), base and peak (`SPV`).
+- Timing limits (R-PULSE-01): width >= leading / 0.8; period >= delay + width + trailing / 0.8 (errors 2111/2112,
+  PG p591-592 (5-19)); transitions 8 ns to 0.4 s, levels on 1 mV (UG p76 (2-36)).
 - Every output is bounded: `SPRM 1,count` (1 to 1,000,000 pulses) or `SPRM 2,duration` (PG p512 (4-194) "SPRM").
   Free run (`SPRM 0`, the power-on setting) is never built; a recipe picks `bound: count|duration`.
 - Recipe `spgu.pulse_train` (card `spgu/spgu-pulse-train`): one gate, 2- or 3-level, count or duration. The guard
@@ -62,10 +63,12 @@ the pad depends on the declared load, and what bounds every output. Routing thro
 ## ALWG waveforms
 
 - `SIM 1`: per channel up to 512 patterns of linear vectors (level reached over an incremental time on the 10 ns
-  grid, at most 1024 - patterns vectors), one sequence of `(pattern, repeat)` shared by all channels (PG p149 (2-61)
-  "ALWG"). 50 ns setup delay between different patterns. Bounded by sequences (`count`) or `duration`.
-- Recipe `spgu.alwg_sequence`: one pattern (`levels`, `times`, `v_initial`), `repeat` per sequence. Default: a
-  bipolar program/erase pair (+4 V and -4 V, 1 us each, 100 ns ramps, 10 us at 0 V after each).
+  grid, at most 1024 - patterns vectors), one sequence of `(pattern, repeat)` shared by all channels
+  (PG p147-150 (2-59) "ALWG"). 50 ns setup delay between different patterns. Bounded by sequences (`count`) or
+  `duration`.
+- Recipe `spgu.alwg_sequence`: one pattern (`levels`, `times`, `v_initial`), `repeat` per sequence. Recipe default
+  (an example waveform, not a program/erase level for any device): a bipolar pair (+4 V and -4 V, 1 us each, 100 ns
+  ramps, 10 us at 0 V after each).
 - Guard view: the time away from the initial level per sequence is the width, the sequence period the period; the
   pulse count of the summary counts sequences.
 
@@ -126,8 +129,9 @@ the recipe picks everything by parameters.
 - **Routes in the plan.** `validate_plan` `resolved.routes` lists them per phase, e.g. `erase: SEL1.OUT1->pgu`,
   `program: SEL1.OUT1->pgu`, `read: SEL1.OUT1->smu`, `rest: SEL1.OUT1->open`; the run's `kind_result.routes` logs
   every application with its cycle (`c1 erase SEL1.OUT1->pgu; c1 read SEL1.OUT1->smu; ...; end rest ...`).
-- **Reads.** A read must not program the film: keep the read sweep well inside the coercive voltage (the example
-  reads -0.5 to 1.8 V on a 2.8 V film); single sweeps only. Table rows: `cycle` (0 = reference read) and `phase`
+- **Reads.** A read must not program the film: keep the read sweep well inside the device's coercive voltage, which
+  comes from the owner's DUT profile (the example profile's 2.8 V and the recipe's -0.5 to 1.8 V read are example
+  values, not a real device); single sweeps only. Table rows: `cycle` (0 = reference read) and `phase`
   (the operation the read follows: `program` or `erase`; `read` for the reference read).
 - **Long plans** (many cycles, long pulses) run asynchronously with a checkpoint per read and per 10 s of pulse
   output; `safe_shutdown` cancels at the next checkpoint (selector back to rest, verified).
@@ -166,10 +170,14 @@ the recipe picks everything by parameters.
 - Bring-up L7 (skill `b1500-bringup`, stage file `l7-spgu-selector.md`): the selector check with the human at the
   relays, the human records the input wiring, pulses into a 1 MOhm load read on a scope (set level at SER 1 MOhm,
   twice the level at SER 50 Ohm: ATV-20; `spp_fallbacks` 0: ATV-19), then the FeFET: the pulse memory window
-  within 20 % of the DC dual-sweep window of the same device, the switching kinetics, charge pumping.
-- `TODO(verify)` at L7: `SPST?` falls to 0 by itself at the end of a count (ATV-19); `DZ`/`AB` do not stop a running
-  output (PG p142 (2-54)); the `ALW`/`ALS` binary block over VISA; edges and overshoot at the shortest widths; the
-  10 ms selector settle time. Hardware records replace the simulator's assumptions only through a reviewed record.
+  compared with the DC dual-sweep window of the same device (the same sign expected; the size differs with the
+  stimulus, so the stage's tolerance is a provisional criterion without a basis that the owner confirms before
+  signing), the switching kinetics, charge pumping.
+- Hardware facts L7 records (`TODO(verify)[L7.A4]`): `SPST?` falls to 0 by itself at the end of a count (a stop
+  condition of PG p142 (2-54); ATV-19), the `ALW`/`ALS` binary block over VISA, edges and overshoot at the shortest
+  widths, and whether the kernel's 10 ms selector settle suffices. `DZ`/`AB` are not among the stop conditions of
+  PG p142 (2-54); the L9 cancel drill shows it on hardware (`TODO(verify)[L9.A8]`). Hardware records replace the
+  simulator's assumptions only through a reviewed record.
 
 ## Troubleshooting pulses
 

@@ -5,7 +5,8 @@ sources:
   - src/b1500_test_agent/analysis/model.py (compact_model_fit, model_compare, export_spice_netlist; WP7.7)
   - src/b1500_test_agent/analysis/spice.py (SPICE export grammar; WP7.7)
   - docs/design/blueprint.md section 0 row 26, 2.10 (model.py) and 12 (OD-6)
-  - "deck slide 16 (domain 7; level-1 first, BSIM4 later) and slide 7 (Verilog-A plans)"
+  - "deck slides 7 and 16: plans only (level-1 first, BSIM4 and Verilog-A later; illustrative, not evidence)"
+  - "lab: the offline EKV fit of the October 2025 lwp Id-Vg (config/sim/scenarios/lab_nmos_2025.yaml)"
   - "former 07-hspice-simulation.md (v1 reserved workflow, rewritten here; hspice.compare retired)"
 last_reviewed: null
 ---
@@ -58,8 +59,9 @@ SPICE `LEVEL=1` (Shichman-Hodges), n-channel equations (p-channel: every voltage
 - Fitted: `vto` (reported as quantity `vth`), `beta`, `lambda` (only with drain variation). `GAMMA = 0`: the fit
   holds at the run's bulk bias. With `w_um`/`l_um` the result adds `kp = beta L/W`.
 - No subthreshold current, no mobility degradation, no series resistance: the fit uses only the points with
-  `|Id| >= level1_fraction x max|Id|` (default 5 %); its `vth` is an extrapolated square-law threshold, typically
-  below a constant-current or EKV threshold, and its error grows with gate overdrive.
+  `|Id| >= level1_fraction x max|Id|` (default 5 %); its `vth` is an extrapolated square-law threshold that differs
+  from constant-current and EKV thresholds by a device- and criterion-dependent amount, and its error grows with
+  gate overdrive.
 
 ## EKV model
 
@@ -69,11 +71,14 @@ Long-channel EKV interpolation with a constant slope factor; voltages referred t
   `I_spec = 2 n beta U_T^2`; smooth overdrive `Vov = 2 n U_T ln(1 + exp((Vg - VT0 - n min(Vs, Vd))/(2 n U_T)))`;
 - `Id = I_spec (i_f - i_r)(1 + LAMBDA |Vd - Vs|)/(1 + THETA Vov)`; `rs` (Ohm) in series with source and drain
   each, the drop solved self-consistently.
-- Parameters: `vt0` (V, quantity `vth`), `n` (subthreshold swing `SS = n U_T ln10`, about 77 mV/dec for n = 1.3 at
-  300 K), `beta` (A/V^2 = mu Cox W/L), `theta` (1/V, mobility degradation), `lambda` (1/V), `rs` (Ohm).
+- Parameters: `vt0` (V, quantity `vth`), `n` (subthreshold swing `SS = n U_T ln10`, for example 77 mV/dec for
+  n = 1.3 at 300 K), `beta` (A/V^2 = mu Cox W/L), `theta` (1/V, mobility degradation), `lambda` (1/V), `rs` (Ohm).
 - One equation covers weak inversion (exponential, slope from `n`) through strong inversion (square law with
   `theta`), so subthreshold and above-threshold points fit together. `vt0` is the gate voltage where the source
-  end reaches pinch-off; it sits between the constant-current Vth (100 nA) and the linear-extrapolation Vth.
+  end reaches pinch-off (there Id is about I_spec/2); where it lies relative to a constant-current or
+  linear-extrapolation Vth depends on I_spec and the criterion, so compare like with like (the lab's October 2025
+  Id-Vg: vt0 0.350 V, linear extrapolation 0.349 V, 0.296 V at 10 nA, about 0.68 V at 100 nA;
+  `config/sim/scenarios/lab_nmos_2025.yaml`).
 
 ## Points and trust
 
@@ -133,7 +138,7 @@ Long-channel EKV interpolation with a constant slope factor; voltages referred t
 
 ## Example files
 
-Level-1 netlist from an Id-Vg at Vd = 50 mV (values illustrative):
+Level-1 netlist from a simulated Id-Vg at Vd = 50 mV (values illustrative, not a real device):
 
 ```text
 nch_level1 reproduces run S20261124T051045Z-81f2 (mosfet.idvg)
@@ -155,8 +160,10 @@ EKV (excerpt): `.subckt nch_ekv d g s b`, `RD d di 20`, `RS s si 20`,
 
 ## Reading the results
 
-- EKV on a good Id-Vg: `rms_log` below about 0.02; `vth` and `n` are the robust numbers; `beta` within a few
-  percent; `theta` includes series resistance unless `rs` was fitted.
+- Fit quality: the code warns above `rms_log` 0.1 (natural-log units, about 10 % RMS relative error). No reference
+  for a good fit on the owner's devices is on record; the offline EKV fit of the October 2025 lab Id-Vg left
+  0.022 decade RMS (about 0.05 in these units; `config/sim/scenarios/lab_nmos_2025.yaml`). Judge each parameter by
+  its standard error `<name>_se`; `theta` includes series resistance unless `rs` was fitted.
 - Level 1 on the same data: larger error near threshold and at high overdrive (by construction); use it only where
   a level-1 card is required, and say so.
 - `n` from an Id-Vd family alone rests on strong inversion (warning): fit an Id-Vg for subthreshold parameters.

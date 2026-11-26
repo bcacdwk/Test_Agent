@@ -36,8 +36,9 @@ a connection switches that unit's output on; switching an output from SMU to MFC
 
 Selector facts (PG p433-434 (4-115, 4-116), p154 (2-66)): ``ERSSP`` needs ``ERMOD 1``; port 0/1 = first selector
 output 1/2, 2/3 = second selector output 1/2; PGU open only on CH 1 (ports 0, 2); the SMU input carries Force only.
-Power-on and ``*RST`` leave the control mode off and every output open (ATV-18: designed around, every route and
-every cleanup sends ``ERMOD 1`` first and verifies with ``ERSSP?``; TODO(verify) at bring-up L7).
+Power-on and a device clear leave the control mode off and every output open (ATV-18: designed around, every route
+and every cleanup sends ``ERMOD 1`` first and verifies with ``ERSSP?``; TODO(verify) at bring-up L7). No tool sends
+``*RST`` (only kind ``system`` may, and does not), so its effect is moot (v2.1 plan §4.6).
 """
 
 from __future__ import annotations

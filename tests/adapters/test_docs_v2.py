@@ -4,7 +4,8 @@
   and the work packages handed over (routes, sources without compliance with the SPGU ``high_z`` residual, the WGFMU
   without compliance, async residuals incl. the Codex headless turn end, the locked bus) and the kinds without a
   cancel point are exactly the kinds whose safety-matrix bodies never reach a segment boundary (WP11.3).
-- ``docs/roadmap.md``: the M12 table of what each stage settles is the stage files' ``TODO(verify)`` lines.
+- ``docs/roadmap.md``: the M12 table of what each stage settles is the stage files' ``TODO(verify)`` lines (a resolved
+  item names no stage).
 - ``docs/architecture.md``: every file or folder of the package that "Adding a module family" and the module map
   name exists, and the dependency line is the import-layering test's.
 - ``README.md``: the status names the plan totals and points to the hardware session.
@@ -18,7 +19,7 @@ from pathlib import Path
 from b1500_test_agent.catalog.kinds import default_kinds
 from b1500_test_agent.rules.engine import registered_rules
 from tests.safety.global_matrix import BODIES
-from tests.skills.test_bringup_stages import DEFERRED_ITEMS, STAGE_DEFERRED
+from tests.skills.test_bringup_stages import DEFERRED_ITEMS, RESOLVED_ITEMS, STAGE_DEFERRED
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / "src" / "b1500_test_agent"
@@ -79,6 +80,7 @@ def test_the_roadmap_m12_table_is_the_stage_files_deferral_lists() -> None:
     for item, cell in rows.items():
         named = set(re.findall(r"\b(S0|L10|L\d)\b", cell))
         assert named == {stage for stage, items in STAGE_DEFERRED.items() if item in items}, (item, cell)
+        assert (item in RESOLVED_ITEMS) == cell.startswith("resolved"), (item, cell)  # v2.1: item 14 (OD-4)
     status = _section(_read("docs/roadmap.md"), "## M11 — Integration and closure")
     for wp in ("11.1", "11.2", "11.3", "11.4", "11.5"):
         assert f"| {wp} " in status, wp

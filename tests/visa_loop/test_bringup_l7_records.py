@@ -107,6 +107,7 @@ def test_the_stage_record_keeps_the_humans_observations_open(l7: VisaWorld) -> N
     assert draft.ok and draft.record is not None, draft.message
     record = draft.record
     assert record.recipe_id is None and record.runs == [selector_run, pulse_run]
-    human = ("relays_observed", "wiring_recorded", "pulse_level_1meg", "pulse_level_ser50")
+    human = ("relays_observed", "erssp_negative", "wiring_recorded", "pulse_level_1meg", "pulse_level_ser50",
+             "pulse_edges", "relay_settle", "read_window")  # v2.1 (WP21.6): negative control, scope, read window
     assert {m.check: m.observed for m in record.measurements if m.check} == {c: NOT_MEASURED for c in human}
     assert record.result == ""

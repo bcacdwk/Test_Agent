@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from b1500_test_agent.bringup_ledger import load_steps
 from b1500_test_agent.devtools.skills.commands import (
     command_files,
     command_problems,
@@ -243,14 +244,17 @@ def test_deployment_checks_sandbox_risks_and_one_hardening_note() -> None:
 # -- deployment-windows.md v2 (WP6.5) -------------------------------------------------------------------------------
 
 BRINGUP_PROMPT = "Use skill b1500-bringup and continue the hardware bring-up from the current stage."
-FIRST_SESSION = (  # blueprint v2 7.5, in this order
-    "git push", "winget install astral-sh.uv", "uv python install 3.12", "IO Libraries", "A.03.00", "System32",
-    "setx PYTHONUTF8 1", "git clone", "C:\\b1500\\test_agent", "B1500_MANUALS_DIR", "uv sync --frozen",
-    "uv run b1500 manual status", "uv run b1500 doctor", "Exit EasyEXPERT", "GPIB address 17",
-    "uv run b1500 con" + "fig init --visa", "uv run b1500 doctor --probe", "uv run b1500 bringup propose-station",
+FIRST_SESSION = (  # v2.1: session 0 = the deployment steps D1-D12, then the bring-up sessions, in this order
+    "git push", "**D1**", "winget install astral-sh.uv", "uv python install 3.12", "**D2**", "IO Libraries", "**D3**",
+    "A.03.00", "System32", "**D4**", "DISABLE_AUTOUPDATER", "**D5**", "setx PYTHONUTF8 1", "**D6**", "git clone",
+    "C:\\b1500\\test_agent", "B1500_MANUALS_DIR", "**D7**", "uv sync --frozen", "uv run b1500 manual status",
+    "uv run b1500 con" + "fig init --visa", "uv run b1500 doctor", "**D8**", "uv run b1500 harness init --codex",
+    "**D9**", "codex doctor --summary", "**D10**", "uv run b1500 update", "Ready.", "harness qualify --windows",
+    "**D11**", "/hooks", "**D12**", "Recorded results", BRINGUP_PROMPT, "uv run b1500 bringup next",
+    "uv run b1500 bringup done", "Exit EasyEXPERT", "GPIB address 17", "uv run b1500 doctor --probe",
+    "uv run b1500 bringup propose-station",
     "uv run b1500 con" + "fig adopt work\\bringup\\station.proposed.yaml --as station", "uv run b1500 config check",
-    "uv run b1500 harness init --codex", BRINGUP_PROMPT, "$env:B1500_HW = \"1\"; uv run pytest -m hardware",
-    "data\\runs\\", "validation\\hw\\",
+    "$env:B1500_HW = \"1\"; uv run pytest -m hardware", "data\\runs\\", "validation\\hw\\",
     "tests\\fixtures\\hw\\", "OD-7", "lab/bringup-<date>", "OneDrive", "hw_validated",
 )
 WHEELHOUSE = (  # the procedure checked on the Mac, in order
@@ -274,10 +278,13 @@ def _ordered(body: str, markers: tuple[str, ...]) -> dict[str, int]:
     return positions
 
 
-def test_deployment_first_session_is_the_blueprint_script() -> None:
+def test_deployment_first_session_is_the_deployment_step_sequence() -> None:
+    """v2.1 (WP21.6): the First session is session 0 = the deployment steps D1-D12 of ``steps.yaml`` in their order
+    (each list item names one step, bold), framed by the developer's push and the bring-up sessions."""
     raw = deployment_sections()["First session"]
     items = re.findall(r"^(\d+)\. ", raw, re.MULTILINE)
-    assert [int(n) for n in items] == list(range(1, 12))  # blueprint v2 7.5 lines 1-11
+    assert [int(n) for n in items] == list(range(1, len(items) + 1)) and len(items) == 16
+    assert re.findall(r"^\d+\. \*\*(D\d+)\*\*", raw, re.MULTILINE) == [s.id for s in load_steps(REPO_ROOT).deployment]
     positions = _ordered(" ".join(raw.split()), FIRST_SESSION)  # markers may wrap across lines
     assert all(p >= 0 for p in positions.values()), {m: p for m, p in positions.items() if p < 0}
     procedure = deployment_sections()["Procedure"]
@@ -301,6 +308,17 @@ def test_deployment_offline_wheelhouse_is_the_checked_procedure() -> None:
 
 
 def test_deployment_keeps_what_the_stage_files_point_to() -> None:
-    """Stage files point here: S0 "up to `uv sync --frozen`", L4 records results, L10 the harness wiring."""
+    """Stage files point here: S0 "up to `uv sync --frozen`", L10 the harness wiring; the Recorded results map every
+    result to the ledger step and ``--observe`` key that records it (v2.1), and those keys exist in ``steps.yaml``."""
     text = DEPLOYMENT.read_text(encoding="utf-8")
     assert "uv sync --frozen" in text and "## Recorded results" in text and "### Step 7 — Wire the harness" in text
+    recorded = next(body for heading, body in deployment_sections().items() if heading.startswith("Recorded results"))
+    header, *rows = table_rows(recorded)
+    assert header == ["Item", "Step and key"] and len(rows) >= 12
+    steps = load_steps(REPO_ROOT)
+    for item, where in rows:
+        found = re.findall(r"\b((?:[DRE]\d+|(?:S0|L\d+)\.[PA]\d+)) `([a-z_0-9]+)`", where)
+        assert found, (item, where)
+        for step_id, key in found:
+            spec = steps.get(step_id)
+            assert spec is not None and key in spec.keys, (step_id, key)

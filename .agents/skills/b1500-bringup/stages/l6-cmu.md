@@ -5,6 +5,7 @@ recipes: [cmu.phase_compensation, cmu.correction_open, cmu.correction_short, cmu
 checks:
   - {id: corrst_on, quantity: cmu_CMU1, reference: 'uv run b1500 doctor --probe after the corrections (CORRST?, ADJ? read-only)', text: 'open and short on, phase compensation in effect'}
   - {id: store_written, quantity: corrections_store, reference: station_status.corrections, text: 'fresh phase/open/short records of every pin map used'}
+  - {id: adj_read_only, quantity: adj_read_only, reference: 'two probes in a row after the corrections (ADJ? ch,0 returns the last result without measuring, PG p356 (4-38))', text: 'the second cmu CMU1 line equals the first: corrections on, phase result unchanged'}
   - {id: scuu_rest, quantity: scuu_rest, reference: 'run manifests (rest routes, cleanup verified); only with an SCUU', text: 'SCUU back at its rest path after every run'}
   - {id: phase_result, recipe: cmu.phase_compensation, quantity: result_code, method: kind_result, unit: '1', reference: 'ADJ? result', tolerance: {max_abs: 0.5}, text: 0 (completed)}
   - {id: phase_cleanup, recipe: cmu.phase_compensation, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
@@ -80,7 +81,8 @@ short. Every hardware plan needs consent (`first_hw_run`); each correction also 
    show both summaries, ask to lift the probes, stop; run both after consent (`open_cp_f`). Then
    `cmu.correction_short` (`short_rs_ohm`); `cmu.correction_load` only with a load standard.
 3. Land on the standard: `cmu.spot` at 100 kHz and 1 MHz (`impedance_convert` Cp). Then `uv run b1500 doctor
-   --probe` (`corrst_on`) and `station_status.corrections` (`store_written`).
+   --probe` twice in a row (`corrst_on`; the second `cmu CMU1` line equal to the first: `adj_read_only`) and
+   `station_status.corrections` (`store_written`).
 4. MOS-C (`moscap-cmu`): corrections again, then `moscap.cv` double sweep (`cv_cox`, `cv_flatband`,
    `cv_doping_profile`, `cv_hysteresis`); `moscap.cv_ac_level` (`cv_ac_dependence`); a DC `moscap.cv` from
    accumulation as `reference_run` of `moscap.pulsed_cv` (`cv_pulsed_vs_dc`).
@@ -92,7 +94,10 @@ short. Every hardware plan needs consent (`first_hw_run`); each correction also 
    `qscv_cox` and `dit_mid` recorded only (two landings, two states).
 7. Split C-V on the L4 MOSFET: corrections, `mosfet.cgc_cv` (`cv_cox` plateau, `cv_vth`), `mosfet.cgd_cv`
    (`cv_vth`). FeCap: corrections with `fecap-cmu`, `fecap.cv_butterfly` (`cv_butterfly`).
-8. Report every value as derived (method, window, status counts, backend visa, correction ages).
+8. Hardware: `uv run b1500 bringup capture H... H... H... H...` of one `cmu.correction_open` (`CORRL?`, `DCORR?`,
+   `CORRDT?`, `*LRN? 90` answers), one `moscap.cv`, one `moscap.ct` and one `moscap.qscv` run (FMT 1 CMU, C-t and
+   QSCV blocks; with an SCUU its `*LRN? 81`) for the parser fixtures.
+9. Report every value as derived (method, window, status counts, backend visa, correction ages).
 
 ## 4. Expected values
 
@@ -101,6 +106,7 @@ short. Every hardware plan needs consent (`first_hw_run`); each correction also 
 | `phase_result`, `open_result`, `short_result` | result 0 | pass/fail | `kind_result` |
 | `open_stray_c`, `short_r`, `load_r` | stray C of lifted probes; cable + probe R; load R | < 5 pF; < 5 Ohm; recorded | `CORRDT?` |
 | `corrst_on`, `store_written`, `scuu_rest` | on and in effect; fresh records; SCUU at rest | recorded | probe, status |
+| `adj_read_only` | two probes after the corrections read the same `cmu CMU1` line | pass/fail | probe |
 | `known_c` | Cp of the reference capacitor | +-1 % of the certificate | certificate |
 | `mosc_cox`, `mosc_vfb`, `mosc_nsub` | Cox, flatband, doping of the MOS-C | +-2 %; +-30 mV; +-10 % | EasyEXPERT |
 | `mosc_hysteresis`, `ac_limit`, `cf_dit`, `ct_tau`, `multi_freq_dit`, `dit_mid`, `cgd_vth`, `butterfly_vc` | as found | recorded | lab data |
@@ -110,12 +116,16 @@ short. Every hardware plan needs consent (`first_hw_run`); each correction also 
 | `cgc_plateau` | Cgc plateau vs Cox per area x W x L | +-5 % | MOS-C |
 | `phase_cleanup`, `open_cleanup`, `short_cleanup`, `load_cleanup`, `spot_cleanup`, `mosc_cleanup`, `ac_level_cleanup`, `pulsed_cleanup`, `cf_cleanup`, `ct_cleanup`, `multi_freq_cleanup`, `qscv_cleanup`, `cgc_cleanup`, `cgd_cleanup`, `butterfly_cleanup` | every run `verified: lop` | pass/fail | manifests |
 
-- TODO(verify) (blueprint v2 7.6 items 3, 6, 7; ATV-21, ATV-22, ATV-27, ATV-28, ATV-31): SCUU present or not
-  (recorded before `moscap-scuu`); `ADJ?` duration (35 s estimate); `ACT` auto time per N; fixed `RC` range
-  saturation; `CORR?` time per frequency and timeout; the largest list (64); `DCORR?`/`CORRDT?` answers of unmeasured
-  data; `*LRN? 81/90` text; `CL` leaves the SCUU path; SSP resets the SMUs; MFCMU DC current limit; pulsed C read at
-  the pulse end; AC-level response; `WFC` rounding against the `CORRL` list; QSCV 50 Hz line (`line_hz`); corrections
-  kept until `*RST`/device clear/power-off; FMT 1 CMU and C-t time-stamp blocks (`bringup capture`).
+- The records carry the audit's `ADJ?` and `CORR?` times (`adj_s`, `corr_s`: the slowest call of each run).
+- TODO(verify) (blueprint v2 7.6 items 3, 6, 7; ATV-21, ATV-22, ATV-27, ATV-28, ATV-31): the SCUU L0 recorded
+  (`moscap-scuu`); `ADJ?` duration (35 s estimate, `adj_s`); `ACT` auto time per N; fixed `RC` range saturation;
+  `CORR?` time per frequency and timeout (`corr_s`); `ADJ? ch,0` changes nothing (`adj_read_only`); the instrument's
+  longest correction list (PG p384 (4-66) names no maximum; the kernel keeps 64, no step writes a longer one);
+  `DCORR?`/`CORRDT?` answers of unmeasured data and the `*LRN? 81/90` text (captured, agent step 8); `CL` leaves the
+  SCUU path; SSP resets the SMUs; the MFCMU DC current limit (no step: a data-sheet value, owner question OD21-10);
+  pulsed C read at the pulse end; AC-level response; `WFC` rounding against the `CORRL` list; QSCV 50 Hz line
+  (`line_hz`); corrections kept until `*RST`/device clear/power-off (power-off: L7 agent step 12; drift: L9
+  `correction_drift`); FMT 1 CMU and C-t time-stamp blocks.
 
 ## 5. Abort criteria
 
@@ -131,7 +141,7 @@ short. Every hardware plan needs consent (`first_hw_run`); each correction also 
 - Hardware: one record per recipe with checks, `uv run b1500 bringup record L6 --run H... --operator NAME` with
   `--reference known_c=<certificate F>`, `--reference mosc_cox=...`, `mosc_vfb`, `mosc_nsub` (EasyEXPERT),
   `--reference qscv_cox=<HF Cox>`, `--reference cgc_plateau=<Cox' W L>`; the stage record (`corrst_on`,
-  `store_written`, `scuu_rest`). The human reviews them and moves them to `validation/hw/stage-l6.yaml` and
-  `validation/hw/<recipe>.yaml` for the fifteen recipes; fixtures: `uv run b1500 bringup capture H...` of one C-V,
-  one C-t and one QSCV run.
+  `store_written`, `adj_read_only`, `scuu_rest`). The human reviews them and moves them to
+  `validation/hw/stage-l6.yaml` and `validation/hw/<recipe>.yaml` for the fifteen recipes; the fixtures of agent
+  step 8 to `tests/fixtures/hw/`.
 - Simulator rehearsal: no record; say which records hardware drafts.

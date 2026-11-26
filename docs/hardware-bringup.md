@@ -1,9 +1,9 @@
 # Hardware bring-up (overview)
 
-The staged first contact with the real B1500A on the lab PC (blueprint v2 7.4, 7.5), after
+The staged first contact with the real B1500A on the lab PC (blueprint v2 7.4, 7.5; v2.1 plan §4), after
 [deployment-windows.md](deployment-windows.md). This page is the overview; the procedure itself lives in one place,
 the stage files of skill `b1500-bringup` (`.agents/skills/b1500-bringup/stages/`), which the agent follows with the
-owner and the owner can read directly.
+owner and the owner can read directly, put in execution order by its step sequence `steps.yaml`.
 
 ## Stages
 
@@ -12,43 +12,48 @@ Strictly in order; a stage starts only after the previous one is signed off. Not
 | Stage | Goal | Stage file | Records |
 |---|---|---|---|
 | S0 | interlock, shield box, cables, EasyEXPERT records, GPIB 17, EasyEXPERT exited | [s0-physical](../.agents/skills/b1500-bringup/stages/s0-physical.md) | `stage-s0` |
-| L0 | read-only probe, station proposal, configuration adopted by the human | [l0-probe-config](../.agents/skills/b1500-bringup/stages/l0-probe-config.md) | `stage-l0` |
+| L0 | read-only probe, station proposal (ASU/SCUU presence), configuration adopted by the human | [l0-probe-config](../.agents/skills/b1500-bringup/stages/l0-probe-config.md) | `stage-l0` |
 | L1 | zero check (0 V per SMU, floor per range), cleanup verified, mid-run stop, CLI and MCP coexist, self-test/cal (FLEX) | [l1-smu-zero](../.agents/skills/b1500-bringup/stages/l1-smu-zero.md) | `stage-l1`, `system.zero_check`, `system.self_test`, `system.self_cal` |
-| L2 | known resistors against a DMM (sweep and spot), 1 Ohm four-wire | [l2-resistors](../.agents/skills/b1500-bringup/stages/l2-resistors.md) | `basic.contact_resistor`, `generic.smu_spot`, `resistor.kelvin_4w` |
-| L3 | known diode | [l3-diode](../.agents/skills/b1500-bringup/stages/l3-diode.md) | `basic.diode_iv` |
-| L4 | known-good MOSFET against EasyEXPERT | [l4-mosfet](../.agents/skills/b1500-bringup/stages/l4-mosfet.md) | `mosfet.idvg`, `mosfet.idvd`, `mosfet.gate_leakage` |
-| L5 | SMU advanced: pulsed vs DC, sampling time grid, Vth by search | [l5-smu-advanced](../.agents/skills/b1500-bringup/stages/l5-smu-advanced.md) | `mosfet.idvg_pulsed`, `mosfet.idvd_pulsed`, `basic.pulsed_spot`, `generic.smu_multi_pulsed`, `mosfet.id_t_sampling`, `generic.smu_sampling`, `mosfet.vth_search` |
+| L2 | known resistors against a DMM (sweep, multi-channel, spot), 1 Ohm four-wire and two-wire | [l2-resistors](../.agents/skills/b1500-bringup/stages/l2-resistors.md) | `basic.contact_resistor`, `generic.smu_multi_sweep`, `generic.smu_spot`, `resistor.kelvin_4w` |
+| L3 | known diode, voltage and current forcing | [l3-diode](../.agents/skills/b1500-bringup/stages/l3-diode.md) | `basic.diode_iv`, `basic.iv_force_i` |
+| L4 | known-good MOSFET against EasyEXPERT, the approval prompt | [l4-mosfet](../.agents/skills/b1500-bringup/stages/l4-mosfet.md) | `mosfet.idvg`, `mosfet.idvd`, `mosfet.gate_leakage`, `mosfet.idvg_family`, `mosfet.idvg_sync`, `mosfet.body_effect` |
+| L5 | SMU advanced: pulsed vs DC, sampling time grid and log sampling, Vth by search | [l5-smu-advanced](../.agents/skills/b1500-bringup/stages/l5-smu-advanced.md) | `mosfet.idvg_pulsed`, `mosfet.idvd_pulsed`, `basic.pulsed_spot`, `generic.smu_multi_pulsed`, `mosfet.id_t_sampling`, `generic.smu_sampling`, `mosfet.vth_search` |
 | L6 | CMU: phase compensation and open/short (the human lifts and lands), known capacitor, MOS-C C-V and variants, QSCV and Dit (SCUU same landing), split C-V, FeCap butterfly | [l6-cmu](../.agents/skills/b1500-bringup/stages/l6-cmu.md) | `stage-l6`, `cmu.phase_compensation`, `cmu.correction_open`, `cmu.correction_short`, `cmu.correction_load`, `cmu.spot`, `moscap.cv`, `moscap.cv_ac_level`, `moscap.pulsed_cv`, `moscap.cf`, `moscap.ct`, `moscap.cv_multi_freq`, `moscap.qscv`, `mosfet.cgc_cv`, `mosfet.cgd_cv`, `fecap.cv_butterfly` |
-| L7 | 16440A selector check and wiring record, SPGU pulses into 1 MOhm (scope), FeFET program/read against the dual sweep, switching kinetics, charge pumping | [l7-spgu-selector](../.agents/skills/b1500-bringup/stages/l7-spgu-selector.md) | `stage-l7`, `system.selector_check`, `spgu.pulse_train`, `spgu.alwg_sequence`, `fefet.dual_sweep_mw`, `fefet.pulse_write_read`, `spgu.program_smu_read`, `fefet.switching_kinetics`, `mosfet.charge_pumping` |
-| L8 | WGFMU + RSU: library session, library self-test/cal, DC into 100 kOhm through the RSU (+-3 %), pulsed vs DC Id-Vg, fast ramp and pulse train, the lab's waveform files, RTN/LFN, FeCap PUND, fast FeFET program/read | [l8-wgfmu](../.agents/skills/b1500-bringup/stages/l8-wgfmu.md) | `stage-l8`, `system.wgfmu_self_test`, `system.wgfmu_self_cal`, `wgfmu.dc_spot`, `wgfmu.pulsed_iv`, `wgfmu.fast_iv`, `wgfmu.pulse_train`, `wgfmu.custom_waveform`, `wgfmu.rtn`, `wgfmu.lfn`, `fecap.pund`, `fefet.fast_program_read` |
-| L9 | long runs: async runs, cancel and kill-recovery drills per bus (SMU, SPGU, WGFMU), stress and breakdown recipes, FeFET endurance and retention, WGFMU fast BTI, FeCap endurance by PUND | [l9-long-runs](../.agents/skills/b1500-bringup/stages/l9-long-runs.md) | `stage-l9`, `reliability.bti_sms`, `igzo.bias_stress`, `reliability.hci`, `reliability.silc`, `reliability.tddb_cvs`, `dielectric.bdv`, `basic.breakdown_search`, `fefet.endurance`, `fefet.retention`, `wgfmu.fast_bti`, `fecap.endurance_pund` |
-| L10 | acceptance prompts on hardware, records reviewed and transferred | [l10-harness-handoff](../.agents/skills/b1500-bringup/stages/l10-harness-handoff.md) | `stage-l10` |
+| L7 | 16440A selector check, wiring record and `ERSSP?` negative control, SPGU pulses into 1 MOhm (scope), FeFET read window and program/read, switching kinetics, charge pumping | [l7-spgu-selector](../.agents/skills/b1500-bringup/stages/l7-spgu-selector.md) | `stage-l7`, `system.selector_check`, `spgu.pulse_train`, `spgu.alwg_sequence`, `fefet.dual_sweep_mw`, `fefet.pulse_write_read`, `spgu.program_smu_read`, `fefet.switching_kinetics`, `mosfet.charge_pumping` |
+| L8 | WGFMU + RSU: library session, library self-test/cal, DC into 100 kOhm through the RSU (+-3 %), pulsed vs DC Id-Vg, fast ramp and pulse train, the lab's waveform files, RTN/LFN, the SMU bias across `initialize` (ATV-17), FeCap PUND, fast FeFET program/read | [l8-wgfmu](../.agents/skills/b1500-bringup/stages/l8-wgfmu.md) | `stage-l8`, `system.wgfmu_self_test`, `system.wgfmu_self_cal`, `wgfmu.dc_spot`, `wgfmu.pulsed_iv`, `wgfmu.fast_iv`, `wgfmu.pulse_train`, `wgfmu.custom_waveform`, `wgfmu.rtn`, `wgfmu.lfn`, `fecap.pund`, `fefet.fast_program_read` |
+| L9 | long runs: async runs, cancel and kill-recovery drills per bus, stress and breakdown recipes, FeFET endurance and retention, fast BTI, FeCap endurance, the timer over hours, the correction drift | [l9-long-runs](../.agents/skills/b1500-bringup/stages/l9-long-runs.md) | `stage-l9`, `reliability.bti_sms`, `igzo.bias_stress`, `reliability.hci`, `reliability.silc`, `reliability.tddb_cvs`, `dielectric.bdv`, `basic.breakdown_search`, `fefet.endurance`, `fefet.retention`, `wgfmu.fast_bti`, `fecap.endurance_pund` |
+| L10 | session end during an async run, acceptance prompts on hardware, records reviewed and transferred | [l10-harness-handoff](../.agents/skills/b1500-bringup/stages/l10-harness-handoff.md) | `stage-l10` |
 
-Each stage file has the same six sections: Preconditions, Physical steps (human), Agent steps, Expected values
-(machine-readable checks and tolerances, and one `TODO(verify)` line: the blueprint v2 §7.6 items the stage settles,
-collected in the [roadmap](roadmap.md)'s M12 table), Abort criteria, Record.
+Six sections each: Preconditions, Physical steps (human), Agent steps, Expected values (checks, tolerances and one
+`TODO(verify)` line: the §7.6 items the stage settles, the [roadmap](roadmap.md)'s M12 table), Abort criteria, Record.
+
+## Steps, ledger and sessions
+
+`steps.yaml` lists every numbered item of the stage files in execution order (who, how it is verified, the checks
+it feeds), plus the deployment steps D1-D12 and each session's start (R1-R4) and end (E1-E5). Three verbs walk it:
+`uv run b1500 bringup next` (read-only: the next step, its expected values, the exact `done` line, the abort route),
+`uv run b1500 bringup done STEP` (verifies the evidence now and appends pass or fail to the step ledger
+`data\state\bringup\`, which only this command writes; human steps carry the owner's own words) and
+`uv run b1500 bringup check --all` (re-verifies the ledger; exit 1 on a gap). A stage is signed only when every step
+passed and its records are reviewed; `uv run b1500 bringup status` shows `steps a/b` per stage. Nine sessions, each
+opened by R1-R4 and closed by E1-E5: 0 deployment (D1-D12); 1 S0, L0; 2 L1-L3; 3 L4, L5; 4 L6; 5 L7; 6 L8; 7 L9 (a
+full day, the harness kept open); 8 L10 with the review and the transfer. Their real durations are in the ledger.
+`uv run b1500 bringup capture H... probe` writes anonymized golden fixtures (the `tests/fixtures/flex/` format, the
+`*IDN?` serial replaced by 0; also the ASU/SCUU `*LRN?` answers, `CORRL?`/`DCORR?`/`CORRDT?` and the WGFMU library's
+strings); `uv run b1500 bringup record L2 --run H... --reference r_dmm=99870 --operator NAME` drafts a record (with
+the audit's timings and the stage's steps) from hardware runs only; the owner reviews both
+([validation/hw/README.md](../validation/hw/README.md); `uv run b1500 dev recipe-check`).
 
 ## Who does what
 
-- **The owner** does every physical step (cabling, probes, EasyEXPERT, external meters) and runs the human-only
-  commands in their own PowerShell window: `uv run b1500 config init --visa`,
+- **The owner** does every physical step (cabling, probes, EasyEXPERT, external meters, power cycles) and runs the
+  human-only commands in their own PowerShell window: `uv run b1500 config init --visa` (D7),
   `uv run b1500 config adopt work/bringup/station.proposed.yaml --as station` (and `--as pinmap|dut` for the
   agent's proposals), `uv run b1500 run --confirm PLAN_ID` (L1 drill) and `uv run b1500 fault clear --by NAME`.
 - **The agent** probes read-only (`uv run b1500 doctor --probe`), proposes configuration
   (`uv run b1500 bringup propose-station`, files under `work/bringup/`), runs validated plans after the owner's
-  consent in chat, captures fixtures and drafts records. It never writes `config/local/` or `validation/hw/`.
-- Start the agent with: "Use skill b1500-bringup and continue the hardware bring-up from the current stage."
-
-## Progress, fixtures and records
-
-- `uv run b1500 bringup status`: every stage with the records it needs, reviewed or drafted, and the next stage.
-- `uv run b1500 bringup capture H... probe`: anonymized golden fixtures (the `tests/fixtures/flex/` format, the
-  `*IDN?` serial replaced by 0) of hardware runs and the newest probe record in `work/bringup/fixtures/`.
-- `uv run b1500 bringup record L2 --run H... --reference r_dmm=99870 --operator NAME`: a draft validation record
-  in `work/bringup/records/` from hardware runs only; simulator runs (`S...`) and a simulator station are refused.
-- The owner reviews drafts and fixtures, moves them to `validation/hw/` and `tests/fixtures/hw/` and transfers
-  them (OD-7); [validation/hw/README.md](../validation/hw/README.md) describes the review and the promotion rule
-  that `uv run b1500 dev recipe-check` enforces.
+  consent in chat, records the steps, captures fixtures and drafts records. It never writes `config/local/` or
+  `validation/hw/`. Start it with: "Use skill b1500-bringup and continue the hardware bring-up from the current stage."
 
 ## CLI and harness coexist
 
@@ -60,21 +65,16 @@ keeps the instrument (EasyEXPERT, another VISA tool) makes a call answer `busy`.
 
 A run reports cleanup `unverified`, or `uv run b1500 status` shows a latched fault: check the front panel and the
 DUT, run `uv run b1500 lock status`, then `uv run b1500 shutdown --reason "WHY"`. When the shutdown reports a
-verified cleanup and an empty error queue, the owner clears the latch (`uv run b1500 fault clear --by NAME`; it
-runs another verified shutdown first). Never delete files under `data\state\` by hand. Last resort, when the
-software cannot reach the instrument and an output may still be on: switch the B1500A off.
+verified cleanup and an empty error queue, the owner clears the latch (`uv run b1500 fault clear --by NAME`). Never
+delete files under `data\state\` by hand. Last resort, when no software reaches the instrument: switch it off.
 
 ## Rehearsal on the simulator
 
-The same stages run against the simulator scenario `lab_station` (acceptance scenario S17): every value is SIMULATED,
-the physical steps may be answered with "done", and no record, fixture or `validation/hw/` file comes from it.
+The same stages and steps run against the simulator scenario `lab_station` (acceptance scenario S17) on a separate
+simulator ledger that never signs a stage: every value SIMULATED, no record, fixture or `validation/hw/` file.
 
-## Hardware tests (end of day)
+## Hardware tests (end of each session, step E2)
 
-`tests/hardware/` only reads (blueprint v2 decision 24): L0 re-runs the read-only probe (identity, `UNT?` =
-`config/local/station.yaml`, errors drained, `LOP?` all off, selectors at rest, `SPST?` = 0, MFCMU corrections
-readable); each stage checks its records in `validation/hw/` and `work/bringup/records/` (schema, `H...` runs in
-`data/runs` on visa, unchanged files, current recipe digest, `LOP?`-verified cleanups and positive controls, a
-reviewer on every `validation/hw/` record). After the review (7.5 step 10):
-`$env:B1500_HW = "1"; uv run pytest -m hardware -rs`; one stage: `uv run pytest -m "hardware and hw_l1" -rs`.
-Without `B1500_HW=1` and backend visa every test skips and the summary says `HARDWARE SUITE NOT RUN`: not a pass.
+`tests/hardware/` only reads: the probe and every record (`H...` runs, unchanged files, digests, cleanups, reviewer,
+steps). `$env:B1500_HW = "1"; uv run pytest -m hardware -rs` (one stage: `-m "hardware and hw_l1"`); without
+`B1500_HW=1` and backend visa every test skips and the summary says `HARDWARE SUITE NOT RUN`: not a pass.

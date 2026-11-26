@@ -219,8 +219,9 @@ def done_command(
     draft: Annotated[list[str] | None, typer.Option("--draft", help="A file of the step: proposal, adopted file, "
                                                                     "draft record or JUnit report "
                                                                     "(repeatable).")] = None,
-    fixtures: Annotated[str | None, typer.Option("--fixtures", help="Fixture folder written by `bringup "
-                                                                    "capture`.")] = None,
+    fixtures: Annotated[list[str] | None, typer.Option("--fixtures", help="Fixture folder written by `bringup "
+                                                                          "capture`, one per captured run or probe "
+                                                                          "record (repeatable).")] = None,
     observe: Annotated[list[str] | None, typer.Option("--observe", help="What was seen: KEY=VALUE "
                                                                         "(repeatable).")] = None,
     reference: Annotated[list[str] | None, typer.Option("--reference", help="Reference value of a stage check the "
@@ -232,7 +233,8 @@ def done_command(
 ) -> None:
     """Verify bring-up step STEP now and record pass or fail in the step ledger (data/state/bringup/, written only by
     this command); a refused call records nothing."""
-    args = bringup_steps.StepArgs(runs=tuple(run or ()), probe=probe, drafts=tuple(draft or ()), fixtures=fixtures,
+    args = bringup_steps.StepArgs(runs=tuple(run or ()), probe=probe, drafts=tuple(draft or ()),
+                                  fixtures=tuple(fixtures or ()),
                                   observe=tuple(observe or ()), references=tuple(reference or ()), human=human, by=by)
     result = bringup_steps.done(core.make_service(), step, args, actor=actor_of(human), doctor=doctor_lines)
     emit(result, as_json, done_lines(result))

@@ -196,3 +196,22 @@ def test_status_shows_the_steps_per_stage(steps_cli: World) -> None:
     assert "next step: D4 (ledger " in result.stdout
     status = BringupStatus.model_validate(as_json(invoke("bringup", "status", "--json")))
     assert status.next_step == "D4" and status.ledger is not None and status.ledger.endswith("ledger-sim.jsonl")
+
+
+def test_done_passes_one_fixture_folder_per_capture(steps_cli: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    """v2.1 (WP21.6): ``--fixtures`` is repeatable (one folder per captured run or probe record); the CLI hands every
+    folder and run to the step verifier in order."""
+    seen: dict[str, Any] = {}
+
+    def fake_done(service: Any, step: str, args: Any, **_kwargs: Any) -> StepDone:
+        seen.update(step=step, runs=args.runs, fixtures=args.fixtures)
+        return StepDone(ok=False, status="refused", backend="sim", simulated=True, message="seen")
+
+    monkeypatch.setattr(cli_bringup.bringup_steps, "done", fake_done)
+    result = invoke("bringup", "done", "L2.A10", "--run", "H20261126T080000Z-0a0b", "--fixtures",
+                    "work/bringup/fixtures/H20261126T080000Z-0a0b", "--run", "H20261126T080100Z-0c0d",
+                    "--fixtures", "work/bringup/fixtures/H20261126T080100Z-0c0d")
+    assert result.exit_code == 1 and seen["step"] == "L2.A10"
+    assert seen["runs"] == ("H20261126T080000Z-0a0b", "H20261126T080100Z-0c0d")
+    assert seen["fixtures"] == ("work/bringup/fixtures/H20261126T080000Z-0a0b",
+                                "work/bringup/fixtures/H20261126T080100Z-0c0d")

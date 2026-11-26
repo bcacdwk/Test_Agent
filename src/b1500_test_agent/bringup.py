@@ -26,20 +26,24 @@ step (``b1500 bringup next``). Records of schema version 1 (v2, without steps) s
 the run) or of a hardware probe record become anonymized golden fixtures in the ``tests/fixtures/flex/`` format
 (``tests/unit/flex_fixtures.py``) under ``work/bringup/fixtures/<run id or probe stem>/<kind>_<nn>.txt``: one file per
 distinct answer, the ``*IDN?`` serial replaced by ``0``, ``expect`` from the driver's parsers, ``source`` naming the
-capture and the Programming Guide page of the format; answers the parser rejects go to ``unparsed/`` with the
-parser's message. Simulator runs and simulated probes are refused (fixtures never come from the simulator).
+capture and the manual page of the format (``FORMAT_PAGES``: the Programming Guide, the WGFMU guide for the library
+strings); answers the parser rejects go to ``unparsed/`` with the parser's message; a multi-line or empty answer
+(``*LRN? 62`` without an ASU) is listed in ``skipped`` with its command (the run's audit keeps it). The kinds are
+those of ``service/evidence.py`` (v2.1: also the ASU/SCUU/phase-compensation ``*LRN?`` types,
+``CORRL?``/``DCORR?``/``CORRDT?`` and the WGFMU library's error strings, warning summaries and file version).
+Simulator runs and simulated probes are refused (fixtures never come from the simulator).
 
 **Record** (``record``): a draft ``ValidationRecord`` in ``work/bringup/records/<stage>-<recipe id|stage>-<UTC>.yaml``
 from hardware runs only. Refused, before anything is read, for simulator run ids (``S…``) and on a station whose
 backend is not visa; refused for runs whose manifest says another backend, whose files changed since the run, or
 whose recipe file changed since (the record pins the recipe's definition digest). A recipe record when the runs are
 of one recipe that has checks in the stage (or ``recipe_id`` names it), else the stage record. Measured values are
-copied from the runs (analysis results, quality noise per column, ``kind_result``, cleanup verification, probe
-lines), never edited; each stage check (``StageFrontmatter.checks``) is matched with them and judged against its
-tolerance when a reference was given (``references``: check id, optionally ``@RUN_ID``, to value) or not needed.
-``reviewer`` stays empty. The draft is schema version 2 and embeds the step ledger's entries of the stage
-(``ValidationRecord.steps``): the reviewer signs the step list and it travels with the record; a stage record whose
-steps are incomplete gets a note naming them.
+copied from the runs (analysis results, quality noise per column, ``kind_result``, cleanup verification and the
+``LOP?`` codes after it, the audit timings of ``service/evidence.py``, probe lines), never edited; each stage check
+(``StageFrontmatter.checks``) is matched with them and judged against its tolerance when a reference was given
+(``references``: check id, optionally ``@RUN_ID``, to value) or not needed. ``reviewer`` stays empty. The draft is
+schema version 2 and embeds the step ledger's entries of the stage (``ValidationRecord.steps``): the reviewer signs
+the step list and it travels with the record; a stage record whose steps are incomplete gets a note naming them.
 
 **The proposal** = the active station profile (``config/local/station.yaml``; the committed example while there is
 none) fitted to the live inventory:
@@ -464,6 +468,7 @@ def _status(service: B1500Service, bundle: Any) -> BringupStatus:
 # == capture =========================================================================================================
 
 PG = "Keysight B1500 Series Programming Guide, Edition 15"
+WG = "Keysight B1530A User's Guide, Edition 8"
 FORMAT_PAGES: dict[str, str] = {
     "fmt1": f"{PG}, PDF 46-55 (printed 1-26 to 1-35, Tables 1-6 to 1-12), PDF 436-438 (FMT)",
     "fmt5": f"{PG}, PDF 46-55 (Tables 1-6 to 1-12), PDF 437 (FMT 5: every element ends with ',')",
@@ -479,6 +484,16 @@ FORMAT_PAGES: dict[str, str] = {
     "spst": f"{PG}, PDF 513-514 (printed 4-195 to 4-196, SPST? response)",
     "corrst": f"{PG}, PDF 388 (printed 4-70, CORRST? response)",
     "adj": f"{PG}, PDF 355-356 (printed 4-37 to 4-38, ADJ? response)",
+    "lrn62": f"{PG}, PDF 451 (printed 4-133, *LRN? type 62: SAP items, ASU path per SMU)",
+    "lrn63": f"{PG}, PDF 451 (printed 4-133, *LRN? type 63: SAR items, ASU 1 pA auto ranging)",
+    "lrn81": f"{PG}, PDF 452 (printed 4-134, *LRN? type 81: SSP items, SCUU path), PDF 520 (SSP)",
+    "lrn90": f"{PG}, PDF 452 (printed 4-134, *LRN? type 90: ADJ items, phase compensation mode), PDF 355 (ADJ)",
+    "corrl": f"{PG}, PDF 385 (printed 4-67, CORRL? response: list length or one frequency)",
+    "dcorr": f"{PG}, PDF 389-390 (printed 4-71 to 4-72, DCORR? response)",
+    "corrdt": f"{PG}, PDF 384 (printed 4-66, CORRDT? response)",
+    "wgfmu_error": f"{WG}, PDF 97 (printed 4-27, the library's error string), PDF 148 (printed 4-78, return codes)",
+    "wgfmu_warnings": f"{WG}, PDF 119 (printed 4-49, the warning summary string), PDF 138 (printed 4-68, Table 4-4)",
+    "wgfmu_version": f"{WG}, PDF 38 (printed 2-16, installing the instrument library: the x64 wgfmu.dll)",
 }
 """Programming Guide pages of each fixture kind's response format (the fixture loader needs a ``PDF <page>``)."""
 ANONYMIZED_SERIAL = "0"
@@ -571,6 +586,9 @@ def _capture(bundle: Any, sources: list[str]) -> CaptureReport:
             if "\n" in raw.response or "\r" in raw.response:
                 skipped.append(f"{tag}: {raw.command}: multi-line answer (not a single-line fixture)")
                 continue
+            if not raw.response.strip():  # e.g. *LRN? 62 without an ASU: a fact, kept in the audit and named here
+                skipped.append(f"{tag}: {raw.command}: empty answer (a fixture needs a body line; the audit keeps it)")
+                continue
             exchange, notes = _anonymize(raw)
             counts[exchange.kind] = counts.get(exchange.kind, 0) + 1
             folder = root / tag / ("unparsed" if exchange.problem else "")
@@ -651,6 +669,14 @@ def _candidates(facts: list[RunFacts], probe: ProbeFacts | None) -> list[RecordM
             shown = control.model_dump_json() if hasattr(control, "model_dump_json") else json.dumps(control)
             found.append(RecordMeasurement(quantity="positive_control", observed=shown[:300], run_id=run_id,
                                            method="run manifest cleanup.positive_control"))
+        after = getattr(item.manifest.cleanup, "outputs_after", None)  # LOP? of every slot after the cleanup
+        if after:
+            codes = ", ".join(f"{slot}: {code}" for slot, code in sorted(after.items()))
+            found.append(RecordMeasurement(quantity="outputs_after", run_id=run_id, observed=codes,
+                                           method="run manifest cleanup.outputs_after"))
+        for name, seconds in sorted(item.timings.items()):  # v2.1: facts that otherwise live only in the audit
+            found.append(RecordMeasurement(quantity=name, value=seconds, unit="s", run_id=run_id,
+                                           method="run audit dur_ms (slowest call; readback: per value)"))
         for key, value in item.manifest.kind_result.items():
             if re.match(r"^[A-Za-z][A-Za-z0-9_]{0,63}$", key):
                 numeric = isinstance(value, int | float) and not isinstance(value, bool)

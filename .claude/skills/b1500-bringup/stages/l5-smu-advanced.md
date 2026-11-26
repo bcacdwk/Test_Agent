@@ -14,8 +14,10 @@ checks:
   - {id: id_t_samples, recipe: mosfet.id_t_sampling, quantity: samples_measured, method: kind_result, reference: 'the plan''s points', text: recorded (= points unless aborted)}
   - {id: id_t_tau, recipe: mosfet.id_t_sampling, quantity: tau, method: sampling_summary, unit: s, reference: 'EasyEXPERT or lab script (lwp IVt_sampling) on the same device', tolerance: {rel: 0.15}, text: '+-15 % of the reference fit'}
   - {id: id_t_cleanup, recipe: mosfet.id_t_sampling, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
+  - {id: time_source, recipe: mosfet.id_t_sampling, quantity: time_source, method: kind_result, reference: 'kind_result.time_source (ATV-22)', text: 'timestamp (index or host: the ATV-22 fallback, a finding)'}
   - {id: sampling_gaps, recipe: generic.smu_sampling, quantity: index_gaps, method: kind_result, reference: 'the plan''s interval and points', tolerance: {max_abs: 0.5}, text: 0 skipped samples (grid as set)}
   - {id: sampling_cleanup, recipe: generic.smu_sampling, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
+  - {id: log_points, recipe: generic.smu_sampling, quantity: samples_measured, method: kind_result, reference: 'log run (sampling_mode log25): the sampling indices the kind expects (log_indices, PG p476 (4-158))', text: 'recorded per run; the log run''s raw indices in the capture'}
   - {id: vth_search, recipe: mosfet.vth_search, quantity: vth, method: vth_search_value, unit: V, reference: 'vth_constant_current of the L4 mosfet.idvg run, same criterion and Vd', tolerance: {absolute: 0.005}, text: '+-5 mV of the constant-current Vth'}
   - {id: search_cleanup, recipe: mosfet.vth_search, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
 version: 1
@@ -41,8 +43,9 @@ hardware plan needs consent (`first_hw_run`).
 
 1. Land the L4 MOSFET as in L4 (pin map `mosfet-l4`, DUT profile `nmos-l4` with a pulse envelope that allows the
    SMU pulse width 1 ms and the period); confirm in chat.
-2. For `basic.pulsed_spot`: land the 100 kOhm standard on the L2 pin map `res-smuN` with DUT profile `r100k`; read
-   it with the DMM first.
+2. After agent step 5: land the 100 kOhm standard on the L2 pin map `res-smuN` with DUT profile `r100k` (read it
+   with the DMM first) and adopt the agent's pin map `res-sampling` with `uv run b1500 config adopt FILE --as
+   pinmap`.
 3. Keep EasyEXPERT closed while the agent runs (as in L3/L4).
 
 ## 3. Agent steps
@@ -51,16 +54,24 @@ hardware plan needs consent (`first_hw_run`).
 2. `mosfet.idvg_pulsed` (width 1 ms, period 100 ms: duty 1 %) on `mosfet-l4`: validate, summary, stop, consent,
    run; `analyze_run(run, pulsed_vs_dc, {reference_run: <L4 mosfet.idvg run>})`. Then `mosfet.idvd_pulsed` the same
    way against the L4 `mosfet.idvd` run.
-3. `basic.pulsed_spot` on the 100 kOhm standard: `resistance`; `generic.smu_multi_pulsed` with the card's example
-   (two pulsed channels): cleanup and the status counts only.
-4. `mosfet.id_t_sampling` with the lab's gate step and interval (card defaults otherwise):
+3. `mosfet.id_t_sampling` with the lab's gate step and interval (card defaults otherwise):
    `get_run` `kind_result` (`index_gaps`, `samples_measured`, `time_source`), `sampling_summary` with the
-   stretched-exponential fit. Then `generic.smu_sampling` (card example): the grid only.
-5. `mosfet.vth_search` with the L4 criterion (`i_crit_a`, `w_over_l`, Vd): `vth_search_value`; compare with
+   stretched-exponential fit.
+4. `mosfet.vth_search` with the L4 criterion (`i_crit_a`, `w_over_l`, Vd): `vth_search_value`; compare with
    `vth_constant_current` of the L4 Id-Vg (same criterion).
-6. Report each value as derived (method, window, status counts, backend visa); `time_source` other than
+5. Propose the pin map `res-sampling` under `work/bringup/` (a copy of `res-smuN` with the terminals named `stress`
+   = the SMU slot and `ground` = `GNDU`, the roles of `generic.smu_sampling`); hand physical step 2 over; stop.
+6. `basic.pulsed_spot` on the 100 kOhm standard: `resistance`; `generic.smu_multi_pulsed` with the card's example
+   (two pulsed channels): cleanup and the status counts only.
+7. `generic.smu_sampling` on `res-sampling` with `r100k` (recipe defaults): the grid only (`sampling_gaps`). Then
+   the same plan with `sampling_mode: log25` (one block): `samples_measured` and the sampling indices the
+   instrument holds against the kind's `log_indices` (`log_points`).
+8. Report each value as derived (method, window, status counts, backend visa); `time_source` other than
    `timestamp` is a finding (ATV-22 fallback: host or index time), skipped samples go to runbook
    `smu-sampling-skips` of skill `b1500-debug`.
+9. Hardware: `uv run b1500 bringup capture H... H... H... H...` of one `mosfet.idvg_pulsed`, one
+   `mosfet.id_t_sampling`, the log `generic.smu_sampling` and one `mosfet.vth_search` run (pulsed blocks, sampling
+   blocks with time stamps and log indices, search blocks) for the parser fixtures.
 
 ## 4. Expected values
 
@@ -72,15 +83,18 @@ hardware plan needs consent (`first_hw_run`).
 | `id_t_gaps`, `sampling_gaps` | skipped samples (`kind_result.index_gaps`) | 0 | the plan |
 | `id_t_samples` | samples measured | = points (recorded) | the plan |
 | `id_t_tau` | tau of the stretched exponential | +-15 % of the reference fit | lab reference |
+| `time_source` | `timestamp` (the real blocks carry time stamps) | recorded | `kind_result` (ATV-22) |
+| `log_points` | samples of each `generic.smu_sampling` run; the log run's held indices | recorded | `kind_result`, capture |
 | `vth_search` | Vth found by the binary search | +-5 mV of the constant-current Vth | L4 `mosfet.idvg` |
 | `idvg_pulsed_cleanup`, `idvd_pulsed_cleanup`, `pulsed_spot_cleanup`, `multi_pulsed_cleanup`, `id_t_cleanup`, `sampling_cleanup`, `search_cleanup` | every run `verified: lop` | pass/fail | manifests |
 
 - Pulsed at higher duty or longer width may read below DC (self-heating) or above (trapping): that is physics, not a
   failure of the stage, as long as the low-duty point agrees.
 - Sampling: `time_source: timestamp` expected (TSC 1); the timer over long chains is checked at L9.
-- TODO(verify) (blueprint v2 7.6 items 3, 8): sampling time stamps from the real blocks (ATV-22) and `MM 10` blocks
-  read while the instrument samples (ATV-30; fallback: progress per block only); pulsed against DC settling and
-  noise at low duty.
+- TODO(verify) (blueprint v2 7.6 items 3, 8): sampling time stamps from the real blocks (ATV-22, `time_source`) and
+  `MM 10` blocks read while the instrument samples (ATV-30; fallback: progress per block only); which points log
+  sampling holds (`log_points`); the real pulsed, sampling and search blocks (agent step 9); pulsed against DC
+  settling and noise at low duty.
 
 ## 5. Abort criteria
 

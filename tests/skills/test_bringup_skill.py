@@ -73,3 +73,20 @@ def test_record_template_is_a_draft_without_reviewer_or_runs() -> None:
 
 def test_skill_stays_within_its_budget() -> None:
     assert len(_skill_text().splitlines()) <= 120
+
+
+def test_working_a_stage_is_the_next_do_done_loop() -> None:
+    """v2.1 (WP21.6, plan §4.1): part 3 walks the step sequence: ``bringup next``, the step, ``bringup done`` with the
+    evidence and the human's own words (never a human-only command in them), ``bringup check`` at the session end;
+    part 6 lists the three verbs among the commands the agent may run."""
+    doc = parse_markdown(SKILL_DIR / "SKILL.md", "SKILL.md")
+    span = doc.section("3. Working a stage: next, do, done")
+    assert span is not None
+    loop = " ".join(" ".join(doc.lines[span[0]:span[1] - 1]).split())
+    for needle in ("`uv run b1500 bringup next`", "`uv run b1500 bringup done STEP`", "`--fixtures` per captured run",
+                   '`--human "QUOTE" --by NAME`', "never a human-only command in it", "`refused`", "`fail`",
+                   "`uv run b1500 bringup check`", "E1-E5"):
+        assert needle in loop, needle
+    text = " ".join(_skill_text().split())
+    assert "`uv run b1500 bringup status|next|done|check|propose-station|capture|record`" in text
+    assert "D1-D12" in text and "R1-R4" in text and "`rehearsed`" in text

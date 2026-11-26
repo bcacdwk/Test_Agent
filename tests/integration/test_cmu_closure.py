@@ -83,7 +83,8 @@ def test_every_card_sits_on_l6_and_the_stage_runs_and_checks_its_recipes(registr
     judged = {c.id: c.tolerance for c in stage.checks if c.tolerance is not None}
     assert judged["known_c"].rel == 0.01  # blueprint v2 7.4 L6: C standard +-1 %
     assert judged["qscv_cox"].rel == 0.02 and judged["mosc_cox"].rel == 0.02  # QSCV vs HF (SCUU same landing)
-    assert {c.id for c in stage.checks_for(None)} == {"corrst_on", "store_written", "scuu_rest"}
+    assert {c.id for c in stage.checks_for(None)} == {"corrst_on", "store_written", "scuu_rest",
+                                                       "adj_read_only"}  # v2.1 WP21.6: the second probe
 
 
 def test_the_cmu_runbooks_exist_and_the_cards_name_them() -> None:

@@ -6,6 +6,7 @@ checks:
   - {id: vth, recipe: mosfet.idvg, quantity: vth, method: vth_linear_extrapolation, unit: V, reference: 'EasyEXPERT export, same die, same method and window', tolerance: {absolute: 0.010}, text: '+-10 mV'}
   - {id: ss, recipe: mosfet.idvg, quantity: ss, method: subthreshold_swing, unit: mV/dec, reference: 'EasyEXPERT export, same die', tolerance: {rel: 0.05}, text: '+-5 %'}
   - {id: idvg_cleanup, recipe: mosfet.idvg, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
+  - {id: approval_prompt, recipe: mosfet.idvg, quantity: approval_prompt, reference: 'the human at the harness approval prompt of the first L4 run (ATV-7, ATV-11)', text: 'the prompt appeared in the default mode and showed the summary of the chat'}
   - {id: ron, recipe: mosfet.idvd, quantity: ron, method: output_metrics, unit: Ohm, reference: 'EasyEXPERT export, same curve', tolerance: {rel: 0.05}, text: '+-5 %'}
   - {id: idvd_cleanup, recipe: mosfet.idvd, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: gate_leakage, recipe: mosfet.gate_leakage, quantity: leakage, method: leakage_at, unit: A, reference: EasyEXPERT Ig at the same bias, tolerance: {factor: 2}, text: 'within a factor 2 (both above 10 pA)'}
@@ -74,6 +75,7 @@ approval prompt.
 | `vth` | Vth of `vth_linear_extrapolation` | +-10 mV of EasyEXPERT, same method | `mosfet.idvg` |
 | `ss` | minimum subthreshold swing | +-5 % of EasyEXPERT | `mosfet.idvg` |
 | `idvg_cleanup` | every run `verified: lop` | pass/fail | manifests |
+| `approval_prompt` | the harness prompt appeared in the default mode and showed the chat's summary | pass/fail | the human (physical step 4) |
 | `ron` | Ron of the strongest curve (`output_metrics`) | +-5 % of EasyEXPERT | `mosfet.idvd` |
 | `idvd_cleanup` | every run `verified: lop` | pass/fail | manifests |
 | `gate_leakage` | Ig at the operating bias (`leakage_at` passes its limit) | factor 2 of EasyEXPERT when both above 10 pA | `mosfet.gate_leakage` |
@@ -85,13 +87,13 @@ approval prompt.
 
 - Every run: quality `ok`, error queue empty; Id at three gate voltages above Vth within +-2 % of the export.
 - ATV-11: the approval prompt shows the `summary` argument. Fallback: approve only after comparing the summary the
-  agent printed in chat; record it in `docs/deployment-windows.md`. ATV-7 (Claude Code): the prompt appears in the
-  default permission mode. Fallback: the policy flag `confirmation.claude_require_user_interaction: true`; with no
-  prompt at all, do not use that harness for hardware runs.
+  agent printed in chat; record it (`approval_prompt`). ATV-7 (Claude Code): the prompt appears in the default
+  permission mode. Fallback: the policy flag `confirmation.claude_require_user_interaction: true`; with no prompt
+  at all, do not use that harness for hardware runs.
 - TODO(verify) (blueprint v2 7.6 items 6, 11, 12): Vth, SS and Id against EasyEXPERT on the same die (the golden
-  comparison, item 11); the approval-prompt facts above (ATV-7, ATV-11); ASU presence (ATV-28 for the switches):
-  the `asu` option of `mosfet.gate_leakage` runs only after the human records `ASU3`/`ASU4` `present` (else
-  blocked).
+  comparison, item 11); the approval-prompt facts above (ATV-7, ATV-11, `approval_prompt`); the ASU path (ATV-28 for
+  the switches): the `asu` option of `mosfet.gate_leakage` runs only where L0 recorded `ASU3`/`ASU4` `present: true`
+  (else blocked).
 
 ## 5. Abort criteria
 

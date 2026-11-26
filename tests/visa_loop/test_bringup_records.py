@@ -14,22 +14,31 @@ import json
 import shutil
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
 
 from b1500_test_agent import bringup
 from b1500_test_agent.catalog.registry import RecipeRegistry
+from b1500_test_agent.models.sim import WgfmuErrorFault
 from b1500_test_agent.models.validation import STAGE_FILES_DIR, ValidationRecord, recipe_definition_sha256
 from b1500_test_agent.service import B1500Admin, B1500Service
 from tests.unit.flex_fixtures import load_fixture
-from tests.visa_loop.helpers import MEASUREMENT_CASES, REPO_ROOT, VisaWorld, run_case
+from tests.visa_loop.helpers import CORRECTION_CASES, MEASUREMENT_CASES, REPO_ROOT, VisaWorld, run_case
+from tests.visa_loop.test_cv_visa import scuu_station
 
 CONTACT = next(c for c in MEASUREMENT_CASES if c["recipe_id"] == "basic.contact_resistor")
 MULTI = next(c for c in MEASUREMENT_CASES if c["recipe_id"] == "generic.smu_multi_sweep")  # L2 too (WP7.2)
 SPOT = next(c for c in MEASUREMENT_CASES if c["recipe_id"] == "generic.smu_spot")  # L2 too (WP7.1)
 ZERO = next(c for c in MEASUREMENT_CASES if c["recipe_id"] == "system.zero_check")
 SIM_RUN = "S20261118T092102Z-2de7"
+QSCV = {"recipe_id": "moscap.qscv", "scenario": "moscap_dit",
+        "request": {"params": {}, "pin_map": "moscap-scuu", "dut_profile": "moscap-generic"}}
+"""Stage L6 agent step 6 on the SCUU landing (the card example, as ``tests/visa_loop/test_qscv_visa.CASE``)."""
+DC_SPOT = {"recipe_id": "wgfmu.dc_spot", "scenario": "resistor_100k",
+           "request": {"params": {}, "pin_map": "resistor-wgfmu", "dut_profile": "resistor-generic"}}
+"""Stage L8 agent step 3 (the card params; as ``tests/visa_loop/test_bringup_l8_records.L8_CASES``)."""
 
 
 @pytest.fixture
@@ -204,6 +213,10 @@ def test_l1_stage_and_recipe_records_from_a_zero_check_run(stages: VisaWorld) ->
     assert all(m.value is not None and m.method.startswith("zero_floor") for m in floors.values())
     assert floors[3].value < 1e-12 and floors[5].value < 1e-10  # HRSMU / MPSMU sanity bounds of the stage
     assert checks["shutdown_drill"].observed == "not measured in the given runs"
+    # v2.1 (WP21.6): facts that lived only in the audit or the manifest are record fields now
+    assert checks["idle_lop"].observed and all(code.split(": ")[1] == "00"
+                                               for code in checks["idle_lop"].observed.split(", "))
+    assert checks["bus_overhead"].value is not None and checks["bus_overhead"].unit == "s"
     assert stage.record.result == "pass"  # the judged check (cleanup) passed; observations are the reviewer's
     recipe = bringup.record(zero, "L1", [result.run_id], recipe_id="system.zero_check")
     assert recipe.ok and recipe.record is not None and recipe.record.key == "system.zero_check"
@@ -226,6 +239,7 @@ def test_probe_record_and_capture_on_hardware(stages: VisaWorld) -> None:
     assert capture.ok and capture.folder == "work/bringup/fixtures", capture.message
     kinds = {item.kind for item in capture.written}
     assert {"idn", "unt", "errx", "stb", "lop", "lrn", "ermod", "spst", "corrst", "adj"} <= kinds
+    assert {"lrn90", "wgfmu_version"} <= kinds  # v2.1: the phase compensation mode, the wgfmu.dll file version
     for item in capture.written:
         fixture = load_fixture(world.root / item.path)  # the tests/fixtures/flex convention holds
         assert "hardware capture of probe record" in fixture.source and item.parsed
@@ -238,7 +252,7 @@ def test_capture_of_a_hardware_run_writes_data_and_query_fixtures(stages: VisaWo
     service = world.service(world.bus(CONTACT["scenario"]))
     run_id = _hardware_run(world, service)
     capture = bringup.capture(service, [run_id])
-    assert capture.ok and not capture.skipped, capture.message
+    assert capture.ok and all("empty answer" in s for s in capture.skipped), capture.message  # *LRN? 62/81, no ASU
     data = [item for item in capture.written if item.kind == "fmt1"]
     assert len(data) == 1 and data[0].path == f"work/bringup/fixtures/{run_id}/fmt1_01.txt"
     fixture = load_fixture(world.root / data[0].path)
@@ -253,3 +267,77 @@ def test_capture_of_a_hardware_run_writes_data_and_query_fixtures(stages: VisaWo
     assert any("anonymized" in note for note in idn.notes)
     refused = bringup.capture(service, [SIM_RUN])
     assert not refused.ok and refused.status == "refused" and "simulator" in refused.message
+
+
+# -- v2.1 (WP21.6): the fixture kinds of plan §4.6 from visa-loop runs ----------------------------------------------
+
+CORRECTION_OPEN = next(c for c in CORRECTION_CASES if c["recipe_id"] == "cmu.correction_open")
+
+
+def test_capture_of_a_correction_run_writes_the_switch_and_correction_kinds(stages: VisaWorld) -> None:
+    """``bringup capture`` of a hardware ``cmu.correction_open`` run (L6 agent step 8): the correction read-backs
+    (``CORRL?``, ``DCORR?``, ``CORRDT?``) and the phase compensation mode (``*LRN? 90``) become fixtures the flex
+    convention loads, each parsed by the driver; the switch read-backs of the pre-execute snapshot (the station
+    declares ASUs and an SCUU, the scenario has none: ``*LRN? 62``/``81`` answer nothing) are named as skipped; the
+    record carries the ``CORR?`` time."""
+    world = stages
+    service = world.service(world.bus(CORRECTION_OPEN["scenario"]))
+    result = run_case(service, CORRECTION_OPEN)
+    assert result.ok and result.run_id is not None and result.run_id.startswith("H"), result.message
+    capture = bringup.capture(service, [result.run_id])
+    assert capture.ok, capture.message
+    by_kind: dict[str, list[Any]] = {}
+    for item in capture.written:
+        by_kind.setdefault(item.kind, []).append(item)
+    assert {"corrl", "dcorr", "corrdt", "lrn90"} <= set(by_kind), sorted(by_kind)
+    # the scenario has no ASU and no SCUU: *LRN? 62 and 81 answer nothing, which no single-line fixture holds
+    empty = "empty answer (a fixture needs a body line; the audit keeps it)"
+    assert sorted(capture.skipped) == [f"{result.run_id}: *LRN? 62: {empty}", f"{result.run_id}: *LRN? 81: {empty}"]
+    for kind in ("corrl", "dcorr", "corrdt", "lrn90"):
+        for item in by_kind[kind]:
+            fixture = load_fixture(world.root / item.path)
+            assert item.parsed and fixture.kind == kind and "hardware capture of run" in fixture.source, item
+    corrl = [load_fixture(world.root / item.path).expect for item in by_kind["corrl"]]
+    assert any(isinstance(e.get("count"), int) for e in corrl), corrl  # CORRL? ch: the list length before CORRDT?
+    draft = bringup.record(service, "L6", [result.run_id], operator="owner")
+    assert draft.ok and draft.record is not None, draft.message
+    corr = [m for m in draft.record.measurements if m.quantity == "corr_s"]
+    assert corr and corr[0].value is not None and corr[0].unit == "s" and corr[0].method.startswith("run audit")
+
+
+def test_capture_of_a_qscv_run_on_the_scuu_writes_its_path_read_back(stages: VisaWorld) -> None:
+    """With the SCUU recorded present (L0 physical step 2) the QSCV run reads the SCUU path back (``*LRN? 81``,
+    L6 agent step 8): a ``lrn81`` fixture with the driver's reading of the path."""
+    world = stages
+    world.write_local("station.yaml", scuu_station())
+    service = world.service(world.bus(QSCV["scenario"]))
+    result = run_case(service, QSCV)
+    assert result.ok and result.run_id is not None and result.run_id.startswith("H"), result.message
+    capture = bringup.capture(service, [result.run_id])
+    assert capture.ok, capture.message
+    scuu = [load_fixture(world.root / i.path) for i in capture.written if i.kind == "lrn81"]
+    assert scuu and all(f.command == "*LRN? 81" and set(f.expect) == {"7"} for f in scuu), scuu
+    assert {f.expect["7"] for f in scuu} <= {0, 1, 2, 3, 4}
+
+
+def test_capture_of_a_failed_wgfmu_run_writes_the_library_error_string(stages: VisaWorld) -> None:
+    """The WGFMU instrument library's error string of a hardware run (here a firmware error 3050 the visa-loop's
+    library returns for the DC reading) becomes a ``wgfmu_error`` fixture with its return and firmware code (L8 agent
+    step 11); a clean run's record carries the library's DC reading time."""
+    world = stages
+    bus = world.bus(DC_SPOT["scenario"])
+    service = world.service(bus)
+    clean = run_case(service, DC_SPOT)
+    assert clean.ok and clean.run_id is not None, clean.message
+    draft = bringup.record(service, "L8", [clean.run_id], references=["r_wgfmu=1e5"], operator="owner")
+    assert draft.ok and draft.record is not None, draft.message
+    assert {m.quantity for m in draft.record.measurements} >= {"wgfmu_dc_read_s", "bus_call_s"}
+    bus.inject(WgfmuErrorFault(fn="dc_measure_value", code=3050))
+    failed = run_case(service, DC_SPOT)
+    assert not failed.ok and failed.run_id is not None and "3050" in failed.message, failed.message
+    capture = bringup.capture(service, [failed.run_id])
+    assert capture.ok, capture.message
+    (error,) = [load_fixture(world.root / i.path) for i in capture.written if i.kind == "wgfmu_error"]
+    assert error.command == "WGFMU_dcmeasureValue" and error.body.startswith("firmware error 3050")
+    assert error.expect == {"function": "dc_measure_value", "rc": -6, "code": 3050}
+    assert "B1530A" in error.source and "PDF 97" in error.source

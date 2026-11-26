@@ -3,7 +3,8 @@
 The stage lint itself runs in ``tests/skills/test_lint_*.py``; here the content the plan fixes: which stages exist,
 the recipes each runs (L1 uses ``basic.contact_resistor`` at 0 V until the zero-check recipe arrives), the §7.4 pass
 criteria as machine-readable checks, the human-only commands appearing only as the human's steps, and the
-rehearsal rule (no record from simulator runs) in every Record section.
+rehearsal rule (no record from simulator runs) in every Record section; since v2.1 (WP21.6) the gap steps and check
+ids of plan §4.6 (each fed by a step of ``steps.yaml``), the capture steps and the rewordings instead of a step.
 """
 
 from __future__ import annotations
@@ -323,12 +324,17 @@ DEFERRED_ITEMS = {  # blueprint v2 7.6 "What cannot be done without the hardware
     6: ("ATV-28",), 7: ("ATV-21",), 8: (), 9: ("ATV-20",), 10: (), 11: (), 12: ("ATV-4", "ATV-7", "ATV-8", "ATV-11",
                                                                                    "ATV-25"), 13: (), 14: (),
 }
+RESOLVED_ITEMS = {14}
+"""7.6 items no stage settles any more: 14 (Windows CI) ran on ``windows-latest`` after the owner allowed the push
+(OD-4); the roadmap's M12 table marks it resolved (v2.1 WP21.6)."""
 STAGE_DEFERRED = {
-    "S0": {11, 14}, "L0": {1, 2, 3, 4, 5, 12}, "L1": {3, 4, 8, 10}, "L2": {3, 8}, "L3": {3}, "L4": {6, 11, 12},
-    "L5": {3, 8}, "L6": {3, 6, 7}, "L7": {2, 3, 6, 9, 13}, "L8": {1, 5, 8, 9, 10, 13}, "L9": {8, 10, 13},
+    "S0": {11}, "L0": {1, 2, 3, 4, 5, 6, 12}, "L1": {1, 3, 4, 8, 10}, "L2": {3, 8}, "L3": {3}, "L4": {6, 11, 12},
+    "L5": {3, 8}, "L6": {3, 6, 7}, "L7": {2, 3, 6, 9, 13}, "L8": {1, 5, 8, 9, 10, 13}, "L9": {7, 8, 10, 13},
     "L10": {11, 12},
 }
-"""Which 7.6 items each stage verifies on hardware (its ``TODO(verify)`` line; the roadmap's M12 table repeats it)."""
+"""Which 7.6 items each stage verifies on hardware (its ``TODO(verify)`` line; the roadmap's M12 table repeats it).
+v2.1 (WP21.6): L0 records ASU/SCUU presence (6), L1 the per-call bus cost (1, ``bus_overhead``), L9 the correction
+drift over days (7, ``correction_drift``)."""
 TODO_LINE = re.compile(r"^- TODO\(verify\) \(blueprint v2 7\.6 items? (?P<items>\d+(?:, \d+)*)[;)]", re.MULTILINE)
 
 
@@ -348,7 +354,7 @@ def test_each_stage_lists_its_hardware_deferrals_once(stage: str) -> None:
 
 
 def test_the_stage_lists_cover_every_deferral_with_its_atvs() -> None:
-    assert set().union(*STAGE_DEFERRED.values()) == set(DEFERRED_ITEMS)
+    assert set().union(*STAGE_DEFERRED.values()) == set(DEFERRED_ITEMS) - RESOLVED_ITEMS
     for item, atvs in DEFERRED_ITEMS.items():
         stages = [s for s in WRITTEN if item in STAGE_DEFERRED[s]]
         texts = " ".join((STAGE_DIR / stage_file_name(s)).read_text(encoding="utf-8") for s in stages)
@@ -361,3 +367,58 @@ def test_every_stage_starts_from_bringup_status(stage: str) -> None:
     """Consistent commands: each stage's preconditions or first agent step read the bring-up status."""
     start = _section(stage, "Preconditions") + _section(stage, "Agent steps")
     assert "`uv run b1500 bringup status`" in start, stage
+
+
+# -- v2.1 WP21.6: the gap steps and check ids of plan §4.6 ------------------------------------------------------------
+
+GAP_CHECKS = {
+    "L0": ("terminations", "server_visa", "asu_presence", "scuu_presence"),  # ATV-2, ATV-4, ATV-28 record fields
+    "L1": ("self_test_s", "self_cal_s", "idle_lop", "bus_overhead"),  # *TST?/*CAL? times, ATV-23 codes, ATV-13
+    "L2": ("warm_up", "contact_r_2w"),  # warm-up time; two-wire minus four-wire R (leads and contacts)
+    "L4": ("approval_prompt",),  # ATV-7, ATV-11
+    "L5": ("time_source", "log_points"),  # ATV-22; the points log sampling holds
+    "L6": ("adj_read_only",),  # the second probe after the corrections (ADJ? ch,0 changes nothing)
+    "L7": ("erssp_negative", "relay_settle", "pulse_edges", "read_window"),  # negative control, settle, edges, read
+    "L8": ("smu_bias_held", "pg_level", "pund_rate"),  # ATV-17, the PG level on the V Monitor, the PUND ramp series
+    "L9": ("timer_hours", "correction_drift"),  # the timer over hours, the correction drift -> max_age_h
+    "L10": ("session_end_async", "hooks_listed", "cli_no_prompt"),  # session end in an async run, ATV-8, ATV-25
+}
+"""The check ids v2.1 plan §4.6 adds for facts that lived only in the audit or had no step."""
+CAPTURE_STAGES = ("L0", "L1", "L2", "L3", "L5", "L6", "L7", "L8")
+"""Stages with a ``bringup capture`` step (§4.6: L2, L3, L5, L7 new; L6 and L8 move theirs into an agent step)."""
+
+
+def _steps():
+    from b1500_test_agent.bringup_ledger import load_steps
+
+    return load_steps(ROOT)
+
+
+@pytest.mark.parametrize("stage", sorted(GAP_CHECKS))
+def test_the_gap_checks_exist_and_a_step_feeds_each(stage: str) -> None:
+    checks = {c.id for c in _front(stage).checks}
+    fed = {check for spec in _steps().stages[stage] for check in spec.feeds}
+    for check in GAP_CHECKS[stage]:
+        assert check in checks, (stage, check)
+        assert check in fed, (stage, check)
+        assert f"`{check}`" in _section(stage, "Expected values"), (stage, check)
+
+
+@pytest.mark.parametrize("stage", CAPTURE_STAGES)
+def test_the_stage_captures_its_fixtures_in_a_step(stage: str) -> None:
+    captures = [spec for spec in _steps().stages[stage] if spec.verify == "capture"]
+    assert captures and all(spec.rehearsal == "refusal" for spec in captures), stage
+    item = captures[0].id.split(".")[1]
+    assert item.startswith("A") and "uv run b1500 bringup capture" in _section(stage, "Agent steps"), stage
+
+
+def test_the_deployment_init_and_the_rewordings_of_the_sequence() -> None:
+    """D7 holds the human's configuration bootstrap (WP21.5): L0's first physical step checks it; the gaps §4.6
+    rewords instead of a step say so in their stage line (no tool sends ``*RST``; the correction-list maximum; the
+    WGFMU state after a device clear; the MFCMU DC limit is an owner/data-sheet question)."""
+    assert "D7" in _section("L0", "Physical steps (human)") and "D7" in _section("L0", "Preconditions")
+    assert "D1-D12" in _section("S0", "Preconditions")
+    l6, l7, l8 = (_section(stage, "Expected values") for stage in ("L6", "L7", "L8"))
+    assert "no tool sends `*RST`" in l7 and "names no maximum" in l6 and "OD21-10" in l6
+    assert "after a FLEX device clear is not observable" in l8
+    assert "Item 14 is resolved" in _section("S0", "Expected values")

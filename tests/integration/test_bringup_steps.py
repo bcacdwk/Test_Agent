@@ -155,8 +155,12 @@ def test_the_committed_sequence_covers_every_numbered_stage_item_once() -> None:
         named = [s.id.split(".", 1)[1] for s in specs if not s.is_review]
         assert sorted(named) == sorted(numbered) and len(named) == len(set(named)), stage
         assert specs[-1].id == f"{stage}.R" and specs[-1].verify == "review"
-    assert items == 148  # 58 physical, 90 agent (v2.1 plan §1.3)
-    assert sum(len(v) for v in STEPS.stages.values()) == 160
+    # v2.1 plan §1.3: 148 = 58 physical + 90 agent; WP21.6 adds the §4.6 gap steps: 7 physical (L2.P5, L7.P7, L7.P8,
+    # L8.P5, L9.P8, L9.P9, L10.P1) and 16 agent items (captures, the two-wire R, log sampling, the read window, the
+    # negative control and its probe, ATV-17, the timer over hours, the correction drift, the session end)
+    physical = sum(s.id.split(".")[1].startswith("P") for specs in STEPS.stages.values() for s in specs)
+    assert items == 171 and physical == 65
+    assert sum(len(v) for v in STEPS.stages.values()) == 183
 
 
 def test_every_stage_check_is_fed_and_every_step_can_be_recorded_its_way() -> None:
@@ -282,7 +286,7 @@ def test_s0_and_l0_rehearsed_with_probe_and_proposal_files(steps_world: World) -
     checked = bringup_steps.check(service, "L0")
     assert checked.ok and checked.scope == "L0", [g.reason for g in checked.gaps]
     every = bringup_steps.check(service, all_stages=True)
-    assert not every.ok and {g.step for g in every.gaps} >= {"L1.A1", "L10.A4"}
+    assert not every.ok and {g.step for g in every.gaps} >= {"L1.A1", "L10.A5"}
     assert "L0.R" not in {g.step for g in every.gaps}  # review steps are lab only
     l0 = next(s for s in bringup.bringup_status(service).stages if s.stage == "L0")
     assert l0.state == "rehearsed" and l0.records[0].state == "missing"

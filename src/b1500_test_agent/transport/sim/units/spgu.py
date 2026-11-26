@@ -32,16 +32,16 @@
   (``Circuit.pumped_currents``: MOSFET charge pumping from the trapezoid levels, frequency and edges). ``MM 10``
   sampling still sees the static levels.
 - **``CORRSER?``** stops a running output, outputs one period of the set-up channels, answers the load the channel
-  sees (``loadZ``, 0.1 Ohm to 1 MOhm) and the voltage it measured at the peak level (``+n.nnnnnnE+nn``; TODO(verify)
-  the format at L7), sets ``SER`` with mode 1, and takes ``max(period, delay + interval x count)``; error 2204 below
-  1 V.
+  sees (``loadZ``, 0.1 Ohm to 1 MOhm) and the voltage it measured at the peak level (``+n.nnnnnnE+nn``, the
+  manual's format; unused by every kind, see ``driver/discovery.py``), sets ``SER`` with mode 1, and takes
+  ``max(period, delay + interval x count)``; error 2204 below 1 V.
 - **Faults**: ``spgu_no_stop`` keeps the run alive through every stop condition but the ``SPP`` after its
   ``spp_ignored`` ignored ones; ``spgu_load_mismatch`` replaces the load (see above).
 - **Spy**: ``spgu_runs`` records every started run (set levels, ``SER``, open-load and delivered maxima per channel)
   for the safety tests' global invariant.
 
 TODO(verify) at bring-up L0/L7 (blueprint 7.6 items 3, 9): what ``SPST?`` answers without an SPGU, the effect of
-``DZ`` on a running output, the ``CORRSER?`` number format, and the delivered level into real loads (ATV-20).
+``DZ`` on a running output, and the delivered level into real loads (ATV-20).
 """
 
 from __future__ import annotations

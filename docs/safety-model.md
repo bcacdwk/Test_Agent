@@ -532,7 +532,9 @@ mechanism; this list gives the limit.
 
 **Routes.**
 - `ERSSP?` reports the commanded selector state: a relay welded without the B1500A noticing is found only by the
-  human at the selector check (L7, LEDs and relay clicks). The 10 ms settle time is an estimate (L7).
+  human at the selector check (L7, LEDs and relay clicks). The 10 ms settle time is an estimate (L7). Bring-up L7
+  settles both on hardware (v2.1): a negative control with SEL1's control cable disconnected (`erssp_negative`) and
+  the scope on the first pulse after a route change (`relay_settle`).
 - The RSU relays have no read-back: the library's acceptance of `disconnect` and `close_session` is the evidence
   (L8). An SCUU or ASU that does not answer is treated as not installed: nothing to restore, plans through it blocked.
 - Unknown wiring (`null` inputs) and presence (`present: null`) block on hardware; on the simulator the scenario's

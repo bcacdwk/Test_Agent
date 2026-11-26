@@ -7,6 +7,7 @@ checks:
   - {id: linearity, recipe: basic.contact_resistor, quantity: linearity_r2, method: resistance, reference: a linear resistor, text: 'recorded (expect r2 above 0.999)'}
   - {id: offset, recipe: basic.contact_resistor, quantity: offset_current, method: resistance, unit: A, reference: L1 floor of the same SMU, text: recorded}
   - {id: cleanup, recipe: basic.contact_resistor, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
+  - {id: warm_up, recipe: basic.contact_resistor, quantity: warm_up, unit: h, reference: 'time since the B1500A was powered on (the human); the data sheet warm-up time', text: recorded}
   - {id: multi_r, recipe: generic.smu_multi_sweep, quantity: resistance, method: resistance, unit: Ohm, reference: DMM reading of the 100 kOhm resistor on terminal a, tolerance: {rel: 0.01}, text: '+-1 % vs DMM (one-source multi-channel sweep)'}
   - {id: multi_cleanup, recipe: generic.smu_multi_sweep, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: r_spot, recipe: generic.smu_spot, quantity: resistance, method: resistance, unit: Ohm, reference: DMM reading of the 100 kOhm resistor, tolerance: {rel: 0.01}, text: '+-1 % vs DMM'}
@@ -14,7 +15,8 @@ checks:
   - {id: r_kelvin, recipe: resistor.kelvin_4w, quantity: resistance, method: kelvin_resistance, unit: Ohm, reference: certified value (or 4-wire DMM reading) of the 1 Ohm standard, tolerance: {rel: 0.01}, text: '+-1 % vs the standard'}
   - {id: offset_v, recipe: resistor.kelvin_4w, quantity: offset_voltage, method: kelvin_resistance, unit: V, reference: thermoelectric offset, text: 'recorded (expect below 100 uV)'}
   - {id: kelvin_cleanup, recipe: resistor.kelvin_4w, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
-version: 2
+  - {id: contact_r_2w, recipe: resistor.kelvin_4w, quantity: contact_r_2w, unit: Ohm, reference: 'two-wire R of the same standard (Sense lifted, agent step 8) minus r_kelvin', text: 'recorded (leads and contacts of this station)'}
+version: 3
 ---
 
 # L2 - Known resistors
@@ -30,14 +32,14 @@ Every hardware plan needs the human's consent (`first_hw_run`; generic recipes a
 ## 1. Preconditions
 
 - L1 signed off for every SMU used here (at least those L3 and L4 use); `uv run b1500 bringup status` names L2.
-- Instrument warmed up (the data sheet's warm-up time; the time at the station is recorded, section 4).
+- Instrument warmed up (the data sheet's warm-up time; the time at the station is recorded as `warm_up`).
 - The S0 resistors with fresh DMM readings (model, range, 2- or 4-wire, reading, temperature); the 1 Ohm standard
   with its certificate or a 4-wire DMM reading; Kelvin probes (Force and Sense) for SMU3 and the GNDU.
 
 ## 2. Physical steps (human)
 
 1. Mount the 100 kOhm resistor between the SMU force path under test and GNDU (fixture or probes); shield box
-   closed. Tell the agent the DMM reading.
+   closed. Tell the agent the DMM reading and how long the B1500A has been on.
 2. Adopt the pin map `res-smuN` per SMU (`a` = the slot, `b` = `GNDU`; the agent proposes it under
    `work/bringup/`) and the DUT profiles `r100k` and `r1m` (copies of `resistor-generic` with `nominal.r` = the DMM
    value): `uv run b1500 config adopt FILE --as pinmap`, `--as dut`. Mark a pin map `verified` only after checking
@@ -46,6 +48,7 @@ Every hardware plan needs the human's consent (`first_hw_run`; generic recipes a
 4. Four-wire: land Force and Sense of SMU3 on pad a and of the GNDU on pad b of the 1 Ohm standard; record
    `kelvin: true` for SMU3 in the station profile; adopt the pin map `res4w-smu3` (copy of `resistor-4w`) and the
    DUT profile `r1` (copy of `resistor-1r` with `nominal.r` = the certified value).
+5. Two-wire comparison, after the four-wire run: lift both Sense probes, Force stays landed; confirm.
 
 ## 3. Agent steps
 
@@ -65,8 +68,13 @@ Every hardware plan needs the human's consent (`first_hw_run`; generic recipes a
 7. Four-wire: `resistor.kelvin_4w` with `res4w-smu3` and `r1`, default params; consent; report R, offset voltage
    and r2 from `analyze_run(run_id, "kelvin_resistance")` next to the standard's value. Ask the human to confirm the
    sense landings before calling the value four-wire.
-8. `annotate_run(run_id, "DMM <value> (<model>, 4-wire), <temperature>")` so the reference stays with each run.
-9. Hardware: the recipe records (section 6) with one `--reference` per run.
+8. After physical step 5: the same `resistor.kelvin_4w` plan again (new consent). The reading now includes leads
+   and contacts (the card's two-wire comparison; here not an abort): `contact_r_2w` = this R minus `r_kelvin`, a
+   station fact; this run stays out of the `resistor.kelvin_4w` record.
+9. `annotate_run(run_id, "DMM <value> (<model>, 4-wire), <temperature>")` so the reference stays with each run.
+10. Hardware: `uv run b1500 bringup capture H... H...` of one `basic.contact_resistor` and one `generic.smu_spot`
+    run (FMT 1 sweep and spot blocks) for the parser fixtures.
+11. Hardware: the recipe records (section 6) with one `--reference` per run.
 
 ## 4. Expected values
 
@@ -76,6 +84,7 @@ Every hardware plan needs the human's consent (`first_hw_run`; generic recipes a
 | `linearity` | `linearity_r2` close to 1 | recorded (above 0.999) | `resistance` |
 | `offset` | `offset_current` near the L1 floor of the SMU | recorded | `resistance` |
 | `cleanup` | every run `verified: lop`, error queue empty | pass/fail | run manifests |
+| `warm_up` | hours since power-on at the first run | recorded | the human |
 | `multi_r` | R of the multi-channel sweep's terminal a | +-1 % of the DMM reading | DMM |
 | `multi_cleanup` | every run `verified: lop` | pass/fail | run manifests |
 | `r_spot` | R of the spot points (`resistance`), `in_range` | +-1 % of the DMM reading | DMM |
@@ -83,14 +92,16 @@ Every hardware plan needs the human's consent (`first_hw_run`; generic recipes a
 | `r_kelvin` | four-wire R (`kelvin_resistance`), `in_range`, r2 above 0.9999 | +-1 % of the standard | certificate or 4-wire DMM |
 | `offset_v` | `offset_voltage` of the four-wire fit | recorded (below 100 uV expected) | `kelvin_resistance` |
 | `kelvin_cleanup` | every four-wire run `verified: lop` | pass/fail | run manifests |
+| `contact_r_2w` | two-wire minus four-wire R of the 1 Ohm standard (leads and contacts) | recorded | agent step 8 |
 
 - Plans: tier `needs_confirmation` with `first_hw_run` (and `unverified_pin_map` while unverified; `adhoc_recipe`
   for the generic recipes).
 - Runs: outcome `completed`, every status `N`, quality `ok`. A four-wire R near 1 Ohm plus a few ohms means Sense is
   not landed (a two-wire reading): not passed.
-- TODO(verify) (blueprint v2 7.6 items 3, 8): the real FMT 1 blocks of a sweep and a spot measurement; DC
-  accuracy, settling and integration noise on known resistors (they set the tolerances the simulator assumes); the
-  warm-up time the station needs.
+- TODO(verify) (blueprint v2 7.6 items 3, 8): the real FMT 1 blocks of a sweep and a spot measurement (agent step
+  10); DC accuracy, settling and integration noise on known resistors (they set the tolerances the simulator
+  assumes); the warm-up time the station needs (`warm_up`); the station's lead and contact resistance
+  (`contact_r_2w`, knowledge 03).
 
 ## 5. Abort criteria
 
@@ -106,11 +117,11 @@ Every hardware plan needs the human's consent (`first_hw_run`; generic recipes a
 
 - Hardware: one recipe record per recipe, each run with its own reference:
   `uv run b1500 bringup record L2 --run H... --run H... --reference r_dmm@H...=99870 --reference r_dmm@H...=1.0021e6 --operator NAME`.
-  The human reviews it and moves it to `validation/hw/basic.contact_resistor.yaml`; the promotion to
-  `hw_validated` is a later developer change (`uv run b1500 dev recipe-check` checks the record).
+  The human reviews it (and fills `warm_up`) and moves it to `validation/hw/basic.contact_resistor.yaml`; the
+  promotion to `hw_validated` is a later developer change (`uv run b1500 dev recipe-check` checks the record).
 - `generic.smu_multi_sweep`: `uv run b1500 bringup record L2 --run H... --reference multi_r=99870 --operator NAME`
   → `validation/hw/generic.smu_multi_sweep.yaml`.
 - Likewise `generic.smu_spot` (`--reference r_spot=...`) → `validation/hw/generic.smu_spot.yaml` and
-  `resistor.kelvin_4w` (`--reference r_kelvin=...`) → `validation/hw/resistor.kelvin_4w.yaml`; each command lists
-  only that recipe's runs.
+  `resistor.kelvin_4w` (`--reference r_kelvin=...`, the four-wire run only; the reviewer fills `contact_r_2w` from
+  agent step 8) → `validation/hw/resistor.kelvin_4w.yaml`; each command lists only that recipe's runs.
 - Simulator rehearsal: no record (runs are `S...`); say that hardware drafts these four records.

@@ -142,8 +142,9 @@ class SimPersistentState(_Mutable):
     process started).
 
     WGFMU (WP10.1): ``wgfmu`` = channel id (``201``) -> ``WgfmuChannelState`` (missing = power-on state), changed only
-    through the instrument library (``transport/sim/wgfmu.py``); ``*RST`` and a device clear leave it as it is
-    (conservative reading, TODO(verify) at bring-up L8). ``wgfmu_runs`` counts executed sequencer runs (noise seeds).
+    through the instrument library (``transport/sim/wgfmu.py``); ``*RST`` and a device clear leave it as it is: a
+    conservative simulator assumption, not a hardware fact the tools could observe (v2.1 plan §4.6), harmless because
+    every WGFMU phase exit initializes and disconnects. ``wgfmu_runs`` counts executed sequencer runs (noise seeds).
 
 WP8.5: ``qscv_offsets`` = QSCV measurement channel -> the capacitance offset (F) its last ``QSZ 2`` measured, which
 ``QSZ 1`` subtracts (``*RST``/device clear clear it; simulator convention). ``gndu_peak_a`` = the largest current that

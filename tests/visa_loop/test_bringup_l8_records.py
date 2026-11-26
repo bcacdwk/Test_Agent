@@ -128,5 +128,5 @@ def test_the_stage_record_takes_the_session_probe_and_leaves_the_observations_op
     assert record.recipe_id is None and record.runs == [dc_spot_run, self_test_run]
     session = _measured(record, "session_probe")
     assert session.passed is True and session.observed.startswith("PASS"), session
-    human = ("lock_cycle", "rsu_vmonitor", "no_fw_errors")
+    human = ("lock_cycle", "rsu_vmonitor", "pg_level", "no_fw_errors", "smu_bias_held", "pund_rate")
     assert {m.check: m.observed for m in record.measurements if m.check in human} == {c: NOT_MEASURED for c in human}

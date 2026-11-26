@@ -24,9 +24,10 @@ confirmation in chat, and talk to the instrument not at all: no probe, no plan, 
 
 ## 1. Preconditions
 
-- The lab PC is set up with `docs/deployment-windows.md` up to `uv sync --frozen`; `uv run b1500 doctor` shows no
-  FAIL (it checks the PC only; the configuration is still the simulator example).
-- `uv run b1500 bringup status` names S0 as the next stage.
+- Session 0 of `docs/deployment-windows.md` is done (deployment steps D1-D12 from `uv sync --frozen` to the
+  harness, in the step ledger): `config/local/` has backend visa since D7, nothing has contacted the instrument yet;
+  `uv run b1500 doctor` shows no FAIL (it checks the PC only).
+- `uv run b1500 bringup status` names S0 as the next stage (`uv run b1500 bringup next`: its first step).
 - The B1500A is powered on; the DUT is disconnected (probes lifted or fixture socket empty): self-test and
   self-calibration need open measurement terminals (UG p142 (3-64) "Open the measurement terminals").
 
@@ -88,9 +89,9 @@ answer "done"). Never mark an item done yourself.
 
 - FLEX control after EasyEXPERT (ATV-3): the guide's "Before Starting" steps above; at L0 the FlexGUI window opens
   on the first GPIB command (PG p24 (1-4) "FlexGUI"). Fallback: follow the current guide's steps and record them.
-- TODO(verify) (blueprint v2 7.6 items 11, 14): the EasyEXPERT records and reference exports of this stage are
-  the golden data the later stages compare with (item 11). Item 14 needs nothing here: the owner allowed the push
-  (OD-4), so the Windows CI ran the whole simulator suite on `windows-latest`.
+- TODO(verify) (blueprint v2 7.6 item 11): the EasyEXPERT records and reference exports of this stage are the
+  golden data the later stages compare with. (Item 14 is resolved: the owner allowed the push, OD-4, and the
+  Windows CI runs the whole simulator suite on `windows-latest`.)
 
 ## 5. Abort criteria
 

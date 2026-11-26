@@ -110,8 +110,9 @@ IDEAL_STANDARDS: Final[dict[CorrectionFunction, tuple[int, float, float]]] = {
 (3-74) example ``ref_cp = ref_g = 0``)."""
 
 MAX_CORRECTION_FREQS: Final = 64
-"""Largest correction frequency list a recipe may write (the 23 default frequencies plus room for a C-f list).
-TODO(verify) at bring-up L6: the instrument's own limit."""
+"""Largest correction frequency list a recipe may write (the 23 default frequencies plus room for a C-f list). The
+instrument's own limit is not in the manual (``CORRL``, PG p384 (4-66), names no maximum) and no bring-up step writes
+a longer list (v2.1 plan §4.6): the kernel keeps 64."""
 
 CORR_POINT_S: Final = 0.5
 """Estimated ``CORR?`` time per listed frequency (the manual calls it short, PG p251 (3-71)). TODO(verify) L6."""

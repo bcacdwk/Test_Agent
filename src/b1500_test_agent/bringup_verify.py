@@ -68,7 +68,8 @@ class StepArgs:
     runs: tuple[str, ...] = ()
     probe: str | None = None
     drafts: tuple[str, ...] = ()
-    fixtures: str | None = None
+    fixtures: tuple[str, ...] = ()
+    """One fixture folder of ``b1500 bringup capture`` per captured run or probe record."""
     observe: tuple[str, ...] = ()
     references: tuple[str, ...] = ()
     human: str | None = None
@@ -345,9 +346,14 @@ def verify_record(ctx: Ctx) -> Verdict:
 
 
 def verify_capture(ctx: Ctx) -> Verdict:
+    """Fixture folders of ``b1500 bringup capture``: one per run or probe record given (``work/bringup/fixtures/<run
+    id or probe stem>``), every file written by the capture, the runs valid evidence of the step's recipes and every
+    required recipe captured."""
     if not ctx.args.fixtures or not (ctx.args.runs or ctx.args.probe):
-        raise Refused("give the capture: --run H... (or --probe latest) and --fixtures work/bringup/fixtures/<name>")
-    folder = _resolve(ctx, ctx.args.fixtures, under=_bringup_dir(ctx) / FIXTURES_DIR, what="fixture folder")
+        raise Refused("give the capture: --run H... (or --probe latest) and --fixtures work/bringup/fixtures/<name>, "
+                      "one --fixtures per captured run or probe record")
+    root = _bringup_dir(ctx) / FIXTURES_DIR
+    folders = [_resolve(ctx, ref, under=root, what="fixture folder") for ref in ctx.args.fixtures]
     tags: set[str] = set()
     problems: list[str] = []
     if ctx.args.runs:
@@ -355,6 +361,9 @@ def verify_capture(ctx: Ctx) -> Verdict:
         ctx.ev["runs"] = [EvidenceItem(ref=f.manifest.run_id, sha256=model_digest(f.manifest)) for f in facts]
         problems += [p for f in facts for p in run_problems(f, ctx.spec, ctx.backend)]
         tags |= {f.manifest.run_id for f in facts}
+        missing = [r for r in ctx.spec.required_recipes if r not in {f.manifest.recipe_id for f in facts}]
+        if missing:
+            problems.append(f"no run of {', '.join(missing)} among the captured runs")
     if ctx.args.probe:
         try:
             probe = evidence_reader.probe_facts(ctx.bundle, ctx.args.probe)
@@ -362,17 +371,24 @@ def verify_capture(ctx: Ctx) -> Verdict:
             raise Refused(str(exc)) from None
         ctx.ev["probe"] = EvidenceItem(ref=probe.path, sha256=model_digest(probe.report))
         tags.add(Path(probe.path).stem)
-    files = sorted(p for p in folder.rglob("*.txt") if p.is_file())
-    ctx.ev["fixtures"] = EvidenceItem(ref=ctx.shown(folder), sha256=_folder_sha(folder))
-    if folder.name not in tags:
-        problems.append(f"{ctx.shown(folder)} is not the fixture folder of {', '.join(sorted(tags))}")
-    if not files:
-        problems.append(f"{ctx.shown(folder)} holds no fixture file")
-    stray = [p.name for p in files if not p.read_text(encoding="utf-8").startswith("# source: hardware capture")]
-    if stray:
-        problems.append(f"not written by `uv run b1500 bringup capture`: {', '.join(stray[:5])}")
-    return ("fail", "; ".join(problems)) if problems else ("pass", (f"{len(files)} fixture file(s) in "
-                                                           f"{ctx.shown(folder)}"))
+    ctx.ev["fixtures"] = [EvidenceItem(ref=ctx.shown(f), sha256=_folder_sha(f)) for f in folders]
+    names = [folder.name for folder in folders]
+    for folder in folders:
+        files = sorted(p for p in folder.rglob("*.txt") if p.is_file())
+        if folder.name not in tags:
+            problems.append(f"{ctx.shown(folder)} is not the fixture folder of {', '.join(sorted(tags))}")
+        if not files:
+            problems.append(f"{ctx.shown(folder)} holds no fixture file")
+        stray = [p.name for p in files if not p.read_text(encoding="utf-8").startswith("# source: hardware capture")]
+        if stray:
+            problems.append(f"not written by `uv run b1500 bringup capture`: {', '.join(stray[:5])}")
+    uncaptured = sorted(tags - set(names))
+    if uncaptured:
+        problems.append(f"no fixture folder of {', '.join(uncaptured)} (one --fixtures per run or probe record)")
+    if problems:
+        return "fail", "; ".join(problems)
+    count = sum(1 for folder in folders for p in folder.rglob("*.txt") if p.is_file())
+    return "pass", f"{count} fixture file(s) in {', '.join(ctx.shown(f) for f in folders)}"
 
 
 def _folder_sha(folder: Path) -> str:
@@ -542,15 +558,15 @@ def reverify(ctx: Ctx, entry: LedgerEntry) -> tuple[list[str], list[str]]:
             notes.append(f"{item.ref} edited since the review step (reviewed again?)")
         else:
             problems.append(f"{item.ref} {'changed' if current else 'missing'} since the entry")
-    if ev.fixtures is not None:
-        folder = ctx.repo / ev.fixtures.ref
+    for item in ev.fixtures:
+        folder = ctx.repo / item.ref
         if folder.is_dir():
-            if _folder_sha(folder) != ev.fixtures.sha256:
-                problems.append(f"{ev.fixtures.ref} changed since the entry")
+            if _folder_sha(folder) != item.sha256:
+                problems.append(f"{item.ref} changed since the entry")
         elif ctx.repo.joinpath("tests", "fixtures", "hw", folder.name).is_dir():
-            notes.append(f"{ev.fixtures.ref} moved to tests/fixtures/hw/ after review")
+            notes.append(f"{item.ref} moved to tests/fixtures/hw/ after review")
         else:
-            problems.append(f"{ev.fixtures.ref} missing")
+            problems.append(f"{item.ref} missing")
     for item in ev.config:
         used = ctx.bundle.files.get(item.ref)
         if used is None or used.sha256 != item.sha256:

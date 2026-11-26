@@ -6,7 +6,10 @@ checks:
   - {id: session_probe, quantity: wgfmu_session, reference: 'doctor --probe --wgfmu-session at the start of L8', text: 'PASS: the library lists 201 and 202, idle, session closed again'}
   - {id: lock_cycle, quantity: lock_cycle, reference: 'audit of every L8 run (checkpoints wgfmu_phase, wgfmu_phase_end; ATV-14)', text: 'FLEX lock released before and taken back after every WGFMU phase; no BusLocked'}
   - {id: rsu_vmonitor, quantity: rsu_vmonitor, reference: 'oscilloscope (high impedance) on the RSU201 V Monitor (WG p20 (1-8))', text: 'the waveform during a run, 0 V after it (RSU back on its SMU path)'}
+  - {id: pg_level, quantity: pg_level, unit: V, reference: 'oscilloscope on the RSU201 V Monitor during wgfmu.pulse_train with gate_mode pg (WG p20 (1-8))', text: 'level recorded against vg_peak on the insulated gate'}
   - {id: no_fw_errors, quantity: library_errors, reference: 'wgfmu_call errors in the audit of every L8 run; kind_result.wgfmu_warnings', text: 'no 30xx/33xx firmware code (module, RSU, memory, setup); every library warning explained'}
+  - {id: smu_bias_held, quantity: smu_bias_held, reference: 'wgfmu.pulsed_iv on mosfet-wgfmu-body at vb 0 and at a body bias of the L4 body_effect run (ATV-17)', text: 'the shift between the two curves as the L4 body_effect predicts: the SMU bias held through initialize'}
+  - {id: pund_rate, quantity: pund_rate, reference: 'Vc of fecap.pund at its default and two other rise values (knowledge 04: faster ramps raise the apparent Ec)', text: 'Vc per rise recorded'}
   - {id: wgfmu_self_test_result, recipe: system.wgfmu_self_test, quantity: result, method: kind_result, reference: 'library self-test result (0 = pass)', tolerance: {max_abs: 0.5}, text: 'result 0, no failed unit'}
   - {id: wgfmu_self_test_cleanup, recipe: system.wgfmu_self_test, quantity: cleanup, reference: run manifests, text: 'verified: lop; session closed, FLEX relocked'}
   - {id: wgfmu_self_cal_result, recipe: system.wgfmu_self_cal, quantity: result, method: kind_result, reference: 'library self-calibration result (0 = pass)', tolerance: {max_abs: 0.5}, text: 'result 0, no failed unit'}
@@ -30,19 +33,17 @@ checks:
   - {id: pund_cleanup, recipe: fecap.pund, quantity: cleanup, reference: run manifests, text: 'verified: lop; every WGFMU channel disconnected, RSUs at rest'}
   - {id: fast_mw, recipe: fefet.fast_program_read, quantity: memory_window, method: memory_window_pulse, unit: V, reference: 'pulse_mw of fefet.pulse_write_read at L7 (same FeFET)', text: 'same sign as the L7 pulse MW; ratio recorded'}
   - {id: fast_pr_cleanup, recipe: fefet.fast_program_read, quantity: cleanup, reference: run manifests, text: 'verified: lop; every WGFMU channel disconnected, RSUs at rest'}
-version: 1
+version: 2
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
 # L8 - WGFMU and RSU
 
-The B1530A WGFMU through its instrument library and the RSUs: first the library session and the module's own
-self-test and self-calibration (card `self-test-cal`), then DC into the 100 kOhm standard through the RSU (card
-`wgfmu-custom-waveform`), then the L4 MOSFET: pulsed Id-Vg against a DC Id-Vg through the RSU SMU inputs, the fast
-ramp and a pulse train (card `wgfmu-pulsed-iv`), the lab's own waveform files and RTN/LFN records (cards
-`wgfmu-custom-waveform`, `wgfmu-rtn-noise`), then a FeCap PUND (card `fecap-pund`) and the fast program/read of the
-L7 FeFET (card `fefet-pulse-write-read`). The WGFMU has no compliance: the guard checks every vector of a program
-before the library sees it (R-WG-02), the ranges only bound the reading. Endurance PUND and fast BTI are L9.
+The B1530A WGFMU through its instrument library and the RSUs: library session, self-test and self-calibration (card
+`self-test-cal`), DC into the 100 kOhm standard through the RSU, then the L4 MOSFET (pulsed against DC, fast ramp,
+pulse train, the lab's waveforms, RTN/LFN; cards `wgfmu-pulsed-iv`, `wgfmu-custom-waveform`, `wgfmu-rtn-noise`), a
+FeCap PUND (`fecap-pund`) and the fast program/read of the L7 FeFET (`fefet-pulse-write-read`). The WGFMU has no
+compliance: the guard checks every vector before the library sees it (R-WG-02). Endurance PUND and fast BTI are L9.
 
 ## 1. Preconditions
 
@@ -61,10 +62,12 @@ before the library sees it (R-WG-02), the ranges only bound the reading. Enduran
 2. Lift the probes (RSU outputs open) for agent step 2; confirm in chat.
 3. Land the 100 kOhm standard between the RSU201 output and ground (pin map `resistor-wgfmu`); confirm.
 4. Land the L4 MOSFET: gate RSU201, drain RSU202, source GNDU (pin map `mosfet-wgfmu`; through the RSU SMU paths the
-   same landing is `mosfet-4t`); a scope on the RSU201 V Monitor if you have one (`rsu_vmonitor`). For the lab's own
-   waveforms copy the CSV files to `work/waveforms/` and name them in chat.
-5. Land the FeCap: top RSU201, bottom RSU202 (pin map `fecap-wgfmu`, DUT profile with area and thickness); confirm.
-6. Land the L7 FeFET with gate RSU201, drain RSU202, source GNDU (pin map `fefet-wgfmu`); confirm.
+   same landing is `mosfet-4t`); a scope on the RSU201 V Monitor if you have one (`rsu_vmonitor`, `pg_level`). For
+   the lab's own waveforms copy the CSV files to `work/waveforms/` and name them in chat.
+5. After agent step 6: move the MOSFET's bulk contact to SMU5 as at L4 (pin map `mosfet-wgfmu-body`, adopted);
+   confirm.
+6. Land the FeCap: top RSU201, bottom RSU202 (pin map `fecap-wgfmu`, DUT profile with area and thickness); confirm.
+7. Land the L7 FeFET with gate RSU201, drain RSU202, source GNDU (pin map `fefet-wgfmu`); confirm.
 
 ## 3. Agent steps
 
@@ -79,15 +82,22 @@ before the library sees it (R-WG-02), the ranges only bound the reading. Enduran
 4. DC reference: `mosfet.idvg` on `mosfet-4t` (DUT `nmos-wgfmu`; vd 1 V, vg 0 to 2 V in 21 points, as the pulsed
    plan; ATV-32), then `wgfmu.pulsed_iv` on `mosfet-wgfmu` (card example) and `analyze_run(run, "pulsed_vs_dc",
    {reference_run: <DC run>})`; explain any difference (knowledge 10). Then `wgfmu.fast_iv` (`gm_max`) and `wgfmu.pulse_train`
-   (`pulse_plateau`; card example).
+   (`pulse_plateau`; card example), once more with `gate_mode: pg` while the human reads the V Monitor (`pg_level`).
 5. `wgfmu.custom_waveform`: the human's CSV files from `work/waveforms/` (`adhoc_recipe`) or the committed sample;
    compare `kind_result.values` and the shapes with the lab's own run of the same files.
 6. `wgfmu.rtn`, then `wgfmu.lfn` (card examples; a short `points` first): `rtn_levels`, `psd_welch`.
-7. FeCap (physical step 5): `fecap.pund` on `fecap-wgfmu` (card example): `pund_polarization` (Pr, Ps, Ec, Vc).
-8. FeFET (physical step 6): `fefet.fast_program_read` on `fefet-wgfmu`: `memory_window_pulse` next to L7's MW.
-9. After each run `get_run(run, include=[summary, audit])`: the `wgfmu_phase` checkpoints (`lock_cycle`), library
-   errors and warnings (`kind_result.wgfmu_warnings`, `wgfmu_warning_text`: `no_fw_errors`), the cleanup. Report
-   every value as derived (method id, window), status counts, backend.
+7. ATV-17 (physical step 5): `wgfmu.pulsed_iv` on `mosfet-wgfmu-body` twice, `vb` 0 and a body bias of the L4
+   `mosfet.body_effect` run (new consent each). The bulk SMU is set before the WGFMU phase, whose entry runs
+   `initialize`: a shift between the curves as L4's `body_effect` predicts shows the SMU bias held (`smu_bias_held`).
+8. FeCap (physical step 6): `fecap.pund` on `fecap-wgfmu` (card example): `pund_polarization` (Pr, Ps, Ec, Vc); then
+   at two other `rise` values inside the recipe's recommended range: Vc per ramp (`pund_rate`).
+9. FeFET (physical step 7): `fefet.fast_program_read` on `fefet-wgfmu`: `memory_window_pulse` next to L7's MW.
+10. After each run `get_run(run, include=[summary, audit])`: the `wgfmu_phase` checkpoints (`lock_cycle`), library
+    errors and warnings (`kind_result.wgfmu_warnings`, `wgfmu_warning_text`: `no_fw_errors`), the cleanup. Report
+    every value as derived (method id, window), status counts, backend. Last, `uv run b1500 doctor`: its `local
+    config` line should PASS now (the deployment's checklist of configuration work).
+11. Hardware: `uv run b1500 bringup capture H... H...` of one `wgfmu.dc_spot` and one `wgfmu.rtn` run, and of every
+    L8 run whose audit holds library errors or warnings (their strings become fixtures), for the parser fixtures.
 
 ## 4. Expected values
 
@@ -95,25 +105,30 @@ before the library sees it (R-WG-02), the ranges only bound the reading. Enduran
 |---|---|---|---|
 | `session_probe` | library lists 201, 202; idle; closed again | PASS | `doctor --probe` (ATV-16) |
 | `lock_cycle`, `no_fw_errors` | lock released and retaken around each phase; no 30xx/33xx code; warnings explained | pass/fail | audit, `kind_result` |
-| `rsu_vmonitor` | waveform at the V Monitor during a run, 0 V after it | pass/fail | oscilloscope |
+| `rsu_vmonitor`, `pg_level` | waveform at the V Monitor during a run, 0 V after it; the PG level against `vg_peak` | pass/fail; recorded | oscilloscope |
+| `smu_bias_held` | the body-biased pulsed curve shifted as L4's `body_effect` predicts (ATV-17) | pass/fail | agent step 7 |
 | `wgfmu_self_test_result`, `wgfmu_self_cal_result` | `kind_result.result` 0 through the library | 0 | WG p92 (4-22) "WGFMU_doSelfTest" |
 | `r_wgfmu` | 100 kOhm standard through the RSU, 10 uA range | +-3 % of the DMM | `resistance` |
 | `pulsed_vs_dc` | pulsed/DC Id at 1 % duty (no self-heating, few traps) | recorded, explained | `pulsed_vs_dc` |
 | `fast_iv_gm`, `train_plateau` | fast ramp gm; plateau current over the train | recorded | `gm_max`, `pulse_plateau` |
 | `lwp_values` | every value of the lab's events read back | as the lab's run | `kind_result` |
 | `rtn_tau_c`, `lfn_gamma` | trap times; 1/f exponent near 1 | recorded | `rtn_levels`, `psd_welch` |
-| `pund_pr`, `pund_vc` | Pr, Vc (and Ps, Ec) of the PUND | recorded | `pund_polarization` |
+| `pund_pr`, `pund_vc`, `pund_rate` | Pr, Vc (and Ps, Ec) of the PUND; Vc per `rise` | recorded | `pund_polarization` |
 | `fast_mw` | fast program/read MW, same sign as L7 | recorded | `memory_window_pulse` |
 | `wgfmu_self_test_cleanup`, `wgfmu_self_cal_cleanup`, `dc_spot_cleanup`, `pulsed_cleanup`, `fast_iv_cleanup`, `train_cleanup`, `custom_cleanup`, `rtn_cleanup`, `lfn_cleanup`, `pund_cleanup`, `fast_pr_cleanup` | every run verified, every channel disconnected, session closed | pass/fail | manifests |
 
+- The records carry the library call times of the run audits: `wgfmu_self_test_s`, `wgfmu_self_cal_s`,
+  `wgfmu_dc_read_s` and `wgfmu_readback_s_per_value` (the readback time of the long RTN/LFN records per value).
 - TODO(verify) (blueprint v2 7.6 items 1, 5, 8, 9, 10, 13): releasing the FLEX lock is enough for the library
-  session and the relock is clean
-  (ATV-14; else `settings.wgfmu.flex_during_phase: close`); `initialize` leaves an SMU bias alone (ATV-17); the RSU
-  SMU path reaches the DUT (ATV-32); a `disconnect` the library accepts means the RSU relay opened; the library's
-  error-string and warning-summary formats; 3307 vs 3304 above 2,048 vectors; readback time of 504,000 points; DC spot and
-  self-test/cal durations; noise floors and bandwidth with the real cables; `wgfmu.pulse_train` with `gate_mode: pg`
-  (WP11.2): the PG level on the RSU V Monitor equals the set level on the open gate; fast-IV timing; the real
-  device's RTN statistics behind the `wgfmu.rtn` defaults.
+  session and the relock is clean (ATV-14; else `settings.wgfmu.flex_during_phase: close`); `initialize` leaves an
+  SMU bias alone (ATV-17, `smu_bias_held`); the RSU SMU path reaches the DUT (ATV-32); a `disconnect` the library
+  accepts means the RSU relay opened; the library's error-string and warning-summary formats (captured, agent step
+  11); 3307 vs 3304 above 2,048 vectors; readback time of 504,000 points; DC spot and self-test/cal durations (the
+  record fields above); noise floors and bandwidth with the real cables; `wgfmu.pulse_train` with `gate_mode: pg`
+  (WP11.2): the PG level on the RSU V Monitor equals the set level on the open gate (`pg_level`); fast-IV timing; the
+  real device's RTN statistics behind the `wgfmu.rtn` defaults; the ramp-rate dependence of the apparent Ec of the
+  lab's film (`pund_rate`). The WGFMU state after a FLEX device clear is not observable through the tools: the
+  simulator leaves it unchanged and the phase exit always initializes and disconnects (conservative).
 
 ## 5. Abort criteria
 
@@ -128,11 +143,8 @@ before the library sees it (R-WG-02), the ranges only bound the reading. Enduran
 
 - Hardware: one recipe record per recipe (`uv run b1500 bringup record L8 --run H... --operator NAME`; with
   `--reference r_wgfmu=<DMM Ohm>`, `--reference fast_mw=<L7 pulse MW>`) and the stage record (`--recipe` omitted,
-  `--probe latest`, the runs of steps 2 to 4; the human adds `rsu_vmonitor`, `lock_cycle`, `no_fw_errors`). The human
-  reviews them and moves them to `validation/hw/stage-l8.yaml`, `validation/hw/system.wgfmu_self_test.yaml`,
-  `validation/hw/system.wgfmu_self_cal.yaml`, `validation/hw/wgfmu.dc_spot.yaml`, `validation/hw/wgfmu.pulsed_iv.yaml`,
-  `validation/hw/wgfmu.fast_iv.yaml`, `validation/hw/wgfmu.pulse_train.yaml`, `validation/hw/wgfmu.custom_waveform.yaml`,
-  `validation/hw/wgfmu.rtn.yaml`, `validation/hw/wgfmu.lfn.yaml`, `validation/hw/fecap.pund.yaml`,
-  `validation/hw/fefet.fast_program_read.yaml`.
+  `--probe latest`, the runs of steps 2 to 4; the human adds `rsu_vmonitor`, `pg_level`, `lock_cycle`,
+  `no_fw_errors`, `smu_bias_held` and `pund_rate`). The human reviews them and moves them to
+  `validation/hw/stage-l8.yaml` and `validation/hw/<recipe>.yaml` for the eleven recipes.
 - Simulator rehearsal (scenarios `resistor_100k`, `nmos_wgfmu`, `nmos_rtn`, `fecap_basic`, `fefet_lab`): no record
   from `S...` runs; say which records hardware drafts.

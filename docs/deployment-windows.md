@@ -7,9 +7,10 @@ budget, manual corpus and `b1500 doctor` on backend sim), Windows paths, encodin
 (the WGFMU DLL probe, the registry, the console code page) are tested on every OS by platform injection
 (`tests/adapters/test_windows_readiness.py`, `tests/wgfmu_abi/`), and the offline wheelhouse below was built and
 installed on the Mac (WP6.5, re-run at the WP11.4 release commit).
-Plan of record: blueprint v2 §7 (7.1 kit, 7.4 stages, 7.5 first-session script = §"First session" below), §12
-owner decisions OD-4, OD-5, OD-7. After the installation the bring-up follows the stage files of skill
-`b1500-bringup`; [hardware-bringup.md](hardware-bringup.md) is their one-page overview.
+Plan of record: blueprint v2 §7 (7.1 kit, 7.4 stages, 7.5 first-session script, since v2.1 the deployment steps
+D1-D12 of §"First session" below), §12 owner decisions OD-4, OD-5, OD-7. After the installation the bring-up follows
+the stage files and the step sequence of skill `b1500-bringup`; [hardware-bringup.md](hardware-bringup.md) is their
+one-page overview.
 
 **The idea in one paragraph.** Everything lives in one folder, the `git clone` of this repository: the Python
 environment (`.venv\`), your local configuration (`config\local\`), the run archive and state (`data\`) and the
@@ -20,35 +21,50 @@ its summary in the chat and waits for your own words, then the harness asks you 
 
 ## First session
 
-Blueprint v2 §7.5, in order. Each line points to the step of §"Procedure" that explains it; commands run in
-PowerShell in the clone folder from line 4 on. Lines marked *human* are yours alone: the harness rules and the
-guard hook stop a coding agent from running them.
+Session 0 of the bring-up = the deployment steps D1-D12 of the step sequence
+(`.agents/skills/b1500-bringup/steps.yaml`, v2.1; they replace blueprint v2 §7.5's script), then the bring-up
+sessions. Each line points to the step of §"Procedure" that explains it; commands run in PowerShell in the clone
+folder from D6 on. Lines marked *human* are yours alone: the harness rules and the guard hook stop a coding agent
+from running them. Each D step goes into the step ledger once the clone exists: `uv run b1500 bringup next` names
+the next one, and you record it in your own terminal (`uv run b1500 bringup done D1 --human "WHAT YOU DID" --by
+NAME`) or the agent records it from your words in chat later.
 
-1. **Mac (developer):** push the release branch (`git push`, owner decision OD-4); optionally copy the `1500A`
+1. **Mac (developer):** push `main` (`git push`, owner decisions OD-4, OD21-11); optionally copy the `1500A`
    manuals folder (~75 MB of PDFs) to the lab PC for figures and `manual build`.
-2. **Lab PC, once** (step 1): Git for Windows; `winget install astral-sh.uv`; `uv python install 3.12`; Keysight
-   IO Libraries Suite (lab IT; the VISA stack); **B1530A WGFMU Instrument Library A.03.00 or later** (current
-   A.04.00.2440.5403; its installer puts the x64 `wgfmu.dll` into `C:\Windows\System32`); Node.js LTS and the
-   Codex CLI from npm (and/or Claude Code as the native build, its auto-update off); `setx PYTHONUTF8 1`.
-3. `git clone REMOTE_URL C:\b1500\test_agent` (step 2); the manual PDFs in `C:\b1500\` (the clone's parent, the
-   default `settings.manuals_dir`) or wherever `B1500_MANUALS_DIR` points.
-4. `uv sync --frozen`; `uv run b1500 manual status` (the committed corpus: 16 documents, 2,315 pages);
-   `uv run b1500 doctor` (PASS/WARN only, backend still `sim`) (step 3).
-5. B1500A: File > Exit EasyEXPERT and leave the "Start EasyEXPERT" button on screen; in its Connection Expert
-   GPIB address 17 and System Controller "No" (step 4; bring-up stage S0).
-6. *human:* `uv run b1500 config init --visa` (step 5); then `uv run b1500 doctor --probe --wgfmu-session`: PASS
-   lines (step 6).
-7. `uv run b1500 bringup propose-station`; fill the selector and RSU inputs from the cabling; *human:*
-   `uv run b1500 config adopt work\bringup\station.proposed.yaml --as station`; pin maps and DUT profiles from
-   the examples, adopted the same way; `uv run b1500 config check` (step 6).
-8. `uv run b1500 harness init --codex`; start `codex` in the clone and trust the project, close it, then
-   `uv run b1500 update`: it installs the validated harness versions and must end with `Ready.` (steps 7, 8, 12).
-9. Prompt: "Use skill b1500-bringup and continue the hardware bring-up from the current stage." Do the physical
-   steps; consent in chat in your own words; approve the harness prompt after comparing its summary (step 10).
-10. End of day (step 11): `$env:B1500_HW = "1"; uv run pytest -m hardware -rs`; back up `data\runs\`; review
-    `work\bringup\records\` into `validation\hw\` and `work\bringup\fixtures\` into `tests\fixtures\hw\`;
-    transfer them (OD-7: branch `lab/bringup-<date>` pushed, else a OneDrive copy of `work\bringup\`).
-11. **Mac (developer):** one developer work package per module: fixture tests, simulator recalibration,
+2. **D1** (step 1): Git for Windows; `winget install astral-sh.uv`; `uv python install 3.12`.
+3. **D2** (step 1, lab IT): Keysight IO Libraries Suite (the VISA stack) and the GPIB adapter's driver.
+4. **D3** (step 1.5, lab IT): **B1530A WGFMU Instrument Library A.03.00 or later** (current A.04.00.2440.5403; its
+   installer puts the x64 `wgfmu.dll` into `C:\Windows\System32`).
+5. **D4** (step 1.6): Node.js LTS and the Codex CLI from npm (and/or Claude Code as the native build, its
+   auto-update off with `DISABLE_AUTOUPDATER=1`), both signed in.
+6. **D5** (step 1.7): `setx PYTHONUTF8 1`, then a new PowerShell window.
+7. **D6** (step 2): `git clone REMOTE_URL C:\b1500\test_agent`; the manual PDFs in `C:\b1500\` (the clone's parent,
+   the default `settings.manuals_dir`) or wherever `B1500_MANUALS_DIR` points.
+8. **D7** (steps 3, 5): `uv sync --frozen`; `uv run b1500 manual status` (the committed corpus: 16 documents, 2,315
+   pages); *human:* `uv run b1500 config init --visa` (it writes `config\local\` only, no instrument contact; stage L0
+   checks it); `uv run b1500 doctor` without FAIL. From here on every step lands in the hardware ledger.
+9. **D8** (step 7): `uv run b1500 harness init --codex` (and `--claude`); `uv run b1500 doctor` shows `harness
+   files` PASS.
+10. **D9** (steps 8.1-8.2, 9.2): start `codex` (and `claude`) in the clone once, trust the project, check the sandbox
+    row of `codex doctor --summary`; close it.
+11. **D10** (steps 8, 12): *human:* `uv run b1500 update` in your own terminal ends with `Ready.` (it installs the
+    validated harness versions); then the maintainer's `uv run b1500 dev harness qualify --windows` once.
+12. **D11** (steps 8.5, 9.4-9.5): the interactive checks: the approval prompt shows the summary (or at bring-up L4,
+    before the L1 files exist); Claude Code's `/hooks` lists the guard hook.
+13. **D12**: the results of §"Recorded results" (versions, WGFMU library, install route) into the ledger.
+14. **Sessions 1-8** (step 10; [hardware-bringup.md](hardware-bringup.md)): prompt "Use skill b1500-bringup and
+    continue the hardware bring-up from the current stage." The agent works the loop `uv run b1500 bringup next`,
+    the step, `uv run b1500 bringup done`: S0 (B1500A: File > Exit EasyEXPERT and leave the "Start EasyEXPERT"
+    button on screen; in its Connection Expert GPIB address 17 and System Controller "No"; step 4), L0
+    (`uv run b1500 doctor --probe --wgfmu-session`, `uv run b1500 bringup propose-station`; *human:*
+    `uv run b1500 config adopt work\bringup\station.proposed.yaml --as station`; pin maps and DUT profiles adopted
+    the same way; `uv run b1500 config check`; step 6), then L1-L10. Do the physical steps; consent in chat in your
+    own words; approve the harness prompt after comparing its summary.
+15. End of each session (step 11; steps E1-E5): `$env:B1500_HW = "1"; uv run pytest -m hardware -rs`; back up
+    `data\runs\`; review `work\bringup\records\` into `validation\hw\` and `work\bringup\fixtures\` into
+    `tests\fixtures\hw\`; transfer them (OD-7: branch `lab/bringup-<date>` pushed, else a OneDrive copy of
+    `work\bringup\`).
+16. **Mac (developer):** one developer work package per module: fixture tests, simulator recalibration,
     `hw_validated` promotions from the reviewed records.
 
 ## Facts to collect first
@@ -154,14 +170,15 @@ window opened before step 1.7.
 
 ### Step 4 — Hand the B1500A over from EasyEXPERT
 
-Bring-up stage S0 ([s0-physical](../.agents/skills/b1500-bringup/stages/s0-physical.md)) in short: interlock and
+Bring-up stage S0 (session 1, after the deployment steps D1-D12;
+[s0-physical](../.agents/skills/b1500-bringup/stages/s0-physical.md)) in short: interlock and
 shield box checked, cables recorded, EasyEXPERT reference files saved. On the B1500A: **File > Exit EasyEXPERT**
 and leave the "Start EasyEXPERT" button on screen (EasyEXPERT and b1500 never control the instrument at the same
 time); in the B1500A's Keysight Connection Expert set GPIB address **17** and System Controller **No**.
 
 ### Step 5 — Create the local configuration (human)
 
-Blueprint v2 §7.5 line 6. These commands are yours alone: the harness rules and the guard hook stop a coding agent
+Deployment step D7 (session 0: no instrument contact yet; bring-up L0 checks the result). These commands are yours alone: the harness rules and the guard hook stop a coding agent
 from running `config init` and `config adopt` (§"Harness permissions" below).
 
 ```powershell
@@ -195,7 +212,8 @@ landing. It is the checklist of the configuration work of the bring-up; at the e
 
 ### Step 6 — Probe the instrument and adopt the station
 
-Blueprint v2 §7.5 lines 6–7; prerequisite: step 4 done (EasyEXPERT ended).
+Bring-up stage L0 (session 1: the agent probes and proposes, you adopt); prerequisite: step 4 done (EasyEXPERT
+ended).
 
 ```powershell
 uv run b1500 doctor
@@ -267,7 +285,8 @@ Start it from the clone root, with no extra flags.
    report backend, identity and modules." Expected: `backend: visa`, the B1500A identity and the module table. Codex
    sandboxes the commands it runs; the MCP server is expected to run outside that sandbox, which is what lets it open
    the VISA library. Fallback if it fails while `uv run b1500 status` works with Codex closed: follow the Codex
-   documentation for MCP servers that need device access and write the setting into "Recorded results" below.
+   documentation for MCP servers that need device access and record the setting (L0.A6 `server_visa`,
+   §"Recorded results").
 5. **ATV-11 check (the approval prompt shows the summary).** Needs the DUT disconnected and the two L1 files of the
    bring-up (`open-smus` pin map, `open-circuit` DUT profile; create them now as the L1 stage file describes, or do
    this check when you reach L1). Ask: "Validate system.zero_check on pin map open-smus with DUT profile
@@ -305,10 +324,12 @@ its numbered list; step 12). Then start the harness in the clone root and give i
 
 > Use skill b1500-bringup and continue the hardware bring-up from the current stage.
 
-The agent reads the stage file of the next open stage (`uv run b1500 bringup status`), tells you the physical
-steps, probes and proposes, and runs validated plans only after your consent in chat; you do the physical steps,
-consent in your own words and approve the harness prompt after comparing its summary with the chat. The stages and
-who does what: [hardware-bringup.md](hardware-bringup.md).
+The agent works step by step: `uv run b1500 bringup next` names the step (after a break first the session-start
+steps R1-R4 and what to confirm again), the agent does it or hands it to you, and `uv run b1500 bringup done`
+verifies and records it in the step ledger with your own words for your steps. It tells you the physical steps,
+probes and proposes, and runs validated plans only after your consent in chat; you do the physical steps, consent
+in your own words and approve the harness prompt after comparing its summary with the chat. The stages, the nine
+sessions and who does what: [hardware-bringup.md](hardware-bringup.md).
 
 **Long runs and the harness.** A plan longer than 5 min runs asynchronously in the b1500 server; the agent polls
 `get_run` and stops it with `safe_shutdown`. The server lives as long as the harness keeps it: in the interactive
@@ -541,19 +562,26 @@ restricting the allowed sandbox and approval modes). That would turn "never use 
 enforced setting. It needs admin rights on the lab PC, so it is not used here (owner decision D2); check the
 current harness documentation before adopting it.
 
-## Recorded results (fill in at deployment)
+## Recorded results (in the step ledger)
 
-| Item | Result | Date |
-|---|---|---|
-| Harness versions (Codex, Claude Code: = `config/harness/validated.yaml`), uv, Git, Python, Node.js | | |
-| `uv run b1500 update`: verdict `Ready.`; install methods (Codex npm, Claude Code native); Claude Code auto-update off | | |
-| WGFMU instrument library version and DLL path (ATV-15) | | |
-| Install route: PyPI or wheelhouse (commit it was built from) | | |
-| Codex `doctor --summary` sandbox row (step 8.2) | | |
-| ATV-4: server opens VISA inside Codex; setting used, if any | | |
-| ATV-11: Codex approval prompt shows the summary | | |
-| ATV-7: Claude Code prompts in default mode | | |
-| ATV-8: Claude Code `/hooks` lists the guard hook | | |
-| One-process check (bring-up L0) | | |
-| `doctor` `local config` PASS (end of L8) | | |
-| How Codex / Claude Code end the server when a session closes during a long run (L10) | | |
+What the deployment and the bring-up find out about this PC is recorded in the step ledger, not on this page: each
+result is an `--observe KEY=VALUE` (or the human's own words) of the step that settles it, written only by
+`uv run b1500 bringup done` to `data\state\bringup\ledger-visa.jsonl` with its time and evidence;
+`uv run b1500 bringup check --all` re-verifies it, and the stage records embed their stage's steps, so the results
+travel with the records (OD-7). Where each result lands:
+
+| Item | Step and key |
+|---|---|
+| Harness versions (Codex, Claude Code: = `config/harness/validated.yaml`), uv, Git, Python, Node.js | D12 `versions` |
+| `uv run b1500 update`: verdict `Ready.`; install methods (Codex npm, Claude Code native); Claude Code auto-update off | D10 `update`; D4 (your words) |
+| The maintainer's `uv run b1500 dev harness qualify --windows` (T0, T1, S16) | D10 `qualify_windows` |
+| WGFMU instrument library version and DLL path (ATV-15) | D12 `wgfmu_library`; L0's `wgfmu_library` probe line and its `wgfmu_version` fixture |
+| Install route: PyPI or wheelhouse (commit it was built from) | D12 `install_route` |
+| Trust of the project and the Codex `doctor --summary` sandbox row (steps 8.1-8.2) | D9 `trusted`, `sandbox` |
+| ATV-4: server opens VISA inside the harness; setting used, if any | L0.A6 `server_visa` (check `server_visa`) |
+| ATV-11: the approval prompt shows the summary | D11 `approval_prompt`; L4.P4 (check `approval_prompt`) |
+| ATV-7: Claude Code prompts in default mode | L4.P4 `prompt_shown` |
+| ATV-8: Claude Code `/hooks` lists the guard hook | D11 `hooks_listed`; L10.P3 (check `hooks_listed`) |
+| One-process check (bring-up L0) | L0.P4 `one_process` |
+| `doctor` `local config` PASS (end of L8) | L8.A10 `local_config` |
+| How Codex / Claude Code end the server when a session closes during a long run (L10) | L10.A2 `outcomes` (check `session_end_async`) |

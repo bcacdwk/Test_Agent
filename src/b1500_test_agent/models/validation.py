@@ -385,13 +385,14 @@ class HumanWords(StrictModel):
 
 class StepEvidence(StrictModel):
     """What one ``done`` call verified: runs (manifest digest), the probe record, files under ``work/`` (proposals,
-    draft records, a JUnit report: ``drafts``), the fixture folder, adopted configuration files, observations,
-    reference values of stage checks, the human's words and the machine facts read (doctor lines, station state)."""
+    draft records, a JUnit report: ``drafts``), the fixture folders (one per captured run or probe record), adopted
+    configuration files, observations, reference values of stage checks, the human's words and the machine facts
+    read (doctor lines, station state)."""
 
     runs: list[EvidenceItem] = Field(default_factory=list)
     probe: EvidenceItem | None = None
     drafts: list[EvidenceItem] = Field(default_factory=list)
-    fixtures: EvidenceItem | None = None
+    fixtures: list[EvidenceItem] = Field(default_factory=list)
     config: list[EvidenceItem] = Field(default_factory=list)
     observe: dict[Identifier, NonEmptyStr] = Field(default_factory=dict)
     references: dict[Identifier, float] = Field(default_factory=dict)
@@ -403,7 +404,7 @@ class StepEvidence(StrictModel):
         parts = [f"runs {', '.join(r.ref for r in self.runs)}" if self.runs else "",
                  f"probe {self.probe.ref}" if self.probe else "",
                  f"files {', '.join(d.ref for d in self.drafts)}" if self.drafts else "",
-                 f"fixtures {self.fixtures.ref}" if self.fixtures else "",
+                 f"fixtures {', '.join(f.ref for f in self.fixtures)}" if self.fixtures else "",
                  f"config {', '.join(c.ref for c in self.config)}" if self.config else "",
                  ", ".join(f"{k}={v}" for k, v in self.observe.items()),
                  ", ".join(f"{k}={v:g}" for k, v in self.references.items()),
@@ -603,8 +604,11 @@ def reviewed_record_problems(record: ValidationRecord, file_name: str) -> list[s
 
 
 FixtureKind = Literal["fmt1", "fmt5", "idn", "unt", "errx", "lop", "stb", "tst", "lrn", "ermod", "erssp", "spst",
-                      "corrst", "adj"]
-"""Kinds of the golden FLEX fixture format (``tests/fixtures/flex/``, documented in ``tests/unit/flex_fixtures.py``)."""
+                      "corrst", "adj", "lrn62", "lrn63", "lrn81", "lrn90", "corrl", "dcorr", "corrdt", "wgfmu_error",
+                      "wgfmu_warnings", "wgfmu_version"]
+"""Kinds of the golden fixture format (``tests/fixtures/flex/``, documented in ``tests/unit/flex_fixtures.py``): the
+FLEX answers and data blocks, plus (v2.1, ``service/evidence.py``) the ASU/SCUU/phase-compensation ``*LRN?`` types,
+the MFCMU correction read-backs and the WGFMU instrument library's error, warning-summary and file-version strings."""
 
 
 class CapturedExchange(StrictModel):
@@ -624,14 +628,15 @@ class CapturedExchange(StrictModel):
 
 class RunFacts(StrictModel):
     """Everything a record or a capture reads from one archived run: the manifest, the run folder (display path),
-    every analysis result, the quality report, the instrument answers of its audit and the files whose sha256 no
-    longer matches the manifest."""
+    every analysis result, the quality report, the instrument answers of its audit, the audit timings (record field
+    name -> seconds, ``service/evidence.py``) and the files whose sha256 no longer matches the manifest."""
 
     manifest: RunManifest
     folder: str
     analyses: list[ExtractionResult] = Field(default_factory=list)
     quality: QualityReport | None = None
     exchanges: list[CapturedExchange] = Field(default_factory=list)
+    timings: dict[str, float] = Field(default_factory=dict)
     changed_files: list[str] = Field(default_factory=list)
 
 

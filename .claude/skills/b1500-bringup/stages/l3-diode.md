@@ -53,7 +53,9 @@ Vf at 1 mA. Every hardware plan needs consent (`first_hw_run`).
    current at `v_rev`) and compare.
 5. `basic.iv_force_i` on the same pin map and profile, defaults: same flow; `forward_voltage` (Vf at 1 mA) and
    `diode_fit`; compare Vf with the EasyEXPERT value at 1 mA and n with step 3.
-6. Hardware: the recipe records (section 6).
+6. Hardware: `uv run b1500 bringup capture H... H...` of one `basic.diode_iv` run (blocks with compliance `C`)
+   and one `basic.iv_force_i` run (current forcing) for the parser fixtures.
+7. Hardware: the recipe records (section 6).
 
 ## 4. Expected values
 
@@ -73,7 +75,7 @@ Vf at 1 mA. Every hardware plan needs consent (`first_hw_run`).
 - Run `completed`, or `completed_with_flags` when the forward end reaches compliance; compliance flags (`C`)
   exactly where the current reaches 10 mA.
 - TODO(verify) (blueprint v2 7.6 item 3): the status letters of real FMT 1 blocks at compliance (`C`) and under
-  current forcing; capture one run of each recipe as a fixture.
+  current forcing (one run of each recipe captured, agent step 6).
 
 ## 5. Abort criteria
 

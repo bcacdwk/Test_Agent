@@ -231,7 +231,7 @@ def test_a_schema_2_stage_record_that_claims_pass_lists_every_step(station: Stat
     required = required_steps(REPO_ROOT)
     assert required["S0"][:3] == ("S0.A1", "S0.A2", "S0.P1") and "S0.A5" not in required["S0"]
     assert "S0.A6" not in required["S0"] and "S0.R" not in required["S0"] and len(required["S0"]) == 12
-    assert "L10.P5" not in required["L10"] and "L10.A4" not in required["L10"] and "L10.P4" in required["L10"]
+    assert "L10.P6" not in required["L10"] and "L10.A5" not in required["L10"] and "L10.P5" in required["L10"]
     file = draft("S0-stage.yaml")
     complete = replace(stage_record("S0"), schema_version=2, steps=dict.fromkeys(required["S0"], "pass"))
     assert record_problems(complete, file, archive=station.archive, recipes=recipes(), digest=digest,

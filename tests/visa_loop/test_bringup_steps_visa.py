@@ -191,10 +191,10 @@ def test_record_capture_and_review_verifiers(lab: VisaWorld) -> None:
     measured = resistance(lab, run_id)
     draft = bringup.record(service, "L2", [run_id], references=[f"r_dmm={measured}"], operator="owner")
     assert draft.ok and draft.path is not None and draft.record is not None, draft.message
-    records = spec(id="L2.A9", verify="record", recipes=[])
+    records = spec(id="L2.A11", verify="record", recipes=[])
     verdict, reason = verify(service, records, StepArgs(drafts=(draft.path,)))
     assert verdict == "pass" and "1 draft record(s)" in reason
-    other_stage = spec(id="L3.A6", verify="record", recipes=[])
+    other_stage = spec(id="L3.A7", verify="record", recipes=[])
     verdict, reason = verify(service, other_stage, StepArgs(drafts=(draft.path,)))
     assert verdict == "fail" and "stage L3 records basic.diode_iv, basic.iv_force_i" in reason
     failing = bringup.record(service, "L2", [run_id], references=[f"r_dmm={measured * 1.05}"])
@@ -207,16 +207,50 @@ def test_record_capture_and_review_verifiers(lab: VisaWorld) -> None:
     assert captured.ok and captured.folder is not None, captured.message
     fixtures = f"{captured.folder}/{run_id}"
     capture = spec(id="L1.A8", verify="capture")
-    verdict, reason = verify(service, capture, StepArgs(runs=(run_id,), fixtures=fixtures))
+    verdict, reason = verify(service, capture, StepArgs(runs=(run_id,), fixtures=(fixtures,)))
     assert verdict == "pass" and "fixture file(s)" in reason
     with pytest.raises(Refused, match="give the capture"):
-        verify(service, capture, StepArgs(fixtures=fixtures))
+        verify(service, capture, StepArgs(fixtures=(fixtures,)))
     (lab.root / fixtures / "note.txt").write_text("hand-written\n", encoding="utf-8")
-    verdict, reason = verify(service, capture, StepArgs(runs=(run_id,), fixtures=fixtures))
+    verdict, reason = verify(service, capture, StepArgs(runs=(run_id,), fixtures=(fixtures,)))
     assert verdict == "fail" and "not written by `uv run b1500 bringup capture`: note.txt" in reason
     review = spec(id="L2.R", who="human", verify="review", recipes=[])
     verdict, reason = verify(service, review, StepArgs())
     assert verdict == "fail" and "validation/hw/basic.contact_resistor.yaml missing" in reason
+
+
+def test_a_capture_step_takes_one_fixture_folder_per_captured_run(lab: VisaWorld) -> None:
+    """v2.1 (WP21.6): a capture step of several runs (L2.A10 sweep and spot, L5.A9, L6.A8, ...) names one
+    ``--fixtures`` folder per run; every folder must belong to a given run, every given run needs its folder, every
+    required recipe of the step needs a captured run, and ``check`` re-verifies each folder."""
+    service = lab.service(lab.bus(CONTACT["scenario"]))
+    first, second = hardware_run(service), hardware_run(service)
+    captured = bringup.capture(service, [first, second])
+    assert captured.ok and captured.folder is not None, captured.message
+    folders = (f"{captured.folder}/{first}", f"{captured.folder}/{second}")
+    step = spec(id="L2.A10", verify="capture", rehearsal="refusal", recipes=["basic.contact_resistor"])
+    verdict, reason = verify(service, step, StepArgs(runs=(first, second), fixtures=folders))
+    assert verdict == "pass" and folders[0] in reason and folders[1] in reason, reason
+    verdict, reason = verify(service, step, StepArgs(runs=(first, second), fixtures=folders[:1]))
+    assert verdict == "fail" and f"no fixture folder of {second}" in reason, reason
+    both = spec(id="L2.A10", verify="capture", rehearsal="refusal", recipes=["basic.contact_resistor",
+                                                                              "generic.smu_spot"])
+    verdict, reason = verify(service, both, StepArgs(runs=(first, second), fixtures=folders))
+    assert verdict == "fail" and "no run of generic.smu_spot among the captured runs" in reason, reason
+    committed = STEPS.get("L2.A10")
+    assert committed is not None and committed.verify == "capture"
+    assert bringup_steps.done_line(committed, "capture").count("--fixtures work/bringup/fixtures/<RUN_ID>") == 2
+    bundle = service.config.get()
+    ctx = Ctx(service, bundle, STEPS, step, "capture", StepArgs(runs=(first, second), fixtures=folders))
+    assert VERIFIERS["capture"](ctx)[0] == "pass"
+    entry = make_entry(1, "0" * 64, step=step.id, ts=datetime.now(UTC), backend="visa", actor="agent",
+                       verify="capture", verdict="pass", reason="test",
+                       evidence={k: v for k, v in ctx.ev.items() if k in ("runs", "fixtures")})
+    assert [item.ref for item in entry.evidence.fixtures] == list(folders)
+    assert f"fixtures {folders[0]}, {folders[1]}" in entry.evidence.summary()
+    (lab.root / folders[1] / "idn_01.txt").write_text("# source: hardware capture edited\n", encoding="utf-8")
+    problems, _notes = reverify(Ctx(service, bundle, STEPS, step, "capture", StepArgs()), entry)
+    assert problems == [f"{folders[1]} changed since the entry"]
 
 
 def test_check_notes_drafts_and_fixtures_moved_after_review(lab: VisaWorld) -> None:
@@ -226,12 +260,12 @@ def test_check_notes_drafts_and_fixtures_moved_after_review(lab: VisaWorld) -> N
     captured = bringup.capture(service, [run_id])
     assert draft.path is not None and draft.record is not None and captured.folder is not None
     bundle = service.config.get()
-    records = STEPS.get("L2.A9")
+    records = STEPS.get("L2.A11")
     capture = STEPS.get("L1.A8")
     assert records is not None and capture is not None
     for step, args in ((records, StepArgs(drafts=(draft.path,))),
                        (capture.model_copy(update={"recipes": ["basic.contact_resistor"]}),
-                        StepArgs(runs=(run_id,), fixtures=f"{captured.folder}/{run_id}"))):
+                        StepArgs(runs=(run_id,), fixtures=(f"{captured.folder}/{run_id}",)))):
         ctx = Ctx(service, bundle, STEPS, step, step.verify, args)
         assert VERIFIERS[step.verify](ctx)[0] == "pass"
         entry = make_entry(1, "0" * 64, step=step.id, ts=datetime.now(UTC), backend="visa", actor="agent",

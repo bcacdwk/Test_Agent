@@ -5,9 +5,12 @@ Fixture convention (one instrument response per file, UTF-8, LF line ends):
 
 - A header of ``# key: value`` lines, then exactly one body line.
 - Required keys: ``source`` (manual citation; must name at least one ``PDF <page>`` of ``B1500A Programming
-  Guide.pdf``), ``kind`` (``fmt1``, ``fmt5``, ``idn``, ``unt``, ``errx``, ``lop``, ``stb``, ``tst``, ``lrn`` or
-  one of the probe's state queries ``ermod``, ``erssp``, ``spst``, ``corrst``, ``adj``) and
-  ``command`` (what produced the response, ``synthetic`` for coverage lists).
+  Guide.pdf``, or of the WGFMU guide for the library strings), ``kind`` (``fmt1``, ``fmt5``, ``idn``, ``unt``,
+  ``errx``, ``lop``, ``stb``, ``tst``, ``lrn`` or one of the probe's state queries ``ermod``, ``erssp``, ``spst``,
+  ``corrst``, ``adj``; since v2.1 also what ``b1500 bringup capture`` writes from hardware runs: ``lrn62``,
+  ``lrn63``, ``lrn81``, ``lrn90``, ``corrl``, ``dcorr``, ``corrdt`` and the WGFMU library's ``wgfmu_error``,
+  ``wgfmu_warnings``, ``wgfmu_version``) and ``command`` (what produced the response, ``synthetic`` for coverage
+  lists).
 - Data kinds (``fmt1``/``fmt5``) also need ``terminator`` (``crlf`` or ``comma``) and one ``point`` line per
   element, in order: ``<status> <channel> <data type> <12-character data>``.
 - Query kinds need ``expect``: JSON with the parsed result (its shape is defined per kind by the tests).
@@ -26,7 +29,9 @@ from typing import Any
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "flex"
 DATA_KINDS = frozenset({"fmt1", "fmt5"})
-QUERY_KINDS = frozenset({"idn", "unt", "errx", "lop", "stb", "tst", "lrn", "ermod", "erssp", "spst", "corrst", "adj"})
+QUERY_KINDS = frozenset({"idn", "unt", "errx", "lop", "stb", "tst", "lrn", "ermod", "erssp", "spst", "corrst", "adj",
+                         "lrn62", "lrn63", "lrn81", "lrn90", "corrl", "dcorr", "corrdt", "wgfmu_error",
+                         "wgfmu_warnings", "wgfmu_version"})
 _PDF_PAGE = re.compile(r"\bPDF \d+")
 
 

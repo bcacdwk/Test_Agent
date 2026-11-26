@@ -81,7 +81,8 @@ RULES: dict[str, str] = {
               "file adopted",
     "proposal": "schema-valid {config} proposal file(s) under work/bringup/",
     "record": "draft records of this stage in work/bringup/records/ (`uv run b1500 bringup record`), result not fail",
-    "capture": "fixture files written by `uv run b1500 bringup capture` in work/bringup/fixtures/<run id or probe>",
+    "capture": "fixture folders written by `uv run b1500 bringup capture` (work/bringup/fixtures/<run id or probe>), "
+               "one per captured run or probe record; runs of {recipes}",
     "observation": "what was seen, as --observe KEY=VALUE",
     "hw_suite": "the JUnit file of `pytest -m hardware`: no failure or error, nothing skipped by the gate",
     "confirm": "the human's own words in chat, quoted, and their name",
@@ -105,7 +106,8 @@ def done_line(spec: StepSpec, kind: str) -> str:
     elif kind == "probe":
         parts.append("--probe latest")
     elif kind == "capture":
-        parts += (["--run <RUN_ID>", "--fixtures work/bringup/fixtures/<RUN_ID>"] if spec.recipes
+        parts += ([part for _ in range(max(1, len(spec.required_recipes)))
+                   for part in ("--run <RUN_ID>", "--fixtures work/bringup/fixtures/<RUN_ID>")] if spec.recipes
                   else ["--probe latest", "--fixtures work/bringup/fixtures/<PROBE_NAME>"])
     elif kind == "config":
         parts += ["--draft <ADOPTED_FILE>" for item in spec.config if item in CONFIG_KEYS]
@@ -325,7 +327,7 @@ def _done(service: B1500Service, bundle: Any, step_id: str, args: StepArgs, acto
     except Refused as exc:
         return _refused(StepDone, backend, f"{step_id} not recorded: {exc}", ledger=shown)
     evidence = StepEvidence(runs=ctx.ev.get("runs", []), probe=ctx.ev.get("probe"), drafts=ctx.ev.get("drafts", []),
-                            fixtures=ctx.ev.get("fixtures"), config=ctx.ev.get("config", []), observe=observe,
+                            fixtures=ctx.ev.get("fixtures", []), config=ctx.ev.get("config", []), observe=observe,
                             references=references, human=human, facts=ctx.ev.get("facts", []))
     try:
         station = bundle.sha256("station")

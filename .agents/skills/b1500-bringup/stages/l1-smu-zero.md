@@ -13,7 +13,11 @@ checks:
   - {id: lop_positive_control, quantity: positive_control, reference: run manifest cleanup.positive_control, text: 'every connected slot non-00 right after CN'}
   - {id: self_test_result, recipe: system.self_test, quantity: result, reference: '*TST? result (0 = pass)', tolerance: {max_abs: 0.5}, text: result 0}
   - {id: self_cal_result, recipe: system.self_cal, quantity: result, reference: '*CAL? result (0 = pass)', tolerance: {max_abs: 0.5}, text: result 0}
-version: 3
+  - {id: self_test_s, recipe: system.self_test, quantity: tst_s, unit: s, reference: '*TST? query time in the run audit; the kind estimate (system.py)', text: recorded}
+  - {id: self_cal_s, recipe: system.self_cal, quantity: cal_s, unit: s, reference: '*CAL? query time in the run audit; the kind estimate (system.py)', text: recorded}
+  - {id: idle_lop, quantity: outputs_after, reference: 'run manifests cleanup.outputs_after (ATV-23)', text: 'every slot 00 after the cleanup, idle SPGU/WGFMU/CMU slots included; codes recorded'}
+  - {id: bus_overhead, quantity: bus_call_s, unit: s, reference: 'slowest bus_open/lock/unlock/close dur_ms of the run audits (ATV-13)', text: 'recorded; the ATV-13 criterion of stage L0'}
+version: 4
 ---
 
 # L1 - SMU zero, cleanup, interruption
@@ -65,8 +69,8 @@ summary, stop, the human's own consent, one run per consent (skill `b1500-test`)
    `get_run` of both drill runs, `safe_shutdown("L1 after drill")`, `station_status`.
 7. Ask for physical step 4 and note the answers.
 8. Hardware: one short zero check (`params {ranges: [1e-11], samples: 10}`, consent as in step 4) and
-   `uv run b1500 bringup capture H...` of it (ten MM 1 FMT 1 blocks of HRSMU and MPSMU) for the parser fixtures;
-   then the records of section 6.
+   `uv run b1500 bringup capture H...` of it (ten MM 1 FMT 1 blocks of HRSMU and MPSMU; with ASUs or an SCUU
+   declared, their `*LRN? 62`/`81` read-backs) for the parser fixtures; then the records of section 6.
 
 ## 4. Expected values
 
@@ -80,6 +84,9 @@ summary, stop, the human's own consent, one run per consent (skill `b1500-test`)
 | `lop_positive_control` | non-`00` on every connected slot right after `CN`, every run | recorded | manifest, audit |
 | `self_test_result` | `kind_result.result` 0, no failed unit | 0 | `*TST?` (PG p540 (4-222) "open the measurement terminals") |
 | `self_cal_result` | `kind_result.result` 0 | 0 | `*CAL?` |
+| `self_test_s`, `self_cal_s` | `*TST?` and `*CAL?` query times (record fields `tst_s`, `cal_s` from the run audit) | recorded | audit |
+| `idle_lop` | `LOP?` after every cleanup: all `00`, idle SPGU/WGFMU/CMU slots too (`outputs_after`) | recorded | manifest (ATV-23) |
+| `bus_overhead` | slowest per-call bus open, lock, unlock or close of the runs (`bus_call_s`) | recorded | audit (ATV-13) |
 
 - Zero-check runs: every status letter `N`; floors and offsets within the sanity bounds, recorded per range (the
   owner tightens the bounds after the first runs). SMUs in other slots appear in the record as extra `smuN_floor`
@@ -89,10 +96,11 @@ summary, stop, the human's own consent, one run per consent (skill `b1500-test`)
   (evidence: run manifest `cleanup.positive_control`, audit checkpoint `lop_positive_control`). Fallback when an
   idle slot reads non-`00` or the control fails: verification through `*LRN? 0` (a code change); stop here.
 - `*LRN? 31` raw text of the pre-execute snapshot recorded (async auto-calibration restore).
-- TODO(verify) (blueprint v2 7.6 items 3, 4, 8, 10): `LOP?` as the verification (v1 ATV-1) and the idle
-  SPGU/WGFMU/CMU codes (ATV-23); the real FMT 1 SMU blocks (`bringup capture`); the floor and offset per SMU range
-  at this integration (they replace the simulator's noise assumptions); `*TST?` and `*CAL?` durations against the
-  kind's 120 s / 60 s estimates.
+- TODO(verify) (blueprint v2 7.6 items 1, 3, 4, 8, 10): the per-call bus cost (ATV-13, `bus_overhead`); `LOP?`
+  as the verification (v1 ATV-1) and the idle SPGU/WGFMU/CMU codes (ATV-23, `idle_lop`); the real FMT 1 SMU blocks
+  (`bringup capture`); the floor and offset per SMU range at this integration (they replace the simulator's noise
+  assumptions); `*TST?` and `*CAL?` durations against the kind's 120 s / 60 s estimates (`self_test_s`,
+  `self_cal_s`).
 
 ## 5. Abort criteria
 

@@ -31,7 +31,9 @@ Formats from the Keysight B1500 Series Programming Guide, Edition 15 ("PG"; PDF 
   ASU answers; the parser takes an empty answer (or the bare mnemonic) as "no ASU". TODO(verify) raw captures at
   bring-up L1/L2 (ATV-28, ASU presence).
 - ``CORRSER? chnum,mode,delay,interval,count`` (PDF 386, printed 4-68): ``loadZ,voltage`` (the impedance calculated
-  from the measured terminal voltage, and that voltage). TODO(verify) the number format with a raw capture at L7.
+  from the measured terminal voltage, and that voltage). Unused: no measurement kind calls
+  ``SpguOps.measure_pulse_load``, so no bring-up stage sends or captures ``CORRSER?`` (v2.1 plan §4.6); the parser
+  follows the manual's format, and a kind that starts to use it adds a capture step for its raw answer.
 
 ATV-1 (``LOP?`` usable for cleanup verification) holds per the manual for SMU and MFCMU slots: after ``CL`` every
 slot must read ``00``. Table 4-26 has no SPGU/WGFMU codes and reports per slot, not per subchannel, so those modules

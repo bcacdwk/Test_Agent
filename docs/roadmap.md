@@ -223,11 +223,13 @@ runnable recipes, 14 kinds, 34 cards, every bring-up stage S0, L0-L10 written; n
 Outside the v2 `/goal`: the owner at the lab PC with the instrument, then one developer work package per module on
 the Mac. Nothing below can be done or faked without the hardware (blueprint v2 §7.6, §10.0 guardrail 6).
 
-1. **First session** ([deployment-windows.md](deployment-windows.md) §"First session", blueprint v2 §7.5): install
-   the prerequisites (WGFMU library A.03.00 or later, x64), clone, `uv sync --frozen`, `uv run b1500 doctor`, hand
-   the instrument over from EasyEXPERT, create and adopt the local configuration, wire the harness.
-2. **Bring-up S0–L10** with the coding agent ("Use skill b1500-bringup and continue the hardware bring-up from the
-   current stage."; [hardware-bringup.md](hardware-bringup.md)): every stage signed off, draft records reviewed into
+1. **First session** = session 0, deployment steps D1–D12 ([deployment-windows.md](deployment-windows.md)
+   §"First session"; v2.1 replaces blueprint v2 §7.5's script): install the prerequisites (WGFMU library A.03.00 or
+   later, x64), clone, `uv sync --frozen`, the local configuration (`config init --visa`, no instrument contact),
+   wire the harness, `uv run b1500 update` until `Ready.`, the interactive checks; recorded in the step ledger.
+2. **Bring-up S0–L10** with the coding agent in eight more sessions ("Use skill b1500-bringup and continue the
+   hardware bring-up from the current stage."; [hardware-bringup.md](hardware-bringup.md)): every step through
+   `uv run b1500 bringup next` and `bringup done` (the ledger), every stage signed off, draft records reviewed into
    `validation/hw/`, fixtures into `tests/fixtures/hw/`, transferred (OD-7).
 3. **Developer work packages per module** on the Mac: fixture parser tests, simulator recalibration from the
    measured floors and devices, the ATV outcomes, recipe promotions to `hw_validated` (blueprint v2 §7.2).
@@ -236,17 +238,17 @@ What each stage settles (the `TODO(verify)` line of each stage file; blueprint v
 
 | §7.6 item | Settled at |
 |---|---|
-| 1 GPIB address, terminations, timeouts, VISA vendor; exclusive lock vs library session (ATV-14); per-call open cost (ATV-13) | L0, L8 |
-| 2 real `UNT?` (slots 8–10, B1511A or B), firmware; `*RST` effect on ERMOD/ERSSP (ATV-18) | L0, L7 |
+| 1 GPIB address, terminations, timeouts, VISA vendor; exclusive lock vs library session (ATV-14); per-call open cost (ATV-13) | L0, L1, L8 |
+| 2 real `UNT?` (slots 8–10, B1511A or B), firmware; ERMOD/ERSSP after power-on and device clear (ATV-18; no tool sends `*RST`) | L0, L7 |
 | 3 real data blocks of every family as fixtures; the `ERRX?` success text | L0, L1, L2, L3, L5, L6, L7 |
 | 4 interlock bit (v1 ATV-10); `LOP?` as the verification (v1 ATV-1, ATV-23) | L0, L1 |
 | 5 `wgfmu.dll` install, version, load (ATV-15, ATV-16), error codes, readback timing, RSU switching, bandwidth (ATV-17) | L0, L8 |
-| 6 16440A wiring map, SCUU/ASU presence (ATV-28) | L4, L6, L7 |
-| 7 MFCMU correction values, phase compensation, drift (ATV-21) | L6 |
+| 6 16440A wiring map, SCUU/ASU presence (ATV-28) | L0, L4, L6, L7 |
+| 7 MFCMU correction values, phase compensation, drift (ATV-21) | L6, L9 |
 | 8 noise floors per module, range and integration; settling; simulator noise calibration | L1, L2, L5, L8, L9 |
 | 9 SPGU pulse fidelity into real loads, overshoot, SER (ATV-20); WGFMU fast-IV timing | L7, L8 |
 | 10 self-test/calibration durations; auto-calibration over hours | L1, L8, L9 |
 | 11 EasyEXPERT golden comparisons; every `hw_validated` promotion | S0, L4, L10 |
 | 12 harness facts on the lab PC (v1 ATV-4, ATV-7, ATV-8, ATV-11; ATV-25) | L0, L4, L10 |
 | 13 real device physics behind defaults and tolerances (FeFET kinetics, IGZO drift, RTN statistics) | L7, L8, L9 |
-| 14 Windows CI (only without the push) | S0: nothing left; CI ran on `windows-latest` (OD-4) |
+| 14 Windows CI (only without the push) | resolved: the CI runs on `windows-latest` since the owner allowed the push (OD-4); no stage |

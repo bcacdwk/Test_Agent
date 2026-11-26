@@ -2,7 +2,7 @@
 id: errx-codes
 title: Instrument error codes (ERRX? queue)
 maturity: seed
-sources: [Programming Guide Ed. 15 chapter 5 (PDF 574-616), references/manuals/structured/b1500a-error-codes.yaml]
+sources: [Programming Guide Ed. 15 chapter 5 (PDF 574-616), PG p583 (5-11) "Excess current in HPSMU", PG p587-601 (5-15) operation errors, PG p602 (5-30) "Self-test/Calibration Error", references/manuals/structured/b1500a-error-codes.yaml]
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
@@ -28,10 +28,12 @@ Guide chapter 5 is complete). Typical groups:
 | 202, 203 | Interlock must be closed; cannot enable channel | [interlock-open](interlock-open.md) |
 | 227 | Sweep aborted (compliance, overflow, oscillation, power compliance) | [compliance-hit](compliance-hit.md) |
 | 260 | Data output buffer full | Too many points not read: report |
-| 301, 305 | Line power failure; excess current, all outputs switched off | Hardware or DUT short: stop |
+| 301 | Line power failure | Hardware: stop |
+| 303, 304, 305, 320 | Excess voltage in an MPSMU or excess current in an HPSMU (all output switches set off); ground unit abuse; excess current in the CMU (its output switch set off) (PG p583 (5-11)) | Hardware or DUT short: stop |
 | 310 | Interlock opened in a high-voltage state; instrument initialized | [interlock-open](interlock-open.md); stop |
 | 600-699 | Incompatible measurement settings | Recipe or kind bug: report |
-| 700 and up, N-prefixed | Self-test or calibration failure of a module | Human; service may be needed |
+| 7xx, and codes prefixed with the slot number N (1760 = slot 1) | Self-test or calibration failure (PG p602-616 (5-30)) | Human; service may be needed |
+| 9xx, 1xxx, 3xxx, 5xxx, 6xxx | Other operation errors: expanders and DIO modes, HCSMU/MCSMU, SPGU ALWG data (PG p587-601 (5-15)) | Look the code up; hardware-side: stop |
 
 Codes 400-599 are not documented in the manual.
 

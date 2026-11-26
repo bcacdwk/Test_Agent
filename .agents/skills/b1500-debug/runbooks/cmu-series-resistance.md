@@ -1,8 +1,8 @@
 ---
 id: cmu-series-resistance
-title: Series resistance in MFCMU data (Cp falls with frequency in accumulation, large D, Cp-G and Cs-Rs disagree)
+title: Series resistance in MFCMU data (Cp falls with frequency in accumulation, large D at Cmax)
 maturity: seed
-sources: [PG p347 (4-29) IMP parameter pairs, UG p74 (2-34) MFCMU measurement parameters, EX p320 (4-26) error correction, Nicollian & Brews (1982) eq. 5.12, src/b1500_test_agent/analysis/cv.py (impedance_convert, rs_ohm; WP8.3)]
+sources: [PG p347 (4-29) IMP parameter pairs, UG p74 (2-34) MFCMU measurement parameters, EX p320 (4-26) error correction, "Nicollian & Brews (1982): equation number not checked, TODO(cite)", src/b1500_test_agent/analysis/cv.py (impedance_convert, rs_ohm; WP8.3)]
 ---
 
 # Series resistance (MFCMU)
@@ -10,9 +10,10 @@ sources: [PG p347 (4-29) IMP parameter pairs, UG p74 (2-34) MFCMU measurement pa
 ## Symptom
 
 - A MOS capacitor's Cp in strong accumulation falls with rising frequency (Cmax at 1 MHz below Cmax at 100 kHz);
-  G/w rises in accumulation; D at Cmax above about 0.1.
-- `impedance_convert` with `series_r: accumulation` reports `rs` of tens of Ohm or more; Cp-G and Cs-Rs of the
-  same point disagree by more than D^2.
+  G/w rises in accumulation; D at Cmax above about 0.1 (a rule of thumb, not checked against a source).
+- `impedance_convert` with `series_r: accumulation` reports an `rs` large enough that w·rs·C at Cmax approaches 0.1
+  (Cp then about 1 % low). Cp-G and Cs-Rs of one point always differ by the factor 1 + D^2 (`Cs = Cp (1 + D^2)`):
+  that alone is no symptom.
 - `cv_cox` low against the geometry, `cf_dispersion`/`dit_conductance` Dit growing at the high frequencies, a
   split C-V (`mosfet.cgc_cv`) that rises late or stays below Cox W L (channel resistance of a long channel).
 
@@ -29,11 +30,12 @@ sources: [PG p347 (4-29) IMP parameter pairs, UG p74 (2-34) MFCMU measurement pa
 ## First safe checks
 
 1. `get_run(run_id, include=[summary, quality])`, then `impedance_convert(run_id, {series_r: accumulation})` at each
-   frequency of the run: `rs = G/(G^2 + w^2 Cp^2)` at the largest C (Nicollian & Brews eq. 5.12). The same `rs` at
-   every frequency is a series resistance; one that changes with frequency is not (traps, leakage: runbook
-   [cmu-cv-distortion](cmu-cv-distortion.md)).
-2. The last short correction: `short_rs_ohm` in its `kind_result` (cable and probe, below about 1 Ohm) and its age
-   in `station_status.corrections`.
+   frequency of the run: `rs = G/(G^2 + w^2 Cp^2)` at the largest C (the standard series-resistance correction;
+   reference not checked, `TODO(cite)`). The same `rs` at every frequency is a series resistance; one that changes
+   with frequency is not (traps, leakage: runbook [cmu-cv-distortion](cmu-cv-distortion.md)).
+2. The last short correction: `short_rs_ohm` in its `kind_result` (cable and probe; compare with the station's
+   short value recorded at bring-up L6, `TODO(verify)[L6.A2]`, or earlier short corrections) and its age in
+   `station_status.corrections`.
 3. A validated re-run at a lower frequency (100 kHz; correction frequencies listed) or `moscap.cf` at an
    accumulation bias: Cp recovers towards Cox when Rs is the cause.
 4. Correct the extraction, not the data: `options.rs_ohm` = the `rs` found, in `cv_cox`, `cv_flatband`,

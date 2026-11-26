@@ -6,9 +6,8 @@ description: B1500A hardware bring-up on the lab PC (backend visa) or its simula
 # B1500A hardware bring-up
 
 Stage-by-stage first contact with the real instrument. The human does every physical step and adopts every
-configuration file; you probe read-only, propose, run validated plans and draft records. Skill `b1500-test`
-applies in full to every measurement (validate first, consent per plan, report rules): load it before the first
-`b1500` tool call.
+configuration file; you probe read-only, propose, run validated plans and draft records. Skill `b1500-test` applies
+in full to every measurement (validate first, consent per plan, report rules): load it before the first tool call.
 
 ## 1. Rules
 
@@ -26,7 +25,10 @@ applies in full to every measurement (validate first, consent per plan, report r
   `UV_CACHE_DIR=/tmp/b1500-uv-cache uv run b1500 doctor --probe` (PowerShell: `$env:UV_CACHE_DIR =
   "$env:TEMP\b1500-uv-cache"` first).
 - Stop on any abort criterion of the stage: `safe_shutdown(reason)`, report what you saw and which criterion it
-  hit, wait for the human. Never relax a criterion, tolerance, limit or rule to pass a stage.
+  hit, wait for the human. Never relax a criterion, tolerance, limit or rule to pass a stage. A tolerance marked
+  provisional has no checked basis yet: report a miss as a miss of a provisional criterion and let the owner decide;
+  never call the instrument faulty for it. A blank (`TODO(owner)`, `TODO(cite)`, "recorded", no prior value) is no
+  expectation: report the measured value; never fill it from general knowledge, a card, an example or the simulator.
 - Records only from hardware runs (run ids `H...`, backend visa). Simulator runs (`S...`) never become
   validation records, fixtures or promotion evidence, rehearsal or not. Drafts go to `work/bringup/records/`;
   only a human reviewer moves a record to `validation/hw/` and promotes a recipe. Never write `validation/hw/`,
@@ -43,7 +45,8 @@ Work in this order. `uv run b1500 bringup status` shows each stage's records (re
 the human signed off the previous one (a reviewed record or an explicit "go on" in chat); it is `signed` only when
 every step passed and its records are reviewed. Read the stage file before acting; every stage has one (status
 `no_stage_file`: say so and stop). Session 0 (deployment steps D1-D12, `docs/deployment-windows.md`) comes first;
-every later session starts with R1-R4 and ends with E1-E5 (`bringup next` names them).
+every later session starts with R1-R4 and ends with E1-E5 (`bringup next` names them). Each test card names its
+stage (`bringup_stage`, shown in the card index of skill `b1500-test`).
 
 | Stage | Goal | Stage file |
 |---|---|---|
@@ -59,8 +62,6 @@ every later session starts with R1-R4 and ends with E1-E5 (`bringup next` names 
 | L8 | WGFMU library session, self-test/cal, DC through the RSU, fast vs DC Id-Vg, lab waveform, noise, PUND | `stages/l8-wgfmu.md` |
 | L9 | long runs: async, cancel, recovery, auto-calibration restored | `stages/l9-long-runs.md` |
 | L10 | acceptance prompts on hardware with the owner; records reviewed and transferred | `stages/l10-harness-handoff.md` |
-
-Each test card names its stage (`bringup_stage`, shown in the card index of skill `b1500-test`).
 
 ## 3. Working a stage: next, do, done
 
@@ -100,16 +101,15 @@ say which records the stage would draft on hardware (`bringup done` records such
 ## 5. Stage files
 
 Each `stages/<id>-<name>.md` (names in part 2) follows the [stage template](stages/_TEMPLATE.md): frontmatter
-`stage`, `title`, `recipes`, `checks` (the rows of Expected values that `bringup record` copies), `version`;
-sections Preconditions, Physical steps (human), Agent steps, Expected values (ending with one `TODO(verify)` line:
-the hardware facts the stage settles, blueprint v2 7.6), Abort criteria, Record. `steps.yaml` puts every numbered
-item in execution order with how `done` verifies it. `uv run b1500 dev lint-skills` checks both.
+`stage`, `title`, `recipes`, `checks` (the Expected-values rows `bringup record` copies), `version`; sections
+Preconditions, Physical steps (human), Agent steps, Expected values (each tolerance with its basis; one `TODO(verify)`
+line: the hardware facts the stage settles, blueprint v2 7.6), Abort criteria, Record. `steps.yaml` puts every
+numbered item in execution order with how `done` verifies it; `uv run b1500 dev lint-skills` checks both.
 
 ## 6. Where things live
 
 - `work/bringup/`: probe output, proposals, fixture captures and draft records (you may write here).
-- `config/local/`: live configuration, written only by the human. `data/state/bringup/`: the step ledger, written
-  only by `bringup done`.
+- `config/local/` (live configuration) only the human writes; `data/state/bringup/` (step ledger) only `bringup done`.
 - `validation/hw/<recipe_id>.yaml` and `validation/hw/stage-<stage>.yaml`: reviewed records, moved there and
   committed by the human (`validation/hw/README.md`).
 - Recipe promotion to `hw_validated`: a reviewed developer change after the session, never during bring-up.

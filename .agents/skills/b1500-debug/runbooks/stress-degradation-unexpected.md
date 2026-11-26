@@ -2,7 +2,7 @@
 id: stress-degradation-unexpected
 title: Stress-measure result unexpected (no shift, wrong sign, huge shift, early breakdown, odd exponent)
 maturity: seed
-sources: [deck slide 14 (reliability), knowledge 05 sections BTI/HCI/SILC/TDDB, src/b1500_test_agent/analysis/stress.py (WP7.6), src/b1500_test_agent/catalog/kinds/stress_measure.py]
+sources: [knowledge 05 sections BTI/HCI/SILC/TDDB and "Stress-measure analysis" (skill b1500-test), src/b1500_test_agent/analysis/stress.py (WP7.6), src/b1500_test_agent/catalog/kinds/stress_measure.py, general practice (causes; not checked against a source)]
 ---
 
 # Unexpected stress degradation
@@ -11,8 +11,10 @@ sources: [deck slide 14 (reliability), knowledge 05 sections BTI/HCI/SILC/TDDB, 
 
 - `bti_power_law`, `degradation_vs_time` or `silc` on a `stress_measure` run (`reliability.bti_sms`,
   `reliability.hci`, `reliability.silc`, `igzo.bias_stress`) gives no measurable shift (`failed`: below
-  `min_change`), a shift of the wrong sign, a shift far above the card's range, or an exponent n/m outside about
-  0.05-0.6 (poor fit, warning).
+  `min_change`), a shift of the wrong sign, a shift far above what the human expects for this device, or an
+  exponent n/m the human finds implausible for the technology. No checked range of shifts or exponents is on record
+  (knowledge 05 "BTI stress-measure-stress" and "Hot-carrier injection HCI", skill `b1500-test`): ask the human what
+  they expect, and check the fit's `r2` and the reads used before calling a value odd.
 - Recovery larger than the stress shift; reads that jump from one read to the next; gate current rising by decades
   during the stress (`silc_ratio` huge) or the run stopping with C/T (`completed_with_flags`, early stop).
 
@@ -45,8 +47,8 @@ sources: [deck slide 14 (reliability), knowledge 05 sections BTI/HCI/SILC/TDDB, 
 ## Do not
 
 - Rerun on the same stressed device and average with the first run; stress is cumulative.
-- Raise the stress voltage or time beyond the card or DUT profile to "get a shift": a new plan, new consent, the
-  human's decision, never a debug fix.
+- Raise the stress voltage or time to "get a shift": stress levels are the human's values for this device (a new
+  plan, new consent, the human's decision), never a debug fix.
 - Fit the exponent over a window chosen to match the literature; report the window and points used.
 
 ## Stop and call safe_shutdown

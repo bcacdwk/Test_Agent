@@ -2,7 +2,7 @@
 id: wgfmu-range-overflow
 title: WGFMU current or voltage at full scale (status V, clipped plateau)
 maturity: seed
-sources: [blueprint v2 2.8 (R-QUAL WGFMU flags), 4.2 (WGFMU engine saturation), WG p16 (1-4) "full scale", WG p142 (4-72) "6001", WG p128 (4-58) "setRangeEvent"]
+sources: [blueprint v2 2.8 (R-QUAL WGFMU flags), 4.2 (WGFMU engine saturation), WG p16 (1-4) "full scale", WG p142 (4-72) "6001", WG p128 (4-58) "setRangeEvent", WG p141 (4-71) "5 V fixed range", WG5 p24 (1-14) "0.014 % of range"]
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
@@ -22,7 +22,8 @@ sources: [blueprint v2 2.8 (R-QUAL WGFMU flags), 4.2 (WGFMU engine saturation), 
    compliance, its reading saturates at the range's full scale (WG p16 (1-4)).
 2. A range event switched to a small range before a high-current section (custom waveform).
 3. A short or a much larger device than planned (Ion far above the profile's nominal values).
-4. A voltage-measuring channel whose level exceeds the 5 V measurement range.
+4. A voltage-measuring channel whose level exceeds its voltage measurement range (±5 V or ±10 V, default 10 V:
+   WG p141 (4-71)).
 
 ## First safe checks
 
@@ -41,7 +42,8 @@ sources: [blueprint v2 2.8 (R-QUAL WGFMU flags), 4.2 (WGFMU engine saturation), 
 
 - Report a value from `V` points or force an extraction across them.
 - Raise the gate or drain level to compensate; the range is the knob, inside the DUT envelope.
-- Choose a range larger than needed "to be safe": resolution and noise scale with the range's full scale.
+- Choose a range larger than needed "to be safe": resolution and noise scale with the range's full scale
+  (current: resolution 0.014 % and noise up to 0.2 % of range, WG5 p24 (1-14)).
 
 ## Stop and call safe_shutdown
 

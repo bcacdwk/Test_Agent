@@ -28,7 +28,7 @@ Hold a transistor at a constant gate and drain bias and sample the drain current
 - `wgfmu.rtn`: random telegraph noise of a single trap: `tau_c` (mean time to capture, dwell at the higher |Id|),
   `tau_e` (mean time to emission, dwell at the lower |Id|), `dI` and `dI/I` (`rtn_levels`), plus `it_statistics`.
   Default 400,000 points at 10 us (4 s).
-- `wgfmu.lfn`: low-frequency noise in the lab's layout (lwp `LFN_noise_meas.cpp`: channel 1 = gate measures its
+- `wgfmu.lfn`: low-frequency noise in the lab's layout (`lwp/1530/LFN_noise_meas.cpp`: channel 1 = gate measures its
   voltage, channel 2 = drain measures its current on 100 uA, 5 V range, 504,000 points at 100 ns): Welch PSD
   `S_I(f)`, `S_I/I^2`, `gamma` of 1/f^gamma, RTN corner (`psd_welch`), plot `plot_psd`.
 - Not for: waveforms that change the bias during the record (card `wgfmu-custom-waveform`); pulsed I-V (card
@@ -41,27 +41,27 @@ Hold a transistor at a constant gate and drain bias and sample the drain current
 |---|---|---|---|
 | gate | `gate` (wgfmu) | WGFMU 201 via `RSU201.OUT` | holds `vg`; lfn: voltage measured (lab ch1) |
 | drain | `drain` (wgfmu) | WGFMU 202 via `RSU202.OUT` | holds `vd`; current on `irange` (lab ch2) |
-| source | `source` (ground) | GNDU | bulk on the common as well (AN-RTN p4) |
+| source | `source` (ground) | GNDU | bulk on the common as well (AN-RTN p4 (4)) |
 
 - Example pin map `mosfet-wgfmu` (gate RSU201.OUT, drain RSU202.OUT, source GNDU); RSUs at the probe tips, current
-  loop short (cables bundled, source and bulk to the shields; AN-RTN p6).
+  loop short (cables bundled, source and bulk to the shields; AN-RTN p6 (6)).
 - Routes per phase: `waveform: RSU201.OUT -> wgfmu, RSU202.OUT -> wgfmu` for the record; `rest`: both RSUs back on
   their normal path; cleanup: abort, initialize, disconnect, verified.
 
 ## 3. Pre-run checklist
 
 - `station_status` clean: no fault, no active run, WGFMU library loadable (visa), RSUs at rest; shield box closed,
-  probe station vibration isolated (noise records pick up everything).
+  probe station vibration isolated (noise records pick up everything; AN-RTN p6 (6)).
 - Expected Id at the bias (a DC Id-Vg first): choose `irange` just above it; keep vg/vd inside the DUT profile.
-- Know roughly the time scale: interval <= the shortest dwell / 10, record >= 100 x (tau_c + tau_e).
+- Know roughly the time scale: interval <= the shortest dwell / 10, record >= 100 x (tau_c + tau_e) (rules of thumb).
 
 ## 4. Recipe and parameters
 
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
 | `builder` | dc_sample | dc_sample | dc_sample | fixed builder | constant bias, one long event |
-| `vg` | 1 V | 0.3..2 V | -5..5 V | gate bias | RTN taus and levels move with it |
-| `vd` | 0.1 V | 0.05..0.5 V | -5..5 V | drain bias | linear region, little stress |
+| `vg` | 1 V | - | -5..5 V | gate bias (example default: set it per device) | RTN taus and levels move with it |
+| `vd` | 0.1 V | 0.05..0.5 V | -5..5 V | drain bias (method convention: linear region) | linear region, little stress |
 | `irange` | 100ua | - | 1ua, 10ua, 100ua, 1ma, 10ma | drain range | floor and bandwidth scale with it |
 | `vrange` | 5v | - | 3v, 5v, -10v, 10v | force range (lab: 5 V) | must hold vg and vd |
 | `points` (wgfmu.rtn) | 400000 | 100000..4000000 | 1000..4000000 | record length | transitions, memory |
@@ -88,17 +88,17 @@ sim_scenario: nmos_rtn
 
 - No compliance: the levels are checked against the channel envelopes before the library sees them; a short draws up
   to the range's full scale. No pulse envelope is needed (no pulses: a constant bias).
-- Blocked: more than about 4,000,000 points per channel or the policy's WGFMU points, `average` > `interval`, an
-  interval above 1.34 s, levels outside `vrange` (R-WG-02); a WGFMU role not on an RSU (R-WG-01); levels outside the
-  DUT profile (R-DUT-01).
+- Blocked: more than about 4,000,000 points per channel (typical memory, WG5 p25 (1-15)) or the policy's WGFMU
+  points, `average` > `interval`, an interval above 1.34 s, levels outside `vrange` (R-WG-02); a WGFMU role not on an
+  RSU (R-WG-01); levels outside the DUT profile (R-DUT-01).
 - Confirm: `unverified_topology` (the example RSUs are unverified); on hardware `first_hw_run`; records longer than
   `long_run_confirm_s` need `long_run`, above `max_sync_run_s` they run asynchronously (poll `get_run`).
 
 ## 6. Quality criteria
 
 - Status `V` = saturated at full scale: never trusted; analyses refuse. Raise `irange` one step.
-- RTN resolved: `separation` >= 5, >= 200 transitions, each tau >= 10 sampling intervals, dwell `cv` about 1
-  (one trap); otherwise read the warnings and change interval, record or bias.
+- RTN resolved (analysis thresholds): `separation` >= 5 (below 3: refused), >= 200 transitions, each tau >= 10
+  sampling intervals, dwell `cv` about 1 (one trap); otherwise read the warnings and change interval, record or bias.
 - PSD: the floor of the range lies below the 1/f part; `rms_log` < 0.3; `gamma` not at 0.2 or 2.5.
 
 ## 7. Analysis method
@@ -113,11 +113,13 @@ sim_scenario: nmos_rtn
 
 ## 8. Expected result shape
 
-| item | expected | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| item | expected (source) | red flags |
 |---|---|---|
-| `it_statistics` of an RTN record | bimodality > 5/9, noise_rel a few % | std at the range floor: no device signal |
+| `it_statistics` of an RTN record | bimodality > 5/9 (bimodality-coefficient convention); noise_rel device-dependent, no typical value | std at the range floor: no device signal |
 | `rtn_levels` | two levels, cv ~1, taus >> dt | levels < 3 sigma apart: failed; cv << 1: several traps |
-| `psd_welch` | gamma 0.7..1.3; Lorentzian bump if RTN | gamma ~2: one Lorentzian fitted as a power law |
+| `psd_welch` | gamma near 1 (a range needs a checked source: [10](../../knowledge/10-wgfmu-fast-iv-noise.md#low-frequency-noise-physics)); Lorentzian bump if RTN | gamma ~2: one Lorentzian fitted as a power law |
 | corner from `psd_welch` | 1/(2 pi fc) = 1/(1/tau_c + 1/tau_e) of `rtn_levels` | mismatch: several traps or a missed fast dwell |
 
 ## 9. Common failures → debug
@@ -125,9 +127,9 @@ sim_scenario: nmos_rtn
 | symptom | likely cause | first safe check | runbook |
 |---|---|---|---|
 | `V` points, clipped record | range below Id | `irange` vs Id; quality report | `wgfmu-range-overflow` |
-| plan blocked on points | record above ~4 M values per channel | summary pts; `points`, `interval` | `wgfmu-memory-budget` |
+| plan blocked on points | record above ~4 M values per channel (WG5 p25 (1-15)) | summary pts; `points`, `interval` | `wgfmu-memory-budget` |
 | no two levels / PSD at the floor | no RTN at this bias, probe open, range too big | `it_statistics`; contact check | `noisy-data` |
-| spikes at 50 Hz and harmonics | line pickup, ground loop | shield, cable bundling (AN-RTN p6) | `noisy-data` |
+| spikes at 50 Hz and harmonics | line pickup, ground loop | shield, cable bundling (AN-RTN p6 (6)) | `noisy-data` |
 | library error, 30xx code | DLL, session, RSU | `station_status` WGFMU line, audit | `wgfmu-library-error` |
 | record at the open-circuit floor, 3001 | RSU not on the WGFMU path, cabling | audit RSU states | `wgfmu-rsu-route` |
 | fault latched after a run | a channel could not be disconnected | keep the fault; human checks | `cleanup-failed-fault` |

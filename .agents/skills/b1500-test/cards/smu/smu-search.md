@@ -59,10 +59,10 @@ curve. Fast for wafer maps, Vth tracking between stress reads and many devices.
 | `vd` | 50 mV | 20..100 mV | -5..5 V | drain bias (linear region) | target polarity follows it |
 | `i_crit_a` | 100 nA | 10 nA..1 uA | 1 pA..1 mA | critical current per square | the target is `i_crit_a` x `w_over_l` |
 | `w_over_l` | 1 | 0.1..100 | 0.001..10000 | channel W/L | scales the target |
-| `limit_rel` | 0.01 | 0.001..0.02 | 0.0001..0.1 | stop within target x (1 +/- limit_rel) | 1 % ~ 0.4 mV at 80 mV/dec |
+| `limit_rel` | 0.01 | 0.001..0.02 | 0.0001..0.1 | stop within target x (1 +/- limit_rel) | 1 % ≈ SS x 0.0043 of gate voltage (0.35 mV at an example 80 mV/dec) |
 | `control` | `cautious` | - | `cautious`, `normal` | BSM output control | normal forces `vg_stop` second |
 | `icomp_gate` | 1 uA | - | 1 pA..1 mA | gate guard | a leaky gate aborts (S) |
-| `icomp_drain` | 1 mA | - | 1 nA..10 mA | drain compliance | at least the target (error 275) |
+| `icomp_drain` | 1 mA | - | 1 nA..10 mA | drain compliance | at least the target (error 275, PG p582 (5-10)) |
 | `hold_s` | 0 s | - | 0..30 s | before the first point | 10 ms steps |
 | `delay_s` | 0 s | 0..50 ms | 0..10 s | per point before the reading | slow (trap-rich) devices: longer |
 | `integration` | `medium` | `medium`, `long` | `short`, `medium`, `long` | ADC preset of the drain | longer: less noise near the target |
@@ -104,11 +104,13 @@ sim_scenario: nmos_basic
 
 ## 8. Expected result shape
 
-| device | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| device | expected (source) | red flags |
 |---|---|---|
-| Si nMOSFET, 100 nA x W/L, Vd 50 mV | 0.2..0.7 V, repeatable within 1 mV | `G` (Vth outside the range) |
-| pMOSFET (negative range and `vd`) | -0.2..-0.8 V | `G` with a positive range (polarity) |
-| IGZO TFT | 0..3 V, shifts with stress history | run-to-run drift > 10 mV (instability, see `vth-drift-igzo`) |
+| n-type MOSFET, 100 nA x W/L, Vd 50 mV | Vth unknown for your devices: from the human or an earlier Id-Vg of the same device ([01](../../knowledge/01-device-physics.md#mosfet-subthreshold-swing)); repeatability unknown until two searches on one rested device give it (search vs Id-Vg on the reference device: `TODO(verify)[L5.A4]`) | `G` (Vth outside the range) |
+| pMOSFET (negative range and `vd`) | negative Vth (sign rule); value unknown as above | `G` with a positive range (polarity) |
+| IGZO TFT | Vth unknown ([04](../../knowledge/04-ferroelectric-oxide.md#igzo-and-oxide-tft-specifics)); shifts with stress history | run-to-run drift beyond the repeatability of a rested device (instability, see `vth-drift-igzo`) |
 
 ## 9. Common failures → debug
 
@@ -127,6 +129,5 @@ sim_scenario: nmos_basic
 | sim | 2026-11-22 | nmos_basic | nmos-generic | S20261122T095613Z-1640 | tier ok; N=2; Vth 0.31299 V vs constant-current Vth 0.31301 V of an Id-Vg (S20261122T095613Z-0657; -0.02 mV) and model 0.31301 V | - |
 | hw | pending (bring-up stage L5) | - | - | - | - | - |
 
-Sim rows: the example plan run through `B1500Service` with temporary `B1500_CONFIG_DIR`/`B1500_DATA_DIR`; that run
-folder was not kept. Hardware record: `validation/hw/mosfet.vth_search.yaml` (reviewed by a human after bring-up stage
+Sim rows: the example plan through `B1500Service`, temporary config/data dirs (not kept). Hardware record: `validation/hw/mosfet.vth_search.yaml` (reviewed by a human after bring-up stage
 L5, skill `b1500-bringup`; drafts only from hardware `H...` runs, never from simulator `S...` runs).

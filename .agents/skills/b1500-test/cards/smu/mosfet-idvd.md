@@ -13,7 +13,7 @@ confirmation: conditional
 knowledge: [knowledge/06-analysis-extraction.md#output-metrics-ron-and-gds, knowledge/01-device-physics.md#mosfet-output-characteristics, knowledge/02-b1500-instrument.md#data-status-codes, knowledge/02-b1500-instrument.md#integration-time-and-ranging]
 manual: [PG p568-569 (4-250) "WV", PG p552 (4-234) "WM"]
 debug: [compliance-hit, current-too-high, noisy-data, errx-codes, cleanup-failed-fault]
-sources: [deck slide 6, deck slide 10, deck slide 15]
+sources: ["deck slide 6, 10, 15 (topics only, illustrative: not evidence)", blueprint v2 3.1]
 version: 1
 ---
 
@@ -57,9 +57,9 @@ saturation onset Vd_sat per curve.
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
 | `vd_start` | 0 V | - | -10..10 V | Ron is taken at the lowest \|Vd\| | keep 0 V |
-| `vd_stop` | 3 V | 1..3 V | -10..10 V | reach saturation | above the profile's drain limit: confirmation |
+| `vd_stop` | 3 V | - | -10..10 V | example default; saturation needs Vd > Vg - Vth of your device | above the profile's drain limit: confirmation |
 | `vd_points` | 101 | 51..201 | 11..1001 | 30 mV steps by default | finer: better Ron and Vd_sat |
-| `vg_start` | 0.5 V | 0..1 V | -10..10 V | first gate step (above Vth) | below Vth the curve stays near zero |
+| `vg_start` | 0.5 V | - | -10..10 V | first gate step; example default: set it above the Vth you measured with `mosfet-idvg` | below Vth the curve stays near zero |
 | `vg_stop` | 1.5 V | 1..3 V | -10..10 V | last gate step | more drive, more current: watch `icomp_drain` |
 | `vg_points` | 5 | 3..6 | 1..21 | number of gate steps | each step is one drain sweep |
 | `icomp_drain` | 1 mA | 100 uA..10 mA | 1 pA..100 mA | output current limit | above 10 mA or the profile: confirmation |
@@ -114,11 +114,13 @@ sim_scenario: nmos_basic
 
 ## 8. Expected result shape
 
-| device | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| device | expected (source) | red flags |
 |---|---|---|
-| long-channel Si MOSFET | linear rise, then saturation; Vd_sat roughly Vg - Vth; Ron falls with Vg; gds small and positive | curves crossing; negative gds (self-heating) |
-| short-channel MOSFET | earlier, softer saturation; larger gds (channel-length modulation, DIBL) | no saturation at all (series R, short) |
-| oxide TFT | lower currents, larger Vd_sat; Id may drift during the sweep | hysteresis between curves; heating at high Vd |
+| long-channel Si MOSFET | linear rise, then saturation; Vd_sat roughly Vg - Vth; Ron falls with Vg; gds small and positive (textbook square law) | curves crossing; negative gds (self-heating) |
+| short-channel MOSFET | earlier, softer saturation; larger gds (channel-length modulation, DIBL; textbook) | no saturation at all (series R, short) |
+| oxide TFT | lower currents, larger Vd_sat; Id may drift during the sweep (general, no device data) | hysteresis between curves; heating at high Vd |
 | any | Ig ≪ Id; Id ≈ 0 at Vd = 0 | compliance on the top curves; Id offset at Vd = 0; Ig comparable to Id |
 
 ## 9. Common failures → debug

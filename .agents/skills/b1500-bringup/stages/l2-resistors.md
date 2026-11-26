@@ -13,7 +13,7 @@ checks:
   - {id: r_spot, recipe: generic.smu_spot, quantity: resistance, method: resistance, unit: Ohm, reference: DMM reading of the 100 kOhm resistor, tolerance: {rel: 0.01}, text: '+-1 % vs DMM'}
   - {id: spot_cleanup, recipe: generic.smu_spot, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: r_kelvin, recipe: resistor.kelvin_4w, quantity: resistance, method: kelvin_resistance, unit: Ohm, reference: certified value (or 4-wire DMM reading) of the 1 Ohm standard, tolerance: {rel: 0.01}, text: '+-1 % vs the standard'}
-  - {id: offset_v, recipe: resistor.kelvin_4w, quantity: offset_voltage, method: kelvin_resistance, unit: V, reference: thermoelectric offset, text: 'recorded (expect below 100 uV)'}
+  - {id: offset_v, recipe: resistor.kelvin_4w, quantity: offset_voltage, method: kelvin_resistance, unit: V, reference: 'thermoelectric offset of probes and pads (station-specific, no prior value)', text: recorded}
   - {id: kelvin_cleanup, recipe: resistor.kelvin_4w, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: contact_r_2w, recipe: resistor.kelvin_4w, quantity: contact_r_2w, unit: Ohm, reference: 'two-wire R of the same standard (Sense lifted, agent step 8) minus r_kelvin', text: 'recorded (leads and contacts of this station)'}
 version: 3
@@ -90,14 +90,18 @@ Every hardware plan needs the human's consent (`first_hw_run`; generic recipes a
 | `r_spot` | R of the spot points (`resistance`), `in_range` | +-1 % of the DMM reading | DMM |
 | `spot_cleanup` | every spot run `verified: lop` | pass/fail | run manifests |
 | `r_kelvin` | four-wire R (`kelvin_resistance`), `in_range`, r2 above 0.9999 | +-1 % of the standard | certificate or 4-wire DMM |
-| `offset_v` | `offset_voltage` of the four-wire fit | recorded (below 100 uV expected) | `kelvin_resistance` |
+| `offset_v` | `offset_voltage` of the four-wire fit (no prior value: thermal EMF is station-specific) | recorded | `kelvin_resistance` |
 | `kelvin_cleanup` | every four-wire run `verified: lop` | pass/fail | run manifests |
 | `contact_r_2w` | two-wire minus four-wire R of the 1 Ohm standard (leads and contacts) | recorded | agent step 8 |
 
 - Plans: tier `needs_confirmation` with `first_hw_run` (and `unverified_pin_map` while unverified; `adhoc_recipe`
   for the generic recipes).
-- Runs: outcome `completed`, every status `N`, quality `ok`. A four-wire R near 1 Ohm plus a few ohms means Sense is
-  not landed (a two-wire reading): not passed.
+- Runs: outcome `completed`, every status `N`, quality `ok`. A four-wire R clearly above the standard (lead and
+  contact resistance added, UG p116 (3-38)) means Sense is not landed (a two-wire reading): not passed.
+- Tolerance basis: +-1 % against the DMM reading or the certificate is the blueprint v2 7.4 L2 default (the owner may
+  tighten); the SMU's own accuracy at these levels is not in the manual corpus (module data sheets: `TODO(cite)`).
+  The 1 mV four-wire offset abort is a provisional criterion (basis: none). `TODO(owner)`: which four-wire offset
+  voltage on the 1 Ohm standard does the lab accept before the Kelvin probes are checked?
 - TODO(verify) (blueprint v2 7.6 items 3, 8): the real FMT 1 blocks of a sweep and a spot measurement (agent step
   10); DC accuracy, settling and integration noise on known resistors (they set the tolerances the simulator
   assumes); the warm-up time the station needs (`warm_up`); the station's lead and contact resistance
@@ -108,18 +112,18 @@ Every hardware plan needs the human's consent (`first_hw_run`; generic recipes a
 - A deviation above 5 %, classification `open` or `short`, or compliance statuses (`C`): stop, check wiring and
   contacts with the human before repeating. Between 1 % and 5 %: not passed; check the DMM mode and temperature,
   repeat with `params {integration: long}`.
-- Four-wire: voltage compliance (`open`), a negative R or an offset voltage above 1 mV: stop; the human checks the
-  Kelvin probes.
+- Four-wire: voltage compliance (`open`), a negative R or an offset voltage above 1 mV (provisional): stop; the
+  human checks the Kelvin probes.
 - Cleanup `unverified` or a latched fault: `safe_shutdown(reason)`, skill `b1500-debug`, wait for the human.
 - Never widen the tolerance to pass; the owner may only tighten it.
 
 ## 6. Record
 
 - Hardware: one recipe record per recipe, each run with its own reference:
-  `uv run b1500 bringup record L2 --run H... --run H... --reference r_dmm@H...=99870 --reference r_dmm@H...=1.0021e6 --operator NAME`.
+  `uv run b1500 bringup record L2 --run H... --run H... --reference r_dmm@H...=<DMM Ohm> --reference r_dmm@H...=<DMM Ohm> --operator NAME`.
   The human reviews it (and fills `warm_up`) and moves it to `validation/hw/basic.contact_resistor.yaml`; the
   promotion to `hw_validated` is a later developer change (`uv run b1500 dev recipe-check` checks the record).
-- `generic.smu_multi_sweep`: `uv run b1500 bringup record L2 --run H... --reference multi_r=99870 --operator NAME`
+- `generic.smu_multi_sweep`: `uv run b1500 bringup record L2 --run H... --reference multi_r=<DMM Ohm> --operator NAME`
   → `validation/hw/generic.smu_multi_sweep.yaml`.
 - Likewise `generic.smu_spot` (`--reference r_spot=...`) → `validation/hw/generic.smu_spot.yaml` and
   `resistor.kelvin_4w` (`--reference r_kelvin=...`, the four-wire run only; the reviewer fills `contact_r_2w` from

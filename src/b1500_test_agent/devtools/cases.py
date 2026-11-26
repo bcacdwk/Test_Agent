@@ -118,6 +118,7 @@ class CaseRow(StrictModel):
     status: str
     reviewed_by: str | None
     runbook: str
+    origin: str
     backend: str
     runs: int
     reproduction: Literal["pass", "fail", "none", "not run"]
@@ -454,8 +455,8 @@ def cases_report(root: Path | None = None, *, reproduce_all: bool = False) -> Ca
             reports.append(result)
             verdict = "pass" if result.ok else "fail"
         rows.append(CaseRow(id=front.id, title=front.title, status=front.status, reviewed_by=front.reviewed_by,
-                            runbook=front.runbook, backend=front.backend, runs=len(front.runs), reproduction=verdict,
-                            open_questions=front.open_questions))
+                            runbook=front.runbook, origin=front.origin, backend=front.backend, runs=len(front.runs),
+                            reproduction=verdict, open_questions=front.open_questions))
     ok = not problems and all(r.ok for r in reports)
     return CasesReport(ok=ok, cases=rows, problems=problems, reproductions=reports)
 
@@ -475,9 +476,9 @@ def format_cases(report: CasesReport, *, verbose: bool = False) -> str:
               f"the owner, {len(report.problems)} problem(s))")]
     for row in report.cases:
         review = f"reviewed by {row.reviewed_by}" if row.status == "reviewed" else row.status
-        lines.append(f"  {row.id}: {review}; runbook {row.runbook}; backend {row.backend}, {row.runs} lab run(s); "
-                     f"reproduction {row.reproduction}{' (SIMULATED)' if row.reproduction in ('pass', 'fail') else ''}"
-                     f"; {row.open_questions} open question(s)")
+        simulated = " (SIMULATED)" if row.reproduction in ("pass", "fail") else ""
+        lines.append(f"  {row.id}: {review}, {row.origin}; runbook {row.runbook}; backend {row.backend}, {row.runs} "
+                     f"lab run(s); reproduction {row.reproduction}{simulated}; {row.open_questions} open question(s)")
     for problem in report.problems:
         where = f"{problem.file}:{problem.line}" if problem.line else problem.file
         lines.append(f"  {where}: [{problem.code}] {problem.message}")

@@ -3,7 +3,7 @@
 # station: basic.contact_resistor forces `a` on the gate probe (SMU4, HRSMU) and holds `b` on the drain probe (SMU3,
 # HRSMU) at 0 V; the source and bulk probes on the GNDU stay connected. A healthy gate-drain pair reads `open` (only
 # the gate leakage flows); a resistance in range is a leakage path or short between gate and drain (runbook
-# current-too-high, First safe checks 3; debug case 2026-11-04-current-orders-too-high, simulator scenario gd_short).
+# current-too-high, First safe checks 3; debug case example-current-orders-too-high, simulator scenario gd_short).
 #
 # certainty: verified here because this map matches the gate (SMU4) and drain (SMU3) wiring of the mosfet-4t
 # simulator scenarios (nmos_basic, gd_short, open_drain_noisy, nmos_unshielded). On a real station set `unverified`

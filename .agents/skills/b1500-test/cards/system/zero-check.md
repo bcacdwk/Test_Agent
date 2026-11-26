@@ -13,7 +13,7 @@ confirmation: conditional
 knowledge: [knowledge/02b-smu-modes.md#zero-check-floor, knowledge/02-b1500-instrument.md#integration-time-and-ranging, knowledge/03-probe-station-wiring.md#guard-for-low-current, knowledge/03-probe-station-wiring.md#shielding-grounding-and-interlock, knowledge/02-b1500-instrument.md#measurement-sequence-and-cleanup]
 manual: [PG p470 (4-152) "MM", PG p501 (4-183) "RI", PG p337 (4-19) "1 pA limited auto", PG p396 (4-78) "DV"]
 debug: [noisy-data, compliance-hit, current-too-high, cleanup-failed-fault, errx-codes, async-run-interrupted]
-sources: [blueprint v2 3.1 (system.zero_check), 7.4 (stage L1 floors), deck slide 12]
+sources: [blueprint v2 3.1 (system.zero_check), 7.4 (stage L1 floors), "deck slide 12 (topics only, illustrative: not evidence)", lwp/matlab_B1500/IdVg_test_20251004_*.csv]
 version: 1
 ---
 
@@ -52,7 +52,7 @@ gives per SMU the noise floor (standard deviation) of every range and the offset
 
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
-| `ranges` | [10 pA, 1 nA, 100 nA, 10 uA, 1 mA] | 1 pA..100 mA | 1 pA..100 mA | ranges to read; each SMU uses its smallest range at or above | an MPSMU reads 10 pA on its 1 nA range |
+| `ranges` | [10 pA, 1 nA, 100 nA, 10 uA, 1 mA] | 1 pA..100 mA | 1 pA..100 mA | ranges to read; each SMU uses its smallest range at or above | an MPSMU reads 10 pA on its 1 nA range (MPSMU minimum range 1 nA without ASU: UG p63 (2-23)) |
 | `samples` | 100 | 50..200 | 10..1000 | readings per range | floor uncertainty about 1/sqrt(2 x samples) |
 | `icomp` | 100 uA | 1 uA..100 uA | 1 nA..1 mA | compliance at 0 V | a hit means the terminal is not open |
 | `integration` | `medium` | `medium`, `long` | `short`, `medium`, `long` | floor vs time | `long`: lower floor, 16x longer |
@@ -86,7 +86,8 @@ sim_scenario: lab_station
 
 - Default `zero_floor`: per SMU one result `<role>_floor` (standard deviation on its lowest range); `fit` holds the
   floor of every range (`10pA`, `1nA` ...), `offset` (mean, lowest range) and `max_abs_offset`. Options
-  `max_floor_a`, `max_offset_a` (e.g. the L1 sanity bounds: HRSMU 1 pA, MPSMU 100 pA) give `pass`/`fail`
+  `max_floor_a`, `max_offset_a` give `pass`/`fail` only against bounds the human sets (the L1 stage's sanity bounds
+  are provisional, `TODO(verify)[L1.A4]`); without them report the floors with no verdict
   ([02](../../knowledge/02b-smu-modes.md#zero-check-floor)). At most five SMUs per pin map keep the result
   inside the 2k-token tool response: a larger station runs two pin maps.
 - `quality_report` for status counts. Report floor and offset per SMU and range as derived values (method, integration,
@@ -94,11 +95,13 @@ sim_scenario: lab_station
 
 ## 8. Expected result shape
 
-| SMU | floor on its lowest range | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| SMU | floor on its lowest range (source) | red flags |
 |---|---|---|
-| HRSMU (10 pA range, 1 PLC) | tens of fA to sub-pA (cable, guard and shield dependent) | above 1 pA; offset growing with time (charging) |
-| MPSMU (1 nA range) | pA to tens of pA | above 100 pA |
-| any SMU, higher ranges | floor grows with the range | `C`/`V` statuses; offset far above the floor |
+| HRSMU (10 pA range, 1 PLC) | lab HRSMU with open probes: about 0.07 pA rms at 1 PLC, auto ranging (`lwp/matlab_B1500/IdVg_test_20251004_*.csv`); cable, guard and shield dependent; this station's fixed-range floor `TODO(verify)[L1.A4]` | above the human's bound; offset growing with time (charging) |
+| MPSMU (1 nA range) | unknown until bring-up (`TODO(verify)[L1.A4]`) | above the human's bound |
+| any SMU, higher ranges | floor grows with the range (UG resolution tables) | `C`/`V` statuses; offset far above the floor |
 
 ## 9. Common failures → debug
 
@@ -117,7 +120,6 @@ sim_scenario: lab_station
 | sim | 2026-11-19 | lab_station | open-circuit | S20261119T105038Z-8d17 | tier ok; floors -7 to +3 % vs the scenario floor (HRSMU 1e-13 A, MPSMU 1e-11 A); N=2000 statuses | - |
 | hw | pending (bring-up stage L1) | - | - | - | - | - |
 
-Sim rows: the example plan run through `B1500Service` with temporary `B1500_CONFIG_DIR`/`B1500_DATA_DIR`; that run
-folder was not kept. Hardware record: `validation/hw/system.zero_check.yaml` (reviewed by a human after bring-up stage
+Sim rows: the example plan through `B1500Service`, temporary config/data dirs (not kept). Hardware record: `validation/hw/system.zero_check.yaml` (reviewed by a human after bring-up stage
 L1, skill `b1500-bringup`; drafts only from hardware `H...` runs, never from simulator `S...` runs). Until it exists
 every hardware plan needs `first_hw_run` confirmation.

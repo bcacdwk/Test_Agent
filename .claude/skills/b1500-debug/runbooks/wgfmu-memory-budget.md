@@ -19,10 +19,12 @@ sources: [blueprint v2 0.1 (WGFMU limits), 2.8 (R-WG-02, R-RUN-01), 2.10 (npz da
 
 1. Points x sequence repeats x measuring channels too large: every repeat of a pattern stores its events' points
    again (a pulse train of 100,000 pulses with 10 samples = 1 M values per channel).
-2. RAW events (average 0 in an events file, or raw sampling): each point is one value; with averaging every point
-   is one value too, but a long event at 10 ns intervals fills memory in 40 ms.
+2. RAW events (average 0 in an events file, or raw sampling): each point is one stored value, and how many values
+   fit depends on the averaging (WG p125 (4-55)); raw sampling at the 10 ns minimum interval fills about 4 M values
+   in about 40 ms.
 3. Both channels measure the same events (the lab layout): the budget applies per channel.
-4. A policy limit lower than the module's 4 M values (the human's `policy.yaml`).
+4. A policy limit lower than the module's about 4,000,000 values per channel (WG p125 (4-55); the human's
+   `policy.yaml`).
 
 ## First safe checks
 

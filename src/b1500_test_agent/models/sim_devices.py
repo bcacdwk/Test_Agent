@@ -67,7 +67,7 @@ class MosfetDynamicsParams(StrictModel):
     - **IGZO bias-stress drift** (stretched exponential, Libsch & Kanicki, APL 62, 1286, 1993): under gate bias ``V``
       the threshold approaches ``igzo_dvth_per_v·V`` as ``ΔV∞·(1 - exp(-(t/igzo_tau_s)^igzo_beta))`` and recovers with
       ``igzo_recovery_tau_s`` (default: ``igzo_tau_s``) when the bias is lowered.
-    - **DC sweeps as stress** (``sweep_stress``, v2.1 debug case ``2026-11-04-igzo-vth-drift``): each step of a DC
+    - **DC sweeps as stress** (``sweep_stress``, v2.1 debug case ``example-igzo-vth-drift``): each step of a DC
       staircase or spot measurement also ages the device (BTI, HCI, IGZO drift) for the step's duration at its
       applied voltages, so a repeated Id-Vg is itself a bias stress; off (default), a DC measurement is a quasi-static
       read that never ages the device (the fitted stress-measure and sampling scenarios assume short reads).

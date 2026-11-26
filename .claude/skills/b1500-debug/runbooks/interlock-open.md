@@ -2,7 +2,7 @@
 id: interlock-open
 title: Interlock open, unknown, or interlock errors
 maturity: seed
-sources: [User Guide (PDF 55, 92), Programming Guide Ed. 15 status byte (PDF 76), errors 202/203 (PDF 577) and 310 (PDF 583), blueprint 4.2 R-IL-01 and 4.4]
+sources: [User Guide (PDF 55, 92), PG p442 (4-124) "INTLKVTH", Programming Guide Ed. 15 status byte (PDF 76), errors 202/203 (PDF 577) and 310 (PDF 583), blueprint 4.2 R-IL-01 and 4.4]
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
@@ -19,8 +19,9 @@ sources: [User Guide (PDF 55, 92), Programming Guide Ed. 15 status byte (PDF 76)
 
 ## Likely causes
 
-1. Normal v1 state. With the interlock open the B1500A cannot apply more than 42 V (User Guide), and v1 has no
-   high-voltage workflow: the code ceiling is 42 V and 100 mA (rule R-LIM-02), so R-IL-01 never triggers. The
+1. Normal v1 state. With the interlock open the B1500A cannot apply more than ±42 V (UG p55 (2-15); the limit is
+   the `INTLKVTH` setting, factory-shipped 42 V, settable to 0 V: PG p442 (4-124)), and v1 has no high-voltage
+   workflow: the code ceiling is 42 V and 100 mA (rule R-LIM-02), so R-IL-01 never triggers. The
    simulator scenarios model this open interlock (`SIMULATED open (scenario)`), so that label is expected there.
 2. `interlock_open` is status-byte bit 3, on hardware and on the simulator: it is set only when a voltage output
    or voltage compliance above the interlock-open limit was requested while the interlock was open, and clears on

@@ -27,8 +27,8 @@ once per step (MM 5), one curve per level of `vg_levels`; `basic.pulsed_spot` pu
 `levels` and reads its current (MM 3); `generic.smu_multi_pulsed` pulses up to two terminals together and reads them
 in parallel (MM 28 sweep, MM 27 with `points` 1). Each reading ends with its pulse.
 
-- Uses: isothermal I-V of power, SOI or thin-film transistors; trap-free transfer curves (high-k, IGZO); pulsed
-  resistance without DC stress; compare with DC (`pulsed_vs_dc`). Not for: pulses below 500 us ([wgfmu-pulsed-iv](../wgfmu/wgfmu-pulsed-iv.md)),
+- Uses: isothermal I-V of power, SOI or thin-film transistors; transfer curves with less trapping than DC (pulses ≥ 500 us
+  do not avoid fast traps); pulsed resistance without DC stress; compare with DC (`pulsed_vs_dc`). Not for: pulses below 500 us ([wgfmu-pulsed-iv](../wgfmu/wgfmu-pulsed-iv.md)),
   program/erase pulses (SPGU), DC curves ([mosfet-idvg](mosfet-idvg.md), [mosfet-idvd](mosfet-idvd.md)), I(t) ([smu-sampling](smu-sampling.md)).
 
 ## 2. Wiring, pin map, modules
@@ -74,7 +74,7 @@ in parallel (MM 28 sweep, MM 27 with `points` 1). Each reading ends with its pul
 | `points` | 11 | - | 1..1001 | generic: pulses | 1 = MM 27 spot |
 | `average` | 1 | 1..16 | 1..1023 | generic: pulses per reading (MCPT) | noise / sqrt(N) |
 | `width` | 1 ms | 0.5..10 ms | 10 us..2 s | pulse width | HR/MP: 500 us-2 s in 100 us steps |
-| `period` | 20 ms | 10..100 ms | 5 ms..5 s | pulse period | duty = width/period; >= width + 2 ms |
+| `period` | 20 ms | 10..100 ms | 5 ms..5 s | pulse period | duty = width/period; >= width + 2 ms (width ≤ 100 ms) or + 10 ms (wider) |
 | `hold_s` | 0 s | 0..1 s | 0..30 s | before the first pulse | 10 ms steps |
 | `meas_time` | 200 us | 100..500 us | 2 us..20 ms | pulsed ADC time, ends with the pulse | at most the width |
 
@@ -92,7 +92,7 @@ sim_scenario: nmos_selfheat
 ## 5. Limits and confirmation
 
 - R-PULSE-01 blocks widths outside the SMU table (HR/MP/HPSMU 500 us-2 s, 100 us steps; period 5 ms-5 s, >= width +
-  2 ms; PG p486-487 (4-168)); MM 4/5 sweep linearly only (log: generic multi-channel). Narrower pulses: WGFMU.
+  2 ms, + 10 ms above 100 ms widths; PG p486-487 (4-168)); MM 4/5 sweep linearly only (log: generic multi-channel).
 - R-PULSE-02: the DUT terminal's pulse envelope (level, width, duty, pulses per run) - outside it `dut_envelope`,
   missing it blocked. R-PULSE-03 (`soft_pulse`): above 5 V, 10,000 pulses, 60 s on-time or duty 0.5 per run. Generic:
   `adhoc_recipe` + `first_hw_run` on hardware; destructive: no; runs are synchronous.
@@ -101,9 +101,8 @@ sim_scenario: nmos_selfheat
 
 - Status letters: `N` ok; `C`/`T` limited (a sweep aborts at the first, `WM 2,1`; a host list stops after it);
   `V X F` untrusted: no extraction. `kind_result`: `triggers_done`, `stopped_early`, `stop_reason`.
-- Pulsed auto ranging = the compliance range: set `icomp_drain` near the peak current; a short `meas_time` is noisier.
-- Re-measure (autonomous, at most two, stays `ok`): `meas_time`, `period`, `vg_points`; a wider pulse or a higher
-  level is a new plan.
+- Pulsed auto ranging = the compliance range (PG p337 (4-19)): set `icomp_drain` near the peak current; a short `meas_time` is noisier.
+- Re-measure (autonomous, at most two, stays `ok`): `meas_time`, `period`, `vg_points`; a wider pulse or higher level: new plan.
 
 ## 7. Analysis method
 
@@ -118,12 +117,14 @@ sim_scenario: nmos_selfheat
 
 ## 8. Expected result shape
 
-| device | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| device | expected (source) | red flags |
 |---|---|---|
-| Si bulk MOSFET, low power | pulsed = DC within noise | pulsed < DC by > 5 % (contact, edges, range) |
-| SOI / TFT / power device at high Id x Vd | pulsed > DC, difference grows with power (self-heating) | difference at low power |
-| high-k or IGZO transfer | pulsed curve steeper, less hysteresis than DC | step changes between pulses |
-| resistor | pulsed = DC resistance | non-linear R at small levels (contact) |
+| Si bulk MOSFET, low power | pulsed = DC within noise (no self-heating at low power: physics) | pulsed below DC beyond the repeatability of two DC runs (contact, edges, range; threshold `TODO(verify)[L5.A2]`) |
+| any transistor at high Id x Vd | difference grows with power. Self-heating moves DC along the device's temperature coefficient: Si/SOI/power MOSFETs read pulsed ≥ DC; thermally activated thin-film transistors (IGZO, a-Si) can read pulsed ≤ DC; trapping during DC usually lowers DC (physics). For a Si reference device a ratio below 1 points first at settling, range or contact; for your device the sign is unknown until measured (reference device: `TODO(verify)[L5.A2]`) | difference at low power |
+| high-k or IGZO transfer | difference to DC unknown (trap time constants of your stack): measure both on one device | step changes between pulses |
+| resistor | pulsed = DC resistance (physics) | non-linear R at small levels (contact) |
 
 ## 9. Common failures → debug
 
@@ -132,7 +133,7 @@ sim_scenario: nmos_selfheat
 | `C` on the drain at high gate levels | compliance range too small | lower the top level or raise `icomp_drain` within the profile | `compliance-hit` |
 | scattered pulsed readings | short `meas_time`, compliance range far above the current | longer `meas_time`, tighter compliance, `average` | `noisy-data` |
 | pulsed current far above DC at low power | DC reference at another bias or a damaged device | compare `drain_V` of both runs | `current-too-high` |
-| blocked R-PULSE-01 or error 233 | width/period outside the SMU table | 500 us steps of 100 us, period >= width + 2 ms | `errx-codes` |
+| blocked R-PULSE-01 or error 233 | width/period outside the SMU table | widths 500 us-2 s in 100 us steps, period >= width + 2 ms | `errx-codes` |
 | run `failed`, fault latched | instrument error, unverified cleanup | `safe_shutdown`, then skill `b1500-debug` | `cleanup-failed-fault` |
 
 ## 10. Validation record
@@ -145,6 +146,5 @@ sim_scenario: nmos_selfheat
 | sim | 2026-11-22 | resistor_100k | resistor-pulsed | S20261122T082413Z-82d5 | `generic.smu_multi_pulsed` (MM 28) tier ok; R 99.56 kOhm (-0.4 %) | - |
 | hw | pending (bring-up stage L5) | - | - | - | - | - |
 
-Sim rows: example plans via `B1500Service` with temporary config/data dirs (folders not kept). Hardware records: `validation/hw/mosfet.idvg_pulsed.yaml`, `validation/hw/mosfet.idvd_pulsed.yaml`,
-`validation/hw/basic.pulsed_spot.yaml` and `validation/hw/generic.smu_multi_pulsed.yaml` (reviewed by a human after
-bring-up stage L5, skill `b1500-bringup`; drafts only from hardware `H...` runs, never from simulator `S...` runs).
+Sim rows: example plans via `B1500Service`, temporary dirs (not kept). Hardware records (human-reviewed after stage L5, skill `b1500-bringup`;
+only from hardware `H...` runs, never simulator `S...` runs): `validation/hw/mosfet.idvg_pulsed.yaml`, `validation/hw/mosfet.idvd_pulsed.yaml`, `validation/hw/basic.pulsed_spot.yaml`, `validation/hw/generic.smu_multi_pulsed.yaml`.

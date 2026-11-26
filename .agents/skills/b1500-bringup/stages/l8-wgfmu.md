@@ -22,11 +22,11 @@ checks:
   - {id: fast_iv_cleanup, recipe: wgfmu.fast_iv, quantity: cleanup, reference: run manifests, text: 'verified: lop; every WGFMU channel disconnected, RSUs at rest'}
   - {id: train_plateau, recipe: wgfmu.pulse_train, quantity: plateau_current, method: pulse_plateau, unit: A, reference: 'the pulsed_iv plateau at the same gate level', text: recorded (drift over the train)}
   - {id: train_cleanup, recipe: wgfmu.pulse_train, quantity: cleanup, reference: run manifests, text: 'verified: lop; every WGFMU channel disconnected, RSUs at rest'}
-  - {id: lwp_values, recipe: wgfmu.custom_waveform, quantity: values, method: kind_result, reference: 'the lab''s own run of the same CSV files (lwp/1530; 2 x 55,200 for the committed sample)', text: 'every event value read back, as many as the lab''s run'}
+  - {id: lwp_values, recipe: wgfmu.custom_waveform, quantity: values, method: kind_result, reference: 'the lab''s own run of the same CSV files (lwp/1530), if any; the committed sample: gate rows of lwp/1530/ch1_wave_pt.csv, drain and events synthetic (2 x 55,200 values)', text: 'every event value read back, as many as the events define'}
   - {id: custom_cleanup, recipe: wgfmu.custom_waveform, quantity: cleanup, reference: run manifests, text: 'verified: lop; every WGFMU channel disconnected, RSUs at rest'}
   - {id: rtn_tau_c, recipe: wgfmu.rtn, quantity: tau_c, method: rtn_levels, unit: s, reference: 'lab RTN data of the device, if any', text: recorded with tau_e and delta_i_rel (at least 200 transitions)}
   - {id: rtn_cleanup, recipe: wgfmu.rtn, quantity: cleanup, reference: run manifests, text: 'verified: lop; every WGFMU channel disconnected, RSUs at rest'}
-  - {id: lfn_gamma, recipe: wgfmu.lfn, quantity: gamma, method: psd_welch, unit: '1', reference: 'the lab LFN record of the same device (lwp/1530 LFN_noise_meas)', text: recorded with the PSD at f_ref}
+  - {id: lfn_gamma, recipe: wgfmu.lfn, quantity: gamma, method: psd_welch, unit: '1', reference: 'the lab''s LFN program (lwp/1530/LFN_noise_meas.cpp) rerun on the same device, if the owner has a record', text: recorded with the PSD at f_ref}
   - {id: lfn_cleanup, recipe: wgfmu.lfn, quantity: cleanup, reference: run manifests, text: 'verified: lop; every WGFMU channel disconnected, RSUs at rest'}
   - {id: pund_pr, recipe: fecap.pund, quantity: pr, method: pund_polarization, unit: uC/cm^2, reference: 'lab P-V data of the film, if any', text: 'recorded with Ps, Ec and the window'}
   - {id: pund_vc, recipe: fecap.pund, quantity: vc, method: pund_polarization, unit: V, reference: 'the butterfly peaks of fecap.cv_butterfly (L6) on a sister capacitor', text: 'recorded; same sign and order of magnitude as the butterfly'}
@@ -46,7 +46,7 @@ compliance: the guard checks every vector before the library sees it (R-WG-02). 
 
 ## 1. Preconditions
 
-- L7 (L4 at least) signed off; L0's `wgfmu_library` and `wgfmu_session` PASS (x64 library >= A.03.00);
+- L7 (L4 at least) signed off; L0's `wgfmu_library` and `wgfmu_session` PASS (the x64 library, stage L0);
   `uv run b1500 bringup status` names L8; `station_status` clean: no fault, no run, RSUs at rest.
 - The 100 kOhm standard with its DMM reading (L2), the L4 MOSFET (EasyEXPERT reference), a FeCap with area and
   thickness known (DUT profile reviewed: pulse envelope, `geometry`), the L7 FeFET; an oscilloscope if available.
@@ -83,7 +83,7 @@ compliance: the guard checks every vector before the library sees it (R-WG-02). 
    {reference_run: <DC run>})`; explain any difference (knowledge 10). Then `wgfmu.fast_iv` (`gm_max`) and `wgfmu.pulse_train`
    (`pulse_plateau`; card example), once more with `gate_mode: pg` while the human reads the V Monitor (`pg_level`).
 5. `wgfmu.custom_waveform`: the human's CSV files from `work/waveforms/` (`adhoc_recipe`) or the committed sample;
-   compare `kind_result.values` and the shapes with the lab's own run of the same files.
+   compare `kind_result.values` and the shapes with the lab's own run of the same files, if the owner has one.
 6. `wgfmu.rtn`, then `wgfmu.lfn` (card examples; a short `points` first): `rtn_levels`, `psd_welch`.
 7. ATV-17 (physical step 5): `wgfmu.pulsed_iv` on `mosfet-wgfmu-body` twice, `vb` 0 and a body bias of the L4
    `mosfet.body_effect` run (new consent each). The bulk SMU is set before the WGFMU phase, whose entry runs
@@ -107,10 +107,10 @@ compliance: the guard checks every vector before the library sees it (R-WG-02). 
 | `rsu_vmonitor`, `pg_level` | waveform at the V Monitor during a run, 0 V after it; the PG level against `vg_peak` | pass/fail; recorded | oscilloscope |
 | `smu_bias_held` | the body-biased pulsed curve shifted as L4's `body_effect` predicts (ATV-17) | pass/fail | agent step 7 |
 | `wgfmu_self_test_result`, `wgfmu_self_cal_result` | `kind_result.result` 0 through the library | 0 | WG p92 (4-22) "WGFMU_doSelfTest" |
-| `r_wgfmu` | 100 kOhm standard through the RSU, 10 uA range | +-3 % of the DMM | `resistance` |
+| `r_wgfmu` | 100 kOhm standard through the RSU, 10 uA range | +-3 % of the DMM (blueprint v2 7.4; WG5 p24 (1-14): +-(0.1 % + 0.2 % of range) averaged) | `resistance` |
 | `pulsed_vs_dc` | pulsed/DC Id at 1 % duty (no self-heating, few traps) | recorded, explained | `pulsed_vs_dc` |
 | `fast_iv_gm`, `train_plateau` | fast ramp gm; plateau current over the train | recorded | `gm_max`, `pulse_plateau` |
-| `lwp_values` | every value of the lab's events read back | as the lab's run | `kind_result` |
+| `lwp_values` | every event value read back (committed sample: 2 x 55,200; its drain and events are synthetic) | as the events define | `kind_result` |
 | `rtn_tau_c`, `lfn_gamma` | trap times; 1/f exponent near 1 | recorded | `rtn_levels`, `psd_welch` |
 | `pund_pr`, `pund_vc`, `pund_rate` | Pr, Vc (and Ps, Ec) of the PUND; Vc per `rise` | recorded | `pund_polarization` |
 | `fast_mw` | fast program/read MW, same sign as L7 | recorded | `memory_window_pulse` |
@@ -131,10 +131,10 @@ compliance: the guard checks every vector before the library sees it (R-WG-02). 
 
 ## 5. Abort criteria
 
-- A 3000 (module) or 3001 (RSU) code, any 30xx code twice, a phase that does not relock (`BusLocked`), a cleanup
-  not verified, the V Monitor still showing a level after a run, `r_wgfmu` off by more than 10 %, status `V` on
-  every point of a read (runbooks `wgfmu-library-error`, `wgfmu-rsu-route`, `wgfmu-range-overflow`,
-  `wgfmu-memory-budget`).
+- A 3000 (module) or 3001 (RSU) code (WG p152 (4-82)), any 30xx code twice, a phase that does not relock
+  (`BusLocked`), a cleanup not verified, the V Monitor still showing a level after a run, `r_wgfmu` off by more than
+  10 %, status `V` on every point of a read (runbooks `wgfmu-library-error`, `wgfmu-rsu-route`,
+  `wgfmu-range-overflow`, `wgfmu-memory-budget`).
 - On any of them: `safe_shutdown(reason)`, report, skill `b1500-debug`, wait for the human; never raise a limit,
   never touch the library yourself (no script, no `config/local` edit).
 

@@ -73,15 +73,17 @@ sim_scenario: capacitor_100p
   (a terminal without an `ac` envelope blocks). Above `policy.cmu` (10 V DC, 50 mVrms): `soft_cmu`.
 - R-CORR-01: fresh phase/open/short records of this pin map covering every frequency (else blocked, next step the
   correction card); the summary shows `corr <age>`.
-- The MFCMU has no compliance: its nominal short-circuit AC current `sqrt(2) x Vac / 50 Ohm` counts against the DUT
-  terminals' `max_abs_i` (`dut_envelope` when above). Unverified pin maps: `unverified_pin_map`; on hardware also
-  `first_hw_run` until `hw_validated`. Not destructive; sync (about 0.2 s per reading).
+- The MFCMU has no compliance: its nominal short-circuit AC current `sqrt(2) x Vac / 50 Ohm` (a guard bound; the
+  MFCMU source impedance is not in the manuals, `TODO(cite)`) counts against the DUT terminals' `max_abs_i`
+  (`dut_envelope` when above). Unverified pin maps: `unverified_pin_map`; on hardware also `first_hw_run` until
+  `hw_validated`. Not destructive; sync (planner estimate about 0.2 s per reading; on hardware `TODO(verify)[L6.A3]`).
 
 ## 6. Quality criteria
 
 - MFCMU status `N` only; `U` (NULL loop unbalance), `D` (IV amplifier saturation), `V` (over range) are untrusted:
   re-measure with a lower frequency or AC level, or check the contact.
-- The spread of `samples` readings: above about 0.1 % on a 100 pF standard means noise or a loose contact.
+- The spread of `samples` readings: compare with the stage L6 record of the reference capacitor
+  (`TODO(verify)[L6.A3]`); no fixed threshold yet. A spread well above it: noise or a loose contact.
 
 ## 7. Analysis method
 
@@ -91,20 +93,23 @@ frequency, the correction ages and the deviation from the standard's nominal val
 
 ## 8. Expected result shape
 
-| DUT | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| DUT | expected (source) | red flags |
 |---|---|---|
-| 100 pF standard | Cp within its tolerance at 100 kHz and 1 MHz; D < 0.001 | +0.3 pF or more: open correction missing or stale |
-| any capacitor | Cp flat over frequency | Cp falling with frequency: series R or inductance (short correction) |
-| MOS capacitor | Cp between Cmin and Cox at its bias | Cp growing at low frequency: traps or leakage |
+| reference capacitor | Cp within its certificate's tolerance at 100 kHz and 1 MHz; D as its certificate states (which capacitor and certificate the lab uses is an owner question of bring-up stage L6, check `known_c`: unknown until answered) | an offset of about the open stray capacitance (`open_cp_f` of the L6 open correction): open correction missing or stale |
+| any capacitor | Cp flat over frequency | Cp falling with frequency: series R (`Cp = C/(1 + (w Rs C)^2)`, physics); Cp rising towards high frequency: residual series inductance (`Cp = C/(1 - w^2 L C)`, physics; short correction) |
+| MOS capacitor | Cp between Cmin and Cox at its bias | Cp growing at low frequency: traps or leakage (general practice) |
 
 ## 9. Common failures → debug
 
 | symptom | likely cause | first safe check | runbook |
 |---|---|---|---|
 | blocked by R-CORR-01 | corrections missing, stale or another pin map | `station_status.corrections` | `cmu-correction-stale` |
-| reading off by about +0.3 pF | correction lost (power cycle, `*RST`) or not at this frequency | correction list vs `freqs_hz` | `cmu-correction-stale` |
+| reading high by about the open stray C (`open_cp_f`) | correction lost (power cycle, `*RST`) or not at this frequency | correction list vs `freqs_hz` | `cmu-correction-stale` |
 | status `U`/`D`, scattered readings | contact, range, AC level | repeat once; `quality_report` | `noisy-data`, `cmu-cv-distortion` |
-| Cp falling with frequency, large D | series R or inductance | `impedance_convert` (`series_r`) | `cmu-series-resistance` |
+| Cp falling with frequency, large D | series R | `impedance_convert` (`series_r`) | `cmu-series-resistance` |
+| Cp rising towards high frequency | residual series inductance of the path | short correction at this frequency | `cmu-correction-stale` |
 | errors 320-323, fault latched | excess current, SCUU module in CN, interrupted run | `get_run` audit; `safe_shutdown` | `errx-codes`, `cleanup-failed-fault` |
 
 ## 10. Validation record

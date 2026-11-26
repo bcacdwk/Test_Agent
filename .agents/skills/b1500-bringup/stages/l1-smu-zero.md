@@ -4,10 +4,10 @@ title: SMU zero - outputs safe at 0 V, cleanup verified, one mid-run stop, CLI a
 recipes: [system.zero_check, system.self_test, system.self_cal]
 checks:
   - {id: cleanup_lop, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
-  - {id: floor_smu3, quantity: smu3_floor, method: zero_floor, unit: A, reference: 'HRSMU sanity 1 pA; the simulator assumes 1e-13 A', text: recorded (lowest range)}
-  - {id: floor_smu4, quantity: smu4_floor, method: zero_floor, unit: A, reference: 'HRSMU sanity 1 pA; the simulator assumes 1e-13 A', text: recorded (lowest range)}
-  - {id: floor_smu5, quantity: smu5_floor, method: zero_floor, unit: A, reference: 'MPSMU sanity 100 pA; the simulator assumes 1e-11 A', text: recorded (lowest range)}
-  - {id: floor_smu6, quantity: smu6_floor, method: zero_floor, unit: A, reference: 'MPSMU sanity 100 pA; the simulator assumes 1e-11 A', text: recorded (lowest range)}
+  - {id: floor_smu3, quantity: smu3_floor, method: zero_floor, unit: A, reference: 'provisional sanity bound 1 pA: about 15x the lab HRSMU open-circuit 0.07 pA rms at 1 PLC (lwp/matlab_B1500/IdVg_test_20251004_*.csv, open probes); offset bound EX p339 (4-45)', text: recorded (lowest range)}
+  - {id: floor_smu4, quantity: smu4_floor, method: zero_floor, unit: A, reference: 'provisional sanity bound 1 pA: about 15x the lab HRSMU open-circuit 0.07 pA rms at 1 PLC (lwp/matlab_B1500/IdVg_test_20251004_*.csv, open probes); offset bound EX p339 (4-45)', text: recorded (lowest range)}
+  - {id: floor_smu5, quantity: smu5_floor, method: zero_floor, unit: A, reference: 'provisional sanity bound 100 pA (basis: none, no MPSMU floor on record); offset bound EX p339 (4-45)', text: recorded (lowest range)}
+  - {id: floor_smu6, quantity: smu6_floor, method: zero_floor, unit: A, reference: 'provisional sanity bound 100 pA (basis: none, no MPSMU floor on record); offset bound EX p339 (4-45)', text: recorded (lowest range)}
   - {id: shutdown_drill, quantity: shutdown_drill, reference: human observation, text: 'run stopped, cleanup verified, lock free, no fault'}
   - {id: coexistence, quantity: coexistence, reference: human observation, text: CLI status answers while the agent is idle}
   - {id: lop_positive_control, quantity: positive_control, reference: run manifest cleanup.positive_control, text: 'every connected slot non-00 right after CN'}
@@ -63,8 +63,9 @@ summary, stop, the human's own consent, one run per consent (skill `b1500-test`)
    default params (about 50 s); summary, stop, consent, `run_confirmed_plan`; `get_run` with `summary`, `quality`,
    `audit`; report the default `zero_floor` results (floor per SMU and range, offsets; derived; integration and
    samples; status counts) from your own `analyze_run(run_id, "zero_floor")`.
-5. Once more with `params {integration: long, samples: 50}` (about 5.5 min, asynchronous: poll `get_run`): the
-   floors should drop to about a third.
+5. Once more with `params {integration: long, samples: 50}` (about 5.5 min, asynchronous: poll `get_run`): a
+   white-noise floor falls as 1/sqrt(integration time) (16 PLC against 1 PLC: about 1/4), line and 1/f noise do not
+   average; report the observed ratio per SMU and range (no prior value for this station).
 6. Drill: hand the plan id of the default zero check (step 4) to the human for physical step 3; afterwards
    `get_run` of both drill runs, `safe_shutdown("L1 after drill")`, `station_status`.
 7. Ask for physical step 4 and note the answers.
@@ -77,8 +78,8 @@ summary, stop, the human's own consent, one run per consent (skill `b1500-test`)
 | check | expected | tolerance | source |
 |---|---|---|---|
 | `cleanup_lop` | every run's cleanup `verified: lop`, all slots `00`, error queue empty | pass/fail | run manifests |
-| `floor_smu3`, `floor_smu4` | HRSMU floor on its lowest range (10 pA, 1 PLC); sanity below 1 pA | recorded | `zero_floor` |
-| `floor_smu5`, `floor_smu6` | MPSMU floor on its lowest range (1 nA, 1 PLC); sanity below 100 pA | recorded | `zero_floor` |
+| `floor_smu3`, `floor_smu4` | HRSMU floor on its lowest range (10 pA, UG p69 (2-29); 1 PLC); sanity bound 1 pA | recorded (bound provisional) | `zero_floor` |
+| `floor_smu5`, `floor_smu6` | MPSMU floor on its lowest range (1 nA, UG p63 (2-23); 1 PLC); sanity bound 100 pA | recorded (bound provisional) | `zero_floor` |
 | `shutdown_drill` | Ctrl+C: outcome `aborted`, audit `AB`, `DZ`, `CL`, `ERRX?`, `LOP?` all `00`; `shutdown` from a second window: the run stops at its next checkpoint or the call answers `busy` naming the holder; either way cleanup verified, lock free, no fault | pass/fail | audit, `uv run b1500 lock status` |
 | `coexistence` | `status` answers while the agent's server is idle | pass/fail | human |
 | `lop_positive_control` | non-`00` on every connected slot right after `CN`, every run | recorded | manifest, audit |
@@ -88,9 +89,12 @@ summary, stop, the human's own consent, one run per consent (skill `b1500-test`)
 | `idle_lop` | `LOP?` after every cleanup: all `00`, idle SPGU/WGFMU/CMU slots too (`outputs_after`) | recorded | manifest (ATV-23) |
 | `bus_overhead` | slowest per-call bus open, lock, unlock or close of the runs (`bus_call_s`) | recorded | audit (ATV-13) |
 
-- Zero-check runs: every status letter `N`; floors and offsets within the sanity bounds, recorded per range (the
-  owner tightens the bounds after the first runs). SMUs in other slots appear in the record as extra `smuN_floor`
-  measurements.
+- Zero-check runs: every status letter `N`; floors and offsets within the sanity bounds, recorded per range. Floor
+  bounds are provisional criteria: HRSMU 1 pA is about 15x the lab HRSMU's open-probe noise (0.07 pA rms at 1 PLC,
+  `lwp/matlab_B1500/IdVg_test_20251004_*.csv`), MPSMU 100 pA has no basis (no MPSMU floor on record). Offset
+  bounds: the largest offsets EasyEXPERT's offset cancel accepts (EX p339 (4-45): +-400 fA on 10 pA, +-10 pA on
+  1 nA). `TODO(owner)`: which floor and offset bounds per SMU type and range does the lab accept at L1? SMUs in other
+  slots appear in the record as extra `smuN_floor` measurements.
 - `LOP?` (ATV-1): after `CL` every slot reads `00`, idle SPGU/WGFMU/CMU slots too (ATV-23; record their codes).
   Positive control: right after `CN` the transaction reads `LOP?` and needs a non-`00` code on every connected slot
   (evidence: run manifest `cleanup.positive_control`, audit checkpoint `lop_positive_control`). Fallback when an

@@ -13,7 +13,7 @@ confirmation: conditional
 knowledge: [knowledge/01-device-physics.md#pn-diode-shockley-equation-and-ideality-factor, knowledge/01-device-physics.md#diode-series-resistance-reverse-leakage-and-breakdown, knowledge/06-analysis-extraction.md#diode-fit-is-n-and-rs, knowledge/06-analysis-extraction.md#forward-voltage, knowledge/06-analysis-extraction.md#leakage-at-bias, knowledge/03-probe-station-wiring.md#guard-for-low-current]
 manual: [PG p568-569 (4-250) "WV", PG p551-552 (4-233) "WI", PG p552 (4-234) "WM"]
 debug: [compliance-hit, current-too-high, noisy-data, errx-codes, cleanup-failed-fault]
-sources: [blueprint 6.4, deck slide 10, deck slide 9]
+sources: [blueprint 6.4, "deck slide 9, 10 (topics only, illustrative: not evidence)"]
 version: 1
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
@@ -57,10 +57,10 @@ Schottky diodes and to junctions with their own two-terminal pin map and diode D
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
 | `v_rev` | -5 V | -5..-1 V | -20..0 V | reverse bias where leakage is judged (sweep start) | more negative: nearer breakdown; beyond the profile: confirmation |
-| `v_fwd` | 0.8 V | 0.6..1 V | 0..2 V | reach the Rs-dominated top of the forward branch | too low: Rs not resolved; too high: compliance |
+| `v_fwd` | 0.8 V | - | 0..2 V | reach the Rs-dominated top of the forward branch (example for a Si pn junction; set it from the device's forward branch) | too low: Rs not resolved; too high: compliance |
 | `points` (`basic.diode_iv`) | 291 | 201..581 | 21..2001 | 20 mV steps by default | finer steps: more fit points per decade |
 | `icomp` | 10 mA | 1..10 mA | 1 nA..100 mA | forward current limit; stops a breakdown | above 10 mA: confirmation |
-| `leak_limit_a` | 1 nA | 1 pA..1 uA | 1 fA..1 mA | pass/fail limit at `v_rev` (analysis only) | no effect on the sweep |
+| `leak_limit_a` | 1 nA | 1 pA..1 uA | 1 fA..1 mA | pass/fail limit at `v_rev` (analysis only); example default, not a spec for your device: take the limit from the human, say when the default was used | no effect on the sweep |
 | `integration` | `medium` | `medium`, `long` | `short`, `medium`, `long` | `long` for pA leakage | slower sweep |
 | `i_start` (`basic.iv_force_i`) | 1 nA | 100 pA..10 nA | 1 pA..1 mA | lowest forced current (log sweep start) | lower: more decades for n |
 | `i_stop` (`basic.iv_force_i`) | 10 mA | 1..10 mA | 1 nA..100 mA | top decade resolves Rs | above 10 mA: confirmation |
@@ -99,8 +99,8 @@ Current forcing (tier `ok` on `diode_basic`): `uv run b1500 plan basic.iv_force_
 - Reverse current at the noise floor is normal: `leakage_at` reports an upper bound (below detection), not a refusal.
   A noise-dominated forward branch is not: the diode is not contacted. `basic.iv_force_i`: `C` = the anode reached
   `vcomp` (open contact, or the current needs more voltage): the sweep stopped, rows after it are `aborted`.
-- Re-measure (autonomous, at most two, stays `ok`): `integration: long` for leakage, `points` and `v_fwd` inside
-  the recommended range. Never extend `v_rev` or raise `icomp` beyond the profile without a new confirmed plan.
+- Re-measure (autonomous, at most two, stays `ok`): `integration: long` for leakage, `points` inside the
+  recommended range; a new `v_fwd` only from the human or the measured forward branch. Never extend `v_rev` or raise `icomp` beyond the profile without a new confirmed plan.
 
 ## 7. Analysis method
 
@@ -118,11 +118,13 @@ Current forcing (tier `ok` on `diode_basic`): `uv run b1500 plan basic.iv_force_
 
 ## 8. Expected result shape
 
-| device | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| device | expected (source) | red flags |
 |---|---|---|
-| Si pn junction (small signal) | n 1.0-2 (near 1 when diffusion dominates); Is about 1e-16 to 1e-12 A (area dependent); Rs ohms to tens of ohms; leakage pA to nA at a few volts reverse | n < 1 (noise or wrong window); n > 2 over the whole window |
-| Schottky diode | n about 1.0-1.3; Is orders of magnitude above a pn junction of the same area; higher leakage | ohmic, symmetric curve (short or resistor) |
-| any diode | about 60·n mV per decade of forward current over several decades at 300 K | compliance on the reverse branch; steep reverse rise (soft breakdown); noise-dominated forward branch |
+| pn junction | n between 1 (diffusion) and 2 (recombination) (textbook); Is: no checked range, area- and temperature-dependent ([01](../../knowledge/01-device-physics.md#pn-diode-shockley-equation-and-ideality-factor), `TODO(cite)`); Rs: device-specific, a two-wire value includes probes and contacts (station part `TODO(verify)[L2.A8]`); leakage: area-, material- and bias-dependent, judge it against the human's `leak_limit_a` | n < 1 (noise or wrong window); n > 2 over the whole window |
+| Schottky diode | n close to 1 (textbook; an upper bound needs a source, `TODO(cite)`); Is orders of magnitude above a pn junction of the same area; higher leakage (textbook) | ohmic, symmetric curve (short or resistor) |
+| any diode | about 60·n mV per decade of forward current at 300 K (physics: ln10·kT/q = 59.5 mV) | compliance on the reverse branch; steep reverse rise (soft breakdown); noise-dominated forward branch |
 
 ## 9. Common failures → debug
 

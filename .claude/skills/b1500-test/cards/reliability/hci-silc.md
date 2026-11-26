@@ -13,7 +13,7 @@ confirmation: always
 knowledge: [knowledge/05-reliability-defects.md#hot-carrier-injection-hci, knowledge/05-reliability-defects.md#oxide-traps-silc-and-charge-trapping, knowledge/05-reliability-defects.md#stress-measure-analysis]
 manual: [PG p474-475 (4-156) "MT", PG p472-473 (4-154) "MSC", PG p470 (4-152) "MM", PG p396 (4-78) "DV"]
 debug: [stress-degradation-unexpected, compliance-hit, current-too-high, noisy-data, errx-codes, cleanup-failed-fault, async-run-interrupted]
-sources: [blueprint v2 3.1 2.7 and 4.2, deck slide 14, Takeda and Suzuki IEEE EDL 4 111 (1983), DiMaria and Cartier JAP 78 3883 (1995)]
+sources: [blueprint v2 3.1 2.7 and 4.2, "deck slide 14 (topics only, illustrative: not evidence)", AN-REL p6, "model forms after Takeda and Suzuki IEEE EDL 4 111 (1983) and DiMaria and Cartier JAP 78 3883 (1995), not page-checked (TODO(cite))"]
 version: 1
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
@@ -42,7 +42,7 @@ leakage check ([gate-leakage](../smu/gate-leakage.md)).
 | bulk | `bulk`: ground | GNDU | the SILC current returns here |
 
 - Example pin map `mosfet-4t` with DUT profile `nmos-generic` (gate, drain ≤ 3 V, 1 mA): the profile is the
-  human's. HCI damage sits at the drain end: a reverse read needs a pin map with drain and source swapped.
+  human's. HCI damage sits at the drain end (AN-REL p6): a reverse read needs a pin map with drain and source swapped.
 - SMU4/SMU3 on the RSUs' "From SMU" inputs (lab layout after L8) take at most +-25 V (WG p20 (1-8), R-RSU-01).
 - Routes: none in every phase (direct SMU and GNDU wiring).
 
@@ -51,13 +51,14 @@ leakage check ([gate-leakage](../smu/gate-leakage.md)).
 - A fresh device: [contact-resistor-check](../smu/contact-resistor-check.md), one Id-Vg
   ([mosfet-idvg](../smu/mosfet-idvg.md)); HCI: the stress drain current below `icomp_drain`; SILC: the leakage at
   `v_sense` above the floor ([gate-leakage](../smu/gate-leakage.md)) and `vg_stress` below the breakdown voltage.
-- HCI: keep `vg_stress` below the BTI onset (about Vd/2 for long NMOS); record the temperature.
+- HCI: the stress bias is the human's ([05](../../knowledge/05-reliability-defects.md#hot-carrier-injection-hci); classic worst case near Vg ≈ Vd/2
+  for long NMOS, `TODO(cite)`); a gate bias adds a BTI shift at any level: record both; record the temperature.
 
 ## 4. Recipe and parameters
 
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
-| `vg_stress` (`reliability.hci`) | required | - | -10..10 V | gate stress | Vg ~ Vd/2 (long NMOS) |
+| `vg_stress` (`reliability.hci`) | required | - | -10..10 V | gate stress: the human's | classic worst case Vg ~ Vd/2 (long NMOS) |
 | `vg_stress` (`reliability.silc`) | required | - | -40..40 V | high-field gate stress | below breakdown |
 | `vd_stress` | required | - | -10..10 V | HCI drain stress | b ~ Vd^k |
 | `stress_time` | 1000 s | 100..10000 s | 0.1..86400 s | total stress | > 600 s `long_run`, async |
@@ -68,9 +69,9 @@ leakage check ([gate-leakage](../smu/gate-leakage.md)).
 | `recovery_time` (`reliability.hci`) | 0 s | 0..600 s | 0..86400 s | rest at 0 V | HCI hardly recovers |
 | `recovery_time` (`reliability.silc`) | 0 s | 0..600 s | 0..86400 s | rest at 0 V | |
 | `read_kind` | `spot` | `spot` | `spot`, `staircase` | the read | staircase: a sweep per read |
-| `vg_read` | 1.5 V | 1..3 V | -10..10 V | HCI read gate | strong inversion |
+| `vg_read` | 1.5 V | 1..3 V | -10..10 V | HCI read gate: example default, set per device | strong inversion |
 | `vd_read` | 50 mV | 20..100 mV | -5..5 V | HCI read drain | linear region |
-| `v_sense` | 1.5 V | 0.5..2 V | -40..40 V | SILC sense level | low field, stress polarity |
+| `v_sense` | 1.5 V | 0.5..2 V | -40..40 V | SILC sense level: example default, set per film | low field, stress polarity |
 | `vg_start` (`reliability.hci`) | -0.2 V | - | -10..10 V | sweep reads | |
 | `vg_start` (`reliability.silc`) | 0 V | - | -40..40 V | sweep reads | |
 | `vg_stop` (`reliability.hci`) | 1.5 V | - | -10..10 V | sweep reads | |
@@ -108,7 +109,7 @@ SILC: `recipe_id: reliability.silc`, `params: {vg_stress: 2.8}`, same pin map, p
 
 - Reads all `N`; a `C` on the gate during a SILC hold is a breakdown (stop; report it, never retry higher).
 - `kind_result`: `reads_done`, `holds_done`, `stress_s_done`, `stopped_early`, `stop_reason`.
-- HCI: the reference Id noise (samples) well below 0.1 %; SILC: the reference leakage above the floor.
+- HCI: reference Id noise (samples) well below `min_change` (1e-3, analysis default); SILC: reference leakage above the floor.
 
 ## 7. Analysis method
 
@@ -120,10 +121,12 @@ SILC: `recipe_id: reliability.silc`, `params: {vg_stress: 2.8}`, same pin map, p
 
 ## 8. Expected result shape
 
-| test | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| test | expected (source) | red flags |
 |---|---|---|
-| HCI (long NMOS) | dId/Id0 < 0, m 0.3-0.6 `TODO(verify)` | dId > 0 (heating, trapping), m > 1 |
-| SILC (thin SiO2) | ratio rises steadily, exponent 0.3-1 | a step of decades (breakdown) |
+| HCI (NMOS) | dId/Id0 < 0 (degradation, AN-REL p6); m unknown for your devices ([05](../../knowledge/05-reliability-defects.md#hot-carrier-injection-hci)) | dId > 0: unexpected sign (heating, trapping) |
+| SILC | ratio rises with the injected charge (physics); exponent unknown for your films ([05](../../knowledge/05-reliability-defects.md#oxide-traps-silc-and-charge-trapping)) | a step of decades (breakdown) |
 
 ## 9. Common failures → debug
 
@@ -144,6 +147,5 @@ SILC: `recipe_id: reliability.silc`, `params: {vg_stress: 2.8}`, same pin map, p
 | sim | 2026-11-20 | nmos_bti | nmos-generic | S20261120T041648Z-b051 | SILC 2.8 V, 1000 s: ratio 2.77 vs 2.76, exponent 0.995 vs 1 | - |
 | hw | pending (bring-up stage L9) | - | - | - | - | - |
 
-Sim rows: the example plans run through `B1500Service` with temporary `B1500_CONFIG_DIR`/`B1500_DATA_DIR`; those run
-folders were not kept. Hardware records: `validation/hw/reliability.hci.yaml`, `validation/hw/reliability.silc.yaml`
-(reviewed by a human after bring-up stage L9, skill `b1500-bringup`; drafts only from hardware `H...` runs).
+Sim rows: example plans via `B1500Service` (temporary config and data; folders not kept). Hardware records (human-reviewed
+after L9, `b1500-bringup`; only from `H...` runs): `validation/hw/reliability.hci.yaml`, `validation/hw/reliability.silc.yaml`.

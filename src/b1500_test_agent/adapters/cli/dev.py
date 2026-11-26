@@ -58,8 +58,9 @@ def cases_list_command(
                                                                                "for its verdict.")] = True,
     as_json: JsonOption = False,
 ) -> None:
-    """List the debug cases: status (draft or reviewed by whom), runbook, lab runs, reproduction verdict [SIMULATED]
-    and open questions for the owner. Exit 1 on a case problem or a failed reproduction."""
+    """List the debug cases: status (draft or reviewed by whom), origin (observed or illustrative), runbook, lab runs,
+    reproduction verdict [SIMULATED] and open questions for the owner. Exit 1 on a case problem or a failed
+    reproduction."""
     report = cases.cases_report(reproduce_all=reproduce)
     typer.echo(cases.report_json(report) if as_json else cases.format_cases(report))
     if not report.ok:

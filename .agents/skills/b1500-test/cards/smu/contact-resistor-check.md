@@ -13,7 +13,7 @@ confirmation: conditional
 knowledge: [knowledge/03-probe-station-wiring.md#contact-checks, knowledge/01-device-physics.md#resistor-contact-versus-bulk-resistance, knowledge/06-analysis-extraction.md#resistance-fit, knowledge/03-probe-station-wiring.md#probe-contact-and-overdrive]
 manual: [PG p568-569 (4-250) "WV", PG p552 (4-234) "WM"]
 debug: [noisy-data, compliance-hit, current-too-high, errx-codes, cleanup-failed-fault]
-sources: [blueprint 6.4, deck slide 12, deck slide 17]
+sources: [blueprint 6.4, "deck slide 12, 17 (topics only, illustrative: not evidence)", lwp/matlab_B1500/IdVg_test_20251004_*.csv]
 version: 1
 ---
 
@@ -25,15 +25,17 @@ Is the probe landed, and does the terminal pair behave as expected? A ±0.1 V st
 R, linearity and offset current, classified `open`, `short` or `in_range`. It never stresses a device, so it is the
 gate-keeper on every fresh landing and the first safe check of skill `b1500-debug`.
 
-- Resistor or contact structures (two ends of a line, two probes on one pad): R against the DUT profile nominal.
-- Transistor or diode landings: catches shorts. A transistor's drain-source path with the gate off and a diode
-  below turn-on read `open` by design, so `open` alone does not prove the landing: the device response does (Id
-  rising with Vg, forward diode current). After a noise-floor Id-Vg or diode curve, still run this check as step 3
-  of runbook `noisy-data` (skill `b1500-debug`): it rules out a short or parallel path and records the terminal
-  floor; the "not landed" verdict there comes from the flat device response.
-- Not for: precise low resistance (two-wire includes probes and cables; use the four-wire
-  [smu-spot-kelvin](smu-spot-kelvin.md)), diode or transistor parameters (cards [diode-iv](diode-iv.md),
-  [mosfet-idvg](mosfet-idvg.md)).
+- Structures of known R well above 100 Ohm (a resistor, two pads of one device): compare R with the expected value
+  yourself; the class uses `r_short_ohm`/`r_open_ohm`, not the DUT profile. A metal line or two probes on one pad
+  (below 100 Ohm: 1 mA compliance at 0.1 V) always reads `short` here.
+- Transistor or diode landings: catches shorts. A normally-off transistor's drain-source path with the gate off and
+  a diode below turn-on read `open` by design (a normally-on, depletion TFT conducts with the gate off: ask the
+  human for the Vth sign), so `open` alone does not prove the landing: the device response does (Id rising with
+  Vg, forward diode current). After a noise-floor Id-Vg or diode curve, still run this check as step 3 of runbook
+  `noisy-data` (skill `b1500-debug`): it rules out a short or parallel path and records the terminal floor; the
+  "not landed" verdict there comes from the flat device response.
+- Not for: precise low resistance (two-wire includes probes and cables: four-wire [smu-spot-kelvin](smu-spot-kelvin.md)),
+  diode or transistor parameters ([diode-iv](diode-iv.md), [mosfet-idvg](mosfet-idvg.md)).
 
 ## 2. Wiring, pin map, modules
 
@@ -55,7 +57,8 @@ gate-keeper on every fresh landing and the first safe check of skill `b1500-debu
 - Fresh landing (probes just placed or moved, new die, or you do not know): run this card before any other card.
 - `station_status`: backend shown, no latched fault, no lock holder, no pending errors; `resistor-2t` (or the
   human's map) and `resistor-generic` (or the human's profile) are listed. Missing: ask the human.
-- Know the expected answer before running: resistor near its nominal; transistor or diode pair `open`.
+- Know the expected answer before running: resistor near its nominal; normally-off transistor or diode pair `open`
+  (normally-on TFT: ask).
 
 ## 4. Recipe and parameters
 
@@ -112,11 +115,13 @@ sim_scenario: resistor_100k
 
 ## 8. Expected result shape
 
-| structure | expected | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| structure | expected (source) | red flags |
 |---|---|---|
-| resistor or contact structure | `in_range`, R near the profile nominal plus probe and contact resistance, r2 > 0.999, offset ≪ signal | `open`, `short`, R off by orders of magnitude, r2 < 0.99, asymmetric curve |
-| transistor drain-source, gate off | `open`; current at the module floor (sub-pA to pA on an HRSMU) | `short` or any `in_range` R: channel or probe short, damaged device |
-| diode pair at ±0.1 V | `open` or a non-linear warning (below turn-on) | `short`; ohmic and symmetric |
+| resistor structure (well above 100 Ohm) | `in_range`, R near nominal plus probe and contact resistance, r2 > 0.999 (general practice, not checked against a source), offset ≪ signal | `open`, `short`, R off by orders of magnitude, r2 < 0.99, asymmetric curve |
+| normally-off transistor drain-source, gate off | `open`; current at the module floor (lab HRSMU, open probes, 1 PLC: about 0.07 pA rms, readings within about ±0.2 pA; `lwp/matlab_B1500/IdVg_test_20251004_*.csv`) | `short`; an `in_range` R on a normally-off device (a normally-on TFT conducts with the gate off: ask for the Vth sign first) |
+| diode pair at ±0.1 V | `open` or a non-linear warning (below turn-on; a low-barrier Schottky or large-area diode may conduct measurably) | `short`; ohmic and symmetric |
 | probes lifted (floor check) | `open`; R lower bound shows the station floor | offset or slope well above the floor: leakage path, charging cable |
 
 ## 9. Common failures → debug

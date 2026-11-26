@@ -1,6 +1,7 @@
 """``b1500 dev cases list|check|reproduce`` (v2.1 plan §3 item 6, WP21.4): the review tooling of the debug cases.
 
-``list`` shows every case's status, runbook, lab runs, reproduction verdict (SIMULATED) and open questions; ``check``
+``list`` shows every case's status, origin, runbook, lab runs, reproduction verdict (SIMULATED) and open questions;
+``check``
 lints the cases (``--reproduce`` also runs them); ``reproduce`` runs one case into its own folder (default
 ``work/cases/<case>/<UTC stamp>/`` of the clone) and keeps ``data/`` and ``report.json``. Reproductions run on the
 simulator only, whatever the clone's configuration says; the clone of these tests is a temporary copy, so nothing
@@ -26,7 +27,7 @@ from b1500_test_agent.paths import ENV_HOME
 from tests.unit.helpers import REPO_ROOT
 
 runner = CliRunner()
-CASE = "2026-11-04-current-orders-too-high"
+CASE = "example-current-orders-too-high"
 CASE_FILE = Path(".agents", "skills", "b1500-debug", "cases", f"{CASE}.md")
 
 
@@ -54,9 +55,9 @@ def test_list_without_reproduction(clone: Path) -> None:
     result = invoke("list", "--no-reproduce")
     assert result.exit_code == 0, result.output
     lines = result.output.splitlines()
-    assert lines[0] == "cases: ok (4 cases, 20 open questions for the owner, 0 problem(s))"
-    assert (f"  {CASE}: draft; runbook current-too-high; backend visa, 0 lab run(s); reproduction not run; "
-            "5 open question(s)") in lines
+    assert lines[0] == "cases: ok (4 cases, 7 open questions for the owner, 0 problem(s))"
+    assert (f"  {CASE}: draft, illustrative; runbook current-too-high; backend none, 0 lab run(s); reproduction not "
+            "run; 1 open question(s)") in lines
 
 
 def test_list_reproduces_every_case_on_the_simulator(clone: Path) -> None:
@@ -65,8 +66,9 @@ def test_list_reproduces_every_case_on_the_simulator(clone: Path) -> None:
     payload = json.loads(result.output)
     assert payload["ok"] is True and payload["problems"] == []
     assert {row["id"]: row["reproduction"] for row in payload["cases"]} == {
-        "2026-11-04-current-orders-too-high": "pass", "2026-11-04-cv-shape-abnormal": "pass",
-        "2026-11-04-igzo-vth-drift": "pass", "2026-11-04-noisy-data": "pass"}
+        "example-current-orders-too-high": "pass", "example-cv-shape-abnormal": "pass",
+        "example-igzo-vth-drift": "pass", "example-noisy-data": "pass"}
+    assert {row["origin"] for row in payload["cases"]} == {"illustrative"}
     for report in payload["reproductions"]:
         assert report["simulated"] is True and report["backend"] == "sim" and report["data_dir"] is None
     assert not (clone / "work").exists() and not (clone / "data").exists()  # temporary folders only
@@ -80,15 +82,16 @@ def test_check_lints_and_reports_a_failing_reproduction(clone: Path) -> None:
                     encoding="utf-8")
     result = invoke("check", "--reproduce")
     assert result.exit_code == 1
-    assert f"{CASE}: draft; runbook current-too-high; backend visa, 0 lab run(s); reproduction fail" in result.output
+    assert (f"{CASE}: draft, illustrative; runbook current-too-high; backend none, 0 lab run(s); reproduction fail"
+            in result.output)
     assert "[fail] contact.result('resistance') > 1.0e+6" in result.output
     assert "contact.result('resistance') = 999.9" in result.output
-    path.write_text(text.replace("open_questions: 5", "open_questions: 3"), encoding="utf-8")
+    path.write_text(text.replace("open_questions: 1", "open_questions: 3"), encoding="utf-8")
     broken = invoke("check")
     assert broken.exit_code == 1 and "open_questions is 3 but the section" in broken.output
     listed = invoke("list")  # a case with lint problems is not reproduced
-    assert listed.exit_code == 1 and f"{CASE}: draft; runbook current-too-high; backend visa, 0 lab run(s); " \
-        "reproduction not run" in listed.output
+    assert listed.exit_code == 1 and f"{CASE}: draft, illustrative; runbook current-too-high; backend none, 0 lab " \
+        "run(s); reproduction not run" in listed.output
     refused = invoke("reproduce", CASE)
     assert refused.exit_code == 2 and "has 1 lint problem(s), first: open_questions is 3" in refused.output
 
@@ -118,8 +121,8 @@ def test_reproduce_defaults_to_the_clones_work_folder(clone: Path) -> None:
 
 
 def test_reproduce_refuses_an_unknown_case(clone: Path) -> None:
-    result = invoke("reproduce", "2026-11-04-unknown")
-    assert result.exit_code == 2 and "no valid case '2026-11-04-unknown'" in result.output
+    result = invoke("reproduce", "example-unknown")
+    assert result.exit_code == 2 and "no valid case 'example-unknown'" in result.output
     path = clone / CASE_FILE
     text = path.read_text(encoding="utf-8")
     start, end = text.index("reproduction:\n"), text.index("open_questions:")

@@ -14,7 +14,7 @@ confirmation: always
 knowledge: [knowledge/02-b1500-instrument.md#self-test-self-calibration-and-auto-calibration, knowledge/02-b1500-instrument.md#status-byte-errors-and-interlock, knowledge/02-b1500-instrument.md#measurement-sequence-and-cleanup]
 manual: ['PG p540-541 (4-222) "*TST?"', 'PG p376-377 (4-58) "*CAL?"', PG p377 (4-59) "open the measurement terminals", WG p92 (4-22) "WGFMU_doSelfTest", WG p91 (4-21) "WGFMU_doSelfCalibration", WG p36 (2-14) "Open the measurement terminals", WG p129 (4-59) "600 s"]
 debug: [errx-codes, wgfmu-library-error, cleanup-failed-fault]
-sources: [blueprint 3.1, blueprint v2 3.4, blueprint 6.3, deck slide 9]
+sources: [blueprint 3.1, blueprint v2 3.4, blueprint 6.3, "deck slide 9 (topics only, illustrative: not evidence)", config/sim/scenarios/lab_station.yaml (slots from lwp/matlab_B1500/B1500_Config.mat)]
 version: 2
 ---
 
@@ -81,8 +81,9 @@ sim_scenario: resistor_100k
 - No source command: the compiled envelope is empty, so the output guard refuses any output. No DUT limits apply.
   Destructive: no, but a connected DUT would see the relay switching and calibration signals. No output switch is
   turned on, so the cleanup's `LOP?` check has no positive control in these runs (`cleanup.positive_control` null).
-- Duration estimates: self-test about 120 s, self-calibration about 60 s (TODO(verify) at bring-up stage L1; the
-  WGFMU ones at L8). The library raises its own timeout to 600 s for these calls (WG p129 (4-59) "600 s").
+- Duration estimates are code placeholders (self-test 120 s, self-calibration 60 s, `catalog/kinds/system.py`); the
+  real durations `TODO(verify)[L1.A3, L8.A2]`. The library raises its own timeout to 600 s for these calls (WG p129
+  (4-59) "600 s").
 - WGFMU recipes: rule R-WG-01 blocks on visa without a loadable library and before execution when the library
   lists no WGFMU channel; the phase exit leaves every WGFMU channel disconnected and the session closed.
 - On hardware also `first_hw_run` until the recipe is `hw_validated`.
@@ -102,11 +103,11 @@ code, failed units, duration, backend. Never derive measurement offsets from the
 
 ## 8. Expected result shape
 
-| operation | typical | red flags |
+| operation | expected (source) | red flags |
 |---|---|---|
-| self-test | result 0, no failed unit, one to two minutes | a non-zero result; a slot listed as failed; a timeout |
-| self-calibration | result 0 | a failure on one slot (often a DUT still connected): re-check the open terminals |
-| WGFMU library | result 0 | slot 2 (the WGFMU) failed: RSU cable, RSU output not open |
+| self-test | result 0, no failed unit (PG p540-541 (4-222)); duration unknown until bring-up (above) | a non-zero result; a slot listed as failed; a timeout |
+| self-calibration | result 0 | a failure on one slot: one possible cause is terminals not open (PG p377 (4-59)): re-check them |
+| WGFMU library | result 0 | the WGFMU slot (lab: 2) failed: RSU cable, RSU output not open (WG p36 (2-14)) |
 
 ## 9. Common failures → debug
 

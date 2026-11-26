@@ -104,13 +104,14 @@ one turn, give the human the adoption command in chat and stop (skill part 4).
 - Status byte bit 3 (ATV-10) is an event (a refused high-voltage request, PG p76 (1-56)), not the interlock state:
   with the interlock open as S0 requires `*STB?` still reads 16 (the simulator does the same); the physical state
   is the S0 test. A set bit 3 WARNs (a program asked for > 42 V). Fallback (in the code): R-IL-01 also checks
-  errors 202/203.
+  errors 202/203 (PG p577 (5-5)).
 - Per-call open, lock, unlock and close below 100 ms (ATV-13; L1's `bus_overhead` reads the `bus_*` lines of the
   run audits). Fallback, an owner decision: `visa.session: process` in `config/local/settings.yaml`.
 - Line frequency of S0 equals the policy's `line_hz` (ATV-31); otherwise the human corrects the policy.
-- WGFMU library (ATV-15): a 32-bit DLL or a missing one FAILs with "install library >= A.03.00"; the human installs
-  the B1530A WGFMU Instrument Library A.04.00 (x64 into System32) or sets `wgfmu.library`; record the file version
-  the line shows. Session (ATV-16): opening it, listing the channels and the status must change no output (`LOP?`
+- WGFMU library (ATV-15): a 32-bit DLL or a missing one FAILs with "install library >= A.03.00" (x64 since A.03.00:
+  Keysight release notes 9018-80226, blueprint v2 0.1; not in the manual corpus); the human installs the B1530A
+  WGFMU Instrument Library A.04.00 (x64 into System32) or sets `wgfmu.library`; record the file version the line
+  shows. Session (ATV-16): opening it, listing the channels and the status must change no output (`LOP?`
   of a second probe still all `00`). Fallback when only the session line fails: probe without `--wgfmu-session`
   and leave the session check to L8.
 - TODO(verify) (blueprint v2 7.6 items 1, 2, 3, 4, 5, 6, 12): GPIB address, terminations, timeouts and the VISA

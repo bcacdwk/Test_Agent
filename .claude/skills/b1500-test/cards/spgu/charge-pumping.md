@@ -13,7 +13,7 @@ confirmation: conditional
 knowledge: [knowledge/05-reliability-defects.md#charge-pumping, knowledge/05-reliability-defects.md#interface-traps-dit, knowledge/09-pulse-spgu-selector.md#readings-during-a-train, knowledge/09-pulse-spgu-selector.md#hv-spgu-output-and-the-ser-load, knowledge/11-switching-routing.md#the-16440a-selector]
 manual: [EX p518 (9-12) "Charge Pumping", PG p142 (2-54) "SPST", PG p507 (4-189) "SER", PG p512 (4-194) "SPRM"]
 debug: [spgu-pulse-no-effect, spgu-load-mismatch, spgu-selector-state, noisy-data]
-sources: [blueprint v2 3.3 (mosfet.charge_pumping, nmos_cv), 2.7 (SMU spot during the train), Groeseneken et al. IEEE TED 31 42 (1984)]
+sources: [blueprint v2 3.3 (mosfet.charge_pumping, nmos_cv), 2.7 (SMU spot during the train), Groeseneken et al. IEEE TED 31 42 (1984; not checked in the repo; TODO(cite))]
 version: 1
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
@@ -36,7 +36,7 @@ accumulation to inversion; the bulk SMU reads the recombination current `Icp = q
 | terminal | role | module | notes |
 |---|---|---|---|
 | gate | `gate` (pgu) | HV-SPGU 101 via `SEL1.OUT1` (PGU input) | 1 MOhm `SER`: the gate is an open load |
-| bulk | `bulk` (measure_only, I) | HRSMU 4 | pA to tens of nA; guarded triax to the substrate or chuck |
+| bulk | `bulk` (measure_only, I) | HRSMU 4 | Icp: estimate `q f A Dit dE` for your device before choosing the range; guarded triax to the substrate or chuck |
 | drain | `drain` (bias_v) | MPSMU 5 | reverse bias `v_r` |
 | source | `source` (bias_v) | MPSMU 6 | reverse bias `v_r` |
 
@@ -48,7 +48,8 @@ accumulation to inversion; the bulk SMU reads the recombination current `Icp = q
 
 - Id-Vg on the same landing first (gate through `SEL1.OUT1 -> smu`): Vth known, gate not leaky.
 - DUT profile with the gate `high_z` and a `pulse` envelope, the geometry (W, L) for `nit`.
-- Base below Vfb and top above Vth with margin; amplitude within the gate's pulse `max_abs_v`.
+- Base below Vfb and top above Vth with margin (from the Id-Vg and C-V of your device, or ask the owner); amplitude
+  within the gate's pulse `max_abs_v`. The level defaults (section 4) are examples for the simulator's device.
 - `station_status` clean; selectors at rest; no SPGU output running.
 
 ## 4. Recipe and parameters
@@ -56,8 +57,8 @@ accumulation to inversion; the bulk SMU reads the recombination current `Icp = q
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
 | `mode` | pg | pg | pg | fixed kind mode | PG trains with SMU readings |
-| `v_base` | -2 V | - | -10..10 V | base levels (list) | several = base-level sweep |
-| `amplitude` | 4 V | 2..5 V | 0.1..10 V | top = base + amplitude | must pass Vfb and Vth |
+| `v_base` | -2 V | - | -10..10 V | base levels (list; example: below your device's Vfb) | several = base-level sweep |
+| `amplitude` | 4 V | - | 0.1..10 V | top = base + amplitude (example: set it per device) | must pass Vfb and Vth |
 | `duty` | 0.5 | 0.3..0.5 | 0.05..0.5 | width / period | equal accumulation and inversion times |
 | `t_edge` | 100 ns | 20 ns..1 us | 8 ns..10 us | rise and fall | sets the energy window dE (log) |
 | `frequency` | 10 kHz, 20 kHz, 50 kHz, 100 kHz, 200 kHz, 500 kHz, 1 MHz | - | 10 Hz..5 MHz | pulse frequencies | Icp proportional to f |
@@ -98,16 +99,20 @@ sim_scenario: nmos_cv
 
 - Default `charge_pumping`: Icp per frequency (maximum over the base levels), `qcp` (C) = slope of Icp vs f with
   `r2`, `offset_a`, `max_deviation`, `icp_max` (A); plateau edges for a base sweep. Options: `area_um2` (W x L from
-  the DUT geometry) -> `nit` (cm^-2); `delta_e_ev` (a stated assumption, about 0.75 eV) -> `dit` (cm^-2 eV^-1).
+  the DUT geometry) -> `nit` (cm^-2); `delta_e_ev` -> `dit` (cm^-2 eV^-1): an assumption to state (about 0.7 eV
+  for 100 ns edges if sigma = 1e-16 cm^2; the owner's sigma is unknown:
+  [05](../../knowledge/05-reliability-defects.md#charge-pumping)).
 - Report Icp as measured, `qcp`/`nit`/`dit` as derived (method, frequencies used, assumptions), SIMULATED flag.
 
 ## 8. Expected result shape
 
-| item | expected | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| item | expected (source) | red flags |
 |---|---|---|
-| Icp vs f | straight line through about 0 | offset (leakage), bend at high f (incomplete pumping) |
+| Icp vs f | straight line through about 0 (`Icp = q f A Dit dE`, physics) | offset (leakage), bend at high f (incomplete pumping) |
 | Icp vs base | plateau, falling on both sides | no plateau (amplitude too small), monotonic rise (leakage) |
-| magnitude | `q f A Dit dE`: nA at 100 kHz for 1e-5 cm2, 5e10 cm^-2 eV^-1 | noise floor only (no pumping) |
+| magnitude | compute `q f A Dit dE` for your device (physics; no typical Dit for your stack) | noise floor only (no pumping) |
 
 ## 9. Common failures → debug
 

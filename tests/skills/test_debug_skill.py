@@ -3,9 +3,10 @@
 Budgets, frontmatter and links are checked by ``b1500 dev lint-skills`` (``test_lint_skills.py``). These tests pin
 the runbook ids that card ``debug:`` lists name (and that the lint resolves them), the fixed runbook structure, the
 symptom x family router (WP11.1: every family has a row, and the ``any`` rows plus a family's row reach every runbook
-the family's cards name), the human-only fault clear, the interrupted-run runbook, and the case template v2 (v2.1
-plan §3) with the deck's four seed cases, which stay ``draft`` until a human reviews them, each linked both ways with
-its runbook and reproduced on the simulator (``tests/integration/test_debug_cases.py``).
+the family's cards name), the human-only fault clear, the interrupted-run runbook, and the case template v3 (v2.1
+plan §3 + KD-5 ``origin``) with the four illustrative example cases (written from the owner's planning deck, which is
+illustrative, not a lab record), which stay ``draft`` until a human reviews them, each linked both ways with its
+runbook and reproduced on the simulator (``tests/integration/test_debug_cases.py``).
 """
 
 from __future__ import annotations
@@ -43,18 +44,18 @@ LONG_RUN_CARDS = ("reliability/bti-stress-measure", "reliability/hci-silc", "rel
 RUNBOOK_SECTIONS = ("Symptom", "Likely causes", "First safe checks", "Physical checks to ask the human", "Do not",
                     "Stop and call safe_shutdown")
 RUNBOOK_KEYS = ("id", "title", "maturity", "sources")
-CASE_KEYS = ("id", "title", "status", "reviewed_by", "runbook", "backend", "station", "device", "runs", "sources",
-             "reproduction", "open_questions")  # template v2 (v2.1 plan §3 item 1)
+CASE_KEYS = ("id", "title", "status", "reviewed_by", "runbook", "origin", "backend", "station", "device", "runs",
+             "sources", "reproduction", "open_questions")  # template v3 (v2.1 plan §3 item 1, KD-5 origin)
 CASE_SECTIONS = ("Symptom", "Observed data and status codes", "Physical checks", "Instrument checks",
                  "DUT hypotheses", "Resolution", "Reproducible", "Proposed follow-up",
                  "Simulator reproduction (SIMULATED)", "Open questions for the owner")
-SEED_CASES = {  # deck slide 17: the owner's four debug records (the C-V shape item since v2.1)
-    "2026-11-04-current-orders-too-high": "current-too-high",
-    "2026-11-04-noisy-data": "noisy-data",
-    "2026-11-04-igzo-vth-drift": "vth-drift-igzo",
-    "2026-11-04-cv-shape-abnormal": "cmu-cv-distortion",
+SEED_CASES = {  # KD-5: illustrative examples from the deck's slide 17 list (the C-V shape item since v2.1)
+    "example-current-orders-too-high": "current-too-high",
+    "example-noisy-data": "noisy-data",
+    "example-igzo-vth-drift": "vth-drift-igzo",
+    "example-cv-shape-abnormal": "cmu-cv-distortion",
 }
-SKILL_PARTS = ("First moves", "Triage order (deck slide 17)", "Symptom router (family x symptom)",
+SKILL_PARTS = ("First moves", "Triage order (general practice)", "Symptom router (family x symptom)",
                "Safe software checks", "Physical checks: ask the human", "Forbidden \"fixes\"", "Recording a case",
                "Iteration policy")
 CLEAR_COMMAND = "uv run b1500 " + "fault clear"  # built indirectly: the harness guard blocks the literal in shells
@@ -96,7 +97,7 @@ def test_skill_has_the_parts_and_indexes_every_runbook() -> None:
     index = _section(doc, ROUTER)
     targets = {target for target, _ in doc.links}
     assert [r for r in RUNBOOKS if f"runbooks/{r}.md" not in targets or f"[{r}]" not in index] == []
-    triage = _section(doc, "2. Triage order (deck slide 17)")
+    triage = _section(doc, "2. Triage order (general practice)")
     order = [triage.index(word) for word in ("Physical", "Instrument", "Data", "DUT")]
     assert order == sorted(order)
 
@@ -198,11 +199,11 @@ def test_case_template_structure() -> None:
     assert tuple(_h2(doc)) == CASE_SECTIONS
 
 
-def test_seed_cases_from_the_deck_are_drafts_for_human_review() -> None:
+def test_example_cases_are_illustrative_drafts_for_human_review() -> None:
     names = {p.stem for p in (SKILL_DIR / "cases").glob("*.md") if not p.name.startswith("_")}
     assert set(SEED_CASES) <= names
     for name in sorted(names):
-        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*", name), name
+        assert re.fullmatch(r"(?:\d{4}-\d{2}-\d{2}|example)-[a-z0-9]+(?:-[a-z0-9]+)*", name), name
         doc = _doc(f"cases/{name}.md")
         assert doc.front_error is None and isinstance(doc.front, dict), name
         assert tuple(doc.front) == CASE_KEYS and doc.front["id"] == name, name
@@ -212,17 +213,22 @@ def test_seed_cases_from_the_deck_are_drafts_for_human_review() -> None:
         assert tuple(_h2(doc)) == CASE_SECTIONS, name
     for name, runbook in SEED_CASES.items():
         doc = _doc(f"cases/{name}.md")
+        text = "\n".join(doc.lines)
         assert doc.front["status"] == "draft" and doc.front["runbook"] == runbook
-        assert "deck slide 17" in doc.front["sources"]
-        assert doc.front["backend"] == "visa" and doc.front["runs"] == []  # the deck's facts, no simulated run
-        assert "TODO(owner)" not in "\n".join(doc.lines)  # v2.1: numbered open questions instead
+        assert doc.front["origin"] == "illustrative" and doc.front["title"].startswith("Example: ")
+        assert [s for s in doc.front["sources"] if "deck" in s] == [s for s in doc.front["sources"]
+                                                                   if "illustrative" in s and "not a lab record" in s]
+        assert doc.front["backend"] == "none" and doc.front["station"] == "none" and doc.front["runs"] == []
+        assert "Illustrative example, not an observed lab case" in text and "Not observed in the lab." in text
+        assert "group" not in text and "Has the lab seen this problem?" in _section(doc, "Open questions for the owner")
+        assert "TODO(owner)" not in text  # v2.1: numbered open questions instead
         assert any(name in str(source) for source in _doc(f"runbooks/{runbook}.md").front["sources"])
         assert f"cases/{name}.md" in {t for t, _ in _doc("SKILL.md").links}  # SKILL part 8 lists it
 
 
 def test_runbooks_describe_the_simulator_reproductions() -> None:
     """v2.1 plan §3 item 3: ``vth-drift-igzo`` no longer claims that no scenario models it; ``cmu-cv-distortion``
-    carries the deck's order."""
+    carries the general-practice order of the C-V example (redo corrections, lower AC level, gate leakage)."""
     igzo = "\n".join(_doc("runbooks/vth-drift-igzo.md").lines)
     assert "No simulator scenario models this" not in igzo and "igzo_drift_repeat" in igzo
     cv = _section(_doc("runbooks/cmu-cv-distortion.md"), "First safe checks")
@@ -235,7 +241,7 @@ def test_lint_resolves_every_runbook_id_in_a_card(tmp_path: Path) -> None:
     shutil.copytree(POSITIVE, root)
     shutil.rmtree(root / ".agents/skills/b1500-debug")
     shutil.copytree(SKILL_DIR, root / ".agents/skills/b1500-debug")
-    for case in (root / ".agents/skills/b1500-debug/cases").glob("2*.md"):  # the fixture has only mosfet.idvg:
+    for case in (root / ".agents/skills/b1500-debug/cases").glob("[!_]*.md"):  # the fixture has only mosfet.idvg:
         text = case.read_text(encoding="utf-8")  # the reproductions are linted on the repository (test_lint_cases)
         case.write_text(text[:text.index("reproduction:\n")] + "reproduction: null\n"
                         + text[text.index("open_questions:"):], encoding="utf-8")

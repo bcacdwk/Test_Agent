@@ -23,7 +23,8 @@ evidence: []              # per run: run_id, recipe_id, recipe_file_sha256, plan
                           # started_at, outcome, cleanup, quality_verdict, status_counts (copied from the manifest)
 probe: null               # probe record work/bringup/probe-<UTC>.json (stage L0)
 measurements: []          # per value: check, quantity, value, unit, observed, run_id, method, reference,
-                          # reference_source, tolerance, passed
+                          # reference_source, tolerance (the stage's criterion text; "provisional" = no checked
+                          # basis, the owner confirms it before signing), passed
 result: ""                # pass | fail ("" while undecided)
 operator: ""              # who ran the stage
 date: ""                  # UTC date of the runs (YYYY-MM-DD)

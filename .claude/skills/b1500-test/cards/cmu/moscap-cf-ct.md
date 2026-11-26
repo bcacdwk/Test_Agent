@@ -63,13 +63,13 @@ geometry Cox).
 | `freqs_hz` (`moscap.cf`) | [1000, 1778.279, 3162.278, 5623.413, 10000, 17782.79, 31622.78, 56234.13, 100000, 177827.9, 316227.8, 562341.3, 1000000] Hz | 1 kHz..1 MHz | 1 kHz..5 MHz | 4 per decade log stair | the sweep; correction list |
 | `freqs_hz` (`moscap.ct`) | [1000] kHz | 100 kHz..1 MHz | 1 kHz..5 MHz | HF: minority carriers do not follow | one transient each |
 | `ac_vrms` | 30 mV | 10..50 mV | 10..250 mV | small signal | above 50 mV: `soft_cmu` |
-| `dc_v` | -0.6 V | -3..3 V | -25..25 V | depletion: traps respond | picks the trap energy |
+| `dc_v` | -0.6 V | - | -25..25 V | depletion: traps respond (bias defaults: examples for a p-substrate example device, set them per device) | picks the trap energy |
 | `sweep_mode` | single | single | single, double | double: up and down | 2 x points |
 | `hold_s` | 1 s | 0.5..5 s | 0..60 s | settle at the bias | WTFC hold |
 | `delay_s` | 0 s | 0..0.1 s | 0..10 s | settle per frequency | WTFC delay |
 | `integration` (`moscap.cf`) | medium | medium | short, medium, long | averaging | long for small G |
-| `v_base` | -2.5 V | -3..3 V | -25..25 V | accumulation: no inversion charge | level before the step |
-| `v_bias` | 2 V | -3..3 V | -25..25 V | inversion side | deep depletion depth |
+| `v_base` | -2.5 V | - | -25..25 V | accumulation: no inversion charge (example) | level before the step |
+| `v_bias` | 2 V | - | -25..25 V | inversion side (example) | deep depletion depth |
 | `interval_s` | 20 ms | 10 ms..1 s | 8 ms..655.35 s | >= one measurement time | 1 ms grid |
 | `points` | 301 | 101..2001 | 10..10001 | about 10 x the recovery time | > 60 s: chained blocks |
 | `hold_bias_s` | 0 s | 0..0.1 s | 0..655.35 s | first sample at the step | 10 ms grid |
@@ -77,7 +77,7 @@ geometry Cox).
 | `integration` (`moscap.ct`) | short | short | short, medium, long | 8 ms fits the interval | per sample |
 
 A log list: `f_k = f_1 (f_n/f_1)^(k/(n-1))`, each value at the MFCMU resolution (1 mHz below 10 kHz, 10 mHz below
-100 kHz, 0.1 Hz below 1 MHz, 1 Hz above; PG p348 Table 4-18); 2..64 points.
+100 kHz, 0.1 Hz below 1 MHz, 1 Hz above; PG p348 (4-30) Table 4-18); 2..64 points.
 
 Example plan (validated on the simulator by `b1500 dev lint-skills`, corrections over the C-f list first):
 
@@ -114,13 +114,15 @@ fails: move the bias. `moscap.ct`: `ct_recovery` (1/C^2 relaxation): `tau_recove
 
 ## 8. Expected result shape
 
-| quantity | typical (5 nm SiO2, p 1e17, Dit 2e11) | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| quantity | expected (source) | red flags |
 |---|---|---|
-| `dit` | 1e10..1e12 cm^-2 eV^-1 | > 1e13: leakage or series R, not traps |
-| `f_peak` | 1 kHz..1 MHz, lower towards midgap | at a list end: move the bias |
-| `c_dispersion` | 0.01..0.3 | < 0: series R at high f (use `rs_ohm`) |
-| `tau_recovery` | ms..minutes (generation lifetime) | no recovery: leaky oxide or a too-short record |
-| `c_initial` / `c_final` | 0.5..0.9 | > 1: the bias is not in inversion |
+| `dit` | no checked range for your gate stack (`TODO(cite)`) | a large value: check the G/w floor (leakage) and series R before trusting it; high-k and oxide-semiconductor interfaces can hold large Dit (no universal upper bound) |
+| `f_peak` | inside the list (1 kHz..1 MHz), lower towards midgap (physics) | at a list end: move the bias |
+| `c_dispersion` | device-dependent, no typical value | < 0: series R at high f (use `rs_ohm`) |
+| `tau_recovery` | set by generation lifetime and doping (physics), no typical value | no recovery: leaky oxide or a too-short record |
+| `c_initial` / `c_final` | < 1 (deep depletion, physics; the value depends on bias and doping) | > 1: the bias is not in inversion |
 
 ## 9. Common failures → debug
 

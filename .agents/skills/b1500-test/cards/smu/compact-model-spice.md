@@ -14,7 +14,7 @@ confirmation: never
 knowledge: [knowledge/07-compact-models.md#workflow, knowledge/07-compact-models.md#ekv-model, knowledge/07-compact-models.md#level-1-model, knowledge/07-compact-models.md#spice-export, knowledge/07-compact-models.md#reading-the-results, knowledge/06-analysis-extraction.md#reporting-rules-measured-versus-derived]
 manual: [PG p568-569 (4-250) "WV"]
 debug: [noisy-data, compliance-hit, current-too-high]
-sources: [blueprint v2 0 row 26, 2.10 model.py, 12 OD-6, deck slide 16 (domain 7)]
+sources: [blueprint v2 0 row 26, 2.10 model.py, 12 OD-6, "deck slide 16 (domain 7; topics only, illustrative: not evidence)", config/sim/scenarios/lab_nmos_2025.yaml (offline fit of lwp/matlab_B1500/IdVg_test_20251001_*.csv)]
 version: 1
 ---
 
@@ -89,8 +89,10 @@ sim_scenario: nmos_basic
 ## 6. Quality criteria
 
 - Run quality `ok`; refusal on untrusted rows is final unless the human asks for `force` (flagged).
-- Fit: `rms_log` below about 0.02 for EKV on a clean Id-Vg; above 0.1 a poor-fit warning. Standard errors small
-  against the values; no parameter at its bound; at least five used points below threshold for `n`.
+- Fit: report `rms_log` (natural log in the fit, decades in `model_compare`); no reference for a good fit on your
+  devices is on record (the offline EKV fit of the lab Id-Vg left 0.022 decade, `lab_nmos_2025.yaml`); above 0.1 the
+  code warns (poor fit). Standard errors small against the values; no parameter at its bound; at least five used
+  points below threshold for `n`.
 - Validation (`model_compare` on another run): report `rms_rel`, `rms_log` and the worst curve; a level-1 error is
   expected to be larger.
 
@@ -105,10 +107,16 @@ sim_scenario: nmos_basic
 
 ## 8. Expected result shape
 
-- Long-channel Si MOSFET: n 1.1..1.6 (SS 65..95 mV/dec), EKV `vth` between the constant-current and the
-  linear-extrapolation Vth, theta 0..1 1/V, lambda 0..0.2 1/V, rs ohms to hundreds of ohms.
-- IGZO TFT: n often 2..5 (traps), large hysteresis: fit one branch, expect larger errors.
-- Red flags: n at 1.0 or 5.0, `vth` outside the swept range, `rms_log` > 0.1, `rs` at its bound: re-check the run.
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+- n: SS = n·U_T·ln10 (physics), so n ≥ 1; typical n per technology `TODO(cite)`. theta, lambda, rs: device-specific,
+  no checked range (`TODO(cite)`); the lab transistor's offline fit gave n 3.45, rs ≈ 77 kOhm per S/D, theta at its
+  bound 0 (one device, type not recorded; offline fit of `lwp/matlab_B1500/IdVg_test_20251001_*.csv`).
+- EKV `vth` is a model parameter; it need not equal any extracted Vth: compare only with the method named (lab
+  curve: EKV 0.350 V, linear extrapolation 0.349 V, 10 nA constant current 0.296 V).
+- IGZO TFT: traps raise n (range `TODO(cite)`); hysteresis: fit one branch, expect larger errors.
+- Red flags: n at a fit bound (1.0 or 5.0, `analysis/model.py`), `vth` outside the swept range, `rms_log` > 0.1, `rs`
+  at its bound: re-check the run.
 
 ## 9. Common failures → debug
 

@@ -25,8 +25,8 @@ Put a bounded train of voltage pulses (or one arbitrary linear waveform, ALWG) o
 program/erase pulses, gate stress pulses, pulse checks into a known load at bring-up L7. No data are measured; the
 run reports the outputs, pulses and output time, and every route and stop is read back.
 
-- `spgu.pulse_train`: two-level (or three-level) pulses, period, `count` or `duration`.
-- `spgu.alwg_sequence`: one pattern of linear ramps (`levels`, `times`), `repeat` per sequence, sequences `count`.
+- `spgu.pulse_train`: two-level (or three-level) pulses, period, `count` or `duration`. `spgu.alwg_sequence`: one
+  pattern of linear ramps (`levels`, `times`), `repeat` per sequence, sequences `count`.
 - Not for: reading the device after the pulses (card `fefet-pulse-write-read`, WP9.4); charge pumping (card
   `charge-pumping`); DC stress (card `bti-stress-measure`).
 
@@ -34,10 +34,9 @@ run reports the outputs, pulses and output time, and every route and stop is rea
 
 | terminal | role | module | notes |
 |---|---|---|---|
-| gate | `gate` (pgu) | HV-SPGU channel 101, usually via `SEL1.OUT1` (16440A, PGU input) | 50 Ohm source, no compliance |
+| gate | `gate` (pgu) | HV-SPGU channel 101, usually via `SEL1.OUT1` (16440A, PGU input) | 50 Ohm source (UG p76 (2-36)), no compliance |
 
-- Example pin map `fefet-sel` (gate `SEL1.OUT1`, drain SMU4, source GNDU; only `gate` is used). A pin map may also
-  name the SPGU channel directly (`gate: 101`); then no route is set.
+- Example pin map `fefet-sel` (gate `SEL1.OUT1`; only `gate` is used); a pin map naming `gate: 101` sets no route.
 - Routes per phase: `pulse: SEL1.OUT1 -> pgu` before `CN`; `rest: SEL1.OUT1 -> open` after the train; cleanup:
   every declared selector output to rest, verified.
 - Selector inputs must be recorded in `config/local/station.yaml` (L7); on the simulator the scenario's cabling
@@ -47,8 +46,12 @@ run reports the outputs, pulses and output time, and every route and stop is rea
 
 - `station_status` clean: no fault, no active run, every selector output at rest, no SPGU output running.
 - DUT profile with a `pulse` envelope and the right `impedance` on the pulsed terminal (a gate is `high_z`).
-- `load_ohm` 1 MOhm for a gate or capacitor (high impedance); 50 Ohm only into a real 50 Ohm load.
-- The human confirms amplitude and width against the film (coercive field, breakdown) before the first train.
+- `load_ohm` 1 MOhm for a gate or capacitor (`SER`, PG p507 (4-189); lab script `lwp/matlab_B1500/test_SPGU.m`: 1
+  MOhm); 50 Ohm only into a real 50 Ohm load.
+- The human confirms amplitude and width against the film (coercive field, breakdown) before the first train: the
+  defaults (0 -> 4 V, 1 us, 20 ns edges) are examples, not program/erase values for your film (owner question:
+  [04](../../knowledge/04-ferroelectric-oxide.md#pulse-write-read-endurance-and-retention); the lab script ran
+  +-3 V, 2 us, 100 ns edges: what the lab ran, not a recommendation).
 
 ## 4. Recipe and parameters
 
@@ -56,18 +59,18 @@ run reports the outputs, pulses and output time, and every route and stop is rea
 |---|---|---|---|---|---|
 | `mode` (spgu.pulse_train) | pg | pg | pg | fixed kind mode | PG pulses |
 | `mode` (spgu.alwg_sequence) | alwg | alwg | alwg | fixed kind mode | ALWG waveform |
-| `v_base` | 0 V | -5..5 V | -40..40 V | level between pulses | set level; SER-adjusted |
-| `v_peak` | 4 V | -5..5 V | -40..40 V | pulse level | pad sees it at SER = load |
-| `width` | 1 us | 100 ns..1 ms | 10 ns..10 s | time at the peak | >= t_edge / 0.8 |
+| `v_base` | 0 V | - | -40..40 V | level between pulses (example) | set level; SER-adjusted |
+| `v_peak` | 4 V | - | -40..40 V | pulse level (example default: set it per device with the owner); module +-40 V open load, +-20 V into 50 Ohm (UG p76 (2-36)) | pad sees it at SER = load |
+| `width` | 1 us | - | 10 ns..10 s | time at the peak (example) | >= t_edge / 0.8 (error 2111, PG p591 (5-19)) |
 | `delay` | 0 s | - | 0..10 s | position in the period | - |
-| `t_edge` | 20 ns | 20 ns..1 us | 8 ns..0.4 s | rise and fall | period >= delay + width + t_edge / 0.8 |
-| `period` | 100 us | 1 us..1 s | 20 ns..10 s | repetition | 10 ns grid |
+| `t_edge` | 20 ns | 20 ns..1 us | 8 ns..0.4 s | rise and fall (module 8 ns..400 ms, UG p76 (2-36)) | period >= delay + width + t_edge / 0.8 (error 2112, PG p592 (5-20)) |
+| `period` | 100 us | 1 us..1 s | 20 ns..10 s | repetition (module 20 ns..10 s, UG p76 (2-36)) | 10 ns grid |
 | `bound` | count | count, duration | count, duration | what ends the output | never free run |
 | `count` (spgu.pulse_train) | 1000 | 1..10000 | 1..1000000 | pulses | soft band 10,000 per run |
 | `count` (spgu.alwg_sequence) | 100 | 1..10000 | 1..1000000 | sequences | each sequence = the pattern x repeat |
 | `duration` (spgu.pulse_train) | 0.1 s | 1 ms..10 s | 1 us..3600 s | output time | alternative bound |
 | `duration` (spgu.alwg_sequence) | 10 ms | - | 1 us..3600 s | output time | alternative bound |
-| `load_ohm` | 1 MOhm | 1 kOhm..1 MOhm | 0.1 Ohm..1 MOhm | declared load SER | 50 Ohm doubles the level on an open load |
+| `load_ohm` | 1 MOhm | 1 kOhm..1 MOhm | 0.1 Ohm..1 MOhm | declared load SER | 50 Ohm doubles the level on an open load (50 Ohm source, AN-TUT p149 (5-3)) |
 | `three_level` | false | - | - | add source 2 | output = source 1 + source 2 |
 | `v_base2` | 0 V | - | -40..40 V | source 2 base | three-level only |
 | `v_peak2` | -4 V | - | -40..40 V | source 2 peak | three-level only |
@@ -117,7 +120,9 @@ sim_scenario: fefet_lab
 
 ## 8. Expected result shape
 
-| item | expected | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| item | expected (source) | red flags |
 |---|---|---|
 | waited_s | about the planned output time (+ one poll) | much shorter (stopped early) or a fallback |
 | routes | `SEL1.OUT1 pgu` then `open`, read back | `RouteNotVerified`, a port not at rest |
@@ -140,7 +145,6 @@ sim_scenario: fefet_lab
 | sim | 2026-11-22 | fefet_lab | fefet-lab | S20261122T092630Z-2406 | needs_confirmation (unverified_pin_map, unverified_topology); 1000 pulses 0->4 V 1 us at 10 kHz through SEL1.OUT1, FeFET programmed, cleanup verified, selectors open | - |
 | hw | pending (bring-up stage L7) | - | - | - | - | - |
 
-Sim rows: the example plan run through `B1500Service` with temporary `B1500_CONFIG_DIR`/`B1500_DATA_DIR`; that run
-folder was not kept. Hardware records: `validation/hw/spgu.pulse_train.yaml`, `validation/hw/spgu.alwg_sequence.yaml`
-(reviewed by a human after stage L7; drafts only from hardware `H...` runs). Until then every hardware plan needs
-`first_hw_run` confirmation.
+Sim rows: the example plan run through `B1500Service` (temporary config and data dirs; folder not kept). Hardware
+records: `validation/hw/spgu.pulse_train.yaml`, `validation/hw/spgu.alwg_sequence.yaml` (reviewed by a human after
+stage L7; drafts only from hardware `H...` runs). Until then every hardware plan needs `first_hw_run` confirmation.

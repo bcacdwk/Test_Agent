@@ -49,7 +49,7 @@ answer "done"). Never mark an item done yourself.
    per module alias for `topology.cables` (the human enters them at L0).
 5. EasyEXPERT records (Configuration window): model, firmware, EasyEXPERT revision and line frequency (Main Frame
    tab); the slot list (Modules tab); run Start Self Test and Module Self Calibration; note the auto-calibration
-   setting and the SMU Zero Cancel state (it shifts low-current offsets).
+   setting and the SMU Zero Cancel state (it subtracts stored offset currents, EX p338 (4-44)).
 6. GPIB settings on the B1500A (Keysight Connection Expert, GPIB0, Change Properties): GPIB address (factory 17),
    System Controller No, Auto-discover No; a change needs a reboot (PG p23 (1-3) "System Controller"). With a
    USB/GPIB adapter the guide recommends an even address if serial-poll errors appear.
@@ -80,8 +80,8 @@ answer "done"). Never mark an item done yourself.
 | `interlock_state` | open (outputs limited to 42 V) | recorded | owner decision |
 | `self_test` | mainframe and every module pass | pass/fail | EasyEXPERT |
 | `self_cal` | completed without error | pass/fail | EasyEXPERT |
-| `module_list` | slot, model per slot (lab: SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7) | recorded | Modules tab |
-| `firmware` | firmware revision (the lab's: A.06.02) | recorded | Main Frame tab |
+| `module_list` | slot, model per slot (lab, `UNT? 0` in `lwp/matlab_B1500/B1500_Config.mat`: SPGU 1, WGFMU 2, HRSMU 3-4, MPSMU 5-6, MFCMU 7; slots 8-10 not recorded) | recorded | Modules tab |
+| `firmware` | firmware revision (the lab's: A.06.02, `*IDN?` in the `lwp/matlab_B1500/IdVg_test_*.csv` headers) | recorded | Main Frame tab |
 | `line_frequency` | 50 Hz or 60 Hz | recorded | Main Frame tab |
 | `cables` | triax per SMU, GNDU on 16493L, Guard free | pass/fail | station |
 | `gpib_settings` | address (17), System Controller No, Auto-discover No | pass/fail | Connection Expert |

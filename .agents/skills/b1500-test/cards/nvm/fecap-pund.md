@@ -48,7 +48,8 @@ capacitor (FeCap, e.g. HfZrO between two electrodes) from switching currents, an
 
 - `station_status` clean (no fault, no active run). Ask the film thickness, area and expected Ec (DUT profile);
   never invent geometry: without it Pr/Ps/Ec are refused (`q_switch` and Vc still come out).
-- Amplitude about 2-3 x Vc within the terminals' pulse `max_abs_v`; a C-V butterfly first shows where Vc is.
+- Amplitude above Vc within the terminals' pulse `max_abs_v` (2-3 x Vc: general practice, not checked; the lab's
+  PUND train: ±4 V, `lwp/1530/ch1_wave_pt.csv`); the human gives it; a C-V butterfly first shows where Vc is.
 - Each PUND cycles the film (~1.5 cycles); a pristine film wakes up: record the device's cycle history.
 
 ## 4. Recipe and parameters
@@ -56,7 +57,7 @@ capacitor (FeCap, e.g. HfZrO between two electrodes) from switching currents, an
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
 | `builder` | pund | - | pund | the PUND waveform | - |
-| `v_max` | 3 V | 2..4 V | 0.1..10 V | PUND amplitude, beyond Vc | too low: Pr under-read |
+| `v_max` | 3 V | - | 0.1..10 V | PUND amplitude beyond Vc: example default, set from your film | too low: Pr under-read |
 | `rise` | 10 us | 1..100 us | 100 ns..10 ms | ramp 0 V -> v_max | current ~ dV/dt |
 | `plateau` | 0 s | 0..10 us | 0..10 ms | flat top (0 = triangle) | triangle resolves Vc best |
 | `delay` | 10 us | 1 us..1 ms | 100 ns..1 s | at 0 V after each pulse | relaxation |
@@ -68,8 +69,8 @@ capacitor (FeCap, e.g. HfZrO between two electrodes) from switching currents, an
 | `reads_per_decade` | 3 | 2..5 | 1..20 | PUND reads per decade | more: longer run |
 | `read_cycles` | [1, 10, 100, 1000, 10000, 100000, 1000000] | - | 1..1000000000 | listed reads | integers |
 | `cycle_period` | 100 us | 10 us..1 ms | 100 ns..1 s | one bipolar cycle | sets the run time |
-| `v_program` | 3 V | 2..4 V | -10..10 V | first cycling pulse | positive polarization |
-| `v_erase` | -3 V | -4..-2 V | -10..10 V | second cycling pulse | negative polarization |
+| `v_program` | 3 V | - | -10..10 V | first cycling pulse: example default | positive polarization |
+| `v_erase` | -3 V | - | -10..10 V | second cycling pulse: example default | negative polarization |
 | `width` | 10 us | 1..100 us | 10 ns..1 ms | flat time per cycling pulse | duty = width / cycle_period |
 | `t_edge` | 1 us | 100 ns..10 us | 10 ns..1 ms | cycling edges | half period > 2 t_edge + width |
 | `sequence` | program_erase | - | program_erase, erase_program | cycling polarity order | - |
@@ -112,15 +113,17 @@ sim_scenario: fecap_basic
   (C); several reads add `pr_initial`, `pr_max`, `wake_up`, `fatigue`, `cycles_to_failure`
   ([06b](../../knowledge/06b-analysis-time-pulse.md#pund)). `plot_pund`: currents, P-V, Pr versus cycles.
 - Report every one as derived, the method id and the window (forcing-voltage span) next to each value:
-  `Pr = 17.0 uC/cm^2 (derived; pund_polarization; window -3..3 V)`, the same for Ps, Ec (and Vc); then the cycle
-  count, status counts and the SIMULATED flag. Never call Pr or Ec measured.
+  `Pr = <value> uC/cm^2 (derived; pund_polarization; window <lo>..<hi> V)`, the same for Ps, Ec (and Vc); then the
+  cycle count, status counts and the backend (SIMULATED on `sim`). Never call Pr or Ec measured.
 
 ## 8. Expected result shape
 
-| device | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| device | expected (source) | red flags |
 |---|---|---|
-| 10 nm HZO, +-3 V, 10 us ramps | Pr 10-25 uC/cm^2, Ec 1-1.5 MV/cm, imprint < 0.2 V | Pr ~ 0 (paraelectric, dead film, wrong path) |
-| endurance | Pr rises 10-20 % (wake-up), falls after 10^5-10^7 cycles | sudden drop with large U current: breakdown |
+| FeCap PUND | Pr, Ec, imprint unknown for your films ([04](../../knowledge/04-ferroelectric-oxide.md#ferroelectric-basics-ec-pr-ps)): report the values, compare only with the owner's references | Pr ~ 0 (paraelectric, dead film, wrong path) |
+| endurance | wake-up (Pr grows), then fatigue (Pr falls) as shapes (physics); sizes and cycle counts unknown ([04](../../knowledge/04-ferroelectric-oxide.md#fecap-p-v-and-pund)) | sudden drop with large U current: breakdown |
 
 ## 9. Common failures → debug
 

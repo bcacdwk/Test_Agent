@@ -13,7 +13,7 @@ confirmation: conditional
 knowledge: [knowledge/02b-smu-modes.md#sampling-measurement-mm-10, knowledge/06b-analysis-time-pulse.md#sampling-summary-and-relaxation-fit, knowledge/05-reliability-defects.md#igzo-instability-mechanisms, knowledge/02-b1500-instrument.md#data-status-codes]
 manual: [PG p474-475 (4-156) "MT", PG p477 (4-159) "MV", PG p472-473 (4-154) "MSC", PG p538 (4-220) "TSC"]
 debug: [smu-sampling-skips, vth-drift-igzo, compliance-hit, noisy-data, errx-codes, cleanup-failed-fault, async-run-interrupted]
-sources: [blueprint v2 3.1 and 4.2, lwp lib/IVt_sampling.m, PG sampling measurements p112-114]
+sources: [blueprint v2 3.1 and 4.2, lwp/matlab_B1500/test_IVt_sampling.m, lwp/matlab_B1500/lib/IVt_sampling.m, PG sampling measurements p112-114]
 version: 1
 ---
 
@@ -22,12 +22,11 @@ version: 1
 ## 1. Purpose and applicable devices
 
 How does a current evolve after a bias step? `mosfet.id_t_sampling` holds the drain at `vd`, steps the gate from
-`vg_base` to `vg` at the time origin and samples Id every `interval` (the lab's Id(t) script); the IGZO bias-stress
+`vg_base` to `vg` at the time origin and samples Id every `interval` (as the lab's Id(t) script); the IGZO bias-stress
 drift appears as a relaxing Id whose stretched exponential gives tau and beta. `generic.smu_sampling` does the same
 for any three terminals named `stress` (stepped), `bias` (optional constant) and `ground` (ad-hoc pin map).
 
-- Applies to oxide TFTs, MOSFETs (charge trapping, self-heating settling) and any two/three-terminal device whose
-  current drifts under a constant bias.
+- Applies to oxide TFTs, MOSFETs (charge trapping, self-heating settling), any device drifting under constant bias.
 - Not for: Vth(t) from repeated Id-Vg (stress-measure, BTI), breakdown life (destructive:
   [tddb-bdv](../reliability/tddb-bdv.md)), sub-ms transients (WGFMU), Id-Vg itself ([mosfet-idvg](mosfet-idvg.md)).
 
@@ -48,8 +47,8 @@ for any three terminals named `stress` (stepped), `bias` (optional constant) and
 
 - Fresh landing: [contact-resistor-check](contact-resistor-check.md); an Id-Vg first ([mosfet-idvg](mosfet-idvg.md))
   so `vg` sits above Vth and `vd` in the intended region.
-- Rest the device before a transient (no bias for minutes): the previous run's stress is still relaxing. Keep the
-  station dark and note the temperature (IGZO drift depends on both).
+- Rest the device before a transient (the last stress still relaxes; its recovery time is unknown for your devices:
+  ask the human, or measure Id(t) once after a stress). Keep the station dark; note the temperature (IGZO drift).
 - `station_status` clean; pin map and DUT profile supplied by the human.
 
 ## 4. Recipe and parameters
@@ -57,17 +56,17 @@ for any three terminals named `stress` (stepped), `bias` (optional constant) and
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
 | `vg_base` | 0 V | - | -20..20 V | off state before the step | the step size sets the stress |
-| `vg` | 3 V | 1..10 V | -20..20 V | stress gate level (lab) | above the profile: confirmation |
-| `vd` | 5 V | 0.05..5 V | -20..20 V | drain read bias (lab 5 V) | 0.05-0.1 V: linear region, Id ∝ Vth shift |
+| `vg` | 3 V | - | -20..20 V | stress gate level (lab script `lwp/matlab_B1500/test_IVt_sampling.m`: 3 V) | above the profile: confirmation |
+| `vd` | 5 V | 0.05..5 V | -20..20 V | drain read bias (lab script: 5 V) | 0.05-0.1 V: linear region, Id ∝ Vth shift |
 | `icomp_gate` | 1 uA | - | 1 pA..1 mA | gate short guard | a gate short aborts the sampling |
 | `icomp_drain` | 1 mA | 1 uA..10 mA | 1 pA..10 mA | drain current limit | compliance aborts the run |
-| `interval` (`mosfet.id_t_sampling`) | 4 ms | 2 ms..1 s | 2 ms..65.535 s | time resolution (lab 4 ms) | 1 ms steps |
+| `interval` (`mosfet.id_t_sampling`) | 4 ms | 2 ms..1 s | 2 ms..65.535 s | time resolution (lab script: 4 ms) | 1 ms steps |
 | `interval` (`generic.smu_sampling`) | 10 ms | 2 ms..1 s | 0.1 ms..65.535 s | time resolution | below 2 ms: 10 us steps, linear, one block |
-| `points` (`mosfet.id_t_sampling`) | 10001 | 1001..10001 | 11..10001 | samples (lab 10001) | span = (points - 1) x interval |
+| `points` (`mosfet.id_t_sampling`) | 10001 | 1001..10001 | 11..10001 | samples (lab script: 10001) | span = (points - 1) x interval |
 | `points` (`generic.smu_sampling`) | 1001 | 101..10001 | 1..100001 | samples | the policy caps a run at 10001 |
 | `hold_bias` (`mosfet.id_t_sampling`) | 10 ms | - | 0..655.35 s | gate step to the first sample | 10 ms steps |
 | `hold_bias` (`generic.smu_sampling`) | 0 s | - | 0..655.35 s | step to the first sample | 10 ms steps |
-| `hold_base` (`mosfet.id_t_sampling`) | 0.1 s | - | 0..655.35 s | off state before the step (lab) | counts into the first block |
+| `hold_base` (`mosfet.id_t_sampling`) | 0.1 s | - | 0..655.35 s | off state before the step (lab script: 0.1 s) | counts into the first block |
 | `hold_base` (`generic.smu_sampling`) | 0 s | - | 0..655.35 s | base level before the step | counts into the first block |
 | `sampling_mode` | `linear` | `linear`, `log25` | `linear`, `log10`, `log25`, `log50`, `log100`, `log250`, `log500` | log for long relaxations | log: one block, at most 1 + 11 x density points |
 | `integration` | `medium` | `short`, `medium` | `short`, `medium`, `long` | ADC preset | shortened by the instrument when longer than the interval |
@@ -104,8 +103,7 @@ sim_scenario: igzo_transient
   than the interval or auto-range changes; the `t_s` steps show them), `time_source` (`timestamp` normally;
   `index`/`host` = time stamps missing, ATV-22 fallback: say so).
 - Shape sanity: a smooth monotonic relaxation after the step; noise below the drift; no step in the middle.
-- Re-measure (autonomous, at most two, stays `ok`): `interval`, `points`, `integration`, `sampling_mode`; a larger
-  `vg` or `vd` is a new plan (confirmation when outside the profile).
+- Re-measure (autonomous, at most two, stays `ok`): `interval`, `points`, `integration`, `sampling_mode`; a larger `vg` or `vd` is a new plan.
 
 ## 7. Analysis method
 
@@ -113,17 +111,20 @@ sim_scenario: igzo_transient
   `initial`, `final` (medians of the first/last 10 points), `mean`, `std`, `drift` = (final - initial)/|initial|
   and the relaxation `y = y_inf + (y0 - y_inf) exp(-(t/tau)^beta)` → `tau` (s), `beta`, `y_inf` (fit: `r2`,
   standard errors) over `t_s` (seconds since the gate step). Options: `y`, `fit`, `t_min`, `t_max`, `edge`.
-- tau and beta of Id(t) equal those of Vth(t) when Id is linear in Vth (linear region, small `vd`); in saturation
-  they are close (a few %). A tau beyond 3x the sampled span is flagged: sample longer or log-spaced.
+- tau and beta of Id(t) equal those of Vth(t) when Id is linear in Vth (linear region, small `vd`); in saturation Id
+  is quadratic in Vth and they deviate by an amount that grows with dVth/(Vg - Vth): use the linear region. A tau
+  beyond 3x the sampled span is flagged: sample longer or log-spaced.
 - `plot_timeseries` (`log_time: true`) for the transient. Report measured Id(t) (points, interval, status counts)
   and the derived tau, beta with the fit window ([06b](../../knowledge/06b-analysis-time-pulse.md#sampling-summary-and-relaxation-fit)).
 
 ## 8. Expected result shape
 
-| device | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| device | expected (source) | red flags |
 |---|---|---|
-| IGZO TFT, positive gate step | Id decays by % to tens of %; beta 0.3-0.7; tau s to hours | Id rising (negative shift: light, NBIS); sudden steps |
-| Si MOSFET | small fast decay (charge trapping), then flat | drift > 10 % (heating, damaged oxide) |
+| IGZO TFT, positive gate step | Id decays (Vth shifts positive: electron trapping, physics); decay size, tau and beta unknown for your devices ([05](../../knowledge/05-reliability-defects.md#igzo-instability-mechanisms)) | Id rising under a positive step (negative shift): unexpected; light leak or ambient possible, cause unknown (`vth-drift-igzo`); sudden steps |
+| Si MOSFET | small fast decay (charge trapping), then flat (general practice) | drift beyond a repeat on a rested device (heating, damaged oxide; drift size `TODO(verify)[L5.A3]`) |
 | any | smooth, monotonic, noise ≪ drift | compliance abort; jumps; Id at the noise floor |
 
 ## 9. Common failures → debug
@@ -144,7 +145,6 @@ sim_scenario: igzo_transient
 | sim | 2026-11-19 | igzo_transient (lab defaults, `vd` 5 V) | nmos-generic | S20261119T103558Z-5925 | dut_envelope; tau 3.91 s (-2 %), beta 0.501 | - |
 | hw | pending (bring-up stage L5) | - | - | - | - | - |
 
-Sim rows: the example plan run through `B1500Service` with temporary `B1500_CONFIG_DIR`/`B1500_DATA_DIR`; those run
-folders were not kept. Hardware records: `validation/hw/mosfet.id_t_sampling.yaml` and
-`validation/hw/generic.smu_sampling.yaml` (reviewed by a human after bring-up stage L5, skill `b1500-bringup`;
-drafts only from hardware `H...` runs, never from simulator `S...` runs).
+Sim rows: the example plan through `B1500Service`, temporary config/data dirs (not kept). Hardware records:
+`validation/hw/mosfet.id_t_sampling.yaml`, `validation/hw/generic.smu_sampling.yaml` (reviewed by a human after
+stage L5, skill `b1500-bringup`; drafts only from hardware `H...` runs, never from simulator `S...` runs).

@@ -25,13 +25,13 @@ Measure a transistor faster than it heats or its slow traps respond, with the WG
 RSUs (Fast IV mode, current measured on the drain):
 
 - `wgfmu.pulsed_iv`: one gate pulse per level (vg_start..vg_stop), drain held at `vd`, Id averaged on each flat top:
-  the isothermal / trap-free transfer curve. Compare with a DC Id-Vg at the same `vd` (`pulsed_vs_dc`).
+  less self-heating and slow-trap charging than DC (reduced, not removed). Compare with DC Id-Vg (`pulsed_vs_dc`).
 - `wgfmu.fast_iv`: the gate ramps up and down in microseconds; Id sampled on both ramps (segments fwd/rev): fast
   hysteresis and a quick Id-Vg.
 - `wgfmu.pulse_train`: `count` identical pulses with `samples` points on every plateau: drift of Id over a train;
   `gate_mode: pg` pulses the gate in PG mode (50 Ohm output, set level = open-load level, at most 5 V).
-- Not for: SMU pulses of 0.5 ms and longer (card `smu-pulsed-iv`); RTN or 1/f noise (card `wgfmu-rtn-noise`);
-  arbitrary lab waveforms or WGFMU DC checks (card `wgfmu-custom-waveform`); PUND (card `fecap-pund`).
+- Not for: SMU pulses of 0.5 ms and longer (PG p486 (4-168); `smu-pulsed-iv`); RTN or 1/f noise (`wgfmu-rtn-noise`);
+  custom waveforms or WGFMU DC checks (`wgfmu-custom-waveform`); PUND (`fecap-pund`).
 
 ## 2. Wiring, pin map, modules
 
@@ -43,7 +43,7 @@ RSUs (Fast IV mode, current measured on the drain):
 | bulk | `bulk` (bias_v, optional; pulsed_iv only) | SMU5 (MPSMU) | body bias held around the waveform |
 
 - Example pin maps `mosfet-wgfmu` (gate RSU201.OUT, drain RSU202.OUT, source GNDU) and `mosfet-wgfmu-body` (+ bulk
-  SMU5). The RSUs must sit at the probe tips (short cables): the WGFMU's speed is lost on long triax runs.
+  SMU5). The RSUs sit at the probe tips (AN-RTN p4 (4)): the WGFMU's speed is lost on long triax runs.
 - Routes per phase: `waveform: RSU201.OUT -> wgfmu, RSU202.OUT -> wgfmu` while the sequencer runs (the library's
   connect, guarded); `rest`: both RSUs back on their normal path; cleanup: abort, initialize, disconnect, verified.
 
@@ -60,18 +60,18 @@ RSUs (Fast IV mode, current measured on the drain):
 | `builder` (wgfmu.pulsed_iv) | pulsed_iv | pulsed_iv | pulsed_iv | fixed builder | one pulse per level |
 | `builder` (wgfmu.fast_iv) | fast_iv_ramp | fast_iv_ramp | fast_iv_ramp | fixed builder | up/down ramps |
 | `builder` (wgfmu.pulse_train) | pulse_train | pulse_train | pulse_train | fixed builder | repeated pulse |
-| `vg_base` | 0 V | -1..0 V | -5..5 V | gate between pulses | off state |
-| `vg_start` | 0 V | -1..0.5 V | -5..5 V | first pulse level / ramp start | sweep start |
-| `vg_stop` | 2 V | 1..3 V | -5..5 V | last pulse level / ramp top | sweep end |
+| `vg_base` | 0 V | - | -5..5 V | gate between pulses (level defaults: examples for the simulator's device, set them per device) | off state |
+| `vg_start` | 0 V | - | -5..5 V | first pulse level / ramp start (example) | sweep start |
+| `vg_stop` | 2 V | - | -5..5 V | last pulse level / ramp top (example) | sweep end |
 | `vg_points` | 21 | 11..101 | 1..500 | pulses | 4 vectors per pulse |
-| `vg_peak` | 2 V | 1..3 V | -5..5 V | pulse level | on state |
-| `vd` | 1 V | 0.05..2 V | -5..5 V | drain bias | linear or saturation |
+| `vg_peak` | 2 V | - | -5..5 V | pulse level (example) | on state |
+| `vd` | 1 V | - | -5..5 V | drain bias (example) | linear or saturation |
 | `irange` | 1ma | - | 1ua, 10ua, 100ua, 1ma, 10ma | drain range | over-range reads V |
-| `width` | 10 us | 1..100 us | 100 ns..10 ms | flat top | shorter = colder |
+| `width` | 10 us | - | 100 ns..10 ms | flat top >= the recommended minimum pulse width of `irange` (WG5 p25 (1-15): 10 mA 145 ns, 1 mA 240 ns, 100 uA 950 ns, 10 uA 6.8 us, 1 uA 38.7 us); Fast IV >= 300 ns (WG p16 (1-4)) | shorter = colder |
 | `period` (wgfmu.pulsed_iv) | 1 ms | 0.1..10 ms | 1 us..1 s | repetition | duty = width / period |
 | `period` (wgfmu.pulse_train) | 100 us | 10 us..10 ms | 1 us..1 s | repetition | duty = width / period |
-| `edge` | 100 ns | 10 ns..1 us | 10 ns..100 us | rise and fall | slower = less ringing |
-| `settle` | 1 us | 100 ns..10 us | 0..1 ms | edge to window (fast_iv: hold) | window = width - 2 settle |
+| `edge` | 100 ns | 70 ns..1 us | 10 ns..100 us | rise and fall (>= 70 ns limits overshoot, WG5 p25 (1-15)) | slower = less ringing |
+| `settle` | 1 us | - | 0..1 ms | edge to window (fast_iv: hold); >= the settling time of `irange` (WG5 p25 (1-15): 10 mA 125 ns, 1 mA 200 ns, 100 uA 820 ns, 10 uA 5.8 us, 1 uA 37 us) | window = width - 2 settle |
 | `vb` | 0 V | - | -2..2 V | body bias (bulk role) | Vth shift |
 | `icomp_bulk` | 100 uA | - | 1 pA..1 mA | bulk SMU compliance | - |
 | `ramp` | 10 us | 1 us..1 ms | 20 ns..1 s | one ramp | faster = less trapping |
@@ -95,9 +95,10 @@ sim_scenario: nmos_wgfmu
 ## 5. Limits and confirmation
 
 - No compliance: every level of every vector is checked against the channel envelope before the library sees it
-  (vectors, 10 ns grid, output time, stored values); a short draws up to the range's full scale (10 mA range).
-- Blocked: a gate pulse role on a terminal without a `pulse` envelope (R-PULSE-02), > 2,048 vectors (> 500 levels),
-  levels outside the force range, an event outside its pattern (R-WG-02), a WGFMU role not on an RSU (R-WG-01).
+  (vectors, 10 ns grid, output time, stored values); a short draws up to the range's full scale (WG p16 (1-4)).
+- Blocked: a gate pulse role on a terminal without a `pulse` envelope (R-PULSE-02), > 2,048 vectors (> 500 levels;
+  WG5 p24 (1-14)), levels outside the force range, an event outside its pattern (R-WG-02), a WGFMU role not on an
+  RSU (R-WG-01).
 - Confirm: `unverified_topology` (the example RSUs are unverified), `dut_envelope`, `soft_pulse` (above 5 V, 10,000
   pulses, 60 s at the pulse level, duty 0.5); on hardware `first_hw_run`. Runs are short (sync).
 
@@ -107,7 +108,7 @@ sim_scenario: nmos_wgfmu
   `V` points. `N` everywhere expected.
 - The averaging window must lie on the flat top: `settle` >= the edge plus the ringing seen in a time-resolved
   `wgfmu.pulse_train` with many `samples`.
-- Noise falls as 1/sqrt(window / 5 ns): a 10 us window averages 2,000 samples.
+- White noise falls as 1/sqrt(window / 5 ns) (5 ns sampling, WG p16 (1-4)): a 10 us window averages 2,000 samples.
 
 ## 7. Analysis method
 
@@ -119,10 +120,12 @@ sim_scenario: nmos_wgfmu
 
 ## 8. Expected result shape
 
-| item | expected | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| item | expected (source) | red flags |
 |---|---|---|
-| pulsed vs DC at low duty, no heating | ratio about 1 (within a few %) | pulsed far below DC: window on an edge or range overflow |
-| self-heating device | pulsed > DC at high Id x Vd | pulsed > DC at negligible power: traps, or a different landing |
+| pulsed vs DC at low duty, no heating | ratio close to 1 when neither heating nor fast trapping acts (tolerance `TODO(verify)[L8.A4]`) | pulsed far below DC on a Si device: window on an edge or range overflow |
+| self-heating at high Id x Vd | sign by device: Si/SOI read pulsed >= DC; thermally activated thin-film transistors (IGZO) can read pulsed <= DC; for your device unknown | pulsed > DC at negligible power: traps, or a different landing |
 | fast_iv up vs down | overlap without trapping | large loop: trapping (oxide TFT, FeFET) or a ramp too fast for the cables |
 
 ## 9. Common failures → debug
@@ -131,7 +134,7 @@ sim_scenario: nmos_wgfmu
 |---|---|---|---|
 | status V points, flat-topped Id | drain range too small | `irange` vs Id; quality report | `wgfmu-range-overflow` |
 | library or session error, 30xx code | DLL, session, RSU, setup error | `station_status` WGFMU line, audit | `wgfmu-library-error` |
-| plan blocked on points / memory | too many stored values (~4 M per channel) | summary pts, `samples`, `count` | `wgfmu-memory-budget` |
+| plan blocked on points / memory | too many stored values (~4 M per channel, WG5 p25 (1-15)) | summary pts, `samples`, `count` | `wgfmu-memory-budget` |
 | no current at all, 3001 | RSU not on the WGFMU path, probe not landed | audit RSU states, contact check | `wgfmu-rsu-route` |
 | fault latched after a run | a channel could not be disconnected | keep the fault; human checks | `cleanup-failed-fault` |
 
@@ -142,7 +145,6 @@ sim_scenario: nmos_wgfmu
 | sim | 2026-11-24 | nmos_wgfmu | nmos-wgfmu | S20261124T052440Z-ebc3 | needs_confirmation (unverified_topology); 21 pulses 0..2 V, 10 us at 1 % duty, 21 N; Id(2 V) = model 2.04e-4 A; vs DC mosfet.idvg S20261124T052440Z-5a5f: pulsed/DC 1.0007, max rel. difference 0.26 % | - |
 | hw | pending (bring-up stage L8) | - | - | - | - | - |
 
-Sim rows: the example plan run through `B1500Service` with temporary `B1500_CONFIG_DIR`/`B1500_DATA_DIR`; that run
-folder was not kept. Hardware records: `validation/hw/wgfmu.pulsed_iv.yaml`, `validation/hw/wgfmu.fast_iv.yaml`,
-`validation/hw/wgfmu.pulse_train.yaml` (reviewed by a human after stage L8; drafts only from hardware `H...` runs).
-Until then every hardware plan needs `first_hw_run` confirmation.
+Sim rows: the example plan run through `B1500Service` (temporary dirs; folder not kept). Hardware records:
+`validation/hw/wgfmu.pulsed_iv.yaml`, `validation/hw/wgfmu.fast_iv.yaml`, `validation/hw/wgfmu.pulse_train.yaml`
+(reviewed by a human after stage L8; drafts only from hardware `H...` runs; until then `first_hw_run` confirmation).

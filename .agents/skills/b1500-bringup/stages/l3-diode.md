@@ -3,13 +3,13 @@ stage: L3
 title: Known diode - voltage forcing, compliance flags, Is/n/Rs against the data sheet and EasyEXPERT
 recipes: [basic.diode_iv, basic.iv_force_i]
 checks:
-  - {id: n, recipe: basic.diode_iv, quantity: n, method: diode_fit, reference: 'data sheet / EasyEXPERT fit of the same sweep', text: 'plausible: 1.0 to 2.0 for a Si diode'}
-  - {id: is, recipe: basic.diode_iv, quantity: is, method: diode_fit, unit: A, reference: 'data sheet / EasyEXPERT fit of the same sweep', text: recorded (plausible order of magnitude)}
-  - {id: rs, recipe: basic.diode_iv, quantity: rs, method: diode_fit, unit: Ohm, reference: data sheet, text: recorded}
-  - {id: leakage, recipe: basic.diode_iv, quantity: leakage, method: leakage_at, unit: A, reference: EasyEXPERT reverse current at the same voltage, tolerance: {factor: 2}, text: 'within a factor 2 (both above 10 pA)'}
+  - {id: n, recipe: basic.diode_iv, quantity: n, method: diode_fit, reference: 'data sheet / EasyEXPERT fit of the same sweep', text: 'plausible: 1.0 to 2.0 (textbook)'}
+  - {id: is, recipe: basic.diode_iv, quantity: is, method: diode_fit, unit: A, reference: 'data sheet or vendor SPICE model / EasyEXPERT fit of the same sweep', text: recorded (order of magnitude)}
+  - {id: rs, recipe: basic.diode_iv, quantity: rs, method: diode_fit, unit: Ohm, reference: 'data sheet or SPICE model of the part, if they give it', text: recorded}
+  - {id: leakage, recipe: basic.diode_iv, quantity: leakage, method: leakage_at, unit: A, reference: EasyEXPERT reverse current at the same voltage, tolerance: {factor: 2}, text: 'within a factor 2 (both above 10 pA; provisional)'}
   - {id: cleanup, recipe: basic.diode_iv, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
-  - {id: vf_1ma, recipe: basic.iv_force_i, quantity: vf, method: forward_voltage, unit: V, reference: 'EasyEXPERT forward voltage at 1 mA (current forcing), same diode', tolerance: {absolute: 0.005}, text: '+-5 mV'}
-  - {id: n_force_i, recipe: basic.iv_force_i, quantity: n, method: diode_fit, reference: 'n of basic.diode_iv on the same diode (this stage)', tolerance: {rel: 0.05}, text: '+-5 % of the voltage-forced n'}
+  - {id: vf_1ma, recipe: basic.iv_force_i, quantity: vf, method: forward_voltage, unit: V, reference: 'EasyEXPERT forward voltage at 1 mA (current forcing), same diode', tolerance: {absolute: 0.005}, text: '+-5 mV (provisional)'}
+  - {id: n_force_i, recipe: basic.iv_force_i, quantity: n, method: diode_fit, reference: 'n of basic.diode_iv on the same diode (this stage)', tolerance: {rel: 0.05}, text: '+-5 % of the voltage-forced n (provisional)'}
   - {id: force_i_cleanup, recipe: basic.iv_force_i, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
 version: 1
 ---
@@ -60,17 +60,21 @@ Vf at 1 mA. Every hardware plan needs consent (`first_hw_run`).
 
 | check | expected | tolerance | source |
 |---|---|---|---|
-| `n` | 1.0 to 2.0 | plausibility (recorded) | `diode_fit` |
-| `is` | the data sheet's order of magnitude | recorded | `diode_fit` |
-| `rs` | ohms to tens of ohms for a small-signal diode | recorded | `diode_fit` |
-| `leakage` | reverse current at `v_rev` | factor 2 of EasyEXPERT when both above 10 pA, else both below 10 pA | `leakage_at` |
+| `n` | 1.0 to 2.0 (textbook: diffusion 1, recombination 2) | plausibility (recorded) | `diode_fit` |
+| `is` | the order of magnitude of the data sheet or vendor SPICE model (neither gives it: recorded only) | recorded | `diode_fit` |
+| `rs` | the data sheet's or SPICE model's value if they give one (no typical value) | recorded | `diode_fit` |
+| `leakage` | reverse current at `v_rev` | factor 2 of EasyEXPERT when both above 10 pA, else both below 10 pA (provisional) | `leakage_at` |
 | `cleanup` | every run `verified: lop` | pass/fail | run manifests |
-| `vf_1ma` | anode voltage at 1 mA (`basic.iv_force_i`) | +-5 mV of EasyEXPERT | `forward_voltage` |
-| `n_force_i` | n of the current-forced sweep | +-5 % of step 3's n | `diode_fit` |
+| `vf_1ma` | anode voltage at 1 mA (`basic.iv_force_i`) | +-5 mV of EasyEXPERT (provisional) | `forward_voltage` |
+| `n_force_i` | n of the current-forced sweep | +-5 % of step 3's n (provisional) | `diode_fit` |
 | `force_i_cleanup` | every run `verified: lop` | pass/fail | run manifests |
 
-- Forward current at 0.4, 0.5 and 0.6 V within +-5 % of the EasyEXPERT export (the reviewer compares the run's
-  `data.csv` with the export; record the three deviations).
+- Forward current at 0.4, 0.5 and 0.6 V within +-5 % of the EasyEXPERT export (provisional; the reviewer compares
+  the run's `data.csv` with the export; record the three deviations). +-5 % of current is +-1.3 to 2.5 mV of
+  forward voltage for n = 1 to 2, tighter than `vf_1ma`'s +-5 mV (about +-2.5 K at the textbook -2 mV/K).
+- Basis: none of these tolerances has a checked one (provisional criteria; leakage moves strongly with temperature:
+  same day, same wiring). `TODO(owner)`: which tolerances does the lab accept for the L3 comparisons with
+  EasyEXPERT (`leakage`, `vf_1ma`, `n_force_i`, the forward currents)?
 - Run `completed`, or `completed_with_flags` when the forward end reaches compliance; compliance flags (`C`)
   exactly where the current reaches 10 mA.
 - TODO(verify) (blueprint v2 7.6 item 3): the status letters of real FMT 1 blocks at compliance (`C`) and under
@@ -78,15 +82,15 @@ Vf at 1 mA. Every hardware plan needs consent (`first_hw_run`).
 
 ## 5. Abort criteria
 
-- Compliance at a small forward voltage (below about 0.5 V); a reverse current orders of magnitude above the
-  reference; deviations above 20 %; cleanup `unverified`.
+- Compliance well below the data sheet's forward voltage at 10 mA (a Si small-signal diode: not below about 0.5 V);
+  a reverse current orders of magnitude above the reference; deviations above 20 %; cleanup `unverified`.
 - On any of them: `safe_shutdown(reason)`, report, skill `b1500-debug`, wait for the human. Never raise the
   compliance or widen a tolerance to pass.
 
 ## 6. Record
 
-- Hardware: `uv run b1500 bringup record L3 --run H... --reference leakage=2.3e-11 --operator NAME` (the reference
-  is the human's EasyEXPERT value); the human reviews it, adds the forward-current comparison and moves it to
-  `validation/hw/basic.diode_iv.yaml`. Likewise `uv run b1500 bringup record L3 --run H... --reference vf_1ma=0.652
-  --reference n_force_i=1.04 --operator NAME` → `validation/hw/basic.iv_force_i.yaml`.
+- Hardware: `uv run b1500 bringup record L3 --run H... --reference leakage=<EasyEXPERT A> --operator NAME` (the
+  reference is the human's EasyEXPERT value); the human reviews it, adds the forward-current comparison and moves it
+  to `validation/hw/basic.diode_iv.yaml`. Likewise `uv run b1500 bringup record L3 --run H... --reference
+  vf_1ma=<EasyEXPERT V> --reference n_force_i=<n of agent step 3> --operator NAME` → `validation/hw/basic.iv_force_i.yaml`.
 - Simulator rehearsal: no record; say that hardware drafts the `basic.diode_iv` and `basic.iv_force_i` records.

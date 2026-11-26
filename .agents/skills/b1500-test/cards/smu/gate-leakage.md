@@ -13,7 +13,7 @@ confirmation: conditional
 knowledge: [knowledge/05-reliability-defects.md#gate-leakage-and-tddb-safe-envelope, knowledge/06-analysis-extraction.md#leakage-at-bias, knowledge/03-probe-station-wiring.md#guard-for-low-current, knowledge/03-probe-station-wiring.md#asu-and-the-1-pa-range, knowledge/05-reliability-defects.md#oxide-traps-silc-and-charge-trapping]
 manual: [PG p568-569 (4-250) "WV", PG p564 (4-246) "WT", PG p552 (4-234) "WM", PG p505 (4-187) "SAP", PG p337 (4-19) "1 pA limited auto"]
 debug: [compliance-hit, current-too-high, noisy-data, errx-codes, cleanup-failed-fault]
-sources: [blueprint 6.4, deck slide 14]
+sources: [blueprint 6.4, "deck slide 14 (topics only, illustrative: not evidence)", lwp/matlab_B1500/IdVg_test_20251001_*.csv]
 version: 1
 ---
 
@@ -66,7 +66,7 @@ gate compliance, automatic abort on compliance, gate range inside the DUT profil
 | `delay_s` | 50 ms | 10..500 ms | 0..10 s | settle each step | short delays show C·dV/dt instead of leakage |
 | `v_op` | 1.5 V | 0.5..3 V | -10..10 V | operating bias of the judgement (analysis only) | must lie inside the sweep |
 | `leak_limit_a` | 1 nA | 1 pA..100 nA | 1 fA..100 uA | pass/fail limit (analysis only) | below the floor it cannot pass meaningfully |
-| `integration` | `long` | `long` | `short`, `medium`, `long` | pA currents need 16 PLC | shorter: noisier floor |
+| `integration` | `long` | `long` | `short`, `medium`, `long` | `long` (16 PLC) lowers the floor; the lab's 1 PLC Id-Vg reads about 0.07 pA rms with open probes (`lwp/matlab_B1500/IdVg_test_20251004_*.csv`) | shorter: noisier floor |
 | `asu_1pa` | false | - | - | sub-pA gate leakage on an SMU with an ASU | gate read from the 1 pA range up (`RI gate,8`) |
 
 Example plan (validated on the simulator by `b1500 dev lint-skills`):
@@ -115,11 +115,13 @@ sim_scenario: nmos_basic
 
 ## 8. Expected result shape
 
-| dielectric | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| dielectric | expected (source) | red flags |
 |---|---|---|
-| thick SiO2 or high-k on a small test transistor | Ig at or near the HRSMU floor (sub-pA to pA) at a few volts; smooth rise with \|Vg\| | compliance within the first steps |
-| thin oxide (direct tunnelling) | nA range and steep exponential rise | abrupt jump (hard breakdown); noisy staircase rise (soft breakdown) |
-| oxide TFT or FeFET stack | pA to nA; switching or displacement spikes on a FeFET gate | Id mirrors Ig (gate-drain path); higher low-bias leakage in a repeat run (damage) |
+| any gate stack | Ig level unknown for your devices: it depends on dielectric, thickness and gate area; compare with earlier runs of the same device and the human's `leak_limit_a` (the one lab transistor on record: 0.24 nA at Vg 2 V, Vd 0.1 V, `lwp/matlab_B1500/IdVg_test_20251001_*.csv`); smooth rise with \|Vg\| | compliance within the first steps |
+| thin oxide (direct tunnelling) | steep exponential rise with \|Vg\| (physics); level `TODO(cite)` | abrupt jump (hard breakdown); noisy staircase rise (soft breakdown) |
+| oxide TFT or FeFET stack | level unknown (as above); switching or displacement spikes on a FeFET gate (physics) | Id mirrors Ig (gate-drain path); higher low-bias leakage in a repeat run (damage) |
 
 ## 9. Common failures → debug
 

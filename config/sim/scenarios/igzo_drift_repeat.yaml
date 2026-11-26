@@ -2,7 +2,7 @@
 # b1500_test_agent.models.sim (DEVICE_PARAMS); consumed by the simulator (transport/sim/). Name = file name. Noise,
 # faults and timing as documented in nmos_basic.yaml.
 #
-# Debug case 2026-11-04-igzo-vth-drift (skill b1500-debug, v2.1 plan §3, ATV-37 fallback): the igzo_transient TFT
+# Debug case example-igzo-vth-drift (skill b1500-debug, v2.1 plan §3, ATV-37 fallback): the igzo_transient TFT
 # (wired like pin map mosfet-4t: gate SMU4, drain SMU3, source on the GNDU, no body) whose drift the measurement
 # itself drives. igzo_transient does not drift across back-to-back mosfet.idvg runs, because a DC staircase is a
 # quasi-static read in the simulator (ATV-37 failed, WP21.4); here `sweep_stress` makes every DC step age the device

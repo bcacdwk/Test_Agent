@@ -49,7 +49,7 @@ def test_committed_examples_validate(repo_paths: Paths) -> None:
                                     "mosfet-gd-2t"}
     # WP7.1: mosfet-4t-body .. open-smus; WP8.1: capacitor-cmu; WP9.3: mosfet-cp; WP8.3: mosfet-split-cv, moscap-scuu;
     # WP8.4: fecap-cmu; WP10.4: mosfet-wgfmu, mosfet-wgfmu-body, resistor-wgfmu; WP10.6: fefet-wgfmu; WP21.4:
-    # mosfet-gd-2t (gate-drain contact check of debug case 2026-11-04-current-orders-too-high)
+    # mosfet-gd-2t (gate-drain contact check of debug case example-current-orders-too-high)
     assert set(bundle.dut_profiles) == {"nmos-generic", "fefet-generic", "diode-generic", "resistor-generic",
                                         "fefet-lab", "fecap-generic", "moscap-generic", "capacitor-100p",
                                         "dielectric-generic", "resistor-1r", "open-circuit",

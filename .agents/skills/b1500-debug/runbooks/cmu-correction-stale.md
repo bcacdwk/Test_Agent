@@ -2,7 +2,7 @@
 id: cmu-correction-stale
 title: MFCMU corrections missing, stale or lost (R-CORR-01)
 maturity: seed
-sources: [blueprint v2 0 (decision 11), blueprint v2 2.8 (R-CORR-01), Programming Guide Ed. 15 PDF 175, 251, 382-389]
+sources: [blueprint v2 0 (decision 11), blueprint v2 2.8 (R-CORR-01), Programming Guide Ed. 15 PDF 175, 251, 382-389, PG p178 (2-90) CMU initial settings, PG p388 (4-70) "CORRST", PG p586-587 (5-14) errors 680-685, config/policy.example.yaml (max_age_h policy default)]
 ---
 
 # MFCMU corrections missing, stale or lost
@@ -14,15 +14,17 @@ sources: [blueprint v2 0 (decision 11), blueprint v2 2.8 (R-CORR-01), Programmin
 - A run is `refused` before execution: "CORRST? reports the open correction off", "phase compensation data are no
   longer in effect".
 - A correction run ends `completed_with_flags`: "record(s) were discarded".
-- `station_status.corrections` reads `not fresh: ...`; C-V data offset by a fraction of a pF or with a phase tilt.
+- `station_status.corrections` reads `not fresh: ...`; C-V data offset by about the open stray capacitance of the
+  probes (the station's value is recorded at bring-up L6, `TODO(verify)[L6.A2]`) or with a phase tilt.
 
 ## Likely causes
 
-1. Never measured in this data folder, or older than `policy.corrections.max_age_h` (default 8 h).
+1. Never measured in this data folder, or older than `policy.corrections.max_age_h` (policy default 8 h).
 2. Measured with another pin map or station profile (a re-landing or a config change makes them stale on purpose).
 3. A frequency of the plan is not in the correction list (corrections act only at listed frequencies).
-4. The instrument lost them: `*RST`, a device clear (also the cleanup's retry after an error), a power cycle, or
-   another program (EasyEXPERT) changed the list or standards (PG PDF 175, 388).
+4. The instrument switched them off or cleared them: `*RST` or a device clear (also the cleanup's retry after an
+   error) sets the correction off, the data stay (PG p178 (2-90), PG p388 (4-70)); a power cycle clears the data,
+   as does another program (EasyEXPERT) sending `CLCORR`, `CORRL` or `DCORR` (PG p388 (4-70)).
 5. A new phase compensation, or a correction run with another frequency list, invalidated the others (by design).
 
 ## First safe checks
@@ -51,4 +53,5 @@ sources: [blueprint v2 0 (decision 11), blueprint v2 2.8 (R-CORR-01), Programmin
 ## Stop and call safe_shutdown
 
 - A correction or phase compensation fails twice (result 1/2) with the human confirming the physical state.
-- Errors 680-685 persist, a fault is latched or the cleanup is unverified (runbook `cleanup-failed-fault`).
+- Errors 680-685 (PG p586-587 (5-14)) persist, a fault is latched or the cleanup is unverified (runbook
+  `cleanup-failed-fault`).

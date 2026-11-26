@@ -13,7 +13,7 @@ confirmation: always
 knowledge: [knowledge/05-reliability-defects.md#igzo-instability-mechanisms, knowledge/05-reliability-defects.md#stress-measure-analysis, knowledge/06b-analysis-time-pulse.md#sampling-summary-and-relaxation-fit]
 manual: [PG p474-475 (4-156) "MT", PG p472-473 (4-154) "MSC", PG p568 (4-250) "WV", PG p396 (4-78) "DV"]
 debug: [stress-degradation-unexpected, vth-drift-igzo, compliance-hit, noisy-data, errx-codes, cleanup-failed-fault, async-run-interrupted]
-sources: [blueprint v2 3.1 2.7 and 4.2, deck slide 17, Libsch and Kanicki APL 62 1286 (1993)]
+sources: [blueprint v2 3.1 2.7 and 4.2, "deck slide 17 (topics only, illustrative: not evidence)", "stretched-exponential form after Libsch and Kanicki, APL 62, 1286 (1993), an a-Si:H TFT paper, not page-checked (TODO(cite))"]
 version: 1
 ---
 
@@ -40,14 +40,16 @@ reads Id-Vg at log-spaced cumulative stress times; with `recovery_time` it reads
 | source | `source`: ground | GNDU | |
 
 - Example pin map `mosfet-4t` with DUT profile `nmos-generic` (3 V): no IGZO DUT profile is committed; for an IGZO
-  sample ask the human for its pins and limits (never invent them). Typical IGZO stresses (10-20 V) need a profile;
+  sample ask the human for its pins and limits (never invent them). IGZO stress levels are the owner's
+  ([04](../../knowledge/04-ferroelectric-oxide.md#igzo-and-oxide-tft-specifics)) and need the owner's profile;
   SMU4/SMU3 on the RSUs' "From SMU" inputs (lab layout after L8) take at most +-25 V (WG p20 (1-8), R-RSU-01).
 - Routes: none in every phase (direct SMU and GNDU wiring).
 
 ## 3. Pre-run checklist
 
-- Rest the TFT unbiased (minutes) and keep the station dark; note temperature and humidity (back-channel
-  adsorption, [05](../../knowledge/05-reliability-defects.md#igzo-instability-mechanisms)).
+- Rest the TFT unbiased and keep the station dark; the rest time your TFTs need is unknown: ask the human and record
+  it. Note temperature and humidity (back-channel adsorption, mechanism `TODO(cite)`:
+  [05](../../knowledge/05-reliability-defects.md#igzo-instability-mechanisms)).
 - One Id-Vg first ([mosfet-idvg](../smu/mosfet-idvg.md)): the read sweep must span the 1 nA crossing after the
   expected shift (PBS moves it right, NBS left).
 - `station_status` clean; one device per stress condition.
@@ -65,8 +67,8 @@ reads Id-Vg at log-spaced cumulative stress times; with `recovery_time` it reads
 | `recovery_time` | 0 s | 0..3600 s | 0..86400 s | recovery after the stress | 0 = none |
 | `vg_recovery` | 0 V | - | -20..20 V | gate during recovery | |
 | `read_kind` | `staircase` | `staircase` | `staircase`, `spot` | Vth per read | spot: Id at `vg_read` |
-| `vg_start` | -1 V | -3..0 V | -20..20 V | read sweep start | |
-| `vg_stop` | 3 V | 2..10 V | -20..20 V | read sweep stop | |
+| `vg_start` | -1 V | - | -20..20 V | read sweep start: example default, your TFT's range (ask) | |
+| `vg_stop` | 3 V | - | -20..20 V | read sweep stop: example default, your TFT's range (ask) | |
 | `vg_points` | 41 | 21..81 | 11..401 | read points | fewer: less disturbance |
 | `vg_read` | 2 V | - | -20..20 V | spot read level | |
 | `vd` | 100 mV | 50..500 mV | -20..20 V | read drain bias | linear region |
@@ -108,11 +110,13 @@ sim_scenario: igzo_transient
 
 ## 8. Expected result shape
 
-| device | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| device | expected (source) | red flags |
 |---|---|---|
-| IGZO PBS (dark) | dVth > 0, beta 0.3-0.7, tau s..h `TODO(verify)` | dVth < 0 under PBS (hydrogen, light) |
-| IGZO NBS (dark) | small dVth < 0 | large NBS shift in the dark (light leak) |
-| recovery | slow, partial | full recovery in seconds (only fast traps) |
+| IGZO PBS (dark) | dVth > 0 (electron trapping, [05](../../knowledge/05-reliability-defects.md#igzo-instability-mechanisms)); tau, beta and size unknown for your TFTs (same section) | dVth < 0 under PBS: unexpected, causes `TODO(cite)` (light leak, ambient): ask the human |
+| IGZO NBS (dark) | dVth < 0 (sign); size unknown | an NBS shift that follows the room light: light leak, check the box |
+| recovery | report the recovered fraction; no expected shape or time | - |
 
 ## 9. Common failures → debug
 

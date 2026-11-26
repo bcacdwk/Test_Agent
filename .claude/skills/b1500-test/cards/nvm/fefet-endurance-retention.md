@@ -11,7 +11,7 @@ bringup_stage: L9
 status: sim_validated
 confirmation: conditional
 knowledge: [knowledge/04-ferroelectric-oxide.md#pulse-write-read-endurance-and-retention, knowledge/04-ferroelectric-oxide.md#retention, knowledge/06b-analysis-time-pulse.md#endurance, knowledge/06b-analysis-time-pulse.md#retention, knowledge/09-pulse-spgu-selector.md#program-and-read, knowledge/05-reliability-defects.md#ferroelectric-wake-up-imprint-and-fatigue]
-manual: [PG p433 (4-115) "ERSSP", PG p507 (4-189) "SER", PG p512 (4-194) "SPRM", PG p146 (2-58) "3-level", PG p142 (2-54) "SPST"]
+manual: [PG p433 (4-115) "ERSSP", PG p507 (4-189) "SER", PG p512-513 (4-194) "SPRM", PG p146 (2-58) "3-level", PG p142 (2-54) "SPST"]
 debug: [spgu-pulse-no-effect, spgu-selector-state, spgu-load-mismatch, compliance-hit, noisy-data, cleanup-failed-fault, async-run-interrupted]
 sources: [blueprint v2 2.6 async runs, blueprint v2 2.7 pulse_read, blueprint v2 2.10 nvm.py, blueprint v2 3.3, blueprint v2 4.2 ferro, AN-NVM]
 version: 1
@@ -25,32 +25,30 @@ version: 1
 How long the FeFET memory window lasts, in cycles and in time: HV-SPGU writes through the 16440A selector, SMU Id-Vg
 reads; long runs (asynchronous: `running`, poll `get_run`, cancel with `safe_shutdown`).
 
-- `fefet.endurance`: bipolar program/erase cycling to `cycles` (default 10^6); at log-spaced cycle counts one cycle
-  runs as erase -> read -> program -> read; the cycles in between are three-level SPGU bursts (`cycling`). MW(N):
-  wake-up, fatigue, cycles to failure.
+- `fefet.endurance`: bipolar cycling to `cycles` (default 10^6); at log-spaced counts one cycle runs erase -> read ->
+  program -> read, the rest are three-level SPGU bursts (`cycling`): MW(N), wake-up, fatigue, cycles to failure.
 - `fefet.retention`: write the programmed, then the erased state; reads at log times after each write up to
   `retention_time` (gate and drain held at 0 V between reads). Vth and MW versus log t, slopes, 10-year extrapolation.
 - Not for: one MW measurement ([fefet-pulse-write-read](fefet-pulse-write-read.md)), kinetics
-  ([fefet-switching-kinetics](fefet-switching-kinetics.md)); FeCap PUND endurance (WP10.6).
+  ([fefet-switching-kinetics](fefet-switching-kinetics.md)); FeCap endurance by PUND ([fecap-pund](fecap-pund.md)).
 
 ## 2. Wiring, pin map, modules
 
 | terminal | role | module | notes |
 |---|---|---|---|
-| gate | `gate` (pgu): cycling bursts, program/erase | SPGU 101 via `SEL1.OUT1` (PGU input) | 50 Ohm, no compliance, SER-adjusted |
+| gate | `gate` (pgu): cycling bursts, program/erase | SPGU 101 via `SEL1.OUT1` (PGU input) | 50 Ohm, no compliance, SER-adjusted (PG p141 (2-53), PG p507 (4-189)) |
 | gate | `gate_read` (sweep_v, `terminal: gate`): reads, 0 V holds | SMU3 via `SEL1.OUT1` (SMU input) | Force only through the selector |
 | drain | `drain`: read bias Vd, Id; 0 V otherwise | SMU4 (HRSMU preferred) | - |
 | source / bulk | ground | GNDU | bulk optional |
 
-- Pin map `fefet-sel`, DUT profile `fefet-lab`. Routes per phase: `cycling` (endurance bursts), `erase`, `program`:
-  `SEL1.OUT1 -> pgu`; `read` (and the retention holds): `SEL1.OUT1 -> smu`; `rest`: `SEL1.OUT1 -> open`; the
+- Pin map `fefet-sel`, DUT `fefet-lab` (an example envelope, not a measured device). Routes per phase: `cycling`,
+  `erase`, `program`: `SEL1.OUT1 -> pgu`; `read` (and the retention holds): `-> smu`; `rest`: `-> open`; the
   cleanup returns every declared selector output to rest, verified, also after a cancel.
 
 ## 3. Pre-run checklist
 
-- `station_status` clean (no fault, no active run, selectors at rest). The run holds the instrument throughout (18 min
-  endurance, 5.7 h retention by default): agree the time with the human first. Retention: room temperature; record it.
-- Endurance: 10^6 cycles are 2 x 10^6 gate pulses: the human checks the profile's pulse `max_count` and the film.
+- `station_status` clean (no fault, no run, selectors at rest). The run holds the instrument (18 min endurance, 5.7 h
+  retention by default): agree the time; retention at room temperature (record it); the human checks the film.
 
 ## 4. Recipe and parameters
 
@@ -67,21 +65,21 @@ reads; long runs (asynchronous: `running`, poll `get_run`, cancel with `safe_shu
 | `precycles` | 0 | 0..10000 | 0..1000000 | wake-up before the writes | woken film |
 | `sequence` (`fefet.endurance`) | erase_program | - | erase_program, program_erase | operation order per cycle | - |
 | `sequence` (`fefet.retention`) | program_erase | - | program_erase, erase_program, program, erase | states written in turn | one state: no MW |
-| `v_program` | 4 V | 3..5 V | -10..10 V | program level (n-FeFET positive) | - |
-| `v_erase` | -4 V | -5..-3 V | -10..10 V | erase level | - |
-| `width` | 1 us | 100 ns..100 us | 10 ns..1 ms | program/erase width | - |
+| `v_program` | 4 V | - | -10..10 V | program level (n-FeFET positive): example default, set per film | - |
+| `v_erase` | -4 V | - | -10..10 V | erase level: example default, set per film | - |
+| `width` | 1 us | - | 10 ns..1 ms | program/erase width: example default, set per film | - |
 | `period` | 10 us | 1 us..1 ms | 20 ns..1 s | period with count > 1 | - |
 | `count` | 1 | 1..10 | 1..1000 | pulses per write | - |
-| `t_edge` | 20 ns | 20 ns..1 us | 8 ns..0.4 s | rise and fall | width >= t_edge / 0.8 |
-| `load_ohm` | 1 MOhm | 1 kOhm..1 MOhm | 0.1 Ohm..1 MOhm | declared load SER | 50 Ohm doubles the level |
+| `t_edge` | 20 ns | 20 ns..1 us | 8 ns..0.4 s | rise and fall | width >= t_edge / 0.8 (PG p591 (5-19)) |
+| `load_ohm` | 1 MOhm | 1 kOhm..1 MOhm | 0.1 Ohm..1 MOhm | declared load SER (PG p507 (4-189); lab script: 1 MOhm, `lwp/matlab_B1500/test_SPGU.m`) | 50 Ohm doubles the level |
 | `initial_read` | true | - | - | reference read before the first pulse | - |
 | `schedule` (`fefet.endurance`) | cycles | - | cycles | checkpoints in cycles | - |
 | `schedule` (`fefet.retention`) | retention | - | retention | reads at log times | - |
 | `read_kind` | staircase | - | staircase, spot | Id-Vg per read | spot: currents only |
-| `vg_start` | -0.5 V | -1..0 V | -5..5 V | read sweep start | - |
-| `vg_stop` | 1.8 V | 1.5..2 V | -5..5 V | read sweep stop, below Vc | higher: read disturb |
+| `vg_start` | -0.5 V | - | -5..5 V | read sweep start: example default | - |
+| `vg_stop` | 1.8 V | - | -5..5 V | read sweep stop: example default; stays below your film's Vc (ask) | higher: read disturb |
 | `vg_points` | 47 | 31..101 | 11..401 | 50 mV steps | - |
-| `vg_read` | 0.6 V | 0..1.5 V | -5..5 V | spot read level | - |
+| `vg_read` | 0.6 V | - | -5..5 V | spot read level: example default, between your two Vth | - |
 | `vd` | 50 mV | 20..100 mV | -1..1 V | read drain bias | - |
 | `icomp_gate` | 1 uA | - | 1 pA..1 mA | gate compliance (reads, holds) | a compliance stops the run |
 | `icomp_drain` | 1 mA | - | 1 pA..10 mA | drain compliance | - |
@@ -105,8 +103,8 @@ sim_scenario: fefet_lab
   bursts are bounded SPGU outputs (`SPRM 1`, at most 1,000,000 cycles each, never free run).
 - Blocked: a cycle period too short for both pulses, timing outside the SPGU (R-PULSE-01), `load_ohm` < 1 kOhm on
   the `high_z` gate (R-SPGU-01), no gate `pulse` envelope (R-PULSE-02), a run longer than 24 h (R-RUN-02).
-- Confirm: `long_run`, `soft_pulse` (> 10,000 pulses), `dut_envelope` (> the profile's `max_count`), unverified
-  topology/pin map; on hardware `first_hw_run`. Endurance wears the film out: cycle a spare device first.
+- Confirm: `long_run`, `soft_pulse` (> 10,000 pulses; 10^6 cycles = 2 x 10^6), `dut_envelope` (> the profile's
+  `max_count`), unverified topology/pin map; `first_hw_run` on hardware. Endurance wears the film out: use a spare.
 
 ## 6. Quality criteria
 
@@ -117,16 +115,18 @@ sim_scenario: fefet_lab
 ## 7. Analysis method
 
 - `endurance_summary` (endurance default): MW per checkpoint; `memory_window_initial`, `_max`, `_final`, `wake_up`,
-  `fatigue`, `cycles_to_failure` (MW below half its maximum) ([06b](../../knowledge/06b-analysis-time-pulse.md#endurance)).
+  `fatigue`, `cycles_to_failure` (MW below half its maximum: a convention) ([06b](../../knowledge/06b-analysis-time-pulse.md#endurance)).
 - `retention_fit` (retention default): slope per state and of the MW (V/dec), `memory_window_at_target` (10 years),
   `retention_time` ([06b](../../knowledge/06b-analysis-time-pulse.md#retention)). Extrapolations are derived: say so.
 
 ## 8. Expected result shape
 
-| device | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| device | expected (source) | red flags |
 |---|---|---|
-| HZO FeFET, +-4 V 1 us | MW opens a few % (wake-up), closes after 10^4-10^6 cycles | MW collapses abruptly (breakdown), Ig rising |
-| HZO FeFET, room temperature | Vth of each state drifts tens of mV per decade | one state drifts much faster (imprint, trapping) |
+| FeFET endurance | MW opens (wake-up), then closes (fatigue) as shapes (physics); sizes and cycle counts unknown ([04](../../knowledge/04-ferroelectric-oxide.md#pulse-write-read-endurance-and-retention)) | MW collapses abruptly (breakdown), Ig rising |
+| FeFET retention, room temperature | Vth of each state drifts about linearly in log t (physics, [04](../../knowledge/04-ferroelectric-oxide.md#retention)); slope unknown for your devices | one state drifts much faster (imprint, trapping) |
 
 ## 9. Common failures → debug
 

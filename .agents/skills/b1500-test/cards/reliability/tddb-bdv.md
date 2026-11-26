@@ -11,9 +11,9 @@ bringup_stage: L9
 status: sim_validated
 confirmation: always
 knowledge: [knowledge/05-reliability-defects.md#tddb-constant-voltage-stress, knowledge/05-reliability-defects.md#breakdown-voltage-ramps, knowledge/06b-analysis-time-pulse.md#time-to-breakdown-and-weibull, knowledge/06b-analysis-time-pulse.md#breakdown-voltage, knowledge/02b-smu-modes.md#sampling-measurement-mm-10, knowledge/02b-smu-modes.md#search-measurements-mm-9-14-15]
-manual: [PG p472-473 (4-154) "MSC", PG p474-475 (4-156) "MT", PG p106-107 (2-18) "Quasi-Pulsed Spot", PG p365 (4-47) "BDV", PG p110-111 (2-22) "Linear Search", PG p459-460 (4-141) "LSV"]
+manual: [PG p472-473 (4-154) "MSC", PG p474-475 (4-156) "MT", PG p106-107 (2-18) "Quasi-Pulsed Spot", PG p365 (4-47) "BDV", PG p364 (4-46) "BDM", PG p53 (1-33) "quasi-pulsed", PG p110-111 (2-22) "Linear Search", PG p459-460 (4-141) "LSV"]
 debug: [compliance-hit, current-too-high, smu-sampling-skips, errx-codes, cleanup-failed-fault, async-run-interrupted]
-sources: [blueprint v2 3.1 and 4.2, JEDEC JESD92, JEDEC JESD35, McPherson and Mogul J. Appl. Phys. 84 1513 (1998), PG examples Tables 3-10 and 3-11]
+sources: [blueprint v2 3.1 and 4.2, AN-REL p5, "JEDEC JESD92 and JESD35, McPherson and Mogul J. Appl. Phys. 84 1513 (1998): not in the repository, not checked (TODO(cite))", PG examples Tables 3-10 and 3-11]
 version: 2
 ---
 
@@ -22,13 +22,12 @@ version: 2
 ## 1. Purpose and applicable devices
 
 Three DESTRUCTIVE measurements, one site each:
-
 - `reliability.tddb_cvs`: how long does a gate dielectric survive a constant voltage? The gate steps to `v_stress`,
   the leakage is sampled every `interval` until breakdown drives the source into its compliance (`icomp`); the
   sampling stops at once (automatic abort, source to 0 V). `time_to_breakdown` reports t_bd; Weibull over sites.
 - `dielectric.bdv`: at which voltage does the film break? `method: quasi_pulsed` (MM 9) ramps the gate as a
-  quasi-pulse and reads the voltage where the source hits `icomp` (needs the breakdown 10 V or more above `v_start`);
-  `method: linear` (MM 14) ramps in `v_step` steps until the gate current reaches `i_bd` (any film; within one step).
+  quasi-pulse and reads the voltage where the source hits `icomp` (breakdown 10 V or more above `v_start`: PG p107
+  (2-19)); `method: linear` (MM 14) ramps in `v_step` steps until the gate current reaches `i_bd` (any film).
 - `basic.breakdown_search` (MM 14): junction breakdown voltage at the current criterion `i_bd` (reverse ramp).
 
 Not for: non-destructive leakage ([gate-leakage](../smu/gate-leakage.md)), transients ([smu-sampling](../smu/smu-sampling.md)).
@@ -41,15 +40,15 @@ Not for: non-destructive leakage ([gate-leakage](../smu/gate-leakage.md)), trans
 | bulk / source / drain | `bulk` ground; `source`, `drain` optional grounds | GNDU / SMU at 0 V | the current returns here |
 | anode / cathode | `basic.breakdown_search`: anode ramps and measures; cathode ground | SMU3 / GNDU | pin map `diode-2t` |
 
-- Pin map `mosfet-4t` with DUT `dielectric-generic` (5 nm, gate 6 V) or `dielectric-thick` (20 nm, gate 30 V);
-  `diode-2t` with `diode-generic`. The profiles are the human's: never invent the film's or junction's limits.
+- Pin map `mosfet-4t` with DUT `dielectric-generic` (5 nm, 6 V) or `dielectric-thick` (20 nm, 30 V): examples on an
+  assumed breakdown field; `diode-2t` with `diode-generic`. Real profiles are the human's: never invent the limits.
 - Routes: none in every phase (direct SMU and GNDU wiring).
 
 ## 3. Pre-run checklist
 
-- A fresh, unstressed site; a low-voltage leakage check first ([gate-leakage](../smu/gate-leakage.md)); record the
-  temperature (breakdown is thermally activated).
-- TDDB: `v_stress` at 80-95 % of BDV from `dielectric.bdv` on a sacrificial site; one run per site for a Weibull set.
+- A fresh, unstressed site; a low-voltage leakage check first ([gate-leakage](../smu/gate-leakage.md)); record the temperature (breakdown is thermally activated).
+- TDDB: `v_stress` is the human's per film, a BDV on a sacrificial site guides it (no checked rule:
+  [05](../../knowledge/05-reliability-defects.md#breakdown-voltage-ramps)); one run per site for a Weibull set.
 - BDV: expected breakdown inside the ramp; MM 9 only when it lies 10 V or more above `v_start`, else `method: linear`.
 
 ## 4. Recipe and parameters
@@ -70,7 +69,7 @@ Not for: non-destructive leakage ([gate-leakage](../smu/gate-leakage.md)), trans
 | `icomp` (dielectric.bdv, basic.breakdown_search) | 1 mA | 10 uA..10 mA | 1 nA..0.1 A | MM 9 detection; post-breakdown limit | at least `i_bd` |
 | `i_bd` (dielectric.bdv) | 100 uA | 1 uA..1 mA | 0.1 nA..0.1 A | linear: breakdown criterion | magnitude, polarity of the ramp |
 | `i_bd` (basic.breakdown_search) | 1 uA | 100 nA..100 uA | 0.1 nA..0.1 A | breakdown criterion | magnitude |
-| `interval` (dielectric.bdv) | `short` | - | `short`, `long` | MM 9 settling detection | long: stray C or icomp < 1 uA |
+| `interval` (dielectric.bdv) | `short` | - | `short`, `long` | MM 9 settling detection | long: stray C or icomp < 1 uA (PG p364 (4-46)) |
 | `hold_s` | 0 s | - | 0..30 s | at v_start before the ramp | 10 ms steps |
 | `delay_s` (dielectric.bdv, basic.breakdown_search) | 0 s | - | 0..1 s | before each reading | slower ramp |
 | `integration` (reliability.tddb_cvs) | `medium` | `short`, `medium` | `short`, `medium`, `long` | ADC preset | |
@@ -102,7 +101,7 @@ BDV on the same film: `{recipe_id: dielectric.bdv, params: {method: linear, v_st
 - TDDB: the breakdown sample reads `C` (`completed_with_flags`, the expected end); `time_source` must be `timestamp`.
 - BDV / search: one row. Linear: source column status `N` (criterion reached), `G` (no breakdown up to `v_stop`),
   `S` (aborted); the current reads `C` at a hard breakdown. Quasi-pulsed: `C` = breakdown, `N` = reached `v_stop`,
-  `S` = compliance before a 10 V change from `v_start` (use `method: linear`), `G` = detection timeout.
+  `S` = compliance before a 10 V change from `v_start` (PG p53 (1-33); use `method: linear`), `G` = detection timeout.
 - Never re-stress or re-ramp a broken site; a new site is a new plan.
 
 ## 7. Analysis method
@@ -117,11 +116,13 @@ BDV on the same film: `{recipe_id: dielectric.bdv, params: {method: linear, v_st
 
 ## 8. Expected result shape
 
-| device | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| device | expected (source) | red flags |
 |---|---|---|
-| thin SiO2 (2-5 nm) | E_bd 10-14 MV/cm; TDDB: slow rise, then a hard step | breakdown at the first point (site broken) |
-| thick oxide / MIM (10-35 nm) | quasi-pulsed BDV 10-42 V, ramp-rate dependent | BDV far below the field (defects) |
-| pn junction | reverse BV at 1 uA, soft knee | breakdown at a few volts (damaged, Zener) |
+| gate dielectric (TDDB) | slow leakage rise, then a hard step (physics); E_bd of your films unknown, SiO2 literature `TODO(cite)` ([05](../../knowledge/05-reliability-defects.md#breakdown-voltage-ramps)) | breakdown at the first point (site broken) |
+| dielectric (BDV) | BDV ≈ E_bd·t of your film; ramp-rate dependent (AN-REL p5) | BDV far below the human's expected value (defects, damaged site) |
+| pn junction | reverse BV at the `i_bd` criterion (recipe default 1 uA), soft knee | breakdown at a few volts (damaged, Zener) |
 
 ## 9. Common failures → debug
 
@@ -144,7 +145,6 @@ BDV on the same film: `{recipe_id: dielectric.bdv, params: {method: linear, v_st
 | sim | 2026-11-22 | diode_basic | diode-generic | S20261122T095613Z-7dff | `basic.breakdown_search`: -12.0 V at 1 uA vs model -11.99995 V (one 0.1 V step) | - |
 | hw | pending (bring-up stage L9) | - | - | - | - | - |
 
-Sim rows: plans via `B1500Service` with temporary config/data dirs (folders not kept). Hardware records:
-`validation/hw/reliability.tddb_cvs.yaml`, `validation/hw/dielectric.bdv.yaml` and
-`validation/hw/basic.breakdown_search.yaml` (reviewed by a human after bring-up stage L9, skill `b1500-bringup`; drafts
-only from hardware `H...` runs, never from simulator `S...` runs).
+Sim rows: plans via `B1500Service` (temporary config and data; folders not kept). Hardware records (human-reviewed after
+L9, `b1500-bringup`; only from `H...` runs): `validation/hw/reliability.tddb_cvs.yaml`, `validation/hw/dielectric.bdv.yaml`,
+`validation/hw/basic.breakdown_search.yaml`.

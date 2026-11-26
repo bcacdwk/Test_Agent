@@ -47,18 +47,19 @@ belong to the MFCMU landing.
 ## 3. Pre-run checklist
 
 - Corrections fresh with `fecap-cmu` at every frequency (`station_status.corrections`; card `cmu-correction`).
-- Ask: film thickness and expected Ec (DUT profile); the sweep must exceed +-Vc by about 2x to saturate but stay
-  within the terminals' `max_abs_v` (breakdown of thin hafnia is a few times Ec).
+- Ask: film thickness and expected Ec (DUT profile); the sweep exceeds +-Vc (about 2x Vc to saturate: general
+  practice, not checked) but stays within the terminals' `max_abs_v`. The film's breakdown field and its margin over
+  Ec are unknown ([04](../../knowledge/04-ferroelectric-oxide.md#ferroelectric-basics-ec-pr-ps)): ask before sweeping beyond 2x Vc.
 - A virgin film may need wake-up cycles before its loop opens: record the cycle history in the run label.
 
 ## 4. Recipe and parameters
 
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
-| `freqs_hz` | [100] kHz | 10 kHz..1 MHz | 1 kHz..5 MHz | a few kOhm of reactance | one double sweep each |
+| `freqs_hz` | [100] kHz | 10 kHz..1 MHz | 1 kHz..5 MHz | reactance 1/(2πfC): about 27 kOhm for the profile's example 60 pF | one double sweep each |
 | `ac_vrms` | 30 mV | 10..50 mV | 10..250 mV | small against Vc | above 50 mV: `soft_cmu` |
-| `v_start` | -3 V | -4..4 V | -25..25 V | one saturated polarity | the hold poles the film |
-| `v_stop` | 3 V | -4..4 V | -25..25 V | the other polarity | turning point |
+| `v_start` | -3 V | - | -25..25 V | one saturated polarity: example default, about 2x your film's Vc (ask) | the hold poles the film |
+| `v_stop` | 3 V | - | -25..25 V | the other polarity: example default (ask) | turning point |
 | `points` | 121 | 61..241 | 21..1001 | >= 5 points across each peak | step = span/(points-1) |
 | `sweep_mode` | double | double | single, double | both branches for Vc | 2 x points |
 | `hold_s` | 1 s | 0.5..5 s | 0..60 s | pole at `v_start` | WTDCV hold |
@@ -77,7 +78,7 @@ sim_scenario: fecap_basic
 
 ## 5. Limits and confirmation
 
-- R-CMU-01 (1 kHz..5 MHz, 10..250 mVrms, |DC| <= 25 V, DUT `ac.max_vrms`; `soft_cmu` above 10 V or 50 mVrms);
+- R-CMU-01 (1 kHz..5 MHz, 10..250 mVrms, |DC| <= 25 V: UG p73 (2-33); DUT `ac.max_vrms`; `soft_cmu` above 10 V or 50 mVrms);
   R-DUT-01: the sweep within `max_abs_v` of both terminals. The sweep switches the film repeatedly (one cycle per
   double sweep): not destructive, but it changes the device state (wake-up, fatigue): say so.
 - R-CORR-01 blocks without fresh corrections (next step card `cmu-correction`); `unverified_pin_map`; on hardware
@@ -98,12 +99,14 @@ estimate; PUND (WGFMU) gives the switching Ec and Pr. `plot_cv` shows both branc
 
 ## 8. Expected result shape
 
-| quantity | typical (10 nm HZO, 1 MV/cm) | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| quantity | expected (source) | red flags |
 |---|---|---|
-| `vc` | 0.8..1.5 V | peaks not separated: paraelectric or dead film |
-| `v_imprint` | -0.2..0.2 V | larger: imprint from a long hold in one state |
-| `c_peak` / C(+-3 V) | 1.2..2 | < 1.05: weak switching; leakage-dominated |
-| `ec` | 0.8..1.5 MV/cm | >> 2 MV/cm: thickness wrong in the DUT profile |
+| `vc` | Ec·t_FE of your film; Ec unknown until measured ([04](../../knowledge/04-ferroelectric-oxide.md#ferroelectric-basics-ec-pr-ps)) | peaks not separated: paraelectric or dead film |
+| `v_imprint` | report it; no expected range | grows after a long hold in one state (imprint) |
+| `c_peak` / C(end of sweep) | a peak above the background on each branch (physics); no threshold yet | no peak above the background: weak switching, or leakage-dominated (large G) |
+| `ec` | `vc` / `tox_nm`; Ec of your film unknown ([04](../../knowledge/04-ferroelectric-oxide.md#ferroelectric-basics-ec-pr-ps)) | far from the human's expected Ec: ask the human to confirm thickness and expected Ec |
 
 ## 9. Common failures → debug
 

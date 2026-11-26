@@ -30,9 +30,10 @@ sources: [blueprint v2 2.7 (spgu_pulse), 4.2 (SPGU output), PG p507 (4-189) "SER
    pulses and output time in `kind_result`; the plan's summary (levels, width, `SER`).
 2. Station profile vs pin map: which channel is on the selector's PGU input (`station_status` switches, the station
    profile `inputs`); the SPGU channel in the summary (`SPGU1:101`).
-3. Physics: compare amplitude and width with the card's recommended window and the device (coercive voltage, Vth
-   and Vfb from an Id-Vg on the same landing). A new plan inside the card's window, validated, never above the DUT
-   envelope.
+3. Physics: compare amplitude and width with the device: the coercive voltage and switching time of the human's
+   film (the human gives them; card and recipe defaults are examples, not values for this device), Vth and Vfb from
+   an Id-Vg on the same landing. A larger amplitude or width needs the human's values first: a new plan with them,
+   validated, never above the DUT envelope.
 4. Charge pumping: a base-level sweep at one frequency (several `v_base`) shows whether any base gives a plateau.
 
 ## Physical checks to ask the human
@@ -43,7 +44,8 @@ sources: [blueprint v2 2.7 (spgu_pulse), 4.2 (SPGU output), PG p507 (4-189) "SER
 
 ## Do not
 
-- Raise the amplitude, width or count past the card window or the DUT pulse envelope to "make it work".
+- Raise the amplitude, width or count on your own (the human sets them per device), or past the DUT pulse
+  envelope, to "make it work".
 - Lower `load_ohm` to 50 Ohm to get more voltage: on an open gate that doubles the level (R-SPGU-01 blocks it).
 - Report a memory window or Dit from a run whose pulses did not reach the device.
 

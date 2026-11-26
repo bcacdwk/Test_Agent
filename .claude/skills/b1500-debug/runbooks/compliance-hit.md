@@ -2,7 +2,8 @@
 id: compliance-hit
 title: Compliance hit (status C or T)
 maturity: seed
-sources: [deck slide 9 (status codes), Programming Guide Ed. 15 Table 1-10 (PDF 52-53), error 227 (PDF 579)]
+sources: [PG p52-53 (1-32) Table 1-10 status codes, PG p579 (5-7) "Sweep measurement was aborted", PG p583 (5-11)
+  errors 303-320, general practice (causes; not checked against a source)]
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
@@ -28,11 +29,12 @@ Status V (over range, sweep aborted) or F (force saturation) is untrusted, not l
 
 1. `get_run(run_id, include=[summary, quality, data])`: which channel, which step and bias, C or T. A gate C on a
    gate-leakage or Id-Vg run is an oxide warning sign.
-2. Compare with the card's expected result shape. Sudden jumps or a current flat at the compliance value suggest
-   a short or breakdown; a smooth approach suggests a sweep range issue.
+2. Compare the shape qualitatively with the card's expected result shape (the card has no checked typical values:
+   numbers come from the human or earlier runs of the same device). Sudden jumps or a current flat at the compliance
+   value suggest a short or breakdown; a smooth approach suggests a sweep range issue.
 3. Contact check (card `contact-resistor-check`, skill `b1500-test`) on the pair whose current hit compliance.
 4. If the hit is at the end of the range and the contact is fine: a new `validate_plan` with a narrower sweep
-   inside the card's recommended range that stays tier `ok`. At most two such re-runs.
+   inside the original plan's range (narrower, never wider) that stays tier `ok`. At most two such re-runs.
 
 ## Physical checks to ask the human
 
@@ -50,5 +52,6 @@ Status V (over range, sweep aborted) or F (force saturation) is untrusted, not l
 ## Stop and call safe_shutdown
 
 - Gate current at compliance, or a jump that looks like breakdown (destructive: no re-run without the human).
-- Contact check reads `short`; error 305 (excess current) or any error from 300-399.
+- Contact check reads `short`; error 303, 305 or 320 (excess voltage or current, outputs off: PG p583 (5-11)) or
+  any error from 300-399.
 - Compliance persists after narrowing the range once.

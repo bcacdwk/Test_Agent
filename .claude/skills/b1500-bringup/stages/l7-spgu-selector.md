@@ -3,13 +3,13 @@ stage: L7
 title: HV-SPGU and 16440A selector - selector map and wiring record, pulses into 1 MOhm, FeFET program/read against the dual sweep, switching kinetics, charge pumping
 recipes: [system.selector_check, spgu.pulse_train, spgu.alwg_sequence, fefet.dual_sweep_mw, fefet.pulse_write_read, spgu.program_smu_read, fefet.switching_kinetics, mosfet.charge_pumping]
 checks:
-  - {id: selector_states, recipe: system.selector_check, quantity: states_verified, method: kind_result, reference: 'the plan''s steps: 4 per CH 1 output, 3 per CH 2 output', text: 'ERSSP? read back as set in every state (= the steps)'}
+  - {id: selector_states, recipe: system.selector_check, quantity: states_verified, method: kind_result, reference: 'the plan''s steps: 4 per CH 1 output, 3 per CH 2 output (SEL p12 (6))', text: 'ERSSP? read back as set in every state (= the steps)'}
   - {id: selector_cleanup, recipe: system.selector_check, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run, every selector output open'}
-  - {id: relays_observed, quantity: relays_observed, reference: 'the human at the selectors (relay click, front-panel LED)', text: one click and LED change per step on every output}
+  - {id: relays_observed, quantity: relays_observed, reference: 'the human at the selectors (relay click, front-panel LED)', text: 'an LED change per step on every output; a relay click on every step but PGU on -> PGU open (semiconductor relay only, SEL p12 (6))'}
   - {id: erssp_negative, quantity: erssp_negative, reference: 'system.selector_check with the SEL1 control cable disconnected (recabled with the B1500A off, SEL p15 (9))', text: 'recorded: a read-back mismatch (ERSSP? reads the relays) or every state read back (the command only: residual)'}
   - {id: wiring_recorded, quantity: wiring_recorded, reference: 'config/local/station.yaml switches, adopted by the human (ATV-28)', text: 'every selector input the pin maps use recorded (no null); certainty verified only after the scope check'}
   - {id: pulse_level_1meg, quantity: pulse_level_1meg, unit: V, reference: 'oscilloscope (10:1 probe) across the 1 MOhm load, SER 1 MOhm', text: 'peak = v_peak +-5 % (ATV-20)'}
-  - {id: pulse_level_ser50, quantity: pulse_level_ser50, unit: V, reference: 'oscilloscope across the 1 MOhm load, SER 50 Ohm', text: 'peak = 2 x v_peak +-5 % (open-load doubling, ATV-20)'}
+  - {id: pulse_level_ser50, quantity: pulse_level_ser50, unit: V, reference: 'oscilloscope across the 1 MOhm load, SER 50 Ohm (50 Ohm source, PG p142 (2-54); SER, PG p507 (4-189))', text: 'peak = 2 x v_peak +-5 % (open-load doubling, ATV-20)'}
   - {id: pulse_edges, quantity: pulse_edges, reference: 'oscilloscope (10:1 probe) across the 1 MOhm load (ATV-20)', text: 'rise time, fall time and overshoot recorded'}
   - {id: relay_settle, quantity: relay_settle, reference: 'oscilloscope: the first pulse of each train, right after the route change', text: 'complete and at the level of the later pulses (the kernel''s selector settle wait suffices)'}
   - {id: train_spst, recipe: spgu.pulse_train, quantity: spp_fallbacks, method: kind_result, reference: 'ATV-19: SPST? reads 0 at the end of the count', tolerance: {max_abs: 0.5}, text: '0 (every train ended by itself)'}
@@ -20,10 +20,10 @@ checks:
   - {id: dual_sweep_mw, recipe: fefet.dual_sweep_mw, quantity: memory_window, method: memory_window, unit: V, reference: 'EasyEXPERT or lab loop of the same FeFET, if any', text: recorded (the DC reference of pulse_mw)}
   - {id: dual_sweep_cleanup, recipe: fefet.dual_sweep_mw, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: read_window, quantity: read_window, reference: 'fefet.dual_sweep_mw confined to the read sweep of fefet.pulse_write_read, repeated (knowledge 04 read disturb)', text: 'minor-loop MW and the branch-Vth drift over the repeats recorded'}
-  - {id: pulse_mw, recipe: fefet.pulse_write_read, quantity: memory_window, method: memory_window_pulse, unit: V, reference: 'dual_sweep_mw of the same FeFET (--reference pulse_mw=<V>)', tolerance: {rel: 0.2}, text: 'MW consistent with the dual sweep: same sign, +-20 %'}
+  - {id: pulse_mw, recipe: fefet.pulse_write_read, quantity: memory_window, method: memory_window_pulse, unit: V, reference: 'dual_sweep_mw of the same FeFET (--reference pulse_mw=<V>)', tolerance: {rel: 0.2}, text: 'MW consistent with the dual sweep: same sign, +-20 % (provisional)'}
   - {id: pulse_routes, recipe: fefet.pulse_write_read, quantity: routes, method: kind_result, reference: 'the plan''s routes per phase', text: 'PGU before and SMU after every operation, rest at the end'}
   - {id: pulse_rw_cleanup, recipe: fefet.pulse_write_read, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run, selector at rest'}
-  - {id: spot_ratio, recipe: spgu.program_smu_read, quantity: current_ratio, method: memory_window_pulse, unit: '1', reference: 'the Id ratio of the pulse_mw reads at vg_read', text: recorded (erase over program read current)}
+  - {id: spot_ratio, recipe: spgu.program_smu_read, quantity: current_ratio, method: memory_window_pulse, unit: '1', reference: 'the Id ratio of the pulse_mw reads at vg_read', text: 'recorded (|I(program)|/|I(erase)| of the reads, analysis nvm.py)'}
   - {id: spot_cleanup, recipe: spgu.program_smu_read, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run, selector at rest'}
   - {id: kinetics_tau0, recipe: fefet.switching_kinetics, quantity: tau0, method: switching_kinetics_fit, unit: s, reference: 'lab switching data of the film, if any', text: recorded with beta and va (NLS fit)}
   - {id: kinetics_cleanup, recipe: fefet.switching_kinetics, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run, selector at rest'}
@@ -35,11 +35,10 @@ version: 2
 
 # L7 - HV-SPGU and 16440A selector
 
-The selectors (SEL1 ports 0/1, SEL2 ports 2/3, card `selector-check`) without any output and their wiring record
-(ATV-28), SPGU pulses into a known 1 MOhm load (card `spgu-pulse-train`; ATV-19 `SPST?`, ATV-20 SER levels), the lab
-FeFET (cards `fefet-dual-sweep-mw`, `fefet-pulse-write-read`, `fefet-switching-kinetics`), charge pumping (card
-`charge-pumping`) and a negative control of the selector read-back. The SPGU has no compliance: every pulse plan is
-bounded and checked (R-SPGU-01, R-PULSE-01..03). FeFET endurance and retention are L9.
+The selectors (SEL1 ports 0/1, SEL2 ports 2/3, card `selector-check`) with no output and their wiring record (ATV-28),
+SPGU pulses into a 1 MOhm load (`spgu-pulse-train`; ATV-19 `SPST?`, ATV-20 SER levels), the lab FeFET (`fefet-*`
+cards), charge pumping (`charge-pumping`) and a negative control of the selector read-back. The SPGU has no
+compliance: every pulse plan is bounded and checked (R-SPGU-01, R-PULSE-01..03). FeFET endurance and retention: L9.
 
 ## 1. Preconditions
 
@@ -53,7 +52,7 @@ bounded and checked (R-SPGU-01, R-PULSE-01..03). FeFET endurance and retention a
 
 1. Cable each SMU Force to a selector SMU input (Sense stays open) and each SPGU channel to a PGU input; note which
    channel feeds which input and which pad each output reaches. Stand at the selectors for agent step 2: report per
-   output whether every state clicked and changed its LED.
+   output whether every state changed its LED and clicked (PGU on -> PGU open is silent, SEL p12 (6)).
 2. Give the agent that wiring in chat; check its proposal, then adopt it yourself:
    `uv run b1500 config adopt work/bringup/station.proposed.yaml --as station` (still `certainty: unverified`).
 3. Land the 1 MOhm load from the `SEL1.OUT1` pad to ground with the scope probe across it; adopt the proposed pin
@@ -63,8 +62,7 @@ bounded and checked (R-SPGU-01, R-PULSE-01..03). FeFET endurance and retention a
    `certainty: verified` in the proposal (or edit it yourself) and adopt it again (as in step 2).
 5. Land the FeFET with its gate probe straight on SMU3 Force (pin map `fefet-direct`, proposed, adopted) for agent
    steps 6 and 7; then move the gate probe back to `SEL1.OUT1` (pin map `fefet-sel`) and confirm.
-6. For agent step 10 land the MOSFET on pin map `mosfet-cp` (gate `SEL1.OUT1`, bulk SMU4) with a DUT profile you
-   reviewed (copy of `nmos-cv`).
+6. For agent step 10 land the MOSFET on `mosfet-cp` (gate `SEL1.OUT1`, bulk SMU4), DUT profile reviewed (`nmos-cv`).
 7. Negative control, after agent step 10: switch the B1500A off, disconnect the control cable at the CONTROL Input
    of SEL1 (recable only with the B1500A off, SEL p15 (9)), switch it on, exit EasyEXPERT as at S0; confirm.
 8. After agent step 11: switch the B1500A off, reconnect the control cable, switch it on, exit EasyEXPERT; when a
@@ -81,10 +79,10 @@ bounded and checked (R-SPGU-01, R-PULSE-01..03). FeFET endurance and retention a
    `work/bringup/station.proposed.yaml` (`switches[].ports.OUTn.inputs`), show the diff, hand over the adoption,
    stop. Propose `sel1-load`, `r1m-pulse` (gate `impedance: resistive`, `min_series_ohm: 1.0e+6`, pulse envelope 5 V)
    and `fefet-direct` (gate 3, drain 4, source GNDU) under `work/bringup/`.
-4. `spgu.pulse_train` on `sel1-load`: default train (4 V, 1 us, 1000 pulses, `load_ohm` 1 MOhm), then
-   `{v_peak: 2.0, load_ohm: 50}`; each validated, consented, run. The human reads the scope (physical step 3:
-   `pulse_level_*`, `relay_settle`, `pulse_edges`); `kind_result` `spp_fallbacks`, `waited_s` vs
-   `output_s_planned`. Then `spgu.alwg_sequence` (card example) the same way.
+4. `spgu.pulse_train` on `sel1-load`: the recipe's default train (4 V, 1 us, 1000 pulses, `load_ohm` 1 MOhm), then
+   `{v_peak: 2.0, load_ohm: 50}`, each with consent; the human reads the scope (physical step 3: `pulse_level_*`,
+   `relay_settle`, `pulse_edges`); `kind_result` `spp_fallbacks`, `waited_s` vs `output_s_planned`. Then
+   `spgu.alwg_sequence` (card example) the same way.
 5. After the human's re-adoption (physical step 4): `station_status` switches, `uv run b1500 config check`; the
    SMU path of the selector is checked by the reads of steps 8 and 9.
 6. `fefet.dual_sweep_mw` on `fefet-direct` (card params): `memory_window` = the DC reference.
@@ -95,7 +93,7 @@ bounded and checked (R-SPGU-01, R-PULSE-01..03). FeFET endurance and retention a
    `memory_window_pulse`; `kind_result.routes`. Then `spgu.program_smu_read` (spot reads; `adhoc_recipe`):
    `current_ratio`. Report both as derived next to the DC MW.
 9. `fefet.switching_kinetics` (card example, grid): `switching_kinetics_fit` (tau0, beta, va); compare with the
-   pulse MW (a 1 us pulse at the program level should switch most of the film).
+   pulse MW (how far a 1 us pulse at the program level switches the film is what this run shows: no prior value).
 10. `mosfet.charge_pumping` on `mosfet-cp`: `charge_pumping` (Qcp, Nit, the fit window).
 11. After physical step 7: `system.selector_check` once more (no output, new consent). Here a read-back mismatch
     (`RouteNotVerified`: `ERSSP?` reads the relays) is the finding, not an abort; every state read back as set means
@@ -112,19 +110,22 @@ bounded and checked (R-SPGU-01, R-PULSE-01..03). FeFET endurance and retention a
 | check | expected | tolerance | source |
 |---|---|---|---|
 | `selector_states` | every state read back as set (`kind_result.states_verified` = steps) | pass/fail | `get_run` |
-| `relays_observed` | one relay click and LED change per step | pass/fail | the human |
+| `relays_observed` | an LED change per step; a relay click on every step but PGU on -> PGU open (semiconductor relay only, SEL p12 (6)) | pass/fail | the human |
 | `erssp_negative` | read-back with SEL1 disconnected: mismatch, or as set (command only) | recorded | agent step 11 |
 | `wiring_recorded` | every used selector input recorded; `verified` only after the scope check (step 4) | pass/fail | station file |
-| `pulse_level_1meg`, `pulse_level_ser50` | scope peak = `v_peak` (4 V) at SER 1 MOhm; = 2 x `v_peak` (4 V for 2 V) at SER 50 Ohm | +-5 % | oscilloscope |
+| `pulse_level_1meg`, `pulse_level_ser50` | scope peak = `v_peak` (4 V) at SER 1 MOhm; = 2 x `v_peak` (4 V for 2 V) at SER 50 Ohm (50 Ohm source, PG p142 (2-54); SER, PG p507 (4-189)) | +-5 % | oscilloscope |
 | `pulse_edges`, `relay_settle` | edges and overshoot; first pulse of each train complete and at level | recorded; pass/fail | oscilloscope |
 | `train_spst`, `alwg_spst` | `spp_fallbacks` 0 (`SPST?` fell to 0 by itself) | 0 | `kind_result` |
 | `train_waited` | `waited_s` close to `output_s_planned` | recorded | `kind_result` |
 | `dual_sweep_mw`, `read_window` | DC memory window (both branch Vths); MW and Vth drift of the loops confined to the read sweep | recorded | `memory_window` |
-| `pulse_mw` | pulse MW, same sign as the DC MW | +-20 % of `dual_sweep_mw` | `memory_window_pulse` |
+| `pulse_mw` | pulse MW, same sign as the DC MW | +-20 % of `dual_sweep_mw` (provisional) | `memory_window_pulse` |
 | `pulse_routes` | `c1 erase SEL1.OUT1->pgu; c1 read SEL1.OUT1->smu; ...; end rest` | pass/fail | `kind_result` |
-| `spot_ratio`, `kinetics_tau0`, `cp_qcp` | erase/program read-current ratio well above 1; tau0, beta, va (NLS fit); Qcp (Icp linear in f), Nit | recorded | `memory_window_pulse`, `switching_kinetics_fit`, `charge_pumping` |
+| `spot_ratio`, `kinetics_tau0`, `cp_qcp` | `current_ratio` = \|I(program)\|/\|I(erase)\| (above 1 when the programmed state conducts more at `vg_read`); tau0, beta, va (NLS fit); Qcp (Icp linear in f), Nit | recorded | `memory_window_pulse`, `switching_kinetics_fit`, `charge_pumping` |
 | `selector_cleanup`, `train_cleanup`, `alwg_cleanup`, `dual_sweep_cleanup`, `pulse_rw_cleanup`, `spot_cleanup`, `kinetics_cleanup`, `cp_cleanup` | every run `verified: lop`, every selector output open | pass/fail | manifests |
 
+- Basis: `pulse_level_*` +-5 % is scope practice (SEL p29 (23): selector overshoot < 5 % typical; SPGU amplitude
+  accuracy `TODO(cite)`); `pulse_mw`'s same sign is physics, its +-20 % provisional (basis: none). `TODO(owner)`:
+  which tolerances does the lab accept for `pulse_mw` against the dual-sweep MW and for the scope levels at L7?
 - TODO(verify) (blueprint v2 7.6 items 2, 3, 6, 9, 13): power-on and a device clear leave the selector outputs open
   and need `ERMOD 1` (ATV-18; no tool sends `*RST`); `ERSSP?` reports the relay state, not only the command
   (`erssp_negative`); the selector settle time (`relay_settle`); `SPST?` 0 at the end of a count (ATV-19); `DZ`/`AB`
@@ -134,11 +135,10 @@ bounded and checked (R-SPGU-01, R-PULSE-01..03). FeFET endurance and retention a
 
 ## 5. Abort criteria
 
-- An `ERSSP?` read-back mismatch (`RouteNotVerified`) outside agent step 11, a silent relay, a selector off rest
-  after a run, `SPST?` still 1 after a train (`spp_fallbacks` > 0 twice), a scope level off by more than 10 % or a
-  pulse on the wrong pad.
-- A FeFET read at compliance or a pulse MW of the opposite sign (runbooks `spgu-pulse-no-effect`,
-  `spgu-selector-state`, `spgu-load-mismatch`).
+- An `ERSSP?` read-back mismatch (`RouteNotVerified`) outside agent step 11, a relay silent on a step that must
+  click, a selector off rest after a run, `SPST?` still 1 after a train (`spp_fallbacks` > 0 twice), a scope level
+  off by more than 10 % or a pulse on the wrong pad; a FeFET read at compliance or a pulse MW of the opposite sign
+  (runbooks `spgu-pulse-no-effect`, `spgu-selector-state`, `spgu-load-mismatch`).
 - On any of them: `safe_shutdown(reason)`, report, skill `b1500-debug`, wait for the human; never raise a limit.
 
 ## 6. Record

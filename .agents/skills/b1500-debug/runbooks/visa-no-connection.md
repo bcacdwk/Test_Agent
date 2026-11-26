@@ -2,7 +2,7 @@
 id: visa-no-connection
 title: No VISA connection to the B1500A
 maturity: seed
-sources: [config/settings.example.yaml (visa block), transport/visa.py, blueprint 9.7 ATV-2 and ATV-3]
+sources: [config/settings.example.yaml (visa block), transport/visa.py, blueprint 9.7 ATV-2 and ATV-3, UG p90 (3-12) "GPIB address", lwp/matlab_B1500/test_IdVg.m (GPIB address 17)]
 ---
 
 # No VISA connection
@@ -20,7 +20,8 @@ disconnect or timeout in the scenario) or is a bug. Report it; nothing physical 
 
 1. Instrument off, still booting, or held by EasyEXPERT (it must release the instrument for external control;
    ATV-3, checked at hardware bring-up).
-2. Wrong resource string or GPIB address (factory default 17; ATV-2) in the human's `config/local/settings.yaml`.
+2. Wrong resource string or GPIB address (factory default 17: UG p90 (3-12); the lab scripts use `GPIB0::17::INSTR`,
+   `lwp/matlab_B1500/test_IdVg.m`; ATV-2) in the human's `config/local/settings.yaml`.
 3. VISA library missing or the wrong one (`visa.library` empty means the vendor stack); two VISA stacks installed.
 4. GPIB cable or USB-GPIB adapter loose; adapter not seen by the vendor connection tool.
 

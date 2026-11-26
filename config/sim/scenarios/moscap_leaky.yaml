@@ -4,7 +4,7 @@
 # the agent's pin map); `models` holds the truth parameters tests compare extractions against; noise, faults and
 # timing as documented in nmos_basic.yaml.
 #
-# Debug case 2026-11-04-cv-shape-abnormal (skill b1500-debug, v2.1 plan §3; deck slide 17 "C-V curve not S-shaped",
+# Debug case example-cv-shape-abnormal (skill b1500-debug, v2.1 plan §3; deck slide 17 "C-V curve not S-shaped",
 # cause "gate leakage too large, the capacitance measurement is unreliable"): the moscap_basic MOS capacitor (p-Si
 # 1e17 cm^-3, 5 nm SiO2, 100 um x 100 um, Vfb -0.86 V) with a leaky gate oxide, landed through the SCUU of CMU1 like
 # moscap_dit (pin map moscap-scuu: gate 7H/SCUU1.OUT1, bulk 7L/SCUU1.OUT2), so one landing serves the MFCMU (C-V) and

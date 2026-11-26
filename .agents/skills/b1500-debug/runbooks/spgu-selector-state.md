@@ -2,7 +2,7 @@
 id: spgu-selector-state
 title: Selector or SPGU left switched or running (off rest, SPST? 1, SPP fallback)
 maturity: seed
-sources: [blueprint v2 2.6 (cleanup steps 2, 5, 8), 2.8 (R-ROUTE-01), 11 (ATV-18, ATV-19), PG p433 (4-115) "ERSSP", PG p142 (2-54) "SPST"]
+sources: [blueprint v2 2.6 (cleanup steps 2, 5, 8), 2.8 (R-ROUTE-01), 11 (ATV-18, ATV-19), PG p433 (4-115) "ERSSP", PG p142 (2-54) "SPST", PG p512 (4-194) "SPRM", PG p419 (4-101) "ERMOD", SEL p15 (9), CC p48 (2-6)]
 ---
 
 # Selector or SPGU left switched or running
@@ -17,10 +17,12 @@ sources: [blueprint v2 2.6 (cleanup steps 2, 5, 8), 2.8 (R-ROUTE-01), 11 (ATV-18
 ## Likely causes
 
 1. An earlier run was killed (or a human used the front panel / EasyEXPERT) and left a selector on PGU or SMU.
-2. A previous program left an SPGU output running (free run after `*RST` or a foreign program; PG p142 (2-54)).
+2. A previous program left an SPGU output running: free run is the initial `SPRM` mode, so an output started
+   without a count runs until `SPP` (PG p512 (4-194)); `SPST?` reads 1 while it runs (PG p142 (2-54)).
 3. `SPST?` does not fall at the end of the count (ATV-19, verified at bring-up L7) or the output ignores stops
    (simulator fault `spgu_no_stop`).
-4. The selector's control mode is off (`ERMOD` 0 after power-on, ATV-18): status reads `not read`.
+4. The selector's control mode is off (`ERMOD` 0, the initial setting, PG p419 (4-101); after power-on, ATV-18):
+   status reads `not read`.
 
 ## First safe checks
 
@@ -35,7 +37,8 @@ sources: [blueprint v2 2.6 (cleanup steps 2, 5, 8), 2.8 (R-ROUTE-01), 11 (ATV-18
 ## Physical checks to ask the human
 
 - Selector front-panel LEDs: which input is lit on each output? Does it match `station_status`?
-- Is the 16445A adapter powered and the control cable connected to the B1500A digital I/O?
+- Is the 16445A adapter powered and its control input cabled to the B1500A digital I/O
+  (SEL p15 (9), CC p48 (2-6))?
 - Is EasyEXPERT or another program running that drives the SPGU or the selectors?
 
 ## Do not

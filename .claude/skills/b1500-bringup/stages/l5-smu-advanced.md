@@ -5,20 +5,20 @@ recipes: [mosfet.idvg_pulsed, mosfet.idvd_pulsed, basic.pulsed_spot, generic.smu
 checks:
   - {id: pulsed_vs_dc, recipe: mosfet.idvg_pulsed, quantity: pulsed_over_dc, method: pulsed_vs_dc, unit: '1', reference: 'DC mosfet.idvg on the same die at the same Vd (options.reference_run), low duty', tolerance: {absolute: 0.02}, text: '1 +-0.02 (pulsed = DC within 2 %)'}
   - {id: idvg_pulsed_cleanup, recipe: mosfet.idvg_pulsed, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
-  - {id: idvd_pulsed_ratio, recipe: mosfet.idvd_pulsed, quantity: pulsed_over_dc, method: pulsed_vs_dc, unit: '1', reference: 'DC mosfet.idvd on the same die (options.reference_run), low duty', tolerance: {absolute: 0.02}, text: '1 +-0.02 at low duty (self-heating shows above)'}
+  - {id: idvd_pulsed_ratio, recipe: mosfet.idvd_pulsed, quantity: pulsed_over_dc, method: pulsed_vs_dc, unit: '1', reference: 'DC mosfet.idvd on the same die (options.reference_run), low duty', tolerance: {absolute: 0.02}, text: '1 +-0.02 at low duty'}
   - {id: idvd_pulsed_cleanup, recipe: mosfet.idvd_pulsed, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
-  - {id: pulsed_spot_r, recipe: basic.pulsed_spot, quantity: resistance, method: resistance, unit: Ohm, reference: DMM reading of the 100 kOhm standard, tolerance: {rel: 0.01}, text: '+-1 % of the DMM'}
+  - {id: pulsed_spot_r, recipe: basic.pulsed_spot, quantity: resistance, method: resistance, unit: Ohm, reference: DMM reading of the 100 kOhm standard, tolerance: {rel: 0.01}, text: '+-1 % of the DMM (as L2)'}
   - {id: pulsed_spot_cleanup, recipe: basic.pulsed_spot, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: multi_pulsed_cleanup, recipe: generic.smu_multi_pulsed, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: id_t_gaps, recipe: mosfet.id_t_sampling, quantity: index_gaps, method: kind_result, reference: 'the plan''s interval and points', tolerance: {max_abs: 0.5}, text: 0 skipped samples (grid as set)}
   - {id: id_t_samples, recipe: mosfet.id_t_sampling, quantity: samples_measured, method: kind_result, reference: 'the plan''s points', text: recorded (= points unless aborted)}
-  - {id: id_t_tau, recipe: mosfet.id_t_sampling, quantity: tau, method: sampling_summary, unit: s, reference: 'EasyEXPERT or lab script (lwp IVt_sampling) on the same device', tolerance: {rel: 0.15}, text: '+-15 % of the reference fit'}
+  - {id: id_t_tau, recipe: mosfet.id_t_sampling, quantity: tau, method: sampling_summary, unit: s, reference: 'EasyEXPERT or lab script (lwp IVt_sampling) on the same device', tolerance: {rel: 0.15}, text: '+-15 % of the reference fit (provisional)'}
   - {id: id_t_cleanup, recipe: mosfet.id_t_sampling, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: time_source, recipe: mosfet.id_t_sampling, quantity: time_source, method: kind_result, reference: 'kind_result.time_source (ATV-22)', text: 'timestamp (index or host: the ATV-22 fallback, a finding)'}
   - {id: sampling_gaps, recipe: generic.smu_sampling, quantity: index_gaps, method: kind_result, reference: 'the plan''s interval and points', tolerance: {max_abs: 0.5}, text: 0 skipped samples (grid as set)}
   - {id: sampling_cleanup, recipe: generic.smu_sampling, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: log_points, recipe: generic.smu_sampling, quantity: samples_measured, method: kind_result, reference: 'log run (sampling_mode log25): the sampling indices the kind expects (log_indices, PG p476 (4-158))', text: 'recorded per run; the log run''s raw indices in the capture'}
-  - {id: vth_search, recipe: mosfet.vth_search, quantity: vth, method: vth_search_value, unit: V, reference: 'vth_constant_current of the L4 mosfet.idvg run, same criterion and Vd', tolerance: {absolute: 0.005}, text: '+-5 mV of the constant-current Vth'}
+  - {id: vth_search, recipe: mosfet.vth_search, quantity: vth, method: vth_search_value, unit: V, reference: 'vth_constant_current of the L4 mosfet.idvg run, same criterion and Vd', tolerance: {absolute: 0.005}, text: '+-5 mV of the constant-current Vth (provisional)'}
   - {id: search_cleanup, recipe: mosfet.vth_search, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
 version: 1
 ---
@@ -82,14 +82,20 @@ hardware plan needs consent (`first_hw_run`).
 | `pulsed_spot_r` | resistance of the standard by pulsed spot | +-1 % of the DMM | DMM |
 | `id_t_gaps`, `sampling_gaps` | skipped samples (`kind_result.index_gaps`) | 0 | the plan |
 | `id_t_samples` | samples measured | = points (recorded) | the plan |
-| `id_t_tau` | tau of the stretched exponential | +-15 % of the reference fit | lab reference |
+| `id_t_tau` | tau of the stretched exponential | +-15 % of the reference fit (provisional) | lab reference |
 | `time_source` | `timestamp` (the real blocks carry time stamps) | recorded | `kind_result` (ATV-22) |
 | `log_points` | samples of each `generic.smu_sampling` run; the log run's held indices | recorded | `kind_result`, capture |
-| `vth_search` | Vth found by the binary search | +-5 mV of the constant-current Vth | L4 `mosfet.idvg` |
+| `vth_search` | Vth found by the binary search | +-5 mV of the constant-current Vth (provisional) | L4 `mosfet.idvg` |
 | `idvg_pulsed_cleanup`, `idvd_pulsed_cleanup`, `pulsed_spot_cleanup`, `multi_pulsed_cleanup`, `id_t_cleanup`, `sampling_cleanup`, `search_cleanup` | every run `verified: lop` | pass/fail | manifests |
 
-- Pulsed at higher duty or longer width may read below DC (self-heating) or above (trapping): that is physics, not a
-  failure of the stage, as long as the low-duty point agrees.
+- Self-heating moves DC along the device's temperature coefficient: Si/SOI/power MOSFETs read pulsed >= DC;
+  thermally activated thin-film transistors (IGZO, a-Si) can read pulsed <= DC; trapping during DC usually lowers
+  DC. For the Si reference a ratio below 1 points first at settling, range or contact: check them before accepting.
+  At higher duty or longer width a difference is physics, not a failure, as long as the low-duty point agrees.
+- Basis: pulsed = DC +-2 % at low duty is the blueprint v2 7.4 L5 default (a device without fast trapping or heating
+  at 1 % duty); `pulsed_spot_r` takes L2's +-1 %; `id_t_tau` +-15 % and `vth_search` +-5 mV are provisional criteria
+  (search method part about SS x 0.0043 at `limit_rel` 1 %, the rest device drift between L4 and L5). `TODO(owner)`:
+  which tolerances does the lab accept for `id_t_tau` and `vth_search`?
 - Sampling: `time_source: timestamp` expected (TSC 1); the timer over long chains is checked at L9.
 - TODO(verify) (blueprint v2 7.6 items 3, 8): sampling time stamps from the real blocks (ATV-22, `time_source`) and
   `MM 10` blocks read while the instrument samples (ATV-30; fallback: progress per block only); which points log

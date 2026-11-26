@@ -4,11 +4,12 @@ title: <one-line symptom>
 status: draft
 reviewed_by: null
 runbook: <runbook id | new>
-backend: <sim | visa>
+origin: observed
+backend: <sim | visa | none>
 station: <station profile name, or "unknown">
 device: <device type>
 runs: [<run_id>]
-sources: [<deck slide N>]
+sources: [<run notes>]
 reproduction: null
 open_questions: 0
 ---

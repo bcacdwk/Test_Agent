@@ -27,9 +27,8 @@ with a double sweep the hysteresis (`moscap.cv`, one sweep per frequency of `fre
 
 - `moscap.cv_ac_level` (MM 23): C at one bias while the oscillator level steps up: the largest level that stays in
   the small-signal regime (C moves as `C0 + C'' Vac^2/4` on a curved C-V).
-- `moscap.pulsed_cv` (MM 20; one point = pulsed spot C, MM 19): the gate rests at `v_base` and is pulsed to each
-  level; a pulse is too short for the inversion layer (deep depletion) and every point starts from the base's trap
-  state (trap-free C-V when the base empties the traps).
+- `moscap.pulsed_cv` (MM 20; one point = pulsed spot C, MM 19): the gate rests at `v_base`, pulsed to each level; too
+  short for the inversion layer (deep depletion); each point starts from the base's trap state (empty: no trapping).
 - Not for: a MOSFET's gate capacitance (`mosfet-split-cv`), one point (`cmu-spot`), C-f or C-t (`moscap-cf-ct`),
   gate leakage (`gate-leakage`; run it first on a new oxide).
 
@@ -42,20 +41,19 @@ with a double sweep the hysteresis (`moscap.cv`, one sweep per frequency of `fre
 
 Example pin map `moscap-cmu`, DUT `moscap-generic` (its `geometry.area_um2` is needed for Nsub, Vfb, Vth, EOT).
 
-- Routes per phase: none with `moscap-cmu`; through an SCUU: measure `SCUU1.OUT1/OUT2 -> cmu`, then rest; cleanup:
-  rest.
+- Routes per phase: none with `moscap-cmu`; through an SCUU: measure `SCUU1.OUT1/OUT2 -> cmu`, then rest; cleanup rest.
 
 ### SCUU same-landing I-V and C-V
 
-With an SCUU the pads reach the MFCMU and two SMUs without re-landing (pin map `moscap-scuu`: gate `SCUU1.OUT1`,
-bulk `SCUU1.OUT2`); the human records `present: true` for SCUU1. Corrections run with the same SCUU pin map; the run
-switches `SSP 7,4` for the measurement and back to rest after it (verified); the SCUU's SMUs never take `CN`. SMU
-recipes use the same map (`SSP 7,3`; QSCV and Dit on this landing: card `moscap-dit`).
+Pads reach the MFCMU and two SMUs without re-landing (pin map `moscap-scuu`: gate `SCUU1.OUT1`, bulk `SCUU1.OUT2`;
+the human records SCUU1 `present: true`). Corrections use the same pin map; the run switches `SSP 7,4`, then rest
+(verified); the SCUU's SMUs never take `CN`. SMU recipes: same map (`SSP 7,3`; QSCV and Dit: card `moscap-dit`).
 
 ## 3. Pre-run checklist
 
-- Gate leakage below about 1 nA (`gate-leakage`); `station_status.corrections` fresh with this pin map at every
-  frequency, else card `cmu-correction`.
+- Gate leakage (`gate-leakage`) small against the C-V signal: G = I/V << wC at the lowest frequency (physics,
+  [08](../../knowledge/08-capacitance-cv.md#impedance-models-cp-g-cs-rs-z-theta)); `station_status.corrections` fresh
+  with this pin map at every frequency, else card `cmu-correction`.
 - Ask: substrate type (p: accumulation at negative bias) and the DUT envelope; DC sweep from inversion to accumulation
   (p: `v_start` > 0 > `v_stop`); pulsed base in accumulation; AC-level `ac_stop` within the DUT `ac.max_vrms`.
 
@@ -65,8 +63,8 @@ recipes use the same map (`SSP 7,3`; QSCV and Dit on this landing: card `moscap-
 |---|---|---|---|---|---|
 | `freqs_hz` | [1000] kHz | 100 kHz..1 MHz | 1 kHz..5 MHz | HF C-V; in the correction list | one sweep each |
 | `ac_vrms` | 30 mV | 10..50 mV | 10..250 mV | small signal | above 50 mV: `soft_cmu` |
-| `v_start` (`moscap.cv`) | 2 V | -3..3 V | -25..25 V | start in inversion | hold settles it |
-| `v_stop` (`moscap.cv`) | -2.5 V | -3..3 V | -25..25 V | strong accumulation | Cox extrapolation |
+| `v_start` (`moscap.cv`) | 2 V | - | -25..25 V | start in inversion; bias defaults: examples for a p-substrate example device, set them per device | hold settles it |
+| `v_stop` (`moscap.cv`) | -2.5 V | - | -25..25 V | strong accumulation (example) | Cox extrapolation |
 | `points` (`moscap.cv`) | 91 | 51..201 | 11..1001 | >= 5 points in depletion | step = span/(points-1) |
 | `sweep_mode` | single | single | single, double | double: hysteresis, both ways | 2 x points |
 | `hold_s` (`moscap.cv`, `moscap.pulsed_cv`) | 1 s | 0.5..5 s | 0..60 s | settle at the start/base | hold |
@@ -76,14 +74,14 @@ recipes use the same map (`SSP 7,3`; QSCV and Dit on this landing: card `moscap-
 | `ac_stop` | 100 mV | 50..100 mV | 10..250 mV | DUT `ac` envelope | last level |
 | `points` (`moscap.cv_ac_level`) | 10 | 5..25 | 2..1001 | >= 3 levels | levels per sweep |
 | `ac_sweep` | linear | linear | linear, log | level spacing | WACV mode |
-| `dc_v` | -0.6 V | -3..3 V | -25..25 V | a depletion bias (curved C-V) | the bias tested |
+| `dc_v` | -0.6 V | - | -25..25 V | a depletion bias (curved C-V; example) | the bias tested |
 | `hold_s` (`moscap.cv_ac_level`) | 0.5 s | 0..2 s | 0..60 s | settle at the bias | hold |
-| `v_base` | -2.5 V | -3..3 V | -25..25 V | accumulation: traps emptied | between pulses |
-| `v_start` (`moscap.pulsed_cv`) | -2.5 V | -3..3 V | -25..25 V | first pulse level | PWDCV start |
-| `v_stop` (`moscap.pulsed_cv`) | 2 V | -3..3 V | -25..25 V | into inversion | deep depletion there |
+| `v_base` | -2.5 V | - | -25..25 V | accumulation: traps emptied (example) | between pulses |
+| `v_start` (`moscap.pulsed_cv`) | -2.5 V | - | -25..25 V | first pulse level (example) | PWDCV start |
+| `v_stop` (`moscap.pulsed_cv`) | 2 V | - | -25..25 V | into inversion (example) | deep depletion there |
 | `points` (`moscap.pulsed_cv`) | 91 | 51..201 | 1..1001 | 1 = pulsed spot C (MM 19) | one pulse each |
-| `width_s` | 10 ms | 8..100 ms | 8 ms..10 s | >= 8/10/50 ms (> 200 kHz/<= 200 kHz/<= 10 kHz) | PTDCV width |
-| `period_s` | 0 s | 0..0.2 s | 0..20 s | 0 = width + 2 ms | PTDCV period |
+| `width_s` | 10 ms | 8..100 ms | 8 ms..10 s | >= 8/10/50 ms (> 200 kHz/<= 200 kHz/<= 10 kHz; PG p488 (4-170)) | PTDCV width |
+| `period_s` | 0 s | 0..0.2 s | 0..20 s | 0 = width + 2 ms (width <= 100 ms; + 10 ms above, PG p488 (4-170)) | PTDCV period |
 | `integration` (`moscap.pulsed_cv`) | short | short | short, medium, long | 8 ms fits the pulse | read at the pulse end |
 
 Example plan (validated on the simulator by `b1500 dev lint-skills`):
@@ -99,11 +97,11 @@ sim_scenario: moscap_basic
 ## 5. Limits and confirmation
 
 - R-CMU-01 (1 kHz..5 MHz, 10..250 mVrms, |DC| <= 25 V, DUT `ac.max_vrms`; `soft_cmu` above 10 V or 50 mVrms, so
-  the default AC-level sweep to 100 mVrms needs it); R-DUT-01: every DC level (sweep, pulse base and levels) within
-  the gate's `max_abs_v`; the MFCMU has no compliance: its nominal AC current `sqrt(2) x Vac / 50 Ohm` above a
-  terminal's `max_abs_i` adds `dut_envelope` (an intact oxide draws only leakage).
-- R-CORR-01 blocks without fresh corrections (next step card `cmu-correction`). `unverified_pin_map`,
-  `unverified_topology` (SCUU), on hardware `first_hw_run`. Not destructive; sync (about 2 s per 91 points).
+  the default AC-level sweep to 100 mVrms needs it); R-DUT-01: every DC level (sweep, pulse base, levels) within the
+  gate's `max_abs_v`; no MFCMU compliance: its nominal AC current `sqrt(2) x Vac / 50 Ohm` (guard bound; source
+  impedance not in the manuals, `TODO(cite)`) above a terminal's `max_abs_i` adds `dut_envelope` (oxide: leakage only).
+- R-CORR-01 blocks without fresh corrections (next: card `cmu-correction`); `unverified_pin_map`, `unverified_topology`
+  (SCUU), on hardware `first_hw_run`. Not destructive; sync (planner: about 2 s per 91 points; `TODO(verify)[L6.A4]`).
 
 ## 6. Quality criteria
 
@@ -116,17 +114,19 @@ sim_scenario: moscap_basic
 (flatband capacitance), Vth `cv_vth`; double sweep `cv_hysteresis`; series R `impedance_convert` (`series_r:
 accumulation`), then `rs_ohm`. `moscap.cv_ac_level`: `cv_ac_dependence` (`ac_limit`). `moscap.pulsed_cv`: as
 `moscap.cv` plus `cv_pulsed_vs_dc` (`options.reference_run`: a `moscap.cv` from accumulation). `plot_cv` for any.
-Name the method id with every derived value (`Vfb = -0.83 V; cv_flatband; window ...`); Cmax is not Cox.
+Name the method id with every derived value (`Vfb = <value> V; cv_flatband; window ...`); Cmax is not Cox.
 
 ## 8. Expected result shape
 
-| quantity | typical (5 nm SiO2, 1e4 um^2, p 1e17) | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| quantity | expected (source) | red flags |
 |---|---|---|
-| Cmax / Cox | 0.95..0.98 | > 1: correction or area wrong |
-| Cmin / Cox | 0.1..0.3 | C below Cmin in a DC sweep: deep depletion |
-| hysteresis | < 20 mV for a good oxide | > 100 mV: mobile ions or trapping |
-| `ac_limit` | 30..100 mVrms in depletion | < 10 mVrms: very curved C-V; keep `ac_vrms` below it |
-| pulsed vs DC | `delta_vfb` ~0, `c_ratio_inversion` < 1 | `delta_vfb` = hysteresis when DC started in inversion |
+| Cmax / Cox | below 1 (accumulation-layer capacitance in series, physics; lower for thinner EOT) | > 1: correction or area wrong |
+| Cmin / Cox | set by Nsub and EOT (maximum depletion width, physics): compute it for your device | C below Cmin in a DC sweep: deep depletion |
+| hysteresis | no checked threshold (`TODO(cite)`): report it with sweep rate and direction | its sign tells mobile ions from trapping ([08](../../knowledge/08-capacitance-cv.md#hysteresis)) |
+| `ac_limit` | device-dependent, no typical value: measure it (`moscap.cv_ac_level`) before raising `ac_vrms` | below 10 mVrms (the MFCMU's smallest level, UG p73 (2-33)): no small-signal level at this bias; keep `ac_vrms` below `ac_limit` |
+| pulsed vs DC | `delta_vfb` ~0, `c_ratio_inversion` < 1 (deep depletion, physics) | `delta_vfb` = hysteresis when DC started in inversion |
 
 ## 9. Common failures → debug
 

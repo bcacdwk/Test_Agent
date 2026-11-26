@@ -2,7 +2,7 @@
 id: wgfmu-rsu-route
 title: WGFMU RSU route wrong or unread (RSU not at rest, 3001, signal missing at the DUT, SMU path through the RSU open)
 maturity: seed
-sources: [blueprint v2 2.6 (cleanup step 3, RSU states), 2.8 (R-ROUTE-01, R-PIN-01, R-WG-01), 11 (ATV-32), v2.1 plan 12 (R-RSU-01, WP21.13), WG p16 (1-4) "SMU mode", WG p19 (1-7) "RSU", WG p20 (1-8) "From SMU", WG p85 (4-15) "WGFMU_connect", WG p152 (4-82) "3001"]
+sources: [blueprint v2 2.6 (cleanup step 3, RSU states), 2.8 (R-ROUTE-01, R-PIN-01, R-WG-01), 11 (ATV-32), v2.1 plan 12 (R-RSU-01, WP21.13), WG5 p24 (1-14) "0.014 % of range", WG p16 (1-4) "SMU mode", WG p19 (1-7) "RSU", WG p20 (1-8) "From SMU", WG p85 (4-15) "WGFMU_connect", WG p152 (4-82) "3001"]
 ---
 
 # WGFMU RSU route wrong or unread
@@ -13,7 +13,8 @@ sources: [blueprint v2 2.6 (cleanup step 3, RSU states), 2.8 (R-ROUTE-01, R-PIN-
   rest state; R-PIN-01: RSU target absent or its input not recorded; R-WG-01: a WGFMU role not on its RSU).
 - A WGFMU run fails at `connect` with firmware code 3001 "RSU is not connected" (WG p152 (4-82)).
 - The data look like an open circuit: the forced level never reaches the DUT (gate_V flat, drain current at the
-  range's noise floor, `wgfmu.dc_spot` R above 1 GOhm, PUND without switching current).
+  range's noise floor, `wgfmu.dc_spot` R above 1 GOhm (the analysis default open threshold), PUND without
+  switching current).
 - An SMU measurement through the RSU's SMU input (the DC reference of fast I-V, `mosfet-4t` on an RSU landing) reads
   the noise floor while the WGFMU path works (ATV-32).
 - An SMU plan blocked by R-RSU-01 ("From SMU input"): the SMU is recorded on an RSU input and asks for more than
@@ -42,7 +43,10 @@ sources: [blueprint v2 2.6 (cleanup step 3, RSU states), 2.8 (R-ROUTE-01, R-PIN-
 2. `station_status`: the switches part (each RSU output and its state), the fault latch, the WGFMU library line.
 3. Re-validate the same request: the R-ROUTE-01/R-PIN-01 finding names the RSU output and the reason.
 4. Path check with a known resistor: `wgfmu.dc_spot` on `resistor-wgfmu` (card `wgfmu-custom-waveform`): R within
-   3 % = WGFMU path right; R above 1 GOhm = open (cable, pad or RSU). Same landing through the SMU input:
+   3 % of the DMM value = WGFMU path right (a functional check, the L8 criterion `r_wgfmu`: about ten times the
+   current accuracy near full scale, ±(0.1 % of reading + 0.2 % of range) with averaging, WG5 p24 (1-14)); R above
+   1 GOhm (analysis default) = open (cable, pad or RSU; on the 1 uA range the noise, up to 0.2 % of range without
+   averaging, limits what is resolved). Same landing through the SMU input:
    `basic.contact_resistor` with the SMU the station records on that RSU: open = From SMU cable (ATV-32).
 5. On visa, with the human's go: `uv run b1500 doctor --probe --wgfmu-session` (read-only: channel ids, status).
 

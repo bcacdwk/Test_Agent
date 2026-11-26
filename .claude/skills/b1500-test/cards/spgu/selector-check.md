@@ -25,7 +25,8 @@ version: 1
 Do the station's 16440A selectors follow the B1500A? Every declared selector output (station `switches` of kind
 `selector_16440a`, not recorded absent) is stepped on its own: SMU on, PGU on, PGU open (CH 1 only, ports 0 and 2),
 then back to its rest state (open), each state set with `ERMOD 1` + `ERSSP port,status` and read back with `ERSSP?`.
-Each state is held `dwell_s` so the human at the station hears the relay and sees the front-panel LED change.
+Each state is held `dwell_s` so the human at the station hears the mechanical relay (none switches on the PGU on ->
+PGU open step: only the semiconductor relay does, SEL p12 (6)) and sees the front-panel LEDs.
 
 - Bring-up stage L7 (map the selector wiring, verify every state) and after any selector re-cabling, a lost control
   cable or a `RouteNotVerified` run failure.
@@ -37,7 +38,7 @@ Each state is held `dwell_s` so the human at the station hears the relay and see
 
 | terminal | role | module | notes |
 |---|---|---|---|
-| none | no DUT roles | 16440A selectors SEL1 (ports 0, 1) and SEL2 (ports 2, 3) via the digital I/O port | SMU inputs Force only; inputs may still be unrecorded |
+| none | no DUT roles | 16440A selectors SEL1 (ports 0, 1) and SEL2 (ports 2, 3) via the digital I/O port (PG p433 (4-115)) | SMU inputs Force only (SEL p15 (9)); inputs may still be unrecorded |
 
 - Any existing pin map may be named (no role binds); the example uses `fefet-sel`. No DUT profile.
 - The station example declares `SEL1`/`SEL2` `present: true`, `certainty: unverified`, inputs `null`. The check runs
@@ -87,8 +88,9 @@ sim_scenario: lab_station
   and `cleanup.switches_after` open for every declared output.
 - A read-back mismatch stops the run (`RouteNotVerified`, the message names output, read and set state); never
   repeat it blindly: ask the human about the control cable, the adapter power and the LEDs.
-- The human's observation counts: a step whose relay did not click or whose LED did not change is a failure even
-  when `ERSSP?` agrees (it reports the commanded state, `TODO(verify)` at L7).
+- The human's observation counts, even when `ERSSP?` agrees (whether it reads the relays or only the command:
+  `TODO(verify)[L7.A2, L7.A11]`): a mechanical-relay change without a click, or LEDs that do not match the state
+  (SEL p12 (6)), is a failure. The PGU on -> PGU open step switches only the semiconductor relay: no click there.
 
 ## 7. Analysis method
 
@@ -98,10 +100,12 @@ sim_scenario: lab_station
 
 ## 8. Expected result shape
 
-| item | expected | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| item | expected (source) | red flags |
 |---|---|---|
 | read-back per step | the state just set | any other state; an `ERSSP?` timeout |
-| relays / LEDs (hardware) | one click and LED change per step | silence or no LED (adapter power, control cable) |
+| relays / LEDs (hardware) | a click per mechanical-relay change, none on PGU on -> PGU open; LEDs per state as SEL p12 (6) (stage L7, skill `b1500-bringup`) | silence on a mechanical change, or LEDs not matching (adapter power, control cable) |
 | cleanup | verified, every output `open` | `cleanup_unverified`, fault latched |
 
 ## 9. Common failures → debug

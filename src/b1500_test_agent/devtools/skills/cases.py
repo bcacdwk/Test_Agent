@@ -1,12 +1,17 @@
 """Debug cases of skill ``b1500-debug`` (v2.1 plan §3): the case schema (template v2), the expectation grammar of a
 case's simulator ``reproduction`` and the case lint that ``b1500 dev lint-skills`` and ``b1500 dev cases check`` run.
 
-A case ``b1500-debug/cases/<YYYY-MM-DD>-<slug>.md`` records one observed problem. Its frontmatter keeps the lab facts
-(``backend``, ``station``, ``device``, ``runs``, ``sources``) apart from the simulator reproduction (v2.1 plan
-D-6): ``runs`` lists only runs of the case's own backend (``H...`` for ``visa``, ``S...`` for ``sim``), the
-reproduction's runs appear only in the section "Simulator reproduction (SIMULATED)". ``status: draft`` is what an agent
-writes (``reviewed_by: null``); only a human sets ``status: reviewed`` with their name, after answering every open
-question (``open_questions: 0``; the guard hook blocks an agent write that sets it, v2.1 D-7).
+A case ``b1500-debug/cases/<YYYY-MM-DD>-<slug>.md`` (``origin: observed``) records one problem seen in the lab, dated
+by the observation; ``b1500-debug/cases/example-<slug>.md`` (``origin: illustrative``, title ``Example: ...``) is an
+example of a kind of problem written from a list (v2.1 KD-5: the owner's planning deck is illustrative, never a lab
+record), with ``backend: none``, ``station: none`` and no runs. Its frontmatter keeps the facts of the observation
+(``origin``, ``backend``, ``station``, ``device``, ``runs``, ``sources``) apart from the simulator reproduction (v2.1
+plan D-6): ``runs`` lists only runs of the case's own backend (``H...`` for ``visa``, ``S...`` for ``sim``, at least
+one; ``none`` = no run of this agent: an illustrative case, or a lab record from outside the agent, whose
+``sources`` name it), the reproduction's runs appear only in the section "Simulator reproduction (SIMULATED)"; an
+observed case never cites the deck as a source. ``status: draft`` is what an agent writes (``reviewed_by: null``); only
+a human sets ``status: reviewed`` with their name, after answering every open question (``open_questions: 0``; the
+guard hook blocks an agent write that sets it, v2.1 D-7).
 
 ``reproduction`` (or ``null`` when the simulator has no model of the cause; the section then says so):
 
@@ -31,13 +36,14 @@ value in the row whose ``x_column`` is nearest to ``x``, e.g. ``value_at('gate_C
 analyses, e.g. ``result('vth')``; name the method when several give the quantity), ``classification([method,]
 quantity)``, ``kind(key)`` (the run's ``kind_result``). ``devtools/cases.py`` evaluates them.
 
-Lint [``case``]: the template and every case have the frontmatter keys of ``CASE_KEYS`` in order and the ten H2
-sections of ``CASE_SECTIONS``; a case's name is ``<YYYY-MM-DD>-<slug>.md`` with ``id`` = the name, its frontmatter
-validates (``CaseFrontmatter``), its ``runbook`` is a runbook (or ``new``) whose ``sources`` name the case, every
-scenario, fault, recipe, parameter, pin map, DUT profile and analysis method of the reproduction exists,
-``open_questions`` equals the numbered items of "Open questions for the owner", no ``TODO(owner)`` stands outside that
-section, and the reproduction section names ``uv run b1500 dev cases reproduce <id>`` (or, without a reproduction,
-says why).
+Lint [``case``]: the template (``status: draft``, ``reviewed_by: null``, ``origin: observed``, no deck in its
+``sources``) and every case have the frontmatter keys of ``CASE_KEYS`` in order and the ten H2 sections of
+``CASE_SECTIONS``; a case's name is ``<YYYY-MM-DD>-<slug>.md`` (observed) or ``example-<slug>.md`` (illustrative) with
+``id`` = the name, its frontmatter validates (``CaseFrontmatter``), its ``runbook`` is a runbook (or ``new``) whose
+``sources`` name the case, every scenario, fault, recipe, parameter, pin map, DUT profile and analysis method of the
+reproduction exists, ``open_questions`` equals the numbered items of "Open questions for the owner", no
+``TODO(owner)`` stands outside that section, and the reproduction section names ``uv run b1500 dev cases reproduce
+<id>`` (or, without a reproduction, says why).
 """
 
 
@@ -71,13 +77,20 @@ CASES_DIR: Final = "cases"
 NEW_RUNBOOK: Final = "new"
 """``runbook`` value of a case no runbook covered (yet)."""
 OWNER_MARKER: Final = "TODO(owner)"
+EXAMPLE_PREFIX: Final = "example-"
+"""Id and file-name prefix of an illustrative case (v2.1 KD-5); an observed case starts with the observation date."""
+EXAMPLE_TITLE: Final = "Example: "
+"""Title prefix of an illustrative case."""
+NO_BACKEND: Final = "none"
+"""``backend`` and ``station`` of a case no run of this agent belongs to."""
 REPRODUCE_COMMAND: Final = "uv run b1500 dev cases reproduce"
 
 CASE_KEYS: Final[tuple[str, ...]] = (
-    "id", "title", "status", "reviewed_by", "runbook", "backend", "station", "device", "runs", "sources",
+    "id", "title", "status", "reviewed_by", "runbook", "origin", "backend", "station", "device", "runs", "sources",
     "reproduction", "open_questions",
 )  # fmt: skip
-"""Frontmatter keys of a case, in order (template v2: the v1 ten + ``reproduction`` + ``open_questions``)."""
+"""Frontmatter keys of a case, in order (template v3: the v1 ten + ``reproduction`` + ``open_questions`` (v2.1 §3)
++ ``origin`` (v2.1 KD-5))."""
 
 REPRODUCTION_SECTION: Final = "Simulator reproduction (SIMULATED)"
 QUESTIONS_SECTION: Final = "Open questions for the owner"
@@ -87,7 +100,9 @@ CASE_SECTIONS: Final[tuple[str, ...]] = (
 )  # fmt: skip
 """The H2 sections of a case, in order (template v2)."""
 
-CaseId = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$")]
+CASE_NAME: Final = re.compile(r"(?:\d{4}-\d{2}-\d{2}|example)-[a-z0-9]+(?:-[a-z0-9]+)*")
+"""``<YYYY-MM-DD>-<slug>`` (observed) or ``example-<slug>`` (illustrative)."""
+CaseId = Annotated[str, Field(pattern=rf"^{CASE_NAME.pattern}$")]
 
 STEP_ATTRIBUTES: Final[frozenset[str]] = frozenset({
     "tier", "outcome", "error_code", "quality", "run_id", "blocked_by", "confirm_reasons"})
@@ -355,7 +370,8 @@ class CaseFrontmatter(StrictModel):
     status: Literal["draft", "reviewed"]
     reviewed_by: NonEmptyStr | None
     runbook: KebabId
-    backend: Literal["sim", "visa"]
+    origin: Literal["observed", "illustrative"]
+    backend: Literal["sim", "visa", "none"]
     station: NonEmptyStr
     device: NonEmptyStr
     runs: list[RunId]
@@ -371,12 +387,40 @@ class CaseFrontmatter(StrictModel):
             raise ValueError("status reviewed needs reviewed_by: the name of the human who reviewed the case")
         if self.status == "reviewed" and self.open_questions:
             raise ValueError(f"status reviewed needs open_questions: 0 (has {self.open_questions}): answer them first")
+        self._origin_rules()
+        if self.backend == NO_BACKEND:
+            if self.runs:
+                raise ValueError(f"backend none has no runs (has {self.runs}): runs of this agent give the backend")
+            return self
         prefix = "H" if self.backend == "visa" else "S"
+        if not self.runs:
+            raise ValueError(f"backend {self.backend} needs the observation's runs ({prefix}...) in runs; a lab record "
+                             "without runs of this agent has backend: none")
         foreign = [r for r in self.runs if not r.startswith(prefix)]
         if foreign:
             raise ValueError(f"runs of backend {self.backend} start with {prefix} (simulator reproduction runs belong "
                              f"in the section {REPRODUCTION_SECTION!r}): {foreign}")
         return self
+
+    def _origin_rules(self) -> None:
+        """v2.1 KD-5: an illustrative case shows itself as an example and claims no observation; an observed case is
+        dated and never rests on the illustrative deck."""
+        if self.origin == "illustrative":
+            wrong = [what for what, bad in (
+                (f"id {EXAMPLE_PREFIX}<slug>", not self.id.startswith(EXAMPLE_PREFIX)),
+                (f"a title starting {EXAMPLE_TITLE!r}", not self.title.startswith(EXAMPLE_TITLE)),
+                ("backend: none", self.backend != NO_BACKEND), ("station: none", self.station != NO_BACKEND),
+                ("runs: []", bool(self.runs))) if bad]
+            if wrong:
+                raise ValueError("an illustrative case (an example: nothing was observed) needs " + ", ".join(wrong))
+            return
+        if self.id.startswith(EXAMPLE_PREFIX):
+            raise ValueError(f"an observed case is named <YYYY-MM-DD>-<slug> (date of the observation); "
+                             f"{EXAMPLE_PREFIX}<slug> is for origin: illustrative")
+        deck = [s for s in self.sources if "deck" in s.lower()]
+        if deck:
+            raise ValueError(f"an observed case's sources are records of the observation (run notes, lab notebook); "
+                             f"the owner's deck is illustrative, never one: {deck}")
 
 
 # == Lint =============================================================================================================
@@ -420,11 +464,20 @@ def check_cases(lint: Lint, debug_dir: Path, registry: RecipeRegistry, runbooks:
 
 
 def check_template(lint: Lint, doc: MarkdownDoc) -> None:
-    """The template has the keys (in order) and sections of a case, ``status: draft`` and ``reviewed_by: null``."""
+    """The template has the keys (in order) and sections of a case, ``status: draft``, ``reviewed_by: null`` and
+    ``origin: observed`` (an agent drafts what it saw; v2.1 KD-5), and its ``sources`` do not offer the deck."""
     _check_keys(lint, doc)
     _check_case_sections(lint, doc)
-    if isinstance(doc.front, dict) and (doc.front.get("status") != "draft" or doc.front.get("reviewed_by") is not None):
+    if not isinstance(doc.front, dict):
+        return
+    if doc.front.get("status") != "draft" or doc.front.get("reviewed_by") is not None:
         lint.add("case", doc.path, "the template starts every case as status: draft with reviewed_by: null", 1)
+    if doc.front.get("origin") != "observed":
+        lint.add("case", doc.path, "the template starts every case as origin: observed (illustrative is the exception)",
+                 1)
+    if "deck" in str(doc.front.get("sources", "")).lower():
+        lint.add("case", doc.path, "the template's sources are records of the observation; the owner's deck is "
+                                   "illustrative, never a source of a case", 1)
 
 
 def check_case(lint: Lint, path: Path, registry: RecipeRegistry, runbooks: Collection[str],
@@ -432,8 +485,9 @@ def check_case(lint: Lint, path: Path, registry: RecipeRegistry, runbooks: Colle
     doc = lint.doc(path)
     if doc is None:
         return None
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*", path.stem):
-        lint.add("case", path, f"{path.name}: a case is named <YYYY-MM-DD>-<slug>.md (date of the observation)")
+    if not CASE_NAME.fullmatch(path.stem):
+        lint.add("case", path, f"{path.name}: a case is named <YYYY-MM-DD>-<slug>.md (date of the observation) or "
+                               f"{EXAMPLE_PREFIX}<slug>.md (illustrative)")
     _check_keys(lint, doc)
     _check_case_sections(lint, doc)
     _check_owner_markers(lint, doc)

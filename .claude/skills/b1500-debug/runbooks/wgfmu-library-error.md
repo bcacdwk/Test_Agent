@@ -2,7 +2,7 @@
 id: wgfmu-library-error
 title: WGFMU instrument library or session error (instrument_error, transport_error, 30xx/33xx codes)
 maturity: seed
-sources: [blueprint v2 2.4 (WgfmuApi, WgfmuError), 2.6 (WGFMU phase, cleanup step 3), 2.8 (R-WG-01, R-WG-02), WG p152 (4-82) "Operation Error", WG p153 (4-83) "3301", WG p97 (4-27) "getError", WG p19 (1-7) "RSU"]
+sources: [blueprint v2 0 decision 6 (x64 library since A.03.00, Keysight release notes 9018-80226), blueprint v2 2.4 (WgfmuApi, WgfmuError), 2.6 (WGFMU phase, cleanup step 3), 2.8 (R-WG-01, R-WG-02), WG p152 (4-82) "Operation Error", WG p153 (4-83) "3301", WG p97 (4-27) "getError", WG p19 (1-7) "RSU"]
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
@@ -21,12 +21,15 @@ sources: [blueprint v2 2.4 (WgfmuApi, WgfmuError), 2.6 (WGFMU phase, cleanup ste
 
 ## Likely causes
 
-1. Library / session (visa): the x64 library (>= A.03.00) missing or 32-bit; another program (EasyEXPERT) holds the
-   session; the FLEX link still held the exclusive lock (the transaction releases it; ATV-14).
+1. Library / session (visa): the x64 library missing or 32-bit (the x64 DLL ships since A.03.00, Keysight release
+   notes 9018-80226 via blueprint v2 0 decision 6; the lab PC's installed version is recorded at bring-up,
+   `TODO(verify)[L0.A2]`); another program (EasyEXPERT) holds the session; the FLEX link still held the exclusive
+   lock (the transaction releases it; ATV-14).
 2. 3000/3001: wrong channel number, or the RSU of that channel not cabled to the WGFMU (WG p152 (4-82)).
 3. 33xx setup errors at execute: a level outside the force range (3301/3310), current measurement in PG mode
-   (3303), too many vectors or sequences (3304-3307). R-WG-02 blocks these at validation; seeing one at run time
-   means the library and the rules disagree (record it).
+   (3303), vector, sequence or waveform data too large (3304, 3305, 3307), waveform data empty (3306)
+   (WG p153 (4-83)). R-WG-02 blocks these at validation; seeing one at run time means the library and the rules
+   disagree (record it).
 4. 3015/3050-3052 run-time errors: data corrupted, memory overflow (runbook `wgfmu-memory-budget`), averaging or
    range changes too close together.
 5. A hung call (session timeout): the cleanup aborted and initialized the module.

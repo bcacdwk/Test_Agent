@@ -2,7 +2,9 @@
 id: current-too-high
 title: Current orders of magnitude above expected
 maturity: seed
-sources: [deck slide 17, PPT_slides_content.md p.18 (Guard cause), case 2026-11-04-current-orders-too-high]
+sources: [general practice (not checked against a source), CC p44 (2-2) "leakage current", UG p119 (3-41) "guard",
+  PG p583 (5-11) errors 303-320, lwp/matlab_B1500/IdVg_test_2025100*.csv (lab HRSMU floor), example case
+  example-current-orders-too-high (illustrative)]
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
@@ -10,17 +12,19 @@ sources: [deck slide 17, PPT_slides_content.md p.18 (Guard cause), case 2026-11-
 
 ## Symptom
 
-- Measured current is orders of magnitude above the card's expected result or the DUT profile's nominal values.
+- Measured current is orders of magnitude above what the human expects for this device (ask for the expected
+  current and bias: the card's ranges and the DUT profile's nominal values are examples, not expectations).
 - Off-state current close to on-state current, current at 0 V bias, or an ohmic (straight) curve on a device that
   should switch.
 
 ## Likely causes
 
-1. Probe not on its pad, touching a neighbouring line (deck slide 17).
-2. Guard not connected: cable insulation leakage adds to a low current (deck text).
+1. Probe not on its pad, touching a neighbouring line (general practice).
+2. Guard not connected: cable insulation leakage adds to a low current (the guard surrounds the signal to decrease
+   leakage: CC p44 (2-2), UG p119 (3-41)).
 3. Wrong pin map or swapped terminals; wrong die (the `dut_instance` label does not match what is landed).
-4. Device already broken down, shorted or defective (deck slide 17); simulator scenario `gd_short` models a
-   gate-drain short (SIMULATED reproduction: debug case `2026-11-04-current-orders-too-high`).
+4. Device already broken down, shorted or defective (general practice); simulator scenario `gd_short` models a
+   gate-drain short (SIMULATED reproduction: example case `example-current-orders-too-high`, illustrative).
 
 ## First safe checks
 
@@ -31,14 +35,17 @@ sources: [deck slide 17, PPT_slides_content.md p.18 (Guard cause), case 2026-11-
    for example gate-drain or gate-source: `short` or a low resistance confirms a leakage path (a healthy gate pair
    reads `open`). The example station's gate-drain map is `mosfet-gd-2t`; on the lab station ask for the pair's map.
 4. Open-circuit floor: ask the human to lift the probes, then run the same contact-check plan. A current well above
-   the floor with the probes up points at cables, Guard or fixture, not at the DUT.
+   the floor with the probes up points at cables, Guard or fixture, not at the DUT. Only the lab HRSMU floor on its
+   Id-Vg path is on record (standard deviation about 0.07 pA at 1 PLC, `lwp/matlab_B1500/IdVg_test_2025100*.csv`);
+   other SMUs and paths are recorded at bring-up (`TODO(verify)[L1.A4]`): until then compare with earlier
+   open-circuit runs of this station, or report the floor as unknown.
 5. After the human re-lands, or lands on a neighbouring device, re-run the original plan with a new
    `dut_instance` label. Same plan, same tier; nothing else changes.
 
 ## Physical checks to ask the human
 
-Deck order (slide 17): lift the probes and measure the open current, re-land, check the Guard, measure another
-device.
+Order (general practice, not a recorded lab procedure): lift the probes and measure the open current, re-land,
+check the Guard, measure another device.
 
 - Are all probes on their pads, none touching a neighbouring line?
 - Is the Guard of each triax connected through to the prober?
@@ -54,5 +61,6 @@ device.
 ## Stop and call safe_shutdown
 
 - The contact check reads `short`, or the current reaches compliance again after re-landing.
-- Error 305 (excess current; all outputs were switched off) or any error from 300-399.
+- Errors 303 (MPSMU excess voltage) and 305 (HPSMU excess current) set all output switches off, 320 (CMU excess
+  current) the CMU's; 304 (ground unit abuse); any error from 300-399 (PG p583 (5-11)).
 - The open-circuit current is high with the probes lifted: hand the station check (cables, Guard) to the human.

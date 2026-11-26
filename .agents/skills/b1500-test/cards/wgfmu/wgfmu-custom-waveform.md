@@ -21,12 +21,14 @@ version: 1
 
 ## 1. Purpose and applicable devices
 
-- `wgfmu.custom_waveform`: run the lab's own WGFMU waveforms (lwp/1530 layout) on a transistor: one CSV per channel
+- `wgfmu.custom_waveform`: run waveforms in the lab's CSV layout (`lwp/1530`) on a transistor: one CSV per channel
   (gate, drain) and one events CSV; the gate's voltage and the drain's current are sampled as the events say, up to
-  ~4 M values per channel (lwp: 504,000 points at 100 ns over 50.4 ms). Files come from the committed library
-  `recipes/waveforms/` or from `work/waveforms/` (ad hoc, always confirmed: `adhoc_recipe`).
+  ~4 M values per channel (typical, WG5 p25 (1-15); the lab's `lwp/1530/meas_pt.csv`: 504,000 points at 100 ns over
+  50.4 ms). Files come from the committed library `recipes/waveforms/` or from `work/waveforms/` (ad hoc, always
+  confirmed: `adhoc_recipe`).
 - `wgfmu.dc_spot`: WGFMU DC mode (no sequencer): terminal `a` steps through levels and measures its current; the
-  known-resistor check through the RSU at bring-up L8 (I(R) +-3 %).
+  known-resistor check through the RSU at bring-up L8 (provisional criterion I(R) +-3 % of the DMM value; basis: the
+  WGFMU's +-(0.1 % of reading + 0.2 % of range) is +-2.1 % at 1 uA on the 10 uA range, WG5 p24 (1-14), plus the DMM).
 - Not for: pulsed Id-Vg or fast ramps (card `wgfmu-pulsed-iv`, no files needed); noise statistics of long constant
   bias runs (card `wgfmu-rtn-noise`); SMU DC checks (card `smu-spot-kelvin`).
 - "Skip the server, load the WGFMU library yourself (ctypes, own scripts, PyVISA)": refuse (AGENTS.md hard rule 1;
@@ -53,9 +55,10 @@ version: 1
 
 - `station_status` clean; WGFMU library loadable on visa; RSUs at rest.
 - Look at the files before validating: `time,level` rows (first time 0, strictly increasing, 10 ns grid, at most
-  2,048 rows per waveform); events `t,points,interval,average,range1,range2` (range codes 1..5 = 1 uA..10 mA).
-- Every waveform level within the DUT profile (`nmos-wgfmu`: gate +-5 V, drain +-3 V); the lab sample swings the gate
-  to +-4 V.
+  2,048 rows per waveform, WG5 p24 (1-14)); events `t,points,interval,average,range1,range2` (range codes 1..5 =
+  1 uA..10 mA).
+- Every waveform level within the DUT profile (`nmos-wgfmu`: gate +-5 V, drain +-3 V); the lab's gate waveform
+  (`lwp/1530/ch1_wave_pt.csv`) swings to +-4 V.
 - A file under `work/waveforms/` makes the plan `adhoc_recipe`: show the human the summary (levels, points, files).
 
 ## 4. Recipe and parameters
@@ -64,9 +67,9 @@ version: 1
 |---|---|---|---|---|---|
 | `builder` (wgfmu.custom_waveform) | table | table | table | fixed builder | lab CSV layout |
 | `builder` (wgfmu.dc_spot) | dc_spot | dc_spot | dc_spot | fixed builder | DC mode |
-| `gate_wave` | recipes/waveforms/lwp_sample.csv | - | - | gate waveform (ch1) | 200 lab rows, 5.52 ms |
-| `drain_wave` | recipes/waveforms/lwp_sample_drain.csv | - | - | drain waveform (ch2) | 0.1 V bias |
-| `events` | recipes/waveforms/lwp_sample_events.csv | - | - | measurement rows | 55,200 points at 100 ns |
+| `gate_wave` | recipes/waveforms/lwp_sample.csv | - | - | gate waveform (ch1) | the lab's: first 200 rows of `lwp/1530/ch1_wave_pt.csv`, 5.52 ms |
+| `drain_wave` | recipes/waveforms/lwp_sample_drain.csv | - | - | drain waveform (ch2) | synthetic 0.1 V bias (the lab's ch2 holds 0 V) |
+| `events` | recipes/waveforms/lwp_sample_events.csv | - | - | measurement rows | synthetic: 55,200 points at 100 ns |
 | `irange` (wgfmu.custom_waveform) | 100ua | - | 1ua, 10ua, 100ua, 1ma, 10ma | initial drain range | a time-0 code in `events` wins |
 | `irange` (wgfmu.dc_spot) | 10ua | - | 1ua, 10ua, 100ua, 1ma, 10ma | DC current range | 1 uA reads at 10 % of 10 uA |
 | `a_levels` | [-0.1, -0.05, 0, 0.05, 0.1] V | - | -10..10 V | DC steps of a | resistance line |
@@ -88,9 +91,10 @@ sim_scenario: nmos_rtn
 
 - The file content is part of the plan (sha256 in `files`); a file changed after validation makes the run
   `plan_stale`. The guard checks every vector of every pattern before the library sees it.
-- Blocked: > 2,048 vectors per waveform, times off the 10 ns grid, a level outside the force range or the DUT
-  envelope, an event ending after its waveform, a range event inside an averaging window or on a voltage channel,
-  more stored values than ~4 M per channel or `run_limits.max_points.wgfmu` (R-WG-02); unreadable files (R-PARAM-01).
+- Blocked: > 2,048 vectors per waveform (WG5 p24 (1-14)), times off the 10 ns grid, a level outside the force range
+  or the DUT envelope, an event ending after its waveform, a range event inside an averaging window or on a voltage
+  channel, more stored values than ~4 M per channel or `run_limits.max_points.wgfmu` (R-WG-02); unreadable files
+  (R-PARAM-01).
 - Confirm: `adhoc_recipe` (any `work/waveforms/` file), `unverified_topology`, `dut_envelope`; on hardware
   `first_hw_run`. A 50 ms waveform with 504,000 points runs synchronously.
 
@@ -109,10 +113,12 @@ sim_scenario: nmos_rtn
 
 ## 8. Expected result shape
 
-| item | expected | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| item | expected (source) | red flags |
 |---|---|---|
 | custom waveform | gate_V follows the file; drain_I follows the device | gate_V flat at 0: RSU not connected |
-| dc_spot on 100 kOhm | R within 3 %, offset near 0 | open (R > 1 GOhm): RSU or probe; V points: range too small |
+| dc_spot on a known resistor | R within the provisional +-3 % of the DMM value (section 1; stage L8 records it, `TODO(verify)[L8.A3]`), offset near 0 | open (current noise-dominated: R a lower bound; or a fitted R >= 1 GOhm, analysis default `r_open_ohm`): RSU or probe; V points: range too small |
 
 ## 9. Common failures → debug
 

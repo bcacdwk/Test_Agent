@@ -22,9 +22,10 @@ sources: [Programming Guide Ed. 15 sampling measurement PG p112-114 (2-24), MT P
    resolution ADC. The instrument skips a sample that would start while the channels are busy (index gap).
 2. Auto ranging: a range change during a sample discards it (PG p49 (1-29)); fast transients cross ranges.
 3. Automatic abort (`MSC 2,2`): compliance, overflow or oscillation stopped the sampling; the rest is dummy data
-   (`199.999E+99`, dropped). In TDDB that is the breakdown itself.
+   (`199.999E+99`, dropped; PG p473 (4-155) "MSC", PG p134 (2-46)). In TDDB that is the breakdown itself.
 4. Time stamps missing or running backwards (format, timer reset): the kind falls back to index/host time.
-5. Long runs are chains of 25 s blocks: the gap between blocks is the host round trip (a few ms), not a skip.
+5. Long runs are chains of 25 s blocks (a software default): the gap between blocks is the host round trip, not a
+   skip; its size is not on record for this station: read it from the `t_s` steps at the block boundaries.
 
 ## First safe checks
 

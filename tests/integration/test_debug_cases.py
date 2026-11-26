@@ -30,9 +30,10 @@ from tests.integration.helpers import REPO_ROOT
 
 CASES, PROBLEMS = load_cases(REPO_ROOT)
 BY_ID: dict[str, Case] = {case.id: case for case in CASES}
-SEED_CASES = ("2026-11-04-current-orders-too-high", "2026-11-04-cv-shape-abnormal", "2026-11-04-igzo-vth-drift",
-              "2026-11-04-noisy-data")
-"""The deck's four debug records (slide 17): the three v2 seeds and the C-V shape item added in v2.1."""
+SEED_CASES = ("example-current-orders-too-high", "example-cv-shape-abnormal", "example-igzo-vth-drift",
+              "example-noisy-data")
+"""The four illustrative example cases (v2.1 KD-5: written from the owner's planning deck, slide 17, which is
+illustrative, not a lab record): the three v2 seeds and the C-V shape item added in v2.1."""
 COX_F = 6.906e-11
 """Cox of the moscap_basic design (eps_ox 3.9, 5 nm, 1e4 um^2; config/sim/scenarios/moscap_basic.yaml)."""
 
@@ -58,13 +59,14 @@ def table(report: ReproductionReport, step_id: str, data_dir: Path) -> pd.DataFr
     return load_run(run_id, data_root=data_dir).table
 
 
-def test_the_four_deck_cases_are_valid_drafts_with_a_reproduction() -> None:
+def test_the_four_example_cases_are_valid_drafts_with_a_reproduction() -> None:
     assert PROBLEMS == []
     assert sorted(BY_ID) == sorted(SEED_CASES)
     for case in CASES:
         front = case.front
         assert front.status == "draft" and front.reviewed_by is None, case.id
-        assert front.backend == "visa" and front.runs == [], case.id  # the deck's lab facts stay as they are
+        assert front.origin == "illustrative" and front.title.startswith("Example: "), case.id
+        assert front.backend == "none" and front.station == "none" and front.runs == [], case.id  # nothing observed
         assert front.reproduction is not None and front.open_questions > 0, case.id
 
 
@@ -108,12 +110,14 @@ def check_igzo(report: ReproductionReport, data_dir: Path) -> None:
 
 def check_cv(report: ReproductionReport, data_dir: Path) -> None:
     """``moscap_leaky`` truth: 1e-6 S of oxide leakage (the quasi-static C-V's leakage over +-0.5 V reads it within
-    10 %) and the moscap_basic capacitor (Cox at 1 MHz within 1 %); the lost corrections leave a refused run with no
-    measurement table."""
+    10 %), far above 0.1 wC at 1 kHz (D = G/(wC) > 0.1: the C-V criterion, not a fixed leakage current), and the
+    moscap_basic capacitor (Cox at 1 MHz within 1 %); the lost corrections leave a refused run with no measurement
+    table."""
     run_id = step(report, "leakage").run_id
     assert run_id is not None
     leakage_max = load_run(run_id, data_root=data_dir).manifest.kind_result["leakage_max_a"]
     assert isinstance(leakage_max, float) and leakage_max == pytest.approx(1e-6 * 0.45, rel=0.10)
+    assert leakage_max / 0.5 > 0.1 * 2 * np.pi * 1e3 * COX_F  # G against wC at the 1 kHz C-V
     assert step(report, "cv_lost").outcome == "refused" and step(report, "cv_lost").error_code == "blocked_by_rules"
     assert "no run table" in step(report, "cv_lost").message
     assert step(report, "cv_blocked").run_id is None and step(report, "cv_blocked").tier == "blocked"
@@ -122,10 +126,10 @@ def check_cv(report: ReproductionReport, data_dir: Path) -> None:
 
 
 CHECKS: dict[str, Callable[[ReproductionReport, Path], None]] = {
-    "2026-11-04-current-orders-too-high": check_current_too_high,
-    "2026-11-04-noisy-data": check_noisy_data,
-    "2026-11-04-igzo-vth-drift": check_igzo,
-    "2026-11-04-cv-shape-abnormal": check_cv,
+    "example-current-orders-too-high": check_current_too_high,
+    "example-noisy-data": check_noisy_data,
+    "example-igzo-vth-drift": check_igzo,
+    "example-cv-shape-abnormal": check_cv,
 }
 
 
@@ -149,7 +153,7 @@ def test_reproduction_shows_the_symptom_and_the_discriminator(case_id: str, regi
 
 def test_a_reproduction_is_deterministic(registry: RecipeRegistry, tmp_path: Path) -> None:
     """Fixed seeds: two reproductions read the same values (the run ids differ)."""
-    first = reproduce("2026-11-04-noisy-data", registry, tmp_path / "one")
-    second = reproduce("2026-11-04-noisy-data", registry, tmp_path / "two")
+    first = reproduce("example-noisy-data", registry, tmp_path / "one")
+    second = reproduce("example-noisy-data", registry, tmp_path / "two")
     terms = [[record.terms for record in (*report.expect, *report.discriminator)] for report in (first, second)]
     assert terms[0] == terms[1] and first.ok and second.ok

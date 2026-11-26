@@ -5,23 +5,24 @@ description: Use when B1500A data look noisy, impossible, too high, compliance-l
 
 # B1500A debug
 
-Knowledge domain 08 of skill `b1500-test` (deck slide 17). You diagnose with read-only tools and validated
-plans; the human does every physical step. Backend `sim`: symptoms and fixes are SIMULATED.
+Debug knowledge for skill `b1500-test`: general practice and the instrument manuals; no lab-recorded case yet. You
+diagnose with read-only tools and validated plans; the human does every physical step. Backend `sim`: symptoms and
+fixes are SIMULATED. A value marked `TODO(owner|verify|cite)` or unknown (a floor, tolerance, device range) is
+blank: say so, ask the human or name the bring-up step; never fill it from general knowledge or the simulator.
 
 ## 1. First moves
 
 1. Fault, error, stop request, interrupted long run, `cleanup_unverified` or outputs in doubt: `safe_shutdown(reason)`
-   first (never gated); then report "cleanup verified" (or unverified, from its `cleanup`) and a stopped run's rows
-   as partial.
+   first (never gated); report "cleanup verified" (or unverified, per `cleanup`) and a stopped run's rows as partial.
 2. Report no derived value from the suspect run: no Vth, SS or fit from untrusted or noise-floor data, no `force`.
 3. `station_status`: fault latch, lock holder, interlock bit, instrument errors, outputs on, config problems.
 4. Pick the runbook (part 3), work through it in order, then record the case (part 7).
 
-## 2. Triage order (deck slide 17)
+## 2. Triage order (general practice)
 
 1. Physical connection: probe contact, cables, Guard, grounding, shield box.
 2. Instrument state: calibration, correction, range, integration time, error queue.
-3. Data: status codes, quality verdict, noise and SNR, shape against the card's expected result.
+3. Data: status codes, quality verdict, noise and SNR, shape against the human's expectation or earlier runs.
 4. DUT: process defect, damage, material effects (oxide TFTs, ferroelectrics); never blamed before steps 1-3 are
    cleared. One change at a time; note each result.
 
@@ -48,12 +49,11 @@ No match: follow part 2 and record a case.
 - `station_status` (read-only) and `get_run(run_id, include=[summary, quality, audit, notes])`.
 - `list_runs` plus `get_run`: compare with earlier runs of the same plan, DUT instance or recipe.
 - `analyze_run(run_id, "quality_report")`: status counts, trust fractions, noise and SNR per column.
-- Contact check: card `contact-resistor-check` of skill `b1500-test` (recipe `basic.contact_resistor`, about
-  0.1 V) on the suspect terminal pair; it classifies open, short or in range.
+- Contact check: card `contact-resistor-check` (recipe `basic.contact_resistor`, about 0.1 V) on the suspect pair.
 - Open-circuit noise floor: after the human lifts the probes, run the same contact-check plan again. The
   reading is the station floor (cables, Guard, fixture), the baseline for every low-current claim.
-- Re-run with a longer `integration`, fewer points or a narrower sweep inside the card's recommended range:
-  always a new `validate_plan` that stays tier `ok`; at most two such re-runs (skill `b1500-test`, part 7).
+- Re-run with a longer `integration`, fewer points or a narrower sweep inside the range already run or one the
+  human gave: a new `validate_plan` that stays tier `ok`; at most two such re-runs (skill `b1500-test`, part 9).
 - `safe_shutdown(reason)` at any time.
 
 ## 5. Physical checks: ask the human
@@ -85,15 +85,16 @@ change the picture. Say what you saw, what you ruled out and what the human shou
 
 1. `annotate_run(run_id, text, tags=["debug", "<runbook id>"])` on each run involved: symptom, checks, result.
 2. Draft `.agents/skills/b1500-debug/cases/<YYYY-MM-DD>-<slug>.md` from [the case template](cases/_TEMPLATE.md):
-   `status: draft`, `reviewed_by: null`, `reproduction: null`; what only the human knows becomes a numbered open
-   question. Write only there (`.claude/skills/` is a generated copy). Tell the human the draft waits for them.
+   `status: draft`, `reviewed_by: null`, `origin: observed`, `reproduction: null`; what only the human knows becomes
+   a numbered open question. Write only there (`.claude/skills/` is a generated copy). Tell the human it waits.
 3. Review is the human's (never set `status: reviewed` or edit a reviewed case): they answer the open questions in
    the sections, set `status: reviewed` with their name, run `uv run b1500 dev lint-skills`, then commit.
 
 ## 8. Iteration policy
 
-- A case seen twice becomes a runbook entry; a validated parameter fix becomes a card recommendation.
-- The human reviews both; any change to skill, card or rule text must pass the M3 acceptance suite again.
-- Seed cases from deck slide 17 (`draft`; SIMULATED reproductions, `uv run b1500 dev cases list`):
-  [current too high](cases/2026-11-04-current-orders-too-high.md), [noisy data](cases/2026-11-04-noisy-data.md),
-  [IGZO Vth drift](cases/2026-11-04-igzo-vth-drift.md), [C-V not S-shaped](cases/2026-11-04-cv-shape-abnormal.md).
+- An observed case seen twice becomes a runbook entry; a validated parameter fix becomes a card recommendation.
+  The human reviews both; any change to skill, card or rule text must pass the M3 acceptance suite again.
+- Illustrative examples (`origin: illustrative`, from the owner's planning deck: never lab evidence; SIMULATED
+  reproductions, `uv run b1500 dev cases list`): [current too high](cases/example-current-orders-too-high.md),
+  [noisy data](cases/example-noisy-data.md), [IGZO Vth drift](cases/example-igzo-vth-drift.md),
+  [C-V not S-shaped](cases/example-cv-shape-abnormal.md).

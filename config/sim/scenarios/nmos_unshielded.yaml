@@ -4,7 +4,7 @@
 # the agent's pin map); `models` holds the truth parameters tests compare extractions against; noise, faults and
 # timing as documented in nmos_basic.yaml.
 #
-# Debug case 2026-11-04-noisy-data (skill b1500-debug, v2.1 plan §3): a correctly landed n-channel MOSFET (the
+# Debug case example-noisy-data (skill b1500-debug, v2.1 plan §3): a correctly landed n-channel MOSFET (the
 # nmos_basic device, wired like pin map mosfet-4t) in a shield box that is left open, so the SMU noise floor is raised
 # to the level of open_drain_noisy (HRSMU 5 pA, MPSMU 50 pA at medium integration) while every probe is landed. The
 # gate has a 10 GOhm leakage path (gate_leak_s 1e-11 S, split between gate-source and gate-drain as in every

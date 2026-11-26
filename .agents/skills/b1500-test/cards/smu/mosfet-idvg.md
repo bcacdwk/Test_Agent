@@ -13,7 +13,7 @@ confirmation: conditional
 knowledge: [knowledge/06-analysis-extraction.md#vth-linear-extrapolation, knowledge/06-analysis-extraction.md#vth-constant-current, knowledge/06-analysis-extraction.md#vth-at-maximum-gm, knowledge/06-analysis-extraction.md#subthreshold-swing, knowledge/06-analysis-extraction.md#on-and-off-current, knowledge/06-analysis-extraction.md#dibl-and-body-effect, knowledge/06-analysis-extraction.md#quality-gate-and-noise, knowledge/01-device-physics.md#mosfet-threshold-voltage-definitions, knowledge/04-ferroelectric-oxide.md#igzo-and-oxide-tft-specifics]
 manual: [PG p568-569 (4-250) "WV", PG p552 (4-234) "WM", PG p562 (4-244) "WSV"]
 debug: [noisy-data, compliance-hit, current-too-high, vth-drift-igzo, errx-codes, cleanup-failed-fault]
-sources: [deck slide 6, deck slide 9, deck slide 15, blueprint v2 3.1]
+sources: ["deck slide 6, 9, 15 (topics only, illustrative: not evidence)", blueprint v2 3.1, lwp/matlab_B1500/test_IdVg.m]
 version: 1
 ---
 
@@ -22,8 +22,8 @@ version: 1
 ## 1. Purpose and applicable devices
 
 Threshold voltage, subthreshold swing, peak transconductance and Ion/Ioff of an enhancement MOSFET or oxide TFT
-(IGZO) in the linear region: `mosfet.idvg`, gate staircase at a small constant drain bias (deck slide 6 default: Vg
--1 → 3 V, Vd 50 mV). This is the card for "measure the Vth". Variants on the same landing: `mosfet.idvg_family`
+(IGZO) in the linear region: `mosfet.idvg`, gate staircase at a small constant drain bias (recipe default, an
+example: Vg -1 → 3 V, Vd 50 mV). The card for "measure the Vth". Variants on the same landing: `mosfet.idvg_family`
 (Id-Vg per drain bias → DIBL in mV/V, Vth(Vd)); `mosfet.idvg_sync` (the drain steps with the gate, `WSV`; default
 Vd 0.2 → 1.2 V → saturation Vth, SS); `mosfet.body_effect` (Id-Vg per body bias, bulk on an SMU → dVth/dVsb).
 
@@ -42,14 +42,14 @@ Vd 0.2 → 1.2 V → saturation Vth, SS); `mosfet.body_effect` (Id-Vg per body b
 - Example pin maps `mosfet-4t` (gate SMU4, drain SMU3, source and bulk GNDU) and `mosfet-4t-body` (same, bulk on
   SMU5), DUT profile `nmos-generic`. IGZO/oxide TFT: three terminals, no body (no `mosfet.body_effect`). pMOS: sweep
   from off to on (`vg_start: 1`, `vg_stop: -3`, `vd: -0.05`), positive body biases, a pMOS profile from the human.
-- Lab Id-Vg script wiring: `mosfet-3t-lab` (gate SMU3, drain SMU4, source SMU5; scenario `lab_nmos_2025`); the
-  kernel differs on purpose (no `*RST`, 1 mA drain compliance, status letters kept): [02](../../knowledge/02-b1500-instrument.md#lab-scripts-vs-the-kernel).
+- The lab script `lwp/matlab_B1500/test_IdVg.m` (what the lab ran: Vg -2 → 2 V in 61 steps, Vd 0.1 V, 10 ms delay)
+  wires `mosfet-3t-lab` (gate SMU3, drain SMU4, source SMU5; scenario `lab_nmos_2025`); the kernel differs on purpose (no `*RST`, 1 mA drain compliance, status letters kept): [02](../../knowledge/02-b1500-instrument.md#lab-scripts-vs-the-kernel).
 - Routes: none in every phase (direct SMU and GNDU wiring; no selector, SCUU, ASU or RSU in the path).
 
 ## 3. Pre-run checklist
 
-- Fresh landing: [contact-resistor-check](contact-resistor-check.md) with `resistor-2t` + `resistor-generic` (SMU3 =
-  drain probe): gate off reads `open` (expected, go on); `short` or a low R: stop and report.
+- Fresh landing: [contact-resistor-check](contact-resistor-check.md) (`resistor-2t`, `resistor-generic`; SMU3 = drain
+  probe): a normally-off device reads `open` with the gate off (go on; normally-on TFT: ask); `short` or low R: stop, report.
 - `station_status` clean; pin map and DUT profile listed: they come from the human (`mosfet-4t`, `nmos-generic` are
   examples). Unknown device or pins (a bulk on an SMU too): stop and ask; limits come from the profile, not memory.
 
@@ -61,7 +61,7 @@ Vd 0.2 → 1.2 V → saturation Vth, SS); `mosfet.body_effect` (Id-Vg per body b
 | `vg_stop` (`mosfet.idvg`) | 3 V | 1..5 V | -10..10 V | end in strong inversion so the gm peak lies inside | capped by the profile's gate `max_abs_v` |
 | `vg_points` (`mosfet.idvg`) | 101 | 101..401 | 11..1001 | 40 mV steps by default | denser: better SS; noisier gm (raise `smooth`) |
 | `vd` | 50 mV | 20..100 mV | -5..5 V | linear region (Vd ≪ Vg - Vth) | `mosfet.idvg`: Vth corrected by Vd/2 |
-| `delay_s` (`mosfet.idvg`) | 0 s | 0..50 ms | 0..10 s | settling per step (lab script: 10 ms) | slower; `hold_s` (0 s) waits before the first step |
+| `delay_s` (`mosfet.idvg`) | 0 s | 0..50 ms | 0..10 s | settling per step (lab script `test_IdVg.m`: 10 ms) | slower; `hold_s` (0 s) waits before the first step |
 | `vg_start` (`mosfet.idvg_family`, `mosfet.idvg_sync`, `mosfet.body_effect`) | 0 V | -1..0 V | -10..10 V | subthreshold points below the 100 nA criterion | sync: the drain starts here too |
 | `vg_stop` (`mosfet.idvg_family`, `mosfet.idvg_sync`, `mosfet.body_effect`) | 1.2 V | 1..3 V | -10..10 V | above threshold, Id below 1 mA at the top Vd | compliance stops the loop |
 | `vg_points` (`mosfet.idvg_family`, `mosfet.idvg_sync`, `mosfet.body_effect`) | 121 | 61..301 | 11..1001 | 10 mV steps | finer Vth interpolation |
@@ -83,9 +83,8 @@ dut_profile: nmos-generic
 sim_scenario: nmos_basic
 ```
 
-Variants (tier `ok` on scenario `nmos_basic`): `uv run b1500 plan mosfet.idvg_family --pin-map mosfet-4t --dut
-nmos-generic`; `uv run b1500 plan mosfet.idvg_sync --pin-map mosfet-4t --dut nmos-generic`; `uv run b1500 plan
-mosfet.body_effect --pin-map mosfet-4t-body --dut nmos-generic`.
+Variants (tier `ok` on `nmos_basic`): `uv run b1500 plan mosfet.idvg_family --pin-map mosfet-4t --dut nmos-generic`,
+the same with `mosfet.idvg_sync`; `uv run b1500 plan mosfet.body_effect --pin-map mosfet-4t-body --dut nmos-generic`.
 
 ## 5. Limits and confirmation
 
@@ -118,12 +117,13 @@ mosfet.body_effect --pin-map mosfet-4t-body --dut nmos-generic`.
 
 ## 8. Expected result shape
 
-| device | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| device | expected (source) | red flags |
 |---|---|---|
-| Si nMOS | Vth 0.2-1 V; SS 65-90 mV/dec (never below about 60); Ion/Ioff 1e5-1e9 (Ioff at the floor: lower bound) | SS < 60 mV/dec at 300 K; gm peak at a sweep end |
-| short / long channel | DIBL tens of mV/V (short), about 0-5 mV/V (long); body coefficient about 0.1-0.5 V/V | negative DIBL; body coefficient ≤ 0 |
-| pMOS | mirror image: negative Vth, sweep towards negative Vg | positive Vth on a pMOS (wrong polarity or pins) |
-| IGZO / oxide TFT | Vth negative to a few volts; SS 100-300 mV/dec; Ioff pA or below; history-dependent | Vth drifting run to run (`vth-drift-igzo`) |
+| Si nMOS (pMOS: mirror image, negative Vth) | Vth, SS, Ion/Ioff unknown for your devices ([01](../../knowledge/01-device-physics.md#mosfet-subthreshold-swing)); SS ≥ 59.5 mV/dec at 300 K (physics); Ioff at the floor: Ion/Ioff is a lower bound | SS < 60 mV/dec at 300 K; gm peak at a sweep end; positive Vth on a pMOS (wrong polarity or pins) |
+| short / long channel | DIBL and body coefficient: technology-dependent, no checked range (`TODO(cite)`) | negative DIBL; body coefficient ≤ 0 (sign rules) |
+| IGZO / oxide TFT | Vth (sign too), SS, Ioff unknown ([04](../../knowledge/04-ferroelectric-oxide.md#igzo-and-oxide-tft-specifics)); Ioff often floor-limited (upper bound); history-dependent | Vth drifting run to run (`vth-drift-igzo`) |
 | any | Ig ≪ Id; Ib at the floor (body effect) | Id at the floor everywhere (open drain); compliance from the first step (short); Ib rising (forward junction) |
 
 ## 9. Common failures → debug

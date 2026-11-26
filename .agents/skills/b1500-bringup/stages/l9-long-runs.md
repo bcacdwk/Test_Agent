@@ -13,7 +13,7 @@ checks:
   - {id: autocal_restored, quantity: autocal_restored, reference: '*LRN? 31 before and after (R-CAL-02)', text: 'CM state after = before every async run, also after each cancel and each recovery (restore step)'}
   - {id: timer_hours, quantity: time_source, method: kind_result, reference: 'kind_result.time_source of an hours-long linear generic.smu_sampling chain (PG p539 (4-221))', text: 'timestamp at the end of the chain (the timer ran on without a reset; index or host = the fallback)'}
   - {id: correction_drift, quantity: correction_drift, reference: 'open_cp_f and short_rs_ohm of new corrections against the L6 values, with the days between (corrections.max_age_h)', text: recorded (the owner decides max_age_h from it)}
-  - {id: bti_n, recipe: reliability.bti_sms, quantity: n, method: bti_power_law, unit: '1', reference: 'lab BTI on a sister device (EasyEXPERT or published process data)', tolerance: {absolute: 0.05}, text: '+-0.05 of the reference exponent'}
+  - {id: bti_n, recipe: reliability.bti_sms, quantity: n, method: bti_power_law, unit: '1', reference: 'the lab''s own BTI on a sister device, same stress and read delay (published data are no reference)', tolerance: {absolute: 0.05}, text: '+-0.05 of the reference exponent (provisional)'}
   - {id: bti_cleanup, recipe: reliability.bti_sms, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: igzo_dvth, recipe: igzo.bias_stress, quantity: delta, method: degradation_vs_time, unit: V, reference: lab IGZO bias-stress data, text: recorded (sign and magnitude)}
   - {id: igzo_cleanup, recipe: igzo.bias_stress, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
@@ -23,17 +23,17 @@ checks:
   - {id: silc_cleanup, recipe: reliability.silc, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: tddb_tbd, recipe: reliability.tddb_cvs, quantity: t_bd, method: time_to_breakdown, unit: s, reference: the run's own compliance stop, text: 'within one sample interval of the compliance row'}
   - {id: tddb_cleanup, recipe: reliability.tddb_cvs, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
-  - {id: bdv, recipe: dielectric.bdv, quantity: bdv, method: breakdown_voltage, unit: V, reference: 'EasyEXPERT ramp on a sister capacitor', tolerance: {rel: 0.05}, text: '+-5 % of the reference ramp'}
+  - {id: bdv, recipe: dielectric.bdv, quantity: bdv, method: breakdown_voltage, unit: V, reference: 'EasyEXPERT ramp on a sister capacitor at the same ramp rate (breakdown spreads device to device)', tolerance: {rel: 0.05}, text: '+-5 % of the reference ramp (provisional)'}
   - {id: bdv_cleanup, recipe: dielectric.bdv, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
-  - {id: breakdown_search, recipe: basic.breakdown_search, quantity: bdv, method: breakdown_voltage, unit: V, reference: 'diode datasheet or EasyEXPERT reverse sweep', tolerance: {rel: 0.05}, text: '+-5 % of the reference'}
+  - {id: breakdown_search, recipe: basic.breakdown_search, quantity: bdv, method: breakdown_voltage, unit: V, reference: 'EasyEXPERT reverse sweep of the same diode at the same current criterion (a data-sheet V_BR is a minimum rating, no reference)', tolerance: {rel: 0.05}, text: '+-5 % of the reference (provisional)'}
   - {id: search_bd_cleanup, recipe: basic.breakdown_search, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run'}
   - {id: endurance_mw, recipe: fefet.endurance, quantity: memory_window_final, method: endurance_summary, unit: V, reference: 'lab FeFET endurance data (wake-up, fatigue)', text: 'recorded with the cycle count reached; MW of the first checkpoint consistent with L7'}
   - {id: endurance_cleanup, recipe: fefet.endurance, quantity: cleanup, reference: run manifests, text: 'verified: lop, SPGU stopped, selector at rest, also after the cancel'}
   - {id: retention_slope, recipe: fefet.retention, quantity: retention_slope_program, method: retention_fit, unit: V/dec, reference: 'lab FeFET retention data', text: recorded for both states}
   - {id: retention_cleanup, recipe: fefet.retention, quantity: cleanup, reference: run manifests, text: 'verified: lop on every run, selector at rest'}
-  - {id: fast_bti_n, recipe: wgfmu.fast_bti, quantity: n, method: fast_bti_shift, unit: '1', reference: 'bti_n of a sister device (SMU reads) or lab fast-BTI data', tolerance: {absolute: 0.05}, text: '+-0.05 of the reference exponent'}
+  - {id: fast_bti_n, recipe: wgfmu.fast_bti, quantity: n, method: fast_bti_shift, unit: '1', reference: 'the lab''s fast-BTI data of a sister device at the same read delay (not bti_n: slower SMU reads recover more)', tolerance: {absolute: 0.05}, text: '+-0.05 of the reference exponent (provisional)'}
   - {id: fast_vs_smu, recipe: wgfmu.fast_bti, quantity: dvth, method: fast_bti_shift, unit: V, reference: 'dvth of reliability.bti_sms on a sister device at the same stress and time', text: 'fast dVth >= SMU dVth (less recovery during the reads); ratio recorded'}
-  - {id: rsu_smu_path, recipe: wgfmu.fast_bti, quantity: vth0, unit: V, reference: 'mosfet.idvg on mosfet-4t through the RSU SMU inputs (ATV-32), same 1 uA criterion', tolerance: {absolute: 0.02}, text: 'fast reference read Vth = DC Vth +-20 mV'}
+  - {id: rsu_smu_path, recipe: wgfmu.fast_bti, quantity: vth0, unit: V, reference: 'mosfet.idvg on mosfet-4t through the RSU SMU inputs (ATV-32), same 1 uA criterion', tolerance: {absolute: 0.02}, text: 'fast reference read Vth = DC Vth +-20 mV (provisional)'}
   - {id: fast_bti_cleanup, recipe: wgfmu.fast_bti, quantity: cleanup, reference: run manifests, text: 'WGFMU channels disconnected, session closed, FLEX relocked; SMUs verified'}
   - {id: run_boundary, recipe: wgfmu.fast_bti, quantity: run_boundary, reference: audit time stamps between two WGFMU executions, text: 'host time per boundary recorded; output stays at the stress level (V Monitor or scope)'}
   - {id: pund_wake_fatigue, recipe: fecap.endurance_pund, quantity: fatigue, method: pund_polarization, unit: '1', reference: 'lab FeCap endurance data of the film, if any', text: 'recorded with pr_initial (consistent with L8 pund_pr), wake_up, cycles_to_failure and the cycles reached'}
@@ -58,11 +58,9 @@ The long plans of L5-L8 take the same asynchronous path (debug runbook `async-ru
 
 ## 2. Physical steps (human)
 
-1. Land the sacrificial MOSFET (`mosfet-l4`, DUT profile `nmos-l4-stress`, a copy of `nmos-l4` with the stress
-   limits); confirm in chat.
-2. Cancel drills: about 3 min into the 10 min BTI run (agent step 3), and again during `fefet.endurance` and
-   `fecap.endurance_pund` (steps 8, 10), run `uv run b1500 shutdown --reason "L9 cancel drill"` in your own
-   PowerShell window; tell the agent when.
+1. Land the sacrificial MOSFET (`mosfet-l4`, DUT profile `nmos-l4-stress`: `nmos-l4` with stress limits); confirm.
+2. Cancel drills: 3 min into the 10 min BTI run, and during `fefet.endurance` and `fecap.endurance_pund` (agent steps
+   3, 8, 10): `uv run b1500 shutdown --reason "L9 cancel drill"` in your own PowerShell window; tell the agent.
 3. Kill drills: 2 min into the second BTI run (agent step 5), and into a second `fefet.endurance` and
    `fecap.endurance_pund` run, end the MCP server process (Task Manager on `b1500-mcp`, or close the coding agent
    window); wait 1 min; restart the agent in the clone; tell it which run was killed.
@@ -120,15 +118,17 @@ The long plans of L5-L8 take the same asynchronous path (debug runbook `async-ru
 | `cancel_drill`, `cancel_drill_spgu`, `cancel_drill_wgfmu` | `cancelled` within one checkpoint (SMU hold block 25 s, SPGU burst, WGFMU 1 s poll), cleanup verified on that bus, partial rows kept | pass/fail | manifest, audit |
 | `recovery_drill`, `recovery_drill_spgu`, `recovery_drill_wgfmu` | `recovery_cleanup` in the next transaction's audit, verified on every bus; killed run `aborted` with its consent record | pass/fail | audit, `get_run` |
 | `timer_hours`, `correction_drift` | `time_source` `timestamp` at the end of an hours-long sampling chain; change of `open_cp_f`, `short_rs_ohm` since L6 with the days between | pass/fail; recorded | `kind_result`, correction runs |
-| `bti_n` | BTI exponent n | +-0.05 of the reference | lab reference |
+| `bti_n` | BTI exponent n | +-0.05 of the reference (provisional) | the lab's sister-device BTI |
 | `igzo_dvth`, `hci_m`, `silc_ratio`, `endurance_mw`, `retention_slope` | stress degradation; MW versus cycles; Vth slope per decade | recorded | lab data |
 | `tddb_tbd` | time to breakdown | one sample interval of the compliance row | the run |
-| `bdv`, `breakdown_search` | breakdown voltage of the ramp; of the diode | +-5 % of the reference | EasyEXPERT / datasheet |
+| `bdv`, `breakdown_search` | breakdown voltage of the ramp (same ramp rate); of the diode (same current criterion) | +-5 % of the reference (provisional) | EasyEXPERT |
 | `bti_cleanup`, `igzo_cleanup`, `hci_cleanup`, `silc_cleanup`, `tddb_cleanup`, `bdv_cleanup`, `search_bd_cleanup`, `endurance_cleanup`, `retention_cleanup` | every run `verified: lop` | pass/fail | manifests |
-| `fast_bti_n`, `fast_vs_smu` | fast exponent; fast dVth >= SMU dVth | +-0.05; recorded | sister device |
-| `rsu_smu_path` | fast reference Vth = DC Vth through the RSU SMU path (ATV-32) | +-20 mV | `mosfet.idvg` on `mosfet-4t` |
+| `fast_bti_n`, `fast_vs_smu`, `rsu_smu_path` | fast exponent; fast dVth >= SMU dVth; fast reference Vth = DC Vth through the RSU SMU path (ATV-32) | +-0.05 (provisional); recorded; +-20 mV (provisional) | lab fast BTI; SMU BTI; `mosfet.idvg` on `mosfet-4t` |
 | `fast_bti_cleanup`, `run_boundary`, `pund_wake_fatigue`, `pund_endurance_cleanup` | WGFMU safe state verified; boundary time; Pr versus cycles (wake-up, fatigue) | pass/fail; recorded | manifest, audit, `pund_polarization` |
 
+- Basis: none (provisional criteria): exponents depend on read delay and recovery, breakdown spreads device to device
+  and with the ramp rate, `rsu_smu_path` is drift beyond a few-mV instrument part (WG5 p24 (1-14)). `TODO(owner)`:
+  which tolerances does the lab accept for `bti_n`, `fast_bti_n`, `rsu_smu_path`, `bdv` and `breakdown_search`?
 - TODO(verify) (blueprint v2 7.6 items 7, 8, 10, 13): the timer runs on for hours (`timer_hours`), host overhead
   per hold block, auto-calibration over hours with outputs off; MFCMU correction drift over days (`correction_drift`);
   WGFMU: the next execution keeps the stress level, the RSU SMU path reaches the DUT (ATV-32; fallback: separate SMU

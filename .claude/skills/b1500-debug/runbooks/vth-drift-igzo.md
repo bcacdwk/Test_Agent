@@ -2,7 +2,8 @@
 id: vth-drift-igzo
 title: IGZO or oxide TFT Vth differs from run to run
 maturity: seed
-sources: [deck slide 17, PPT_slides_content.md p.18 (temperature cause), case 2026-11-04-igzo-vth-drift]
+sources: [general knowledge of oxide TFTs and general practice (not checked against a source), knowledge 05 "IGZO
+  instability mechanisms" (skill b1500-test), example case example-igzo-vth-drift (illustrative)]
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
 
@@ -15,15 +16,19 @@ sources: [deck slide 17, PPT_slides_content.md p.18 (temperature cause), case 20
 - Hysteresis between sweep directions, or a slow return between sessions.
 
 Simulator (cause 2 only): `igzo_drift_repeat` makes every DC sweep a bias stress, so Vth rises from run to run
-and less with a narrower or shorter sweep (debug case `2026-11-04-igzo-vth-drift`); `igzo_transient` drifts under a
-held bias (sampling, bias stress). Moisture, temperature and light have no model.
+and less with a narrower or shorter sweep (example case `example-igzo-vth-drift`, illustrative); `igzo_transient`
+drifts under a held bias (sampling, bias stress). Moisture, temperature and light have no model.
 
 ## Likely causes
 
-1. Moisture adsorption or desorption on the back channel shifts its potential (deck slide 17).
-2. The measurement itself is a bias stress: each sweep shifts Vth (deck slide 17).
-3. Temperature changes alter the oxygen-vacancy concentration (deck text).
-4. Light on the sample (microscope lamp); not from the deck, TODO(verify) with the owner.
+1. Moisture adsorption or desorption on the back channel shifts its potential (general knowledge of oxide TFTs,
+   not checked against a source).
+2. The measurement itself is a bias stress: each sweep shifts Vth (general practice).
+3. Temperature: oxide-TFT Vth depends on temperature (mechanism: `TODO(cite)`); its size for your devices is
+   unknown: ask the human for the chuck and room temperature of each run.
+4. Light on the sample (microscope lamp): illumination under negative gate bias shifts an IGZO Vth negative
+   (knowledge 05 "IGZO instability mechanisms", skill `b1500-test`); the shield box is closed and light-tight during
+   measurements (bring-up S0.P3) unless the human says otherwise.
 
 ## First safe checks
 
@@ -31,13 +36,14 @@ held bias (sampling, bias stress). Moisture, temperature and light have no model
    analysis method and window for all of them, or the comparison is meaningless.
 2. Rule out the other runbooks first: quality `ok`, no C or T in the fit window, SNR fine.
 3. Tabulate Vth against run start time and rest time between runs, and report it as a trend, not as one value.
-4. Deck order step 2 and 3 as new plans inside the card's recommended range that stay tier `ok`: a narrower gate
-   sweep (smaller stress), then fewer points or `integration: short` (shorter measurement). At most two re-runs.
+4. Order steps 2 and 3 below as new plans that stay tier `ok`, inside the original plan's gate range (narrower,
+   never wider): a narrower gate sweep (smaller stress), then fewer points or `integration: short` (shorter
+   measurement). At most two re-runs.
 
 ## Physical checks to ask the human
 
-Deck order (slide 17): control temperature and humidity, reduce the sweep voltage range, shorten the
-measurement time.
+Order (general practice, not a recorded lab procedure): control temperature and humidity, reduce the sweep voltage
+range, shorten the measurement time.
 
 - Temperature and humidity at the prober; is a dry nitrogen purge or a chuck temperature control available?
 - How long has the sample been in air, or out of the chamber, since the last anneal?

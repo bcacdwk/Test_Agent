@@ -15,7 +15,7 @@ confirmation: <never|conditional|always>     # lint: never = example plan tier o
 knowledge: [<knowledge/NN-file.md#heading-id>]   # lint: file and heading id exist
 manual: [<PG p433 (4-115) "ERSSP">]   # lint: canonical citations of catalog documents (page, label, keyword)
 debug: [<runbook ids>]             # lint: ../b1500-debug/runbooks/<id>.md exists
-sources: [<deck slide N>, <blueprint section>, <application note>]
+sources: [<manual page>, <lwp file>, <blueprint section>, <application note>]   # never the deck (illustrative only)
 version: 1
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
@@ -49,11 +49,14 @@ Copy this file to `cards/<family>/<id>.md`, replace every `<...>` and each guida
 ## 4. Recipe and parameters
 
 <One row per recipe parameter; default and recipe range copied from `list_recipes(recipe_id)`. When the card's
-recipes differ for a parameter, write one row per recipe: `` `param` (`recipe.id`) ``.>
+recipes differ for a parameter, write one row per recipe: `` `param` (`recipe.id`) ``. Defaults are examples, not
+values for the human's device: say "example default, set it per device" in `why` where a device sets the value.
+`recommended`: a method convention or a sourced value (manual page, `lwp/...` file), otherwise `-` (the recipe
+range and the DUT profile bound it); the agent re-measures on its own only inside a sourced range.>
 
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
-| `<param>` | <recipe default, e.g. 50 mV> | <low..high unit> | <recipe range low..high unit> | <reason> | <effect on data> |
+| `<param>` | <recipe default, e.g. 50 mV> | <sourced low..high unit, or -> | <recipe range low..high unit> | <reason> | <effect on data> |
 
 Example plan (validated on the simulator by `b1500 dev lint-skills`):
 
@@ -81,7 +84,11 @@ reason (`dut_envelope`, `soft_limit`, `soft_pulse`, `soft_cmu`, `long_run`, `phy
 
 ## 8. Expected result shape
 
-<Typical ranges per device type (never simulator truth); red flags that mean the data are not trustworthy.>
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| device | expected (source) | red flags |
+|---|---|---|
+| <device type> | <a value with its source (manual page, `lwp/...` file, hardware validation record, code default named as such), a physical bound labelled (physics) or (textbook), or a blank: `TODO(owner)`: <question?>, `TODO(verify)[<step ids>]`, `TODO(cite)`, or "unknown" with a link to the knowledge section that holds it. Never simulator truth, never deck text.> | <signs of untrustworthy data; thresholds only from bring-up repeatability (`TODO(verify)[<step>]`) or the human> |
 
 ## 9. Common failures → debug
 

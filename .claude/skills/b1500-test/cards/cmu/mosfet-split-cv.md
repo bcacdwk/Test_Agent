@@ -13,7 +13,7 @@ confirmation: always
 knowledge: [knowledge/08-capacitance-cv.md#split-c-v-cgc-and-cgd, knowledge/08-capacitance-cv.md#threshold-voltage-from-c-v, knowledge/08-capacitance-cv.md#scuu-same-landing-i-v-and-c-v]
 manual: ['PG p256 (3-76) "CV (DC Bias) Sweep"', 'PG p470 (4-152) "MM"', 'PG p549 (4-231) "WDCV"', 'PG p396 (4-78) "DV"', 'PG p520 (4-202) "SSP"']
 debug: [cmu-correction-stale, cmu-series-resistance, cmu-cv-distortion, noisy-data, errx-codes, cleanup-failed-fault]
-sources: [blueprint v2 2.7, blueprint v2 3.2 (mosfet.cgc_cv, mosfet.cgd_cv), blueprint v2 4.2 (mosfet +cv), Koomen 1973]
+sources: [blueprint v2 2.7, blueprint v2 3.2 (mosfet.cgc_cv, mosfet.cgd_cv), blueprint v2 4.2 (mosfet +cv), Koomen 1973 (split C-V; not checked in the repo; TODO(cite))]
 version: 1
 ---
 <!-- GENERATED from .agents/skills by b1500 dev sync-harness; edit the source -->
@@ -45,7 +45,9 @@ Never ground the source for Cgc (that measures Cgd).
 
 ## 3. Pre-run checklist
 
-- Gate leakage below about 1 nA in the range (`gate-leakage`); the device conducts (`mosfet-idvg`) on this landing.
+- Gate leakage (`gate-leakage`) small against the C-V signal in the range: G = I/V << wC at the measurement
+  frequency (physics, [08](../../knowledge/08-capacitance-cv.md#impedance-models-cp-g-cs-rs-z-theta)); the device
+  conducts (`mosfet-idvg`) on this landing.
 - Fresh corrections with this pin map at every frequency (`station_status.corrections`; card `cmu-correction`).
 - Ask: n or p channel (p: sweep from positive to negative), W, L and the gate envelope.
 
@@ -55,8 +57,8 @@ Never ground the source for Cgc (that measures Cgd).
 |---|---|---|---|---|---|
 | `freqs_hz` | [100] kHz | 10..100 kHz | 1 kHz..5 MHz | channel follows the AC | one sweep each |
 | `ac_vrms` | 30 mV | 10..50 mV | 10..250 mV | small signal | above 50 mV: `soft_cmu` |
-| `vg_start` | -1.5 V | -3..0 V | -25..25 V | accumulation (n channel) | overlap floor |
-| `vg_stop` | 2.5 V | 1..3 V | -25..25 V | strong inversion | plateau extrapolation |
+| `vg_start` | -1.5 V | - | -25..25 V | accumulation (n channel; bias defaults: examples for the simulator's example device, set them per device) | overlap floor |
+| `vg_stop` | 2.5 V | - | -25..25 V | strong inversion (example) | plateau extrapolation |
 | `points` | 81 | 41..201 | 11..1001 | step 50 mV | onset Vth resolution |
 | `sweep_mode` | single | single | single, double | double: hysteresis check | 2 x points |
 | `hold_s` | 0.5 s | 0..2 s | 0..60 s | settle at the start | WTDCV hold |
@@ -79,7 +81,8 @@ sim_scenario: nmos_cv
 - R-CMU-01 (MFCMU and DUT `ac` envelopes of gate and drain; `soft_cmu` above 10 V or 50 mVrms), R-DUT-01 (gate
   range, source/bulk at 0 V), R-CORR-01 (blocked without fresh corrections; next step card `cmu-correction`).
 - `unverified_pin_map`, `unverified_topology` (SCUU), `dut_envelope` when the MFCMU's nominal short-circuit AC current
-  exceeds a terminal's `max_abs_i`; on hardware `first_hw_run`. Not destructive; sync (a few seconds per sweep).
+  exceeds a terminal's `max_abs_i`; on hardware `first_hw_run`. Not destructive; sync (planner estimate: a few seconds
+  per sweep; on hardware `TODO(verify)[L6.A7]`).
 
 ## 6. Quality criteria
 
@@ -97,12 +100,14 @@ an ad-hoc analysis in `work/`.
 
 ## 8. Expected result shape
 
-| quantity | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| quantity | expected (source) | red flags |
 |---|---|---|
-| Cgc floor | 2 x Cov (tied source) or Cov (floating source) | rising floor: source or bulk path wrong |
-| Cgc plateau | Cox*W*L within a few % (Cmax 1-3 % below) | plateau far from eps_ox*W*L/tox: geometry or landing |
-| Cgd plateau | about half of Cgc + Cov | equal to Cgc: source not grounded |
-| C-V Vth | near the I-V Vth (different definition) | difference above 0.2 V: wrong device or traps |
+| Cgc floor | 2 x Cov (tied source) or Cov (floating source) (overlap geometry) | rising floor: source or bulk path wrong |
+| Cgc plateau | below Cox*W*L by the inversion-layer (and gate-depletion) capacitance; its size depends on EOT (`TODO(cite)`) | plateau far from eps_ox*W*L/tox: geometry or landing |
+| Cgd plateau | about half of Cgc + Cov (Meyer model at Vd = 0) | equal to Cgc: source not grounded |
+| C-V Vth | differs from the I-V Vth by definition ([08](../../knowledge/08-capacitance-cv.md#threshold-voltage-from-c-v)); no checked tolerance: compare with earlier runs of the same device | - |
 
 ## 9. Common failures → debug
 

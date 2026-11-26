@@ -13,7 +13,7 @@ confirmation: conditional
 knowledge: [knowledge/04-ferroelectric-oxide.md#fefet-memory-window-by-dual-sweep, knowledge/04-ferroelectric-oxide.md#read-disturb-and-sweep-rate-effects, knowledge/06-analysis-extraction.md#memory-window, knowledge/06-analysis-extraction.md#vth-constant-current, knowledge/05-reliability-defects.md#ferroelectric-wake-up-imprint-and-fatigue]
 manual: [PG p568-569 (4-250) "WV", PG p552 (4-234) "WM"]
 debug: [noisy-data, compliance-hit, vth-drift-igzo, current-too-high, errx-codes, cleanup-failed-fault]
-sources: [blueprint 6.4, deck slide 13, deck slide 15]
+sources: [blueprint 6.4, "deck slide 13, 15 (topics only, illustrative: not evidence)", "MW definition and sign rule: knowledge 04 (physics)"]
 version: 1
 ---
 
@@ -56,11 +56,11 @@ MW = Vth_fwd - Vth_rev, and Ion/Ioff per branch. This is the card for "memory wi
 
 | param | default | recommended | recipe range | why | effect |
 |---|---|---|---|---|---|
-| `vg_start` | -4 V | -5..-3 V | -10..10 V | beyond the negative coercive voltage: erase first | smaller \|V\|: minor loop, smaller MW |
-| `vg_stop` | 4 V | 3..5 V | -10..10 V | beyond the positive coercive voltage: full program | capped by the profile's gate `max_abs_v` |
+| `vg_start` | -4 V | - | -10..10 V | erase first, beyond the negative coercive voltage: example default, not your film's (ask) | smaller \|V\|: minor loop, smaller MW |
+| `vg_stop` | 4 V | - | -10..10 V | full program, beyond the positive coercive voltage: example default (ask) | capped by the profile's gate `max_abs_v` |
 | `vg_points` | 161 | 81..321 | 11..1001 | points per branch (2x steps in total), 50 mV steps | sets the sweep rate together with `integration` |
 | `vd` | 50 mV | 20..100 mV | -1..1 V | small read bias, linear region | larger: read disturb, lateral field |
-| `icomp_gate` | 1 uA | - | 1 pA..1 mA | limits gate current through the stack | switching spikes stay far below |
+| `icomp_gate` | 1 uA | - | 1 pA..1 mA | limits gate current through the stack | switching current ≈ gate area x dP/dt: a gate `C` means too low |
 | `icomp_drain` | 1 mA | - | 1 pA..10 mA | room for Ion | above the profile's `max_abs_i`: confirmation |
 | `integration` | `medium` | `medium` | `short`, `medium`, `long` | keep fixed when comparing devices | changes the sweep rate, hence the MW |
 
@@ -89,9 +89,10 @@ sim_scenario: fefet_basic
   refused and with it the MW. Never force silently.
 - Noise gate per branch: a noise-dominated `drain_I` gives no Vth (contact check, skill `b1500-debug`). Each branch
   must cross the criterion current: `failed` "no crossing" means the window lies outside the sweep or the drain is
-  not conducting; extend the sweep only within the recommended range and the profile.
-- Sign: MW > 0 for an n-channel FeFET swept upwards first; MW < 0 gets a warning (trapping dominates, polarity or
-  direction). Report the sign, never only the magnitude.
+  not conducting; a wider sweep only with the human's amplitude, inside the profile (every loop rewrites the film).
+- Sign (physics, [04](../../knowledge/04-ferroelectric-oxide.md#fefet-memory-window-by-dual-sweep)): swept upwards first, MW > 0 for n- and p-channel
+  FeFETs alike; MW < 0 gets a warning (trapping dominates, or a downward-first sweep). Report the sign, never only
+  the magnitude.
 - Re-measure (autonomous, at most two, stays `ok`): one identical repeat to check loop reproducibility (wake-up);
   `vg_points` inside the recommended range. Compare MW only between runs with identical sweep settings.
 
@@ -110,9 +111,11 @@ sim_scenario: fefet_basic
 
 ## 8. Expected result shape
 
-| device | typical | red flags |
+No checked typical values for your devices: compare with the human's expectation or earlier runs of the same device; only physics bounds and sign rules are fixed.
+
+| device | expected (source) | red flags |
 |---|---|---|
-| hafnia (HZO) FeFET, ±3-5 V loop | MW positive, a fraction of a volt up to about 2 V (at most about 2·Ec·t_FE); Vth_fwd > Vth_rev; similar Ion on both branches | MW ≈ 0 (amplitude below the coercive voltage, or no ferroelectric switching) |
+| FeFET, swept upwards first | MW > 0, Vth_fwd > Vth_rev (physics); MW at most about 2·Ec·t_FE (ideal bound, [04](../../knowledge/04-ferroelectric-oxide.md#fefet-memory-window-by-dual-sweep)); size unknown for your films ([04](../../knowledge/04-ferroelectric-oxide.md#ferroelectric-basics-ec-pr-ps)); similar Ion on both branches | MW ≈ 0 (amplitude below the coercive voltage, or no ferroelectric switching) |
 | trapping-dominated stack | MW negative (clockwise) | MW changing sign between identical runs |
 | any | Ioff near the floor on both branches; gate current spikes at switching | gate compliance; MW drifting run to run (wake-up, fatigue, read disturb) |
 

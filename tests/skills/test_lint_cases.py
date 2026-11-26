@@ -33,7 +33,7 @@ from b1500_test_agent.models.analysis import ExtractionResult, MethodRecord
 
 ROOT = Path(__file__).resolve().parents[2]
 DEBUG = ROOT / ".agents" / "skills" / "b1500-debug"
-CASE = "2026-11-04-noisy-data"
+CASE = "example-noisy-data"
 REGISTRY = RecipeRegistry.load(ROOT / "recipes", repo_root=ROOT)
 
 
@@ -71,23 +71,69 @@ def test_committed_cases_and_template_are_clean(debug_dir: Path) -> None:
     assert lint(debug_dir) == []
     template = yaml.safe_load((DEBUG / "cases" / "_TEMPLATE.md").read_text(encoding="utf-8").split("---")[1])
     assert tuple(template) == CASE_KEYS and template["status"] == "draft" and template["reviewed_by"] is None
+    assert template["origin"] == "observed" and "deck" not in str(template["sources"])
     assert CASE_SECTIONS[-2:] == ("Simulator reproduction (SIMULATED)", "Open questions for the owner")
+
+
+@pytest.mark.parametrize(("old", "new", "message"), [
+    ("origin: observed ", "origin: illustrative ", "the template starts every case as origin: observed"),
+    ("sources: [<run notes>, <lab notebook page>]", "sources: [<run notes>, <deck slide N>]",
+     "the owner's deck is illustrative, never a source of a case"),
+])
+def test_the_template_drafts_observed_cases_without_the_deck(debug_dir: Path, old: str, new: str,
+                                                             message: str) -> None:
+    """v2.1 KD-5: an agent drafts what it saw (``origin: observed``); the template never offers the deck as a source
+    (it invited ``<deck slide N>`` before)."""
+    edit(debug_dir, old, new, "_TEMPLATE")
+    assert [(code, name) for code, name, _ in lint(debug_dir)] == [("case", "_TEMPLATE.md")]
+    assert message in lint(debug_dir)[0][2]
 
 
 # -- review rules (CaseFrontmatter) ------------------------------------------------------------------------------------
 
 
+OBSERVED = {"origin": "observed", "id": "2026-11-04-noisy-data", "title": "Large noise",
+            "sources": ["lab notebook 3, p. 12"], "station": "lab-b1500"}
+"""An observed version of the example case (a lab record of 2026-11-04 from outside the agent)."""
+ILLUSTRATIVE = "an illustrative case (an example: nothing was observed) needs "
+
+
 @pytest.mark.parametrize(("changes", "message"), [
     ({"status": "reviewed"}, "status reviewed needs reviewed_by"),
     ({"reviewed_by": "A. Owner"}, "status draft needs reviewed_by: null"),
-    ({"status": "reviewed", "reviewed_by": "A. Owner"}, "status reviewed needs open_questions: 0 (has 5)"),
-    ({"runs": ["S20261126T055822Z-523b"]}, "runs of backend visa start with H"),
-    ({"backend": "sim", "runs": ["H20261126T055822Z-523b"]}, "runs of backend sim start with S"),
+    ({"status": "reviewed", "reviewed_by": "A. Owner"}, "status reviewed needs open_questions: 0 (has 2)"),
     ({"id": "noisy-data"}, "id"),
+    # v2.1 KD-5: an illustrative case shows itself as an example and claims no observation
+    ({"id": "2026-11-04-noisy-data"}, ILLUSTRATIVE + "id example-<slug>"),
+    ({"title": "Large noise"}, ILLUSTRATIVE + "a title starting 'Example: '"),
+    ({"backend": "visa"}, ILLUSTRATIVE + "backend: none"),
+    ({"station": "unknown"}, ILLUSTRATIVE + "station: none"),
+    ({"runs": ["H20261126T055822Z-523b"]}, ILLUSTRATIVE + "runs: []"),
+    ({"backend": "sim", "runs": ["S20261126T055822Z-523b"]}, ILLUSTRATIVE + "backend: none, runs: []"),
+    # an observed case is dated, rests on records of the observation and lists the runs of its backend
+    ({"origin": "observed"}, "an observed case is named <YYYY-MM-DD>-<slug>"),
+    ({**OBSERVED, "sources": ["deck slide 17"]}, "the owner's deck is illustrative, never one"),
+    ({**OBSERVED, "backend": "visa"}, "backend visa needs the observation's runs (H...) in runs"),
+    ({**OBSERVED, "backend": "sim"}, "backend sim needs the observation's runs (S...) in runs"),
+    ({**OBSERVED, "backend": "visa", "runs": ["S20261126T055822Z-523b"]}, "runs of backend visa start with H"),
+    ({**OBSERVED, "backend": "sim", "runs": ["H20261126T055822Z-523b"]}, "runs of backend sim start with S"),
+    ({**OBSERVED, "runs": ["H20261126T055822Z-523b"]}, "backend none has no runs"),
+    ({"backend": "lab"}, "backend"),
+    ({"origin": "seen"}, "origin"),
 ])
-def test_review_and_backend_rules(changes: dict[str, Any], message: str) -> None:
-    with pytest.raises(ValueError, match=message.replace("(", r"\(").replace(")", r"\)")):
+def test_review_origin_and_backend_rules(changes: dict[str, Any], message: str) -> None:
+    with pytest.raises(ValueError, match=message.replace("(", r"\(").replace(")", r"\)").replace("[", r"\[")
+                       .replace("]", r"\]").replace(".", r"\.")):
         CaseFrontmatter.model_validate(front(**changes))
+
+
+@pytest.mark.parametrize("changes", [
+    OBSERVED,  # a lab record without runs of this agent (backend none)
+    {**OBSERVED, "backend": "visa", "runs": ["H20261126T055822Z-523b"]},
+    {**OBSERVED, "backend": "sim", "runs": ["S20261126T055822Z-523b"]},
+])
+def test_observed_cases_that_are_valid(changes: dict[str, Any]) -> None:
+    assert CaseFrontmatter.model_validate(front(**changes)).origin == "observed"
 
 
 def test_a_reviewed_case_with_its_questions_answered_is_valid(debug_dir: Path) -> None:
@@ -95,9 +141,9 @@ def test_a_reviewed_case_with_its_questions_answered_is_valid(debug_dir: Path) -
     path = debug_dir / "cases" / f"{CASE}.md"
     text = path.read_text(encoding="utf-8")
     head, questions = text.split("## Open questions for the owner\n")
-    assert sum(line[:3] in {f"{n}. " for n in range(1, 6)} for line in questions.splitlines()) == 5
+    assert sum(line[:3] in {f"{n}. " for n in range(1, 6)} for line in questions.splitlines()) == 2
     head = head.replace("status: draft\nreviewed_by: null", "status: reviewed\nreviewed_by: A. Owner")
-    head = head.replace("open_questions: 5", "open_questions: 0")
+    head = head.replace("open_questions: 2", "open_questions: 0")
     path.write_text(head + "## Open questions for the owner\n\nNone: answered in the sections above.\n",
                     encoding="utf-8")
     assert lint(debug_dir) == []
@@ -111,14 +157,14 @@ LEAKAGE_STEP = ("recipe: mosfet.gate_leakage, pin_map: mosfet-4t, dut_profile: n
 
 
 @pytest.mark.parametrize(("old", "new", "messages"), [
-    ("title: Large noise and point-to-point scatter\nstatus: draft",
-     "status: draft\ntitle: Large noise and point-to-point scatter", ["frontmatter keys are id, title, status"]),
+    ('title: "Example: Large noise and point-to-point scatter"\nstatus: draft',
+     'status: draft\ntitle: "Example: Large noise and point-to-point scatter"',
+     ["frontmatter keys are id, title, status"]),
     ("## DUT hypotheses\n", "## Device hypotheses\n", ["sections are ## Symptom"]),
-    ("Not recorded in the deck (open question 5).", "Not recorded in the deck. TODO(owner).",
-     ["TODO(owner) outside the section"]),
-    ("open_questions: 5", "open_questions: 4", ["open_questions is 4 but the section"]),
+    ("None (illustrative).", "None (illustrative). TODO(owner).", ["TODO(owner) outside the section"]),
+    ("open_questions: 2", "open_questions: 1", ["open_questions is 1 but the section"]),
     ("runbook: noisy-data", "runbook: noisy-dataset", ["runbook 'noisy-dataset' is not a runbooks/<id>.md file"]),
-    ("Regenerate: `uv run b1500 dev cases reproduce 2026-11-04-noisy-data`;", "Regenerate it;",
+    ("`uv run b1500 dev cases reproduce example-noisy-data`;", "it;",
      ["names the command to regenerate it"]),
     ("  scenario: nmos_unshielded\n", "  scenario: nmos_shielded\n",
      ["reproduction scenario 'nmos_shielded'"] + ["scenario 'nmos_shielded' is neither"] * 5),
@@ -145,13 +191,15 @@ def test_case_lint_finds_the_defect(debug_dir: Path, old: str, new: str, message
 def test_a_runbook_must_name_its_case(debug_dir: Path) -> None:
     runbook = debug_dir / "runbooks" / "noisy-data.md"
     text = runbook.read_text(encoding="utf-8")
-    runbook.write_text(text.replace(", case\n  2026-11-04-noisy-data]", "]"), encoding="utf-8")
-    expected = "runbook noisy-data's sources do not name this case (2026-11-04-noisy-data)"
+    old = ", example case example-noisy-data (illustrative)]"
+    assert text.count(old) == 1
+    runbook.write_text(text.replace(old, "]"), encoding="utf-8")
+    expected = "runbook noisy-data's sources do not name this case (example-noisy-data)"
     assert [p[2] for p in lint(debug_dir)] == [expected]
 
 
 def test_an_alias_needs_a_committed_base_and_must_not_shadow_one(debug_dir: Path) -> None:
-    name = "2026-11-04-igzo-vth-drift"
+    name = "example-igzo-vth-drift"
     edit(debug_dir, "rested_narrow: {base: igzo_drift_repeat}", "igzo_transient: {base: igzo_nowhere}", name)
     edit(debug_dir, "rested_short: {base: igzo_drift_repeat}", "rested_short: {base: igzo_drift_repeat, faults: "
                     "[{kind: no_such_fault}]}", name)
@@ -169,8 +217,9 @@ def test_a_misnamed_case_file(debug_dir: Path) -> None:
     source = debug_dir / "cases" / f"{CASE}.md"
     source.rename(debug_dir / "cases" / "noisy.md")
     messages = [p[2] for p in lint(debug_dir)]
-    assert any("a case is named <YYYY-MM-DD>-<slug>.md" in m for m in messages)
-    assert any("id '2026-11-04-noisy-data' differs from the file name 'noisy'" in m for m in messages)
+    assert any("a case is named <YYYY-MM-DD>-<slug>.md (date of the observation) or example-<slug>.md" in m
+               for m in messages)
+    assert any("id 'example-noisy-data' differs from the file name 'noisy'" in m for m in messages)
 
 
 def test_reproduction_null_needs_a_reason(debug_dir: Path) -> None:

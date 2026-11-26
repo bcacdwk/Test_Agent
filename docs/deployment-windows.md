@@ -14,9 +14,9 @@ owner decisions OD-4, OD-5, OD-7. After the installation the bring-up follows th
 **The idea in one paragraph.** Everything lives in one folder, the `git clone` of this repository: the Python
 environment (`.venv\`), your local configuration (`config\local\`), the run archive and state (`data\`) and the
 agent's scratch (`work\`). Nothing needs administrator rights except the VISA driver for the GPIB adapter and the
-WGFMU instrument library. Updating means `git pull`. The coding agent (Codex, optionally Claude Code) reaches the
-B1500A only through the b1500 server; a measurement that needs your consent stops, shows its summary in the chat
-and waits for your own words, then the harness asks you once more in its approval prompt.
+WGFMU instrument library. Updating means one command, `uv run b1500 update`. The coding agent (Codex, optionally
+Claude Code) reaches the B1500A only through the b1500 server; a measurement that needs your consent stops, shows
+its summary in the chat and waits for your own words, then the harness asks you once more in its approval prompt.
 
 ## First session
 
@@ -28,8 +28,8 @@ guard hook stop a coding agent from running them.
    manuals folder (~75 MB of PDFs) to the lab PC for figures and `manual build`.
 2. **Lab PC, once** (step 1): Git for Windows; `winget install astral-sh.uv`; `uv python install 3.12`; Keysight
    IO Libraries Suite (lab IT; the VISA stack); **B1530A WGFMU Instrument Library A.03.00 or later** (current
-   A.04.00.2440.5403; its installer puts the x64 `wgfmu.dll` into `C:\Windows\System32`); the Codex CLI (and/or
-   Claude Code); `setx PYTHONUTF8 1`.
+   A.04.00.2440.5403; its installer puts the x64 `wgfmu.dll` into `C:\Windows\System32`); Node.js LTS and the
+   Codex CLI from npm (and/or Claude Code as the native build, its auto-update off); `setx PYTHONUTF8 1`.
 3. `git clone REMOTE_URL C:\b1500\test_agent` (step 2); the manual PDFs in `C:\b1500\` (the clone's parent, the
    default `settings.manuals_dir`) or wherever `B1500_MANUALS_DIR` points.
 4. `uv sync --frozen`; `uv run b1500 manual status` (the committed corpus: 16 documents, 2,315 pages);
@@ -41,7 +41,8 @@ guard hook stop a coding agent from running them.
 7. `uv run b1500 bringup propose-station`; fill the selector and RSU inputs from the cabling; *human:*
    `uv run b1500 config adopt work\bringup\station.proposed.yaml --as station`; pin maps and DUT profiles from
    the examples, adopted the same way; `uv run b1500 config check` (step 6).
-8. `uv run b1500 harness init --codex`; start `codex` in the clone and trust the project (steps 7 and 8).
+8. `uv run b1500 harness init --codex`; start `codex` in the clone and trust the project, close it, then
+   `uv run b1500 update`: it installs the validated harness versions and must end with `Ready.` (steps 7, 8, 12).
 9. Prompt: "Use skill b1500-bringup and continue the hardware bring-up from the current stage." Do the physical
    steps; consent in chat in your own words; approve the harness prompt after comparing its summary (step 10).
 10. End of day (step 11): `$env:B1500_HW = "1"; uv run pytest -m hardware -rs`; back up `data\runs\`; review
@@ -63,13 +64,14 @@ Fill in the last column before step 1. Where a fact is unknown, the default appl
 | Internet access (PyPI, harness login and model use) | `uv sync`, `uv python install` and both harnesses need it | Open pypi.org in a browser; ask lab IT about a proxy | Online. The harnesses always need the internet; if only PyPI is blocked see §"Offline wheelhouse" | |
 | Offline wheelhouse needed | Only if PyPI is blocked but the harness can still reach its service | Lab IT | Not needed | |
 | EasyEXPERT coexistence | EasyEXPERT must be ended while b1500 controls the B1500A (PG PDF 23) | Ask the people who use EasyEXPERT on the instrument; is EasyEXPERT set to auto-start? | Never at the same time: EasyEXPERT ended (File > Exit, Start EasyEXPERT button left on screen) whenever b1500 works | |
-| Harness choice and versions | Behaviour of approvals and rules depends on the version | `codex --version`, `claude --version`, `uv --version`, `git --version` | Codex only; the versions of the latest acceptance report in `docs/acceptance/` or newer; Claude Code at least 2.1.295 | |
+| Harness choice and versions | Behaviour of approvals and rules depends on the version | `codex --version`, `claude --version`, `uv --version`, `git --version` | Codex only, at the version in `config/harness/validated.yaml` (`uv run b1500 update` installs it); Claude Code optional, same file | |
+| Node.js LTS | npm is the one install method of Codex | `node --version` | Node.js LTS from WinGet (`OpenJS.NodeJS.LTS`), per user | |
 | Manuals folder | Figures and `manual build` need the PDFs; search and page text come from the committed corpus | Copy of the developer's `1500A` folder | `C:\b1500\` (the clone's parent), or set `B1500_MANUALS_DIR` | |
 | Backup of `data\runs\` | Runs exist only in the clone | Ask the owner: target folder and rhythm | No automatic backup; copy `data\runs\` and `config\local\` at the end of each measurement day (step 11) | |
 | Clone folder | Long or non-ASCII paths cause Windows path problems; `doctor` warns above 80 characters | Choose | `C:\b1500\test_agent` | |
 | Windows account and admin rights | The VISA and WGFMU installers need admin rights once | Lab IT | Lab IT installs both; everything else installs per user without admin rights | |
 | Power-line frequency | Run-time estimates and integration assume 50 Hz (ATV-31) | EasyEXPERT Configuration window, Main Frame tab | 50 Hz | |
-| Git remote, branch and credentials | What `git clone` and `git pull` fetch; pushing the bring-up records (OD-7) needs credentials | The developer | The developer's remote, branch `rearch/v2` until it is merged; no push credentials: OneDrive copy | |
+| Git remote, branch and credentials | What `git clone` and `uv run b1500 update` fetch; pushing the bring-up records (OD-7) needs credentials | The developer | The developer's remote, its default branch `main`; no push credentials: OneDrive copy | |
 
 ## Procedure
 
@@ -90,8 +92,18 @@ process cannot load the vendor VISA DLL, the WGFMU library or see the USB/GPIB a
    A.04.00.2440.5403). Install the 64-bit library: the x64 `wgfmu.dll` goes to `C:\Windows\System32`, which is
    where `settings.wgfmu.library: ""` looks; a different path goes into `wgfmu.library` (ATV-15 fallback). 64-bit
    Python cannot load a 32-bit DLL, and there is no 32-bit bridge. Admin rights, usually lab IT.
-6. **Coding harness:** the Codex CLI for Windows (native, PowerShell, sign in once). Optional: Claude Code with
-   `irm https://claude.ai/install.ps1 | iex` (no admin rights) and sign in.
+6. **Coding harness, one install method each** (no admin rights). The exact versions come later from
+   `config/harness/validated.yaml`, which `uv run b1500 update` installs (step 12); harness versions change only
+   when the maintainer has qualified a new one and committed it there.
+   - **Codex from npm:** install Node.js LTS (`winget install OpenJS.NodeJS.LTS`), open a new PowerShell window,
+     run `npm install -g @openai/codex`, then `codex login`. Codex installed this way never updates itself;
+     decline its "update available" offer.
+   - **Claude Code (optional) as the native build:** `irm https://claude.ai/install.ps1 | iex`, sign in with
+     `claude auth login`, and turn its auto-update off on the lab PC: add `"env": {"DISABLE_AUTOUPDATER": "1"}` to
+     `%USERPROFILE%\.claude\settings.json` (or `setx DISABLE_AUTOUPDATER 1`). Never set `DISABLE_UPDATES`: it
+     also blocks `claude install`, which `update` uses.
+   - Another install method (WinGet or Homebrew packages, a downloaded binary, Claude Code through npm) is reported
+     by `uv run b1500 update` with the one-time switch command.
 7. **UTF-8 mode for Python:** `setx PYTHONUTF8 1` (user environment; takes effect in new windows). Manual pages,
    units (`Ω`, `µ`) and run notes are UTF-8: without it Python writes redirected output in the ANSI code page
    (cp1252, or cp936 on a Chinese Windows). The `b1500` commands then print `\u03a9`-style escapes instead of
@@ -106,15 +118,15 @@ install with `.venv\Scripts\python -m pip install -r requirements-win.txt` and
 ### Step 2 — Get the code and the manuals
 
 ```powershell
-git clone --branch rearch/v2 REMOTE_URL C:\b1500\test_agent
+git clone REMOTE_URL C:\b1500\test_agent
 cd C:\b1500\test_agent
 git status
 ```
 
-`REMOTE_URL` and the branch come from the facts table. Later updates use `git pull` (step 12). Line endings are
-handled by the committed `.gitattributes` (every text file LF on every clone, so the plan hashes of committed files
-are the same as on the Mac). Keep the clone path short and ASCII: `doctor` warns above 80 characters, because a
-run folder path must still fit the classic 260-character Windows limit.
+`REMOTE_URL` comes from the facts table; the clone is on the default branch `main`, the one `uv run b1500 update`
+pulls (step 12). Line endings are handled by the committed `.gitattributes` (every text file LF on every clone, so
+the plan hashes of committed files are the same as on the Mac). Keep the clone path short and ASCII: `doctor` warns
+above 80 characters, because a run folder path must still fit the classic 260-character Windows limit.
 
 **Manuals (optional).** `b1500 manual search`, `page` and `toc` read the committed page corpus and need no PDF.
 Only figures and `manual build` need the PDFs: copy the developer's `1500A` folder content (the PDFs, `Demo\`,
@@ -132,7 +144,8 @@ uv run b1500 doctor
 
 `uv sync --frozen` creates `.venv\` inside the clone exactly as `uv.lock` says. `manual status` must say
 `corpus current: 16 docs, 2315 pages`; PDFs found or not is only information. `doctor` runs on backend `sim`
-(no instrument yet): no FAIL line; until step 7 "harness files" is a WARN; `wgfmu library` PASSes once the x64 DLL
+(no instrument yet): no FAIL line; until step 7 "harness files" is a WARN, and "harness versions" until
+`uv run b1500 update` installed the validated harness versions (step 10); `wgfmu library` PASSes once the x64 DLL
 is installed (step 1.5), WARNs while it is missing; `local config` PASSes on the committed examples;
 `LongPathsEnabled` may WARN (keep the clone path short instead of changing the registry); `PYTHONUTF8` WARNs in a
 window opened before step 1.7.
@@ -268,9 +281,9 @@ Start it from the clone root, with no extra flags.
 
 ### Step 9 — Claude Code (optional)
 
-1. `claude --version` is 2.1.295 or later (needed for the hook's fail-closed setting) and `uv` is on `PATH`: the
-   guard hook runs through `uv`, and if it cannot start, every shell and file-edit call of Claude Code is blocked
-   until it is fixed.
+1. `claude --version` is the version in `config/harness/validated.yaml` (`uv run b1500 update` installs it; the
+   hook's fail-closed setting needs 2.1.295 or later) and `uv` is on `PATH`: the guard hook runs through `uv`, and
+   if it cannot start, every shell and file-edit call of Claude Code is blocked until it is fixed.
 2. Start `claude` in the clone root and **approve the project MCP server `b1500` once** when asked. Check:
    `claude mcp list` shows `b1500` connected (before the approval it says "Pending approval").
 3. Use the default permission mode (accept-edits is fine). Never use `--dangerously-skip-permissions`, never set
@@ -287,7 +300,8 @@ Start it from the clone root, with no extra flags.
 
 ### Step 10 — Bring the instrument up with the agent
 
-Start the harness in the clone root and give it this prompt:
+First, with every harness closed, run `uv run b1500 update` in PowerShell: it must end with `Ready.` (otherwise do
+its numbered list; step 12). Then start the harness in the clone root and give it this prompt:
 
 > Use skill b1500-bringup and continue the hardware bring-up from the current stage.
 
@@ -346,19 +360,31 @@ robocopy config\local D:\b1500-backup\config-local /E
 - Human-only commands, typed by you, never by the agent: `uv run b1500 run --confirm PLAN_ID`,
   `uv run b1500 fault clear --by NAME` (only after a verified `uv run b1500 shutdown`), `uv run b1500 config init`
   and `uv run b1500 config adopt`.
-- **Update:** close the harness, then
+- **Update:** close every harness window, then type, yourself:
 
   ```powershell
-  git pull
-  uv sync --frozen
-  uv run b1500 harness init --codex --check
-  uv run b1500 doctor
+  uv run b1500 update
   ```
 
-  If the check reports drift, run `uv run b1500 harness init --codex` again (and `--claude` if used). `git pull`
-  never touches `config\local\` or `data\` (both are ignored by git). After a harness upgrade repeat steps 8.2, 8.5
-  and, for Claude Code, 9.4–9.5. With a wheelhouse install, a `git pull` that changes `uv.lock` needs a new
-  wheelhouse first.
+  It pulls `main` (`git pull --ff-only`), runs `uv sync --frozen` and continues with the pulled code, re-renders a
+  drifted `.codex\config.toml` / `.mcp.json`, brings each installed harness to the version in
+  `config/harness/validated.yaml` (it asks first, then runs the one installer:
+  `npm install -g @openai/codex@<version>`, `claude install <version>`), checks the hold of the versions on this PC
+  (Claude Code's auto-update off), runs the free checks (signed in, no bypass default in your harness configs,
+  Claude Code accepts `.claude\settings.json`, Codex forbids the eight human-only commands, both harnesses trust the
+  clone, the b1500 server starts with its ten tools, `uv run b1500 doctor` without FAIL) and ends with `Ready.` or
+  `Not ready. Do this:` and a numbered list. Lines starting with `note:` block nothing.
+  - It changes nothing it cannot finish: a changed tracked file, another branch (for example `lab/bringup-…` after a
+    transfer: `git switch main`), local commits that diverged from origin, or no network stop it with one plain
+    message. `git pull` never touches `config\local\` or `data\` (both are ignored by git).
+  - `uv run b1500 update --check` shows the same verdict and changes nothing (no pull, sync or install).
+  - It refuses to run inside a Codex or Claude Code session or without a terminal: type it yourself.
+  - A new harness version reaches this PC only through `validated.yaml`, after the maintainer qualified it on the
+    Mac; `uv run b1500 doctor` warns at every session start while an installed harness differs ("run
+    `uv run b1500 update`"). After a version change repeat the interactive checks of steps 8.2, 8.5 and, for Claude
+    Code, 9.4–9.5 (they cannot be checked without you).
+  - With a wheelhouse install (`UV_OFFLINE`), an update that changes `uv.lock` stops with "a new wheelhouse is
+    needed" (§"Offline wheelhouse").
 
 ## Offline wheelhouse
 
@@ -462,7 +488,8 @@ carry no permission rules, so nothing changes there. **Guard hook.** `scripts/ho
 WP6.1, no settings change needed) also blocks shell commands that run `b1500 config init` or `b1500 config adopt`,
 with or without `uv run`, for Claude Code in every permission mode the hook runs in.
 
-Check after a `git pull` on the lab PC: `uv run b1500 harness init --codex --check` (and `--claude`) and
+`uv run b1500 update` checks both after every pull (the wiring, and `codex execpolicy check` of the eight forbidden
+commands). By hand: `uv run b1500 harness init --codex --check` (and `--claude`) and
 `codex execpolicy check --rules .codex/rules/b1500.rules uv run b1500 manual search x` (no decision = not matched).
 
 ## Residual risks in plain words
@@ -505,7 +532,8 @@ current harness documentation before adopting it.
 
 | Item | Result | Date |
 |---|---|---|
-| Harness versions (Codex, Claude Code, uv, Git, Python) | | |
+| Harness versions (Codex, Claude Code: = `config/harness/validated.yaml`), uv, Git, Python, Node.js | | |
+| `uv run b1500 update`: verdict `Ready.`; install methods (Codex npm, Claude Code native); Claude Code auto-update off | | |
 | WGFMU instrument library version and DLL path (ATV-15) | | |
 | Install route: PyPI or wheelhouse (commit it was built from) | | |
 | Codex `doctor --summary` sandbox row (step 8.2) | | |

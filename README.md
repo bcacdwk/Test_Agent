@@ -122,8 +122,11 @@ Manual facts come from the committed page corpus of the 16 Keysight manuals (2,3
 
 ## Lab PC
 
-The real station is a Windows PC wired to the B1500A over GPIB that runs the same clone (`git clone`, `git pull`,
-`uv sync --frozen`, local configuration in `config/local/`). [docs/deployment-windows.md](docs/deployment-windows.md)
+The real station is a Windows PC wired to the B1500A over GPIB that runs the same clone (`git clone`,
+`uv sync --frozen`, local configuration in `config/local/`). One command keeps it current: `uv run b1500 update`,
+typed by the operator, pulls `main`, syncs the environment, repairs the harness wiring, installs the harness versions
+the maintainer validated (`config/harness/validated.yaml`) and ends with `Ready.` or a numbered list of what to do.
+[docs/deployment-windows.md](docs/deployment-windows.md)
 is the owner's first-session script (prerequisites including the WGFMU instrument library A.03.00 or later x64,
 the read-only probe `uv run b1500 doctor --probe --wgfmu-session`, the station proposal
 `uv run b1500 bringup propose-station`, configuration adoption by the human, harness wiring, an offline
@@ -142,7 +145,7 @@ wheelhouse); then the coding agent follows skill `b1500-bringup` stage by stage 
 | [docs/roadmap.md](docs/roadmap.md) | Milestones M0–M12 and their status; what the hardware session settles |
 | [docs/coverage.md](docs/coverage.md) | GENERATED: per module the kinds, recipes, cards, rules, simulator model, stages, ledger counts; the modes |
 | [docs/manuals.md](docs/manuals.md) | Manual corpus: `b1500 manual search\|page\|toc`, catalog, citations |
-| [docs/deployment-windows.md](docs/deployment-windows.md) | Windows lab PC: first session, procedure, offline wheelhouse, harness permissions |
+| [docs/deployment-windows.md](docs/deployment-windows.md) | Windows lab PC: first session, procedure, `uv run b1500 update`, offline wheelhouse, harness permissions |
 | [docs/hardware-bringup.md](docs/hardware-bringup.md) | Bring-up overview: stages S0–L10, who does what, records |
 | [docs/acceptance/](docs/acceptance/README.md) | Harness acceptance runner, scenarios and the session reports |
 | [AGENTS.md](AGENTS.md) | Instructions for coding agents (also loaded by Claude Code via `CLAUDE.md`) |

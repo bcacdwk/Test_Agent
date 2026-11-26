@@ -1,0 +1,6 @@
+# Harness versions validated for this repository (v2.1 plan §2.1). Written only by `uv run b1500 dev harness qualify`
+# (the maintainer commits it); `uv run b1500 update` installs exactly these versions, with the one install method per
+# harness: Codex from npm (`npm install -g @openai/codex@<version>`), Claude Code as the native build
+# (`claude install <version>`). Seeded from the S1-S18 full-suite reports of 2026-11-26 (WP21.1).
+codex:  {version: 0.170.0, install: npm,    validated: 2026-11-26, report: docs/acceptance/2026-11-26-codex-0.170.0.md}
+claude: {version: 2.1.328, install: native, validated: 2026-11-26, report: docs/acceptance/2026-11-26-claude-2.1.328.md}

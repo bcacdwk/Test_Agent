@@ -219,8 +219,11 @@ def test_doctor(cli_world: World) -> None:
     report = as_json(result)
     checks = {c["name"]: c for c in report["checks"]}
     assert set(checks) == {"python", "uv.lock", "imports", "config", "local config", "data dir", "path length",
-                           "state", "skills mirror", "harness files", "mcp server", "manual corpus", "manual PDFs",
-                           "wgfmu library", "PYTHONUTF8", "LongPathsEnabled"}
+                           "state", "skills mirror", "harness files", "harness versions", "mcp server",
+                           "manual corpus", "manual PDFs", "wgfmu library", "PYTHONUTF8", "LongPathsEnabled"}
+    # WP21.1: the installed harness CLIs against config/harness/validated.yaml (INFO on a runner without them)
+    assert checks["harness versions"]["status"] in ("PASS", "INFO", "WARN")
+    assert "validated" in checks["harness versions"]["detail"]
     assert checks["config"]["status"] == "PASS" and "sim" in checks["config"]["detail"]
     # WP11.4: config/local completeness; the simulator's configuration has every DUT envelope its pin maps need
     assert checks["local config"]["status"] == "PASS" and "covered by a fitting DUT profile" in \
@@ -283,7 +286,7 @@ def test_sim_console_refuses_any_other_backend(world: World) -> None:
 def test_help_lists_every_command(cli_world: World) -> None:
     result = invoke("--help")
     for command in ("status", "recipes", "plan", "run", "runs", "show", "analyze", "note", "shutdown", "fault",
-                    "lock", "doctor", "config", "harness", "mcp", "dev", "manual"):
+                    "lock", "doctor", "update", "config", "harness", "mcp", "dev", "manual"):
         assert command in result.stdout
     dev = invoke("dev", "--help")
     for command in ("tool-budget", "recipe-check", "mcp-smoke", "sim-console", "sync-harness", "lint-skills",

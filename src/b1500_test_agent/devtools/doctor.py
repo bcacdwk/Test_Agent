@@ -13,6 +13,8 @@ length (WARN above 80 characters on Windows); stale inflight marker or latched f
 files (the committed ``.claude/settings.json``, Codex rules, guard hook and
 examples wired as blueprint 5.4 says; each generated ``.codex/config.toml`` / ``.mcp.json`` free of drift, both on
 the same ``b1500-mcp`` entry point, ``run_confirmed_plan`` = ``prompt`` / ``ask``; WARN when none is generated yet);
+harness versions (v2.1 plan §2.2: each installed ``codex``/``claude`` CLI against ``config/harness/validated.yaml``,
+version and install method; WARN "run ``uv run b1500 update``", INFO when no harness CLI is on ``PATH``);
 the MCP server starts with exactly the ten tools within the token budget; the manual corpus (blueprint 5.2: PASS
 when the committed corpus is current, WARN when stale or missing) and the manual PDFs (optional: PASS when all are
 found, INFO when some or all are absent, WARN on an edition mismatch); the WGFMU instrument library (WP10.2: the
@@ -46,7 +48,8 @@ from typing import Final, Literal
 from pydantic import BaseModel
 
 from b1500_test_agent.config import ConfigBundle, ConfigLoader
-from b1500_test_agent.devtools import budget, harness, sync_harness
+from b1500_test_agent.devtools import budget, harness, harness_versions, sync_harness
+from b1500_test_agent.devtools.harness_versions import HARNESSES, LABELS, VALIDATED_FILE
 from b1500_test_agent.errors import InvalidConfigError
 from b1500_test_agent.manuals import search as manual_search
 from b1500_test_agent.manuals.catalog import ManualError, ManualPaths
@@ -388,6 +391,51 @@ def check_harness_files(repo_root: Path) -> DoctorCheck:
     return _check("harness files", "PASS", detail)
 
 
+def check_harness_versions(repo_root: Path, environ: Mapping[str, str], *, lab: bool,
+                           which: harness_versions.Which | None = None,
+                           run: harness_versions.Runner | None = None) -> DoctorCheck:
+    """``harness versions`` (v2.1 plan §2.2): each installed harness CLI against ``config/harness/validated.yaml``.
+
+    PASS when every installed CLI is the validated version, installed the validated way (Codex npm, Claude Code
+    native); WARN "run ``uv run b1500 update``" otherwise, and when a newer version runs on a machine that is not the
+    lab station (backend sim: the maintainer's Mac on the stable channel) also "or qualify it"; INFO when no harness
+    CLI is on ``PATH`` (CI); WARN when the file is missing or invalid. Reads ``--version`` only."""
+    try:
+        validated = harness_versions.load_validated(repo_root)
+    except harness_versions.ValidatedError as exc:
+        return _check("harness versions", "WARN", str(exc))
+    which = which or harness_versions.default_which(environ)
+    run = run or (lambda argv: harness_versions.run_text(argv, environ))
+    passed: list[str] = []
+    problems: list[str] = []
+    newer = False
+    for name in HARNESSES:
+        want, label = validated.get(name), LABELS[name]
+        found = harness_versions.find_installed(name, which=which, run=run)
+        if found is None:
+            continue
+        if found.method != want.install:
+            problems.append(f"{label} at {found.executable} is a {found.method} install, the validated one is "
+                            f"{want.install}")
+        elif found.version is None:
+            problems.append(f"{label}: cannot read its version ({found.raw!r})")
+        elif found.version != want.version:
+            problems.append(f"{label} {found.version} installed, {want.version} validated")
+            newer = newer or harness_versions.version_key(found.version) > harness_versions.version_key(want.version)
+        else:
+            passed.append(f"{label} {found.version} ({found.method})")
+    wanted = ", ".join(f"{LABELS[n]} {validated.get(n).version}" for n in HARNESSES)
+    if not passed and not problems:
+        return _check("harness versions", "INFO", f"no harness CLI on PATH (codex, claude); validated: {wanted} "
+                                                  f"({VALIDATED_FILE})")
+    if problems:
+        hint = "run `uv run b1500 update`" + (
+            " or qualify it: `uv run b1500 dev harness qualify`" if newer and not lab else "")
+        ok = f"; {', '.join(passed)} = validated" if passed else ""
+        return _check("harness versions", "WARN", "; ".join(problems) + ok + f": {hint}")
+    return _check("harness versions", "PASS", f"{', '.join(passed)} = {VALIDATED_FILE}")
+
+
 def check_mcp_server(spec: str = MCP_SERVER_SPEC) -> DoctorCheck:
     try:
         app = budget.load_app(spec)
@@ -486,8 +534,10 @@ def check_long_paths(*, windows: bool) -> DoctorCheck:
 
 
 def run_doctor(*, environ: Mapping[str, str] | None = None, windows: bool | None = None,
-               mcp_check: Callable[[], DoctorCheck] | None = None) -> DoctorReport:
-    """Run every non-probe check (see the module docstring); never raises for a failing check."""
+               mcp_check: Callable[[], DoctorCheck] | None = None,
+               harness_check: Callable[[], DoctorCheck] | None = None) -> DoctorReport:
+    """Run every non-probe check (see the module docstring); never raises for a failing check. Tests replace the
+    two checks that start processes (``mcp_check``, ``harness_check``)."""
     env = os.environ if environ is None else environ
     on_windows = sys.platform == "win32" if windows is None else windows
     loader = ConfigLoader(environ=env)
@@ -510,6 +560,8 @@ def run_doctor(*, environ: Mapping[str, str] | None = None, windows: bool | None
         check_state(bundle, paths),
         check_skills_mirror(paths.repo_root),
         check_harness_files(paths.repo_root),
+        harness_check() if harness_check is not None else check_harness_versions(
+            paths.repo_root, env, lab=bundle is not None and bundle.backend == "visa"),
         (mcp_check or check_mcp_server)(),
         *check_manuals(paths.repo_root, (bundle.settings if bundle is not None else Settings()).manuals_dir, env),
         check_wgfmu_library(bundle, env, windows=on_windows),

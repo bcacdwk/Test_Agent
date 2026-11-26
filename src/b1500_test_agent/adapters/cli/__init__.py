@@ -10,7 +10,9 @@ usage errors.
 - human-only: ``fault clear`` (safe shutdown, then clears the latch only when the shutdown verified the safe state)
   and ``lock status``
 - ``doctor`` (installation checks), ``doctor --probe`` (read-only instrument probe: queries only, PASS/WARN/FAIL
-  lines, raw answers to ``work/bringup/probe-<UTC>.json``), ``harness init --codex|--claude [--check]`` (renders
+  lines, raw answers to ``work/bringup/probe-<UTC>.json``), ``update [--check]`` (human only: pull, sync, harness
+  wiring and validated harness versions, free checks, "Ready." or a numbered list), ``harness init
+  --codex|--claude [--check]`` (renders
   ``config/harness/`` templates into the gitignored ``.codex/config.toml`` / ``.mcp.json``), ``mcp`` (stdio server,
   same as ``b1500-mcp``)
 - configuration (CLI only, no MCP tool): ``config check``; human-only ``config init [--visa]`` (copies the missing

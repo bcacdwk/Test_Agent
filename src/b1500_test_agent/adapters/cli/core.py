@@ -11,7 +11,9 @@ usage errors.
 - human-only: ``fault clear`` (safe shutdown, then clears the latch only when the shutdown verified the safe state)
   and ``lock status``
 - ``doctor`` (installation checks) and ``doctor --probe [--wgfmu-session]`` (the read-only instrument probe,
-  blueprint v2 7.1; ``service/probe.py``), ``harness init --codex|--claude [--check]`` (renders
+  blueprint v2 7.1; ``service/probe.py``), ``update [--check]`` (human only, v2.1 plan §2.2: pull, sync, harness wiring
+  and validated harness versions, free checks, one verdict; ``devtools/update.py``), ``harness init
+  --codex|--claude [--check]`` (renders
   ``config/harness/`` templates into the gitignored ``.codex/config.toml`` / ``.mcp.json``), ``mcp`` (stdio server,
   same as ``b1500-mcp``); the ``config`` group lives in ``config.py`` and the ``bringup`` group in ``bringup.py``
 
@@ -40,6 +42,7 @@ import yaml
 from b1500_test_agent.devtools import (
     doctor,
     harness,
+    update,
 )
 from b1500_test_agent.models.bringup import ProbeReport
 from b1500_test_agent.models.common import ResultEnvelope
@@ -651,6 +654,29 @@ def doctor_command(
     report = doctor.run_doctor()
     typer.echo(report.model_dump_json(indent=2) if as_json else doctor.format_report(report))
     if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@app.command("update")
+def update_command(
+    check: Annotated[bool, typer.Option("--check", help="Change nothing: report what update would find (runs "
+                                                        "anywhere, also inside an agent session).")] = False,
+    continued: Annotated[bool, typer.Option("--continue", help="Steps 4-8 only: update re-runs itself with this "
+                                                               "from the pulled code.")] = False,
+) -> None:
+    """Bring this clone and its harnesses up to date (human only): git pull, uv sync, harness wiring, the harness
+    versions of config/harness/validated.yaml (asks before installing), the free checks; ends with "Ready." (exit 0)
+    or a numbered list of what to do (exit 1). Refuses inside an agent session and without a terminal."""
+    if check and continued:
+        raise typer.BadParameter("--check changes nothing; --continue is the second half of an update")
+    ctx = update.UpdateContext.default(
+        interactive=is_interactive(), say=typer.echo,
+        ask=lambda question: typer.confirm(question, default=False))
+    report = update.run_update(ctx, check=check, continued=continued)
+    if report.handed_over is not None:
+        raise typer.Exit(code=report.handed_over)
+    typer.echo(update.format_verdict(report))
+    if not report.ready:
         raise typer.Exit(code=1)
 
 

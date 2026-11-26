@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from b1500_test_agent.config import ConfigLoader, check_config, load_config, load_yaml
+from b1500_test_agent.devtools import harness_versions
 from b1500_test_agent.errors import InvalidConfigError
 from b1500_test_agent.paths import ENV_CONFIG_DIR, ENV_HOME, Paths
 from tests.unit.helpers import read_yaml, write_yaml
@@ -66,16 +67,22 @@ def test_committed_examples_validate(repo_paths: Paths) -> None:
 
 
 def test_every_committed_config_file_is_used(repo_paths: Paths) -> None:
-    """No committed example is silently ignored (e.g. a pin map without the .example suffix)."""
+    """No committed example is silently ignored (e.g. a pin map without the .example suffix). ``config/harness/``
+    belongs to the harness tooling, not to the configuration loader: its only YAML is the validated harness versions
+    (v2.1 plan §2.1), read by ``devtools/harness_versions.py``."""
     bundle = load_config(repo_paths)
     used = {(repo_paths.repo_root / f.path).resolve() for f in bundle.files.values()}
     committed = {
         p.resolve()
         for p in repo_paths.config_dir.rglob("*.yaml")
-        if "sim" not in p.relative_to(repo_paths.config_dir).parts
+        if not {"sim", "harness"} & set(p.relative_to(repo_paths.config_dir).parts)
     }
     committed.add((repo_paths.config_dir / "sim" / "scenarios" / "nmos_basic.yaml").resolve())
     assert committed <= used
+    harness_yaml = sorted(p.relative_to(repo_paths.repo_root).as_posix()
+                          for p in (repo_paths.config_dir / "harness").rglob("*.y*ml"))
+    assert harness_yaml == [harness_versions.VALIDATED_FILE]
+    assert harness_versions.load_validated(repo_paths.repo_root).codex.install == "npm"
 
 
 # -- Resolution order ------------------------------------------------------------------------------------------------

@@ -256,6 +256,7 @@ def test_cli_sync_run_output_is_unchanged(world: World, monkeypatch: pytest.Monk
 # -- mcp-smoke --async (stdio) -----------------------------------------------------------------------------------------
 
 
+@pytest.mark.wall_clock
 @pytest.mark.skipif(shutil.which("uv") is None, reason="uv is not on PATH")
 def test_mcp_smoke_async_over_stdio(tmp_path: Path) -> None:
     """The AC ``uv run b1500 dev mcp-smoke --async``: the server started as Claude Code would start it serves tool

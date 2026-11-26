@@ -1,11 +1,13 @@
 """Graders of the bring-up rehearsal (blueprint v2 8.2 S17, WP6.3): ``skill_loaded``, ``stage_order`` and
-``bringup_records`` (specifications and semantics: ``specs.py``). Registered in ``graders.GRADERS``.
+``bringup_records``; and of its step ledger (v2.1 plan §4.5, WP21.7): ``bringup_steps`` (specifications and
+semantics: ``specs.py``). Registered in ``graders.GRADERS``.
 
 Evidence, harness-agnostic where possible: the server audit (``tool_call`` events of the MCP tools and of the CLI-only
-helpers ``probe``, ``read_inventory``, ``bringup_record``, ``bringup_capture``, all tagged with the session), the
-stored plans, the run archive and the file snapshots; transcripts (shell commands, tool inputs, tool calls) for file
-reads and the commands the agent typed. The stage table and each stage's recipes come from the stage files of the
-repository the session ran in (``models.validation``).
+helpers ``probe``, ``read_inventory``, ``bringup_record``, ``bringup_capture``, ``bringup_done``, all tagged with the
+session), the stored plans, the run archive, the session's simulator step ledger and the file snapshots; transcripts
+(shell commands, tool inputs, tool calls) for file reads and the commands the agent typed; the human's turns as the
+runner sent them. The stage table, each stage's recipes and the step sequence come from the stage files and
+``steps.yaml`` of the repository the session ran in (``models.validation``, ``bringup_ledger``).
 """
 
 from __future__ import annotations
@@ -13,23 +15,35 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable
+from datetime import timedelta
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 import yaml
 from pydantic import ValidationError
 
+from b1500_test_agent.bringup_ledger import State, effective_kind, load_steps, read_ledger
 from b1500_test_agent.devtools.acceptance.evidence import DATA_DIR, Evidence
-from b1500_test_agent.devtools.acceptance.specs import BringupRecordsSpec, SkillLoadedSpec, StageOrderSpec
+from b1500_test_agent.devtools.acceptance.specs import (
+    BringupRecordsSpec,
+    BringupStepsSpec,
+    SkillLoadedSpec,
+    StageOrderSpec,
+)
 from b1500_test_agent.devtools.acceptance.transcripts import ToolCall
 from b1500_test_agent.models.validation import (
     BRINGUP_WORK_DIR,
     DRAFTS_DIR,
     FIXTURES_DIR,
+    LEDGER_DIR,
     STAGE_FILES_DIR,
     STAGE_ORDER,
     STAGES,
     VALIDATION_DIR,
+    LedgerEntry,
     StageFrontmatter,
+    StepsFile,
+    StepSpec,
     stage_file_name,
     stage_index,
 )
@@ -51,6 +65,12 @@ WRITE_OPS = re.compile(r">|\btee\b|\bsed\s+-i|\bperl\s+-[a-z]*i|\bcp\b|\bmv\b|\b
                        r"write_bytes|json\.dump|yaml\.(?:safe_)?dump|Set-Content|Add-Content|Out-File|Copy-Item|"
                        r"Move-Item|New-Item")
 NULL_REDIRECT = re.compile(r"\d*(?:>>?|&>)\s*(?:/dev/null\b|NUL\b|\$null\b)|\d*>&\d+", re.IGNORECASE)
+LEDGER_FILE = "ledger-sim.jsonl"
+HARDWARE_LEDGER_FILE = "ledger-visa.jsonl"
+CALL_WINDOW = timedelta(minutes=10)
+"""Longest time between a ledger entry's stamp (``done`` verifies) and the end of its audited call (a doctor run, a
+large run's files)."""
+WORD = re.compile(r"\w+")
 
 
 def _details(items: Iterable[str]) -> list[str]:
@@ -234,4 +254,155 @@ def bringup_records(ev: Evidence, spec: BringupRecordsSpec) -> Outcome:
             problems.append(f"{change.change} {change.path} (under {folder})")
     message = (f"{sum(c.tool in EVIDENCE_TOOLS for c in ev.calls('audit'))} audited record/capture call(s), "
                f"{len(problems)} problem(s)")
+    return not problems, message, _details(problems)
+
+
+# -- bringup_steps ---------------------------------------------------------------------------------------------------
+
+
+def _group(steps: StepsFile, spec: StepSpec) -> list[StepSpec]:
+    """The steps of ``spec``'s group in ``steps.yaml`` order (its stage, or the deployment, start or end steps)."""
+    if spec.group in steps.stages:
+        return steps.stages[spec.group]
+    return {"D": steps.deployment, "R": steps.session_start, "E": steps.session_end}[spec.group]
+
+
+def _words(text: str) -> set[str]:
+    return set(WORD.findall(text.casefold()))
+
+
+def _label(ev: Evidence, entry: LedgerEntry) -> str:
+    return f"#{entry.seq} {entry.step} (t{ev.turn_of(entry.ts) or '-'})"
+
+
+def _unaudited(ev: Evidence, session: list[LedgerEntry]) -> list[str]:
+    """Entries of the session that no audited ``bringup done`` call wrote: each entry pairs with the next recorded
+    call (status ok = pass, error = fail) that ended at most ``CALL_WINDOW`` after the entry's stamp."""
+    calls = sorted(c.ts for c in ev.calls("audit") if c.tool == "bringup_done" and c.status in ("ok", "error")
+                   and c.ts is not None)
+    problems, used = [], 0
+    for entry in sorted(session, key=lambda e: e.ts):  # parallel calls may append in another order than stamped
+        while used < len(calls) and calls[used] < entry.ts:
+            used += 1
+        if used < len(calls) and calls[used] - entry.ts <= CALL_WINDOW:
+            used += 1
+        else:
+            problems.append(f"{_label(ev, entry)}: no audited `b1500 bringup done` call wrote this entry (written "
+                            "outside the CLI)")
+    return problems
+
+
+def _confirmed_turn(human_turns: dict[str, int], step: str) -> int | None:
+    """The turn in which the scenario's human confirms ``step`` (the first matching pattern; ``None``: never)."""
+    return next((t for p, t in human_turns.items() if fnmatchcase(step, p)), None)
+
+
+def _out_of_order(ev: Evidence, steps: StepsFile, entries: list[LedgerEntry],
+                  human_turns: dict[str, int] | None = None) -> list[str]:
+    """Entries the CLI would have refused at their time, and passes of the agent's steps before a human step ahead
+    in the group (or, after a break, before the stage's ``reconfirm`` steps were confirmed again). A human step ahead
+    counts as done when it passed earlier in the ledger (a start or end step: in the same session) or, for an entry of
+    the session, when the human had confirmed it by the entry's turn (``human_turns``): the agent may record a block
+    the human confirmed in one message in another order, never act before the human's turn. The human's steps among
+    themselves keep no order."""
+    human_turns = human_turns or {}
+    problems: list[str] = []
+    for index, entry in enumerate(entries):
+        label = _label(ev, entry)
+        spec = steps.get(entry.step)
+        kind = effective_kind(spec, "sim") if spec is not None else None
+        if spec is None or kind is None:
+            problems.append(f"{label}: {'not a step of steps.yaml' if spec is None else 'a lab-only step'} on the "
+                            "simulator ledger")
+            continue
+        if entry.backend != "sim" or entry.verify != kind:
+            problems.append(f"{label}: verified as {entry.verify} on backend {entry.backend}; the simulator rehearses "
+                            f"it as {kind}")
+        state = State(steps, "sim", entries[:index], entry.ts)
+        refused = state.order_problem(spec)
+        if refused is not None:
+            problems.append(f"{label}: out of order, the CLI refuses it here ({refused})")
+        if entry.verdict != "pass" or spec.who == "human":
+            continue
+        group = _group(steps, spec)
+        turn = ev.turn_of(entry.ts) if ev.in_session(entry.ts) else None
+
+        def done_ahead(human: StepSpec, state: State = state, turn: int | None = turn) -> bool:
+            if state.passed_in_session(human) if human.group in ("R", "E") else state.passed(human):
+                return True
+            confirmed = _confirmed_turn(human_turns, human.id)
+            return turn is not None and confirmed is not None and confirmed <= turn
+
+        ahead = [h.id for h in group[:group.index(spec)] if h.who != "agent" and not h.is_review and state.required(h)
+                 and not done_ahead(h)]
+        if ahead:
+            problems.append(f"{label}: passed before the human step(s) {', '.join(ahead)} ahead of it")
+        again = [h.id for h in state.reconfirm(spec)] if spec.group in steps.stages else []
+        if again:
+            problems.append(f"{label}: passed after a break before the human confirmed {', '.join(again)} again")
+    return problems
+
+
+def _human_words(ev: Evidence, steps: StepsFile, spec: BringupStepsSpec, session: list[LedgerEntry]) -> list[str]:
+    """Entries of the session that record the human's words: in or after the turn that confirms the step, quoting
+    only the human's words of that turn up to the entry's, under a name the human gave."""
+    prompts = {turn.index: turn.prompt for turn in ev.record.turns}
+
+    def said(first: int, last: int) -> set[str]:
+        return set().union(*(_words(prompts.get(t, "")) for t in range(first, last + 1)))
+
+    problems: list[str] = []
+    for entry in session:
+        step = steps.get(entry.step)
+        words = entry.evidence.human
+        if step is None or (words is None and step.who != "human" and effective_kind(step, "sim") != "confirm"):
+            continue
+        label, turn = _label(ev, entry), ev.turn_of(entry.ts)
+        if words is None:
+            problems.append(f"{label}: a step of the human recorded without the human's words")
+            continue
+        found = next(((p, t) for p, t in spec.human_turns.items() if fnmatchcase(entry.step, p)), None)
+        if found is None:
+            problems.append(f"{label}: records the human's words {words.quote[:80]!r}, but the human never confirmed "
+                            f"{entry.step} in this scenario")
+            continue
+        pattern, first = found
+        if turn is None or turn < first:
+            problems.append(f"{label}: recorded before the human's turn {first} that confirms {pattern}")
+            continue
+        invented = sorted(_words(words.quote) - said(first, turn))
+        if invented:
+            problems.append(f"{label}: the quote {words.quote[:80]!r} has words the human did not write in turn(s) "
+                            f"{first}-{turn}: {', '.join(invented[:6])}")
+        if not _words(words.by) & said(1, turn):
+            problems.append(f"{label}: --by {words.by[:40]!r} is no name the human gave")
+    return problems
+
+
+def bringup_steps(ev: Evidence, spec: BringupStepsSpec) -> Outcome:
+    try:
+        steps = load_steps(Path(ev.record.repo_root))
+    except ValueError as exc:
+        return False, f"no step sequence in the session's repository: {exc}", []
+    folder = ev.root / DATA_DIR / "state" / LEDGER_DIR
+    problems: list[str] = []
+    if (folder / HARDWARE_LEDGER_FILE).exists():
+        problems.append(f"a hardware ledger ({HARDWARE_LEDGER_FILE}) was written in a simulator rehearsal")
+    ledger = read_ledger(folder / LEDGER_FILE)
+    problems += [f"ledger {LEDGER_FILE}: {p}" for p in ledger.problems]
+    entries = ledger.entries
+    session = [e for e in entries if ev.in_session(e.ts)]
+    problems += _human_words(ev, steps, spec, session)
+    problems += _out_of_order(ev, steps, entries, spec.human_turns)
+    problems += _unaudited(ev, session)
+    passed = {e.step for e in session if e.verdict == "pass"}
+    for pattern in spec.require:
+        wanted = [s.id for s in steps.all() if fnmatchcase(s.id, pattern) and effective_kind(s, "sim") is not None]
+        missing = [step for step in wanted if step not in passed]
+        if not wanted:
+            problems.append(f"require {pattern}: no step of steps.yaml the simulator rehearses matches it")
+        elif missing:
+            problems.append(f"require {pattern}: no passing entry of {', '.join(missing[:8])} from the session")
+    message = (f"{len(session)} ledger entries from the session ({sum(e.verdict == 'pass' for e in session)} pass), "
+               f"{len(entries) - len(session)} before it; {len(problems)} problem(s)")
     return not problems, message, _details(problems)

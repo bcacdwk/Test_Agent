@@ -10,7 +10,9 @@ genuine), and prints a transcript in the harness's real format (shapes as in the
 Actions: ``call`` (MCP tool + ``args``, ``save`` the result as a variable), ``shell`` (reported, not executed),
 ``cli`` (a ``b1500`` command line, e.g. ``bringup status``, run in-process for real with ``B1500_HOME`` = the cwd
 and reported as the shell command ``uv run b1500 …`` with its output and exit code; the bring-up helpers are
-CLI-only),
+CLI-only; a script's top-level ``doctor`` list of ``[name, status, detail]`` lines stands in for the ``b1500 doctor``
+that ``bringup done`` runs for a doctor step, as the integration tests inject it: the scripted repository is no full
+clone),
 ``write`` (file relative to the cwd; ``denied: true`` = reported as refused, not written), ``edit_config`` (append to
 a file of ``$B1500_CONFIG_DIR``), ``sim_raw`` (one line straight into the simulator, bypassing the audited
 transport), ``wait_run`` (poll ``get_run`` of a run every 0.2 s, each poll a reported call, until it no longer
@@ -278,14 +280,18 @@ def _forge(action: dict[str, Any], emit: Emitter) -> dict[str, Any]:
     return result
 
 
-def _cli(command: str) -> tuple[str, int]:
-    """Run one ``b1500`` command line in-process (the repository = the cwd, as for a harness launched there)."""
+def _cli(command: str, doctor: list[list[str]] | None = None) -> tuple[str, int]:
+    """Run one ``b1500`` command line in-process (the repository = the cwd, as for a harness launched there);
+    ``doctor``: the lines ``bringup done`` gets for a doctor step (module docstring)."""
     import shlex
 
     from typer.testing import CliRunner
 
     from b1500_test_agent.adapters.cli import app
+    from b1500_test_agent.adapters.cli import bringup as bringup_cli
 
+    if doctor is not None:
+        bringup_cli.doctor_lines = lambda: [(str(n), str(s), str(d)) for n, s, d in doctor]  # type: ignore[assignment]
     result = CliRunner().invoke(app, shlex.split(command), env={"B1500_HOME": str(Path.cwd())})
     return result.output, result.exit_code
 
@@ -331,7 +337,7 @@ def main() -> int:
             elif "shell" in action:
                 emit.shell(action["shell"])
             elif "cli" in action:
-                output, code = _cli(action["cli"])
+                output, code = _cli(action["cli"], script.get("doctor"))
                 emit.shell(f"uv run b1500 {action['cli']}", output, code)
                 if action.get("expect_exit") is not None and code != int(action["expect_exit"]):
                     raise SystemExit(f"fake agent: b1500 {action['cli']} exited {code}: {output}")

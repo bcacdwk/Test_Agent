@@ -75,4 +75,5 @@ markers = [
   "spgu: HV-SPGU + 16440A family (builders, driver, simulator, cleanup step 2, selector routes, pulse kinds, recipes, analyses, safety, visa-loop, stage L7, ledger; blueprint v2 8.1 family marker)",
   "wgfmu: WGFMU instrument library, simulator and recipes (blueprint v2 8.1 family marker)",
   "wall_clock: asserts a wall-clock bound of the plan (e.g. a 4 h instant run < 2 s); CI runs these alone",
+  "rehearsal: the bring-up rehearsal (v2.1 plan 4.4): the whole steps.yaml sequence on the simulator, S0-L2 on the visa-loop, failure routing, resume, tamper; CI runs these alone, serially",
 ]

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import tomllib
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
+from b1500_test_agent.bringup_ledger import State, load_steps, read_ledger
 from b1500_test_agent.config import load_yaml
 from b1500_test_agent.devtools.acceptance import approver, harnesses, runner
 from b1500_test_agent.devtools.acceptance.graders import grade_session
@@ -93,6 +95,54 @@ def test_seeds_plan_run_note_and_work_file(tmp_path: Path) -> None:
     assert values["old"]["run_id"] in prompt and "work/handoff.md" in prompt
     with pytest.raises(runner.SetupError, match="already exists"):
         runner.seed(scenario, repo, config, data, "acc-seed-test")
+
+
+def test_steps_seed_records_session_0_and_the_start_before_the_session(tmp_path: Path) -> None:
+    """S17's seed: the steps before S0.A1 as the human recorded them in their own terminal, the deployment a day before
+    and the start steps right before the session, so ``bringup next`` names S0.A1 in the agent's session."""
+    repo = make_repo(tmp_path)
+    scenario = _scenario(seeds=[{"kind": "steps", "name": "start", "upto": "S0.A1", "by": "Alex"}],
+                         turns=[{"prompt": "{{seed.start.entries}} steps up to {{seed.start.upto}}"}])
+    config, data = tmp_path / "s" / "config", tmp_path / "s" / "data"
+    runner.prepare_config(scenario, repo, config)
+    before = datetime.now(UTC)
+    values, created = runner.seed(scenario, repo, config, data, "acc-seed-test")
+    after = datetime.now(UTC)
+    assert created == [] and values["start"] == {"upto": "S0.A1", "entries": "11"}
+    assert render_prompt(scenario.turns[0].prompt, values) == "11 steps up to S0.A1"
+    ledger = read_ledger(data / "state" / "bringup" / "ledger-sim.jsonl")
+    assert not ledger.problems
+    entries = ledger.entries
+    assert [e.step for e in entries] == ["D1", "D4", "D6", "D7", "D8", "D9", "D11", "R1", "R2", "R3", "R4"]
+    assert {e.actor for e in entries} == {"human"} and {e.verdict for e in entries} == {"pass"}
+    assert [e.verify for e in entries if e.step in ("D1", "D7", "R2", "R4")] == ["confirm", "doctor", "station",
+                                                                                 "observation"]
+    words = {e.step: e.evidence.human for e in entries}
+    assert words["D1"] is not None and (words["D1"].quote, words["D1"].by) == ("done", "Alex")
+    assert words["D7"] is None and words["D8"] is not None  # D8 is the human's (who: human), D7 both
+    assert entries[-1].evidence.observe == {"reconfirm": "seeded"}
+    assert all(e.ts < before - timedelta(hours=23) for e in entries[:7])
+    assert all(before - timedelta(seconds=20) <= e.ts < after for e in entries[7:])
+    state = State(load_steps(repo), "sim", entries, after + timedelta(minutes=5))
+    following, why = state.next()
+    assert following is not None and (following.id, why) == ("S0.A1", "open")
+    assert state.session_start == 7  # the day's break ended session 0: R1-R4 open the agent's session
+    with pytest.raises(runner.SetupError, match="already exists"):
+        runner.seed(scenario, repo, config, data, "acc-seed-test")
+
+
+@pytest.mark.parametrize(("upto", "message"), [
+    ("L0.A3", "L0.A2 is verified with files \\(probe\\)"),
+    ("L1.A9", "no deployment, start or stage step"),
+])
+def test_steps_seed_refuses_what_it_cannot_record(tmp_path: Path, upto: str, message: str) -> None:
+    repo = make_repo(tmp_path)
+    scenario = _scenario(seeds=[{"kind": "steps", "name": "start", "upto": upto, "by": "Alex"}])
+    config, data = tmp_path / "s" / "config", tmp_path / "s" / "data"
+    runner.prepare_config(scenario, repo, config)
+    with pytest.raises(runner.SetupError, match=message):
+        runner.seed(scenario, repo, config, data, "t")
+    assert not (data / "state" / "bringup" / "ledger-sim.jsonl").exists()
 
 
 def test_needs_confirmation_run_seed_requires_confirm(tmp_path: Path) -> None:

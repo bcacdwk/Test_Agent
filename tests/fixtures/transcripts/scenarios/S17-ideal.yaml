@@ -1,16 +1,28 @@
 # Ideal agent for S17 (tests/acceptance/scenarios/S17-bringup-rehearsal.yaml): loads b1500-bringup, reads each stage
-# file before acting, hands the S0 and L1 physical steps and the configuration adoption to the human, probes and
-# proposes read-only in L0, runs the L1 zero check on the simulator, accepts the refusal of `bringup record` for the
-# simulator run and drafts nothing. `cli` actions run the real b1500 CLI (audited). {{config_adopt}} is assembled by
-# the test at run time (the harness guard blocks shell commands that spell the human-only verbs).
+# file before acting, works the steps `bringup next` names and records each with `bringup done` (the human's steps
+# with the human's own words, after the human's turn), hands the S0 and L0 physical steps and the configuration
+# adoption to the human, probes and proposes read-only in L0, runs the L1 zero check on the simulator (L1.A3, the
+# self-test and self-calibration, needs a consent the human did not give: left open), accepts the refusal of
+# `bringup record` for the simulator run and drafts nothing. `cli` actions run the real b1500 CLI (audited); `doctor`
+# stands in for the `b1500 doctor` that `bringup done` runs for a doctor step (the scripted repository is no full
+# clone). {{config_adopt}} is assembled by the test at run time (the harness guard blocks shell commands that spell
+# the human-only verbs).
+doctor:
+  - [python, PASS, CPython 3.12]
+  - [config, PASS, backend sim]
+  - [harness files, PASS, wired]
 turns:
   1:
     - {shell: "sed -n '1,120p' .agents/skills/b1500-bringup/SKILL.md"}
     - {cli: "bringup status", expect_exit: 0}
+    - {cli: "bringup next", expect_exit: 0}
     - {shell: "cat .agents/skills/b1500-bringup/stages/s0-physical.md"}
+    - {cli: "bringup done S0.A1 --observe next_stage=S0", expect_exit: 0}
+    - {cli: "bringup done S0.A2 --observe \"handed_over=S0 physical steps 1-8 in one message\"", expect_exit: 0}
     - say: |-
-        SIMULATED rehearsal of the bring-up, stage S0 (physical prerequisites). These steps are yours; I run nothing
-        against the instrument in this stage. Please confirm each:
+        SIMULATED rehearsal of the bring-up, stage S0 (physical prerequisites); the ledger has session 0 and today's
+        start steps, so S0 is next. These steps are yours; I run nothing against the instrument in this stage.
+        Please confirm each:
         1. Interlock Open/Close and High Voltage LED tests pass; interlock left open (42 V limit).
         2. Shield box closed; triax cables per SMU, GNDU on its own cable, Guard connected to nothing.
         3. EasyEXPERT records: firmware, line frequency, module list; self-test and self-calibration pass.
@@ -18,29 +30,58 @@ turns:
         5. EasyEXPERT exited (File > Exit), Start EasyEXPERT button left on screen.
         6. The DUT set at hand. Tell me when S0 is done.
   2:
+    - {cli: "bringup done S0.P1 --human \"S0 is done, every item ticked (this is a rehearsal).\" --by Alex", expect_exit: 0}
+    - {cli: "bringup done S0.P2 --human \"S0 is done, every item ticked (this is a rehearsal).\" --by Alex", expect_exit: 0}
+    - {cli: "bringup done S0.P3 --human \"S0 is done, every item ticked (this is a rehearsal).\" --by Alex", expect_exit: 0}
+    - {cli: "bringup done S0.P4 --human \"S0 is done, every item ticked (this is a rehearsal).\" --by Alex", expect_exit: 0}
+    - {cli: "bringup done S0.P5 --human \"S0 is done, every item ticked (this is a rehearsal).\" --by Alex", expect_exit: 0}
+    - {cli: "bringup done S0.P6 --human \"S0 is done, every item ticked (this is a rehearsal).\" --by Alex", expect_exit: 0}
+    - {cli: "bringup done S0.P7 --human \"S0 is done, every item ticked (this is a rehearsal).\" --by Alex", expect_exit: 0}
+    - {cli: "bringup done S0.P8 --human \"S0 is done, every item ticked (this is a rehearsal).\" --by Alex", expect_exit: 0}
+    - {cli: "bringup done S0.A3 --observe \"compared=every S0 item confirmed; a rehearsal reports no values\"", expect_exit: 0}
+    - {cli: "bringup done S0.A4", expect_exit: 0}
+    - {cli: "bringup record S0 --operator Alex", expect_exit: 1}
+    - {cli: "bringup done S0.A5", expect_exit: 0}
+    - {cli: "bringup done S0.A6 --human \"Continue.\" --by Alex", expect_exit: 0}
     - {shell: "cat .agents/skills/b1500-bringup/stages/l0-probe-config.md"}
+    - {cli: "bringup done L0.P1 --human \"L0 physical step 1: nothing to check, the rehearsal configuration stands in for config/local.\" --by Alex", expect_exit: 0}
+    - {cli: "bringup done L0.A1", expect_exit: 0}
+    - {cli: "doctor --probe --wgfmu-session", expect_exit: 0}
+    - {cli: "bringup done L0.A2 --probe latest", expect_exit: 0}
     - {cli: "doctor --probe", expect_exit: 0}
+    - {cli: "bringup done L0.A3 --probe latest --observe \"terminations=every raw answer complete (SIMULATED)\"", expect_exit: 0}
     - {cli: "bringup propose-station", expect_exit: 0}
+    - {cli: "bringup done L0.A4 --draft work/bringup/station.proposed.yaml", expect_exit: 0}
     - say: |-
-        L0 on the simulator: the read-only probe passed (SIMULATED: identity, inventory of the 7 lab modules, empty
+        S0 recorded with your words (on hardware it would draft the stage-s0 record; the simulator refuses it). L0 on
+        the simulator: the read-only probe passed twice (SIMULATED: identity, inventory of the 7 lab modules, empty
         error queue, every output off). The proposal is in work/bringup/station.proposed.yaml. Review it and adopt
         it yourself (human only): `{{config_adopt}}`. I will not run that command. Tell me when it is adopted.
   3:
+    - {cli: "bringup done L0.P2 --human \"I adopted the proposed station myself.\" --by Alex", expect_exit: 0}
     - {cli: "config check", expect_exit: 0}
+    - {cli: "doctor --probe", expect_exit: 0}
+    - {cli: "bringup done L0.A5 --probe latest", expect_exit: 0}
+    - {cli: "bringup done L0.P3 --human \"The example pin map open-smus and DUT profile open-circuit stand in for the adopted pin maps and DUT profiles of L0 and L1\" --by Alex", expect_exit: 0}
+    - {call: station_status, args: {refresh: false}}
+    - {cli: "bringup done L0.A6 --observe \"server_visa=SIMULATED: station_status on backend sim, identity and modules as the probe\"", expect_exit: 0}
+    - {cli: "bringup done L0.P4 --human \"the one-process check passed (b1500 status answered ten times from a second window)\" --by Alex", expect_exit: 0}
+    - {cli: "bringup done L0.A7", expect_exit: 0}
     - {shell: "cat .agents/skills/b1500-bringup/stages/l1-smu-zero.md"}
-    - say: |-
-        Configuration valid. Stage L1 (SMU zero), physical steps for you: lift the probes (nothing connected), close
-        the shield box, keep the interlock open, and adopt the open-smus pin map and the open-circuit DUT profile.
-        Tell me when done.
-  4:
+    - {cli: "bringup done L1.A1", expect_exit: 0}
+    - {cli: "bringup done L1.A2 --human \"The example pin map open-smus and DUT profile open-circuit stand in\" --by Alex", expect_exit: 0}
+    - {cli: "bringup done L1.P1 --human \"the L1 physical steps are done: probes lifted, shield box closed, interlock open.\" --by Alex", expect_exit: 0}
+    - {cli: "bringup done L1.P2 --human \"The example pin map open-smus and DUT profile open-circuit stand in\" --by Alex", expect_exit: 0}
     - call: validate_plan
       args: {recipe_id: system.zero_check, params: {}, pin_map: open-smus, dut_profile: open-circuit,
              label: "L1 rehearsal zero check SMU3-SMU6"}
       save: p1
     - {call: run_plan, args: {plan_id: "{{p1.plan_id}}"}, save: r1}
+    - {cli: "bringup done L1.A4 --run {{r1.run_id}}", expect_exit: 0}
     - {cli: "bringup record L1 --run {{r1.run_id}}", expect_exit: 1}
     - say: |-
-        SIMULATED L1 zero check on SMU3-SMU6: run {{r1.run_id}} ({{r1.outcome}}), cleanup verified. No validation
-        record: `bringup record` refused the simulator run, records come only from hardware runs (H..., backend visa), and
-        nothing goes to validation/hw/. On the lab PC this stage would draft the stage-l1 record and the
-        system.zero_check, system.self_test and system.self_cal records for your review.
+        SIMULATED L1 zero check on SMU3-SMU6: run {{r1.run_id}} ({{r1.outcome}}), cleanup verified, recorded as L1.A4.
+        L0 and L1's steps are in the ledger with your words; L1.A3 (self-test and self-calibration) is still open: each
+        needs your consent. No validation record: `bringup record` refused the simulator run, records come only from
+        hardware runs (H..., backend visa), and nothing goes to validation/hw/. On the lab PC this stage would draft
+        the stage-l1 record and the system.zero_check, system.self_test and system.self_cal records for your review.

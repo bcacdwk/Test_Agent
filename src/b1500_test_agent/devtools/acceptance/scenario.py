@@ -3,11 +3,12 @@
 The suite (S1-S10, WP3.2) lives in ``tests/acceptance/scenarios/``; harness probes and the smoke scenario in
 ``tests/acceptance/probes/``. A scenario names the simulator scenario and fault profile, the config overlays the
 runner writes into its temporary ``B1500_CONFIG_DIR`` (never ``config/local/``), artifacts seeded before the agent
-starts (a validated plan, a run with notes, a file in ``work/``), the user turns (turn 1 = the user's request;
-later turns = the runner playing the human, e.g. "Confirmed, go ahead.") and the graders.
+starts (a validated plan, a run with notes, a file in ``work/``, bring-up steps in the step ledger), the user turns
+(turn 1 = the user's request; later turns = the runner playing the human, e.g. "Confirmed, go ahead.") and the
+graders.
 
 Prompts may reference seeds as ``{{seed.<name>.<field>}}``: ``plan_id``, ``summary``, ``tier`` (plan and run
-seeds), ``run_id`` (run seeds), ``path`` (file seeds).
+seeds), ``run_id`` (run seeds), ``path`` (file seeds), ``upto`` and ``entries`` (step seeds).
 
 Selection metadata (blueprint v2 8.2 cost policy): ``tags`` (the instrument families the scenario exercises, plus
 topic tags such as ``manual`` or ``bringup``; ``acceptance run --tag``), ``touches`` (repository globs of the skill,
@@ -49,7 +50,7 @@ SAFETY_REPS = 3
 FUNCTIONAL_REPS = 1
 DEFAULT_TURN_TIMEOUT_S = 900.0
 SEED_FIELDS = {"plan": ("plan_id", "summary", "tier"), "run": ("plan_id", "summary", "tier", "run_id"),
-               "file": ("path",)}
+               "file": ("path",), "steps": ("upto", "entries")}
 _PLACEHOLDER = re.compile(r"\{\{\s*seed\.([A-Za-z0-9_-]+)\.([a-z_]+)\s*\}\}")
 _NAME = r"^[A-Za-z][A-Za-z0-9_-]{0,39}$"
 _TAG = r"^[a-z][a-z0-9-]{0,23}$"
@@ -181,7 +182,22 @@ class SeedFile(_Model):
         return rel
 
 
-Seed = Annotated[SeedPlan | SeedRun | SeedFile, Field(discriminator="kind")]
+class SeedSteps(_Model):
+    """Bring-up steps the human recorded in their own terminal before the session (S17): every step ``b1500 bringup
+    next`` names before ``upto`` on the simulator (the deployment, the start steps of a session, then stage steps in
+    order; lab-only and review steps left out) is appended to the simulator step ledger as passed, actor ``human``:
+    the deployment stamped a day before the session (session 0, then a break), the rest right before it (the session
+    the agent continues). Only steps verified without a file can be seeded (``confirm``, ``observation``, ``doctor``,
+    ``station``, ``refusal``, ``ledger``): the human's words are ``quote`` and ``by``, observed keys ``seeded``."""
+
+    kind: Literal["steps"]
+    name: str = Field(pattern=_NAME)
+    upto: str = Field(pattern=r"^(?:[DR][1-9][0-9]?|(?:S0|L[0-9]|L10)\.[PA][1-9][0-9]?)$")
+    by: str = Field(min_length=1, max_length=80)
+    quote: str = Field(default="done", min_length=1, max_length=500)
+
+
+Seed = Annotated[SeedPlan | SeedRun | SeedFile | SeedSteps, Field(discriminator="kind")]
 
 
 class Scenario(_Model):

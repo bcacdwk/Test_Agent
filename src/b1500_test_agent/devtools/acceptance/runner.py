@@ -9,7 +9,7 @@ Per session (``<out>/<batch>/<scenario>-r<rep>/``, layout in ``evidence.py``):
    temporary ``B1500_DATA_DIR``. A unique ``B1500_SESSION_TAG``. ``config/local/`` and ``data/`` of the repository
    are never written.
 2. **Seeds** (in-process ``B1500Service``, tag ``<tag>-seed``): plans, runs with notes, files under ``work/``
-   (never overwriting an existing file).
+   (never overwriting an existing file), bring-up steps in the simulator step ledger of the data dir.
 3. **Snapshots** before and after: sha256 of the runner config dir and of the repository's ``config/``, ``git
    status --porcelain``, and a stat/sha snapshot of the repository tree (``.git``, ``.venv`` and caches skipped).
 4. **Turns**: the harness is launched from the repository root (``--repo`` / ``$B1500_ACCEPTANCE_REPO``) with the
@@ -49,7 +49,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable, Iterable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +57,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from b1500_test_agent.archive.store import software_version
+from b1500_test_agent.bringup_ledger import append_entry, effective_kind, load_steps, make_entry
 from b1500_test_agent.config import ConfigLoader, load_yaml
 from b1500_test_agent.devtools.acceptance import harnesses, infra
 from b1500_test_agent.devtools.acceptance.evidence import (
@@ -75,8 +76,16 @@ from b1500_test_agent.devtools.acceptance.evidence import (
 )
 from b1500_test_agent.devtools.acceptance.graders import SessionGrade, grade_session
 from b1500_test_agent.devtools.acceptance.infra import InfraStop
-from b1500_test_agent.devtools.acceptance.scenario import Scenario, SeedFile, SeedRun, load_scenario, render_prompt
+from b1500_test_agent.devtools.acceptance.scenario import (
+    Scenario,
+    SeedFile,
+    SeedRun,
+    SeedSteps,
+    load_scenario,
+    render_prompt,
+)
 from b1500_test_agent.devtools.acceptance.transcripts import HarnessName, parse_codex_rollout, parse_turn
+from b1500_test_agent.models.validation import LEDGER_DIR, HumanWords, StepEvidence
 from b1500_test_agent.paths import ENV_CONFIG_DIR, ENV_DATA_DIR, Paths
 from b1500_test_agent.service import ENV_SESSION_TAG, B1500Service
 
@@ -92,6 +101,10 @@ TEST_PATHS = ("tests/acceptance/", "tests/fixtures/transcripts/")
 """Folders whose files must not show up in a session's git status (the scenarios, graders' fixtures)."""
 POLL_S = 0.25
 """Seconds between two looks at a running turn's output (infra watcher) and its exit."""
+SEEDABLE_KINDS = frozenset({"confirm", "observation", "doctor", "station", "refusal", "ledger"})
+"""Step kinds a ``steps`` seed may record: verified without a file (nothing for ``bringup check`` to miss)."""
+SEED_STEP_REASON = ("seeded by the acceptance runner: the human recorded this step in their own terminal before the "
+                    "session")
 UNTRUSTED_WARNING = ("the repository is not a trusted Claude Code project: Claude Code loads neither CLAUDE.md nor "
                      "the project allow rules there, so the session runs without the project instructions; run "
                      "from a checkout the user trusts")
@@ -247,7 +260,7 @@ def seed(scenario: Scenario, repo: Path, config_dir: Path, data_dir: Path, tag: 
     """Create the scenario's seeds; returns the placeholder values and the files written under ``work/``."""
     values: dict[str, dict[str, str]] = {}
     created: list[Path] = []
-    plan_seeds = [s for s in scenario.seeds if s.kind != "file"]
+    plan_seeds = [s for s in scenario.seeds if s.kind in ("plan", "run")]
     if plan_seeds:
         env = session_env(config_dir, data_dir, f"{tag}-seed")
         service = B1500Service(paths=Paths.from_env(env, repo_root=repo), environ=env, adapter="cli")
@@ -285,7 +298,43 @@ def seed(scenario: Scenario, repo: Path, config_dir: Path, data_dir: Path, tag: 
             path.write_text(item.content, encoding="utf-8", newline="\n")
             created.append(path)
             values[item.name] = {"path": item.path}
+        elif isinstance(item, SeedSteps):
+            state_dir = Paths.from_env(session_env(config_dir, data_dir, tag), repo_root=repo).state_dir
+            values[item.name] = seed_steps(item, repo, state_dir / LEDGER_DIR / "ledger-sim.jsonl", _now())
     return values, created
+
+
+def seed_steps(item: SeedSteps, repo: Path, ledger: Path, now: datetime) -> dict[str, str]:
+    """Append the steps before ``item.upto`` to the simulator step ledger ``ledger`` (``SeedSteps``)."""
+    try:
+        steps = load_steps(repo)
+    except ValueError as exc:
+        raise SetupError(f"seed {item.name}: {exc}") from None
+    order = [*steps.deployment, *steps.session_start,
+             *(s for specs in steps.stages.values() for s in specs if not s.is_review)]
+    target = next((i for i, s in enumerate(order) if s.id == item.upto), None)
+    if target is None:
+        raise SetupError(f"seed {item.name}: {item.upto} is no deployment, start or stage step of steps.yaml")
+    before = [s for s in order[:target] if effective_kind(s, "sim") is not None]
+    for spec in before:
+        if effective_kind(spec, "sim") not in SEEDABLE_KINDS:
+            raise SetupError(f"seed {item.name}: {spec.id} is verified with files ({effective_kind(spec, 'sim')}); "
+                             "seed only up to it")
+    if ledger.exists():
+        raise SetupError(f"seed {item.name}: {ledger} already exists; the runner never overwrites files")
+    for index, spec in enumerate(before):
+        kind = effective_kind(spec, "sim")
+        if spec.group == "D":  # session 0, a day before: the break ends it
+            stamp = now - timedelta(days=1) + timedelta(seconds=index)
+        else:  # the start of the session the agent continues, right before turn 1
+            stamp = now - timedelta(seconds=len(before) - index)
+        human = HumanWords(quote=item.quote, by=item.by) if spec.who == "human" or kind == "confirm" else None
+        evidence = StepEvidence(observe={key: "seeded" for key in (spec.keys if kind == spec.verify else [])},
+                                human=human)
+        append_entry(ledger, lambda seq, prev, s=spec, k=kind, e=evidence, ts=stamp: make_entry(
+            seq, prev, step=s.id, ts=ts, backend="sim", actor="human", verify=k, evidence=e, verdict="pass",
+            reason=SEED_STEP_REASON))
+    return {"upto": item.upto, "entries": str(len(before))}
 
 
 # -- snapshots -------------------------------------------------------------------------------------------------------

@@ -3,14 +3,16 @@ whole gate on macOS and Windows, every gate step even after an earlier one faile
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 GATE = [  # blueprint v2 10 "Definition of done", in the workflow's order
-    'uv run pytest -q -m "not hardware and not acceptance and not wall_clock" -n auto',
+    'uv run pytest -q -m "not hardware and not acceptance and not wall_clock and not rehearsal" -n auto',
     'uv run pytest -q -m "wall_clock and not hardware and not acceptance"',  # alone: nothing shares their CPU
+    'uv run pytest -q -m "rehearsal and not hardware and not acceptance"',  # v2.1 WP21.7: the walk, serially
     "uv run ruff check",
     "uv run b1500 dev recipe-check",
     "uv run b1500 dev lint-skills",
@@ -35,17 +37,26 @@ def test_ci_workflow_runs_the_gate_on_macos_and_windows() -> None:
     assert all(step.get("if") == "${{ !cancelled() }}" for step in steps[1:])  # one run reports every red gate
 
 
-def test_the_two_pytest_steps_run_every_gate_test_once() -> None:
-    """The parallel step and the wall-clock step split the gate's selection ``not hardware and not acceptance``
-    without a gap or an overlap (the wall-clock tests run alone, never skipped)."""
-    parallel, alone = GATE[0], GATE[1]
-    assert '"not hardware and not acceptance and not wall_clock"' in parallel and "-n auto" in parallel
+def test_the_three_pytest_steps_run_every_gate_test_once() -> None:
+    """The parallel step, the wall-clock step and the rehearsal step split the gate's selection ``not hardware and
+    not acceptance`` without a gap or an overlap (the wall-clock tests and the bring-up rehearsal run alone, never
+    skipped; no test carries both markers)."""
+    parallel, alone, rehearsal = GATE[0], GATE[1], GATE[2]
+    assert '"not hardware and not acceptance and not wall_clock and not rehearsal"' in parallel
+    assert "-n auto" in parallel
     assert '"wall_clock and not hardware and not acceptance"' in alone and "-n" not in alone.split()
+    assert '"rehearsal and not hardware and not acceptance"' in rehearsal and "-n" not in rehearsal.split()
     markers = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert '"wall_clock: asserts a wall-clock bound of the plan' in markers
-    marked = [path for path in (ROOT / "tests").rglob("test_*.py")
-              if "@pytest.mark.wall_clock" in path.read_text(encoding="utf-8")]
-    assert ROOT / "tests" / "integration" / "test_async_runs.py" in marked  # the 4 h instant run (blueprint v2 4.1)
+    assert '"rehearsal: the bring-up rehearsal' in markers
+    texts = {path: path.read_text(encoding="utf-8") for path in (ROOT / "tests").rglob("test_*.py")}
+    clocked = [path for path, text in texts.items() if "@pytest.mark.wall_clock" in text]
+    assert ROOT / "tests" / "integration" / "test_async_runs.py" in clocked  # the 4 h instant run (blueprint v2 4.1)
+    marker = re.compile(r"^pytestmark = pytest\.mark\.rehearsal$", re.MULTILINE)
+    walks = [path for path, text in texts.items() if marker.search(text)]
+    assert sorted(p.relative_to(ROOT).as_posix() for p in walks) == [
+        "tests/integration/test_bringup_sequence.py", "tests/visa_loop/test_bringup_sequence_visa.py"]
+    assert not set(clocked) & set(walks)
 
 
 def test_xdist_is_in_the_dev_group() -> None:

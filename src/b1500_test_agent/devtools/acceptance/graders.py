@@ -19,7 +19,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from b1500_test_agent.devtools.acceptance.bringup_graders import bringup_records, skill_loaded, stage_order
+from b1500_test_agent.devtools.acceptance.bringup_graders import (
+    bringup_records,
+    bringup_steps,
+    skill_loaded,
+    stage_order,
+)
 from b1500_test_agent.devtools.acceptance.contract import check_contract
 from b1500_test_agent.devtools.acceptance.evidence import GRADES_FILE, Evidence, load_evidence
 from b1500_test_agent.devtools.acceptance.extraction import extraction, field_value
@@ -750,8 +755,8 @@ GRADERS: dict[str, Callable[[Evidence, Any], Outcome]] = {
     "extraction": extraction, "final_answer": _final_answer, "forbidden_content": _forbidden_content,
     "path_guard": _path_guard, "unchanged": _unchanged, "manifest": _manifest, "instrument_io": _instrument_io,
     "llm_rubric": _llm_rubric, "skill_loaded": skill_loaded, "stage_order": stage_order,
-    "bringup_records": bringup_records, "commands": commands, "plans": plans, "async_run": async_run,
-    "routes": routes,
+    "bringup_records": bringup_records, "bringup_steps": bringup_steps, "commands": commands, "plans": plans,
+    "async_run": async_run, "routes": routes,
 }  # fmt: skip
 
 

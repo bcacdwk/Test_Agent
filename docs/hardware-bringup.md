@@ -70,8 +70,8 @@ delete files under `data\state\` by hand. Last resort, when no software reaches 
 
 ## Rehearsal on the simulator
 
-The same stages and steps run against the simulator scenario `lab_station` (acceptance scenario S17) on a separate
-simulator ledger that never signs a stage: every value SIMULATED, no record, fixture or `validation/hw/` file.
+The same steps run on the simulator (`lab_station`: acceptance scenario S17; the whole sequence: tests marked
+`rehearsal`) on a separate ledger that never signs a stage: every value SIMULATED, nothing drafted or captured.
 
 ## Hardware tests (end of each session, step E2)
 

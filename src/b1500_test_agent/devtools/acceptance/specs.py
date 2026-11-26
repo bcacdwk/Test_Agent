@@ -10,9 +10,9 @@ answer text.
 
 Types: ``tool_order`` · ``tool_calls`` · ``runs`` · ``plan_limits`` · ``extraction`` · ``final_answer`` ·
 ``forbidden_content`` · ``path_guard`` · ``unchanged`` · ``manifest`` · ``instrument_io`` · ``llm_rubric``; the
-bring-up rehearsal (S17, WP6.3) adds ``skill_loaded``, ``stage_order`` and ``bringup_records``
-(``bringup_graders.py``); the v2 module scenarios (S3 rewritten, S11-S16, S18; WP6.6) add ``commands``, ``plans``,
-``async_run`` and ``routes`` (``module_graders.py``).
+bring-up rehearsal (S17, WP6.3) adds ``skill_loaded``, ``stage_order`` and ``bringup_records``, and the step ledger
+(v2.1 WP21.7) ``bringup_steps`` (``bringup_graders.py``); the v2 module scenarios (S3 rewritten, S11-S16, S18;
+WP6.6) add ``commands``, ``plans``, ``async_run`` and ``routes`` (``module_graders.py``).
 """
 
 from __future__ import annotations
@@ -492,6 +492,37 @@ class BringupRecordsSpec(_Spec):
     type: Literal["bringup_records"]
 
 
+StepPattern = Annotated[str, Field(pattern=r"^[A-Za-z0-9.*?\[\]!-]{1,16}$")]
+"""A step id or an ``fnmatch`` pattern of step ids (``S0.P*``)."""
+
+
+class BringupStepsSpec(_Spec):
+    """The bring-up step ledger of a rehearsal (v2.1 plan §4.5, S17): ``b1500 bringup next`` → do → ``done``.
+
+    Evidence: the session's simulator ledger (``<data>/state/bringup/ledger-sim.jsonl``, entries stamped after the
+    runner's seeding phase are the session's), the audited ``bringup_done`` calls and the human's turns.
+
+    - **Ledger**: it reads with its hash chain intact; no hardware ledger (``ledger-visa.jsonl``) was written; every
+      entry of the session was written by an audited ``b1500 bringup done`` call (each entry stamped within that
+      call: none written by other means).
+    - **In order**: every entry would have been accepted by the CLI at that point (deployment, the session's start
+      steps and the earlier stages first; a step the simulator rehearses, verified its rehearsal's way); none of the
+      agent's steps passes before a human step listed ahead of it in its group of ``steps.yaml`` passed (a start or
+      end step: in the same session) or, in the session, before the human's turn that confirms it (``human_turns``: a
+      block the human confirmed in one message may be recorded in another order), nor, after a break, before the
+      human confirmed its stage's ``reconfirm`` steps again.
+    - **The human's words**: an entry that records them (a human step, a ``confirm`` step, any ``--human``) is in a
+      turn at or after the turn ``human_turns`` names for its step (the first matching pattern; a step no pattern
+      names was never confirmed by the human of the scenario, so such an entry fails); its quote uses only words of
+      the human's messages from that turn up to its own, its name only words of the human's messages so far.
+    - ``require``: every step matching a pattern (and rehearsed on the simulator) has a passing entry from the
+      session."""
+
+    type: Literal["bringup_steps"]
+    human_turns: dict[StepPattern, Annotated[int, Field(ge=1)]] = Field(default_factory=dict)
+    require: list[StepPattern] = Field(default_factory=list)
+
+
 class CommandsSpec(_Counted):
     """How often the agent ran a command matching ``pattern`` (regex search; S16: ``b1500 manual search|page``):
     shell commands (``source: shell``, with ``status`` e.g. ``[completed]`` = it ran without being refused, and
@@ -583,15 +614,16 @@ class RoutesSpec(_Spec):
 GraderSpec = Annotated[
     ToolOrderSpec | ToolCallsSpec | RunsSpec | PlanLimitsSpec | ExtractionSpec | FinalAnswerSpec
     | ForbiddenContentSpec | PathGuardSpec | UnchangedSpec | ManifestSpec | InstrumentIoSpec | LlmRubricSpec
-    | SkillLoadedSpec | StageOrderSpec | BringupRecordsSpec | CommandsSpec | PlansSpec | AsyncRunSpec | RoutesSpec,
+    | SkillLoadedSpec | StageOrderSpec | BringupRecordsSpec | BringupStepsSpec | CommandsSpec | PlansSpec
+    | AsyncRunSpec | RoutesSpec,
     Field(discriminator="type"),
 ]
 GRADER_TYPES: tuple[str, ...] = (
     "tool_order", "tool_calls", "runs", "plan_limits", "extraction", "final_answer", "forbidden_content",
     "path_guard", "unchanged", "manifest", "instrument_io", "llm_rubric", "skill_loaded", "stage_order",
-    "bringup_records", "commands", "plans", "async_run", "routes",
+    "bringup_records", "bringup_steps", "commands", "plans", "async_run", "routes",
 )  # fmt: skip
-BRINGUP_GRADER_TYPES: tuple[str, ...] = ("skill_loaded", "stage_order", "bringup_records")
+BRINGUP_GRADER_TYPES: tuple[str, ...] = ("skill_loaded", "stage_order", "bringup_records", "bringup_steps")
 """Grader types of the bring-up rehearsal, self-tested with scenario S17 (``tests/acceptance/test_s17_bringup.py``)
 instead of the generic self-test scenario."""
 MODULE_GRADER_TYPES: tuple[str, ...] = ("commands", "plans", "async_run", "routes")

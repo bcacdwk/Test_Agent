@@ -108,15 +108,18 @@ def harness_qualify_command(
                                                                       "the one installer first; needs your own "
                                                                       "terminal. A FAIL puts the validated version "
                                                                       "back.")] = None,
-    up_to: Annotated[int, typer.Option("--up-to", min=0, max=2, help="Highest tier: 0 free checks, 1 probes, 2 "
-                                                                     "canary (default; only a full ladder bumps).")]
-    = 2,
+    up_to: Annotated[int | None, typer.Option("--up-to", min=0, max=2, help="Highest tier: 0 free checks only "
+                                                                            "(never a bump); 1 probes (default; the "
+                                                                            "T2 canary still runs when T1 ends with "
+                                                                            "a WARN on a structural surface: a new or "
+                                                                            "unknown tool); 2 canary always.")]
+    = None,
     escalate: Annotated[bool, typer.Option("--escalate", help="T3: run the scenarios mapped to a failed or at-risk "
                                                               "surface with the §8.2 reps.")] = False,
     max_sessions: Annotated[int | None, typer.Option("--max-sessions", min=1, help="Cap the T3 sessions.")] = None,
     windows: Annotated[bool, typer.Option("--windows", help="Lab PC: T0 + T1 + S16 on the installed, validated "
-                                                            "version; records data/state/harness/windows.json, no "
-                                                            "bump.")] = False,
+                                                            "version (fixed ladder, no --up-to); records "
+                                                            "data/state/harness/windows.json, no bump.")] = False,
     pin: Annotated[bool, typer.Option("--pin", help="On PASS also write the sanitized T1 sessions to "
                                                     "tests/fixtures/transcripts/<harness>-<version>/.")] = False,
     out: Annotated[Path | None, typer.Option("--out", help=f"Session artifacts (default ${runner.ENV_OUT} or "
@@ -124,10 +127,11 @@ def harness_qualify_command(
     timeout: Annotated[float | None, typer.Option("--timeout", min=1, help="Per-turn timeout in seconds.")] = None,
     as_json: JsonOption = False,
 ) -> None:
-    """Qualify a harness version: T0 free checks, T1 probes, T2 canary (S4, S5, S16), T3 with --escalate. A PASS of
-    the full ladder writes docs/acceptance/<date>-<harness>-<version>-qualify.md and bumps
-    config/harness/validated.yaml (you commit both). Exit 0 PASS, 1 FAIL, 2 refused, 3 stopped at a login/API/network
-    event (nothing runs after it)."""
+    """Qualify a harness version: T0 free checks, T1 probes (default stop), T2 canary (S4, S5, S16) with --up-to 2 or
+    after a structural T1 WARN, T3 with --escalate. A PASS from T1 up writes
+    docs/acceptance/<date>-<harness>-<version>-qualify.md and bumps config/harness/validated.yaml (you commit both).
+    Exit 0 PASS, 1 FAIL, 2 refused, 3 stopped at a login/API/network event (nothing runs after it; Codex's start-up
+    model-list refresh timeout is a note, not a stop)."""
     if harness_name not in (None, "codex", "claude"):
         raise typer.BadParameter("--harness must be codex or claude")
     ops = update.UpdateContext.default(interactive=sys.stdin.isatty(), ask=lambda _q: False,

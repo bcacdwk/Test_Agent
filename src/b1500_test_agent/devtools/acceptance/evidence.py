@@ -31,7 +31,7 @@ from typing import Any, Literal
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 
 from b1500_test_agent.config import load_yaml
-from b1500_test_agent.devtools.acceptance.infra import InfraEvent
+from b1500_test_agent.devtools.acceptance.infra import InfraEvent, InfraNote
 from b1500_test_agent.devtools.acceptance.scenario import Scenario, load_scenario
 from b1500_test_agent.devtools.acceptance.transcripts import (
     FileWrite,
@@ -81,6 +81,9 @@ class TurnRecord(BaseModel):
     infra_event: InfraEvent | None = None
     """The first login/API/network event of the turn (``infra.py``): the runner killed the turn there and stopped
     the batch."""
+    infra_notes: list[InfraNote] = Field(default_factory=list)
+    """Known lines the infra watcher read and let pass (``infra.NOTE_RULES``: Codex's start-up model-list refresh
+    timeout); never a stop, listed by ``session ok`` and the reports."""
 
 
 class FileChange(BaseModel):

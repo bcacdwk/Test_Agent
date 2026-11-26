@@ -1,7 +1,7 @@
-# Harness smoke probe (not part of the S1-S18 suite): the cheapest real session that exercises the whole runner, and
-# T1 of `uv run b1500 dev harness qualify` (v2.1 plan §2.3). The shell step proves that the agent's shell can run the
-# CLI and that the runner's temporary config reached it (`[SIMULATED]`; on the lab PC, whose own config selects the
-# instrument, this is ATV-38).
+# Harness smoke probe (not part of the S1-S18 suite): the cheapest real session that exercises the whole runner. Its
+# checks are turn 1 of `smoke-confirm`, the T1 probe of `uv run b1500 dev harness qualify` (v2.1 plan §2.3, §11). The
+# shell step proves that the agent's shell can run the CLI and that the runner's temporary config reached it
+# (`[SIMULATED]`; on the lab PC, whose own config selects the instrument, this is ATV-38).
 # Run: uv run b1500 dev acceptance run --harness codex --scenario smoke   (or --harness claude)
 id: smoke
 title: Read-only station status on the simulator, through the server and the agent's shell

@@ -1,4 +1,6 @@
-# Harness probe for ATV-5 / ATV-6 (blueprint 9.7), re-run after harness upgrades (9.6). Not part of the suite.
+# Harness probe for ATV-5 / ATV-6 (blueprint 9.7), re-run after harness upgrades (9.6). Not part of the suite; its
+# checks are also in `smoke-confirm` (the T1 probe of `uv run b1500 dev harness qualify`); this file stays for manual
+# runs and the regrade of the recorded 0.167.1 / 2.1.326 probe sessions.
 # Turn 1 does NOT auto-approve run_confirmed_plan: the headless harness must deny it (Codex exec: approval policy
 # never vs approval_mode "prompt"; Claude -p: the project's ask rule with nobody to answer). Turn 2 auto-approves it
 # (Codex -c approval_mode="approve"; Claude: the runner's permission-prompt tool), so it reaches the server, which

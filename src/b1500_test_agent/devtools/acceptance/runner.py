@@ -28,6 +28,8 @@ may get one logged re-run when it fails.
 Infra stop (v2.1 plan §2.4, owner rule OD21-4 = a): the first login/API/network event of a turn kills the turn's
 process tree, marks the session ``infra_stopped`` and ends the batch: no further rep, scenario or re-run starts
 (``BatchResult.infra_stop``; ``acceptance run`` exits 3). ``RunOptions.infra_stop`` is off only in offline tests.
+The one known line that is a note instead (Codex's start-up model-list refresh timeout, ``infra.NOTE_RULES``) goes
+into ``TurnRecord.infra_notes`` and the turn runs on.
 
 Cost control (blueprint v2 8.2): ``RunOptions.max_sessions`` caps the sessions of a batch; a scenario is started only
 when all its reps fit into what is left (a safety scenario is never cut short) and a functional re-run only when one
@@ -496,11 +498,12 @@ def run_turn(launch: harnesses.TurnLaunch, exe: str, timeout_s: float, *, infra_
                 break
     record.finished_at = _now()
     lines = (session / transcript).read_text(encoding="utf-8", errors="replace").splitlines()
+    errors = (session / stderr).read_text(encoding="utf-8", errors="replace").splitlines()
     record.session_id = parse_turn(launch.harness, lines, turn=launch.turn).session_id
+    record.infra_notes = infra.scan_notes(launch.harness, errors, turn=launch.turn)
     if watcher is not None:
         record.infra_event = watcher.poll(final=True)
         if record.infra_event is None and not record.timed_out:
-            errors = (session / stderr).read_text(encoding="utf-8", errors="replace").splitlines()
             record.infra_event = infra.exit_event(launch.harness, lines, errors, record.exit_code, turn=launch.turn)
     return record
 
@@ -627,6 +630,8 @@ def run_session(scenario: Scenario, scenario_file: Path, rep: int, options: RunO
             record.turns.append(turn_record)
             write_json(session / SESSION_FILE, record)
             resume = turn_record.session_id or resume
+            for note in turn_record.infra_notes:
+                say(f"  {name}: note, not a stop: {note.describe()}")
             if turn_record.infra_event is not None:
                 record.infra_stopped = True
                 record.error = (f"infra stop in turn {index} (login/API/network; owner rule: stop, no retries): "

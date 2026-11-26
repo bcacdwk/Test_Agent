@@ -6,7 +6,8 @@ by default; functional: the single rep passes, or its one logged re-run does), s
 with the messages of failing graders, the token usage of every session with the totals (blueprint v2 8.2 cost
 policy), the scenarios a batch did not start and, when a batch stopped at an infra event (v2.1 plan §2.4), the session
 and the raw line. A scenario with an infra-stopped session is ``INCOMPLETE`` (the session says nothing about the
-agent). ``warn`` results (the harness contract's vocabulary drift and accepted residual) are listed, never failures.
+agent). ``warn`` results (the harness contract's vocabulary drift and accepted residual) are listed, never failures;
+so are infra notes (``infra.NOTE_RULES``: Codex's start-up model-list refresh timeout), in the header and per scenario.
 Several batches of the same harness version can be merged (a later batch replaces an earlier batch's sessions of the
 same scenario). ``shorten`` replaces the machine's repository and
 artifact folders by ``<repo>`` and ``<out>`` (committed reports).
@@ -142,6 +143,10 @@ def render(batches: list[BatchResult], *, date: str | None = None, shorten: bool
         lines.append(f"- Repository commit: `{last.repo_head}` (base for `acceptance run --affected`)")
     lines += [f"- **Infra stop** (owner rule: stop, no retries): {_cell(short(b.infra_stop.describe()))}"
               for b in ordered if b.infra_stop is not None]
+    noted = [s for s in counted if s.infra_notes]
+    if noted:
+        lines.append(f"- Infra notes (never a stop): {sum(len(s.infra_notes) for s in noted)} in {len(noted)} "
+                     "session(s), listed under their scenarios")
     lines += [
         "- Batches: " + ", ".join(f"`{b.batch_id}` ({b.started_at:%Y-%m-%d %H:%M}Z, {len(b.sessions)} sessions)"
                                    for b in ordered),
@@ -192,6 +197,9 @@ def render(batches: list[BatchResult], *, date: str | None = None, shorten: bool
             for head, result in failures:
                 lines.append(f"- {head} `{_cell(result.name)}`: {_cell(short(result.message))}")
                 lines += [f"  - {_cell(short(d))}" for d in result.details[:6]]
+        notes = [f"{head} {n.describe()}" for head, s in zip(heads, runs, strict=True) for n in s.infra_notes]
+        if notes:
+            lines += ["", "Infra notes (never a stop):"] + [f"- {_cell(short(n))}" for n in notes]
         warned = sorted({d for s in runs for r in s.results if r.verdict == "warn" for d in r.details})
         if warned:
             lines += ["", "Warnings (never a failure):"] + [f"- {_cell(short(d))}" for d in warned[:12]]

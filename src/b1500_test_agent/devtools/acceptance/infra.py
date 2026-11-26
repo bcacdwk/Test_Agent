@@ -6,6 +6,14 @@ the session ``infra_stopped``, starts no further session (no next rep, no re-run
 ``dev harness qualify`` exit 3 with the raw line. Owner rule: on any API, login or network error stop at once, no
 retries; the human decides when to go on.
 
+**Infra notes** (owner decision 2026-11-26, plan §11 "Codex startup notice"): exactly one known line is a note, never
+a stop, because the session goes on normally: Codex's background refresh of its model list at start-up,
+``ERROR codex_models_manager::manager: failed to refresh available models: request timed out`` (``NOTE_RULES``). The
+match is narrow: that harness, stderr only, the whole line (an optional ISO timestamp in front, nothing after it); any
+other wording, level, module, status or stream still stops. The watcher reads on past a note, so a real error later
+in the same turn still stops it; the runner records every note line of the turn's stderr (``scan_notes`` into
+``TurnRecord.infra_notes``), and ``session ok`` and the reports list them.
+
 Generic by construction (any failed completion stops), so it needs no table per harness release:
 
 - **Codex** stdout: ``turn.failed``; any ``error`` event, top level or item, including the transient
@@ -28,8 +36,9 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -67,6 +76,46 @@ _STDERR_RULES: tuple[tuple[InfraKind, re.Pattern[str]], ...] = (
         r"|\btimed out\b.{0,40}\b(?:request|connect|stream|response)|stream disconnected|can't reach",
         re.IGNORECASE)),
 )
+
+
+@dataclass(frozen=True)
+class NoteRule:
+    """One known line that is an infra note, not a stop (module docstring): its harness, the full-line pattern
+    (matched against the stripped stderr line) and what it means, for people."""
+
+    name: str
+    harness: str
+    pattern: re.Pattern[str]
+    summary: str
+
+
+NOTE_RULES: Final[tuple[NoteRule, ...]] = (
+    NoteRule(
+        name="codex model-list refresh timeout",
+        harness="codex",
+        pattern=re.compile(r"(?:\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z\s+)?ERROR "
+                           r"codex_models_manager::manager: failed to refresh available models: request timed out"),
+        summary=("Codex's background refresh of its model list timed out at start-up; the session goes on (owner "
+                 "decision 2026-11-26: a note, never a stop)"),
+    ),
+)
+"""The owner's list of infra notes: one entry. Add a line only on the owner's decision; never a broad pattern."""
+
+
+class InfraNote(BaseModel):
+    """A known line that is not a stop (``NOTE_RULES``): the rule, where it was seen and the raw line (clipped)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str
+    stream: Stream = "stderr"
+    line: str = Field(description="The raw line, clipped to LINE_CLIP characters.")
+    turn: int | None = Field(default=None, ge=1)
+    summary: str = ""
+
+    def describe(self) -> str:
+        where = f"turn {self.turn} " if self.turn else ""
+        return f"{where}{self.stream}: note ({self.name}): {self.summary} (raw: {self.line[:SHORT_RAW]})"
 
 
 class InfraEvent(BaseModel):
@@ -124,9 +173,26 @@ def _text(record: dict[str, Any]) -> str:
     return " ".join(str(b.get("text", "")) for b in blocks if isinstance(b, dict) and b.get("type") == "text")
 
 
-def classify_text(line: str, *, stream: Stream = "stderr", turn: int | None = None) -> InfraEvent | None:
-    """A diagnostic text line (stderr, or a non-JSON stdout line) that shows a login, API or network failure."""
+def note_of(harness: str | None, line: str, *, stream: Stream = "stderr", turn: int | None = None) \
+        -> InfraNote | None:
+    """The infra note of ``line`` when it is one of ``harness``'s known note lines on stderr (``NOTE_RULES``)."""
+    text = line.strip()
+    if stream != "stderr" or not text:
+        return None
+    for rule in NOTE_RULES:
+        if rule.harness == harness and rule.pattern.fullmatch(text):
+            return InfraNote(name=rule.name, stream=stream, line=_clip(text), turn=turn, summary=rule.summary)
+    return None
+
+
+def classify_text(line: str, *, stream: Stream = "stderr", turn: int | None = None,
+                  harness: str | None = None) -> InfraEvent | None:
+    """A diagnostic text line (stderr, or a non-JSON stdout line) that shows a login, API or network failure.
+
+    A known note line of ``harness`` (``note_of``) is not a stop; without ``harness`` no note applies (strict)."""
     if not line.strip() or _SKIP_LEVEL.match(line) or _AGENT_TOOL_LINE.search(line):
+        return None
+    if note_of(harness, line, stream=stream) is not None:
         return None
     for kind, pattern in _STDERR_RULES:
         if pattern.search(line):
@@ -229,7 +295,8 @@ class _Tail:
 
 
 class InfraWatcher:
-    """Tails one turn's stdout and stderr files; ``poll`` returns the first infra event (once found, always it)."""
+    """Tails one turn's stdout and stderr files; ``poll`` returns the first infra event (once found, always it). A
+    note line of the harness (``NOTE_RULES``) is read past, never an event."""
 
     def __init__(self, harness: str, stdout: Path, stderr: Path, *, turn: int | None = None) -> None:
         self.harness, self.turn = harness, turn
@@ -244,7 +311,7 @@ class InfraWatcher:
                     break
         if self.event is None:
             for line in self._err.read(final=final):
-                self.event = classify_text(line, turn=self.turn)
+                self.event = classify_text(line, turn=self.turn, harness=self.harness)
                 if self.event is not None:
                     break
         return self.event
@@ -261,11 +328,16 @@ def scan_turn(harness: str, stdout_lines: list[str], stderr_lines: list[str], *,
               exit_code: int | None = None, check_exit: bool = False) -> list[InfraEvent]:
     """Every infra event of one recorded turn (stdout first, then stderr; with ``check_exit`` the exit rule too)."""
     events = [e for line in stdout_lines if (e := classify_stdout(harness, line, turn=turn)) is not None]
-    events += [e for line in stderr_lines if (e := classify_text(line, turn=turn)) is not None]
+    events += [e for line in stderr_lines if (e := classify_text(line, turn=turn, harness=harness)) is not None]
     if check_exit:
         found = exit_event(harness, stdout_lines, stderr_lines, exit_code, turn=turn)
         events += [found] if found is not None else []
     return events
+
+
+def scan_notes(harness: str, stderr_lines: list[str], *, turn: int | None = None) -> list[InfraNote]:
+    """Every infra note of one recorded turn's stderr (``NOTE_RULES``)."""
+    return [n for line in stderr_lines if (n := note_of(harness, line, turn=turn)) is not None]
 
 
 def scan_session(session_dir: Path) -> list[InfraEvent]:

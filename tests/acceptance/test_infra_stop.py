@@ -1,10 +1,13 @@
-"""Stop at the first infra event (v2.1 plan §2.4, WP21.2 AC; owner rule OD21-4 = a).
+"""Stop at the first infra event (v2.1 plan §2.4, WP21.2 AC; owner rule OD21-4 = a) and the one infra note (WP21.8,
+owner decision 2026-11-26: Codex's start-up "failed to refresh available models: request timed out" is a note).
 
 Pinned on real lines (``tests/fixtures/transcripts/infra/``: the ATV-36 logged-out runs of both harnesses, the 84
 informational ``rate_limit_event`` lines of the WP11.5 Claude batch, a real Codex reconnect that gave up, the recorded
 probes) and on forged ones per pattern. Through the real runner with the scripted agent (``fake_agent.py``): a forged
 line stops the batch after that session (no next session, no re-run), the turn's process is killed at once, and
-``acceptance run`` exits 3; the 84 allowed rate-limit events do not stop anything.
+``acceptance run`` exits 3; the 84 allowed rate-limit events do not stop anything; the model-refresh timeout alone
+lets the batch run on (a note in the session, the grade and the report), and a real error in the same session still
+stops it.
 """
 
 from __future__ import annotations
@@ -23,6 +26,13 @@ from tests.acceptance.helpers import CLAUDE_DIR, CODEX_DIR, FIXTURES, make_repo,
 
 INFRA = FIXTURES / "infra"
 CONTRACT = FIXTURES / "contract"
+REFRESH = ("2026-11-25T20:51:08.779392Z ERROR codex_models_manager::manager: failed to refresh available models: "
+           "request timed out")
+"""The real line (WP11.5 batch, S2-r2; ``codex-0.170.0-stderr-11.5.txt``)."""
+CONNECTOR = ('2026-11-25T20:51:08.824368Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel '
+             'closed, when Client(HttpRequest(HttpRequest("http/request failed: error sending request for url '
+             '(https://chatgpt.com/backend-api/ps/mcp)")))')
+"""The next real line of the same stderr: a connection error, still a stop."""
 
 
 def _lines(path: Path) -> list[str]:
@@ -62,12 +72,60 @@ def test_a_real_reconnect_that_gave_up_stops() -> None:
     assert kinds[0] == "error_event" and "turn_failed" in kinds
 
 
-def test_strict_on_the_codex_background_errors_of_the_11_5_batch() -> None:
-    """OD21-4 = a: the model-list refresh timeout and the connector's connection error on stderr stop a batch, though
-    that WP11.5 session completed (one of 40)."""
-    events = [infra.classify_text(line) for line in _lines(INFRA / "codex-0.170.0-stderr-11.5.txt")]
-    assert events[0] is None  # "Reading additional input from stdin..."
-    assert [e.kind for e in events[1:] if e] == ["network", "network"]
+def test_the_11_5_codex_stderr_has_one_note_and_still_one_stop() -> None:
+    """Owner decision 2026-11-26: the model-list refresh timeout is a note; the connector's connection error right
+    after it in the same stderr (WP11.5 S2-r2, a session that completed) still stops the batch (OD21-4 = a)."""
+    lines = _lines(INFRA / "codex-0.170.0-stderr-11.5.txt")
+    assert lines[1:] == [REFRESH, CONNECTOR]
+    events = [infra.classify_text(line, harness="codex") for line in lines]
+    assert events[0] is None and events[1] is None  # "Reading additional input from stdin...", the note
+    assert events[2] is not None and events[2].kind == "network" and events[2].line == CONNECTOR
+    (note,) = infra.scan_notes("codex", lines, turn=1)
+    assert note.line == REFRESH and note.name == "codex model-list refresh timeout" and note.turn == 1
+    assert [e.line for e in infra.scan_turn("codex", [], lines)] == [CONNECTOR]
+
+
+def test_the_note_in_a_turn_that_reconnected_and_failed_does_not_hide_its_stops() -> None:
+    out = _lines(INFRA / "codex-0.170.0-reconnect-failed.jsonl")
+    err = _lines(INFRA / "codex-0.170.0-reconnect-failed.stderr.txt")
+    assert [n.line.split("Z ", 1)[1] for n in infra.scan_notes("codex", err)] == [REFRESH.split("Z ", 1)[1]]
+    events = infra.scan_turn("codex", out, err)
+    assert events[0].kind == "error_event" and "turn_failed" in {e.kind for e in events}
+    assert sum(e.stream == "stderr" for e in events) == len(err) - 1  # every rmcp line stops, the note does not
+
+
+def test_the_note_is_narrow() -> None:
+    """Only this harness, this stream, this whole line; the strict default without a harness."""
+    assert infra.note_of("codex", REFRESH) is not None
+    assert infra.note_of("codex", REFRESH.split("Z ", 1)[1]) is not None  # without the timestamp
+    assert infra.note_of("codex", REFRESH + "\r") is not None  # a Windows line end
+    for harness, stream in (("claude", "stderr"), (None, "stderr"), ("codex", "stdout")):
+        assert infra.note_of(harness, REFRESH, stream=stream) is None  # type: ignore[arg-type]
+        event = infra.classify_text(REFRESH, harness=harness, stream=stream)  # type: ignore[arg-type]
+        assert event is not None and event.kind == "network"
+    assert infra.classify_stdout("codex", REFRESH) is not None  # a non-JSON stdout line still stops
+    assert [r.name for r in infra.NOTE_RULES] == ["codex model-list refresh timeout"]
+
+
+NEAR_MISSES = [
+    (REFRESH + " (retrying)", "network"),
+    (REFRESH.replace("request timed out", "request timed out; giving up"), "network"),
+    (REFRESH.replace("ERROR", "WARN"), "network"),
+    (REFRESH.replace("codex_models_manager::manager", "codex_core::client"), "network"),
+    (REFRESH.replace("request timed out", "connection refused"), "network"),
+    (REFRESH.replace("request timed out", "unexpected status 401 Unauthorized"), "auth"),
+    (REFRESH.replace("request timed out", "unexpected status 503 Service Unavailable"), "http_status"),
+    ("ERROR codex_core::client: request timed out", "network"),
+    ("2026-11-25T20:51:08Z ERROR codex_api: stream request timed out", "network"),
+    ("prefix " + REFRESH, "network"),
+]
+
+
+@pytest.mark.parametrize(("line", "kind"), NEAR_MISSES)
+def test_lines_near_the_note_still_stop(line: str, kind: str) -> None:
+    assert infra.note_of("codex", line) is None
+    event = infra.classify_text(line, harness="codex")
+    assert event is not None and event.kind == kind
 
 
 @pytest.mark.parametrize(("harness", "folder"), [("codex", CODEX_DIR), ("claude", CLAUDE_DIR)])
@@ -116,8 +174,8 @@ STDERR_STOPS = [
     ("error: dns error: failed to lookup address information: nodename nor servname provided", "network"),
     ("Error: getaddrinfo ENOTFOUND api.anthropic.com", "network"),
     ("ERROR: connection refused (os error 61)", "network"),
-    ("ERROR codex_models_manager::manager: failed to refresh available models: request timed out", "network"),
     ("Unable to connect to API: Can't reach the API server", "network"),
+    (CONNECTOR, "network"),
 ]
 QUIET = [
     ("codex", '{"type":"turn.completed","usage":{"input_tokens":1}}'),
@@ -138,9 +196,10 @@ def test_forged_stdout_events_stop(harness: str, line: str, kind: str) -> None:
     assert event.line == line  # the raw line is reported
 
 
+@pytest.mark.parametrize("harness", ["codex", "claude", None])
 @pytest.mark.parametrize(("line", "kind"), STDERR_STOPS)
-def test_forged_stderr_lines_stop(line: str, kind: str) -> None:
-    event = infra.classify_text(line)
+def test_forged_stderr_lines_stop(line: str, kind: str, harness: str | None) -> None:
+    event = infra.classify_text(line, harness=harness)
     assert event is not None and event.kind == kind and event.line == line
 
 
@@ -155,6 +214,21 @@ def test_normal_events_never_stop(harness: str, line: str) -> None:
                                   'CreateProcess { message: "Rejected(\\"`curl -s 401`\\")" }')])
 def test_quiet_stderr_lines(line: str) -> None:
     assert infra.classify_text(line) is None
+
+
+def test_the_watcher_reads_past_the_refresh_timeout(tmp_path: Path) -> None:
+    out, err = tmp_path / "turn-1.jsonl", tmp_path / "turn-1.stderr.txt"
+    out.write_text('{"type":"thread.started","thread_id":"t"}\n', encoding="utf-8")
+    err.write_text(f"Reading additional input from stdin...\n{REFRESH}\n", encoding="utf-8")
+    watcher = infra.InfraWatcher("codex", out, err, turn=1)
+    assert watcher.poll() is None
+    with err.open("a", encoding="utf-8") as handle:
+        handle.write(CONNECTOR + "\n")
+    event = watcher.poll()
+    assert event is not None and event.line == CONNECTOR
+    claude = infra.InfraWatcher("claude", out, err, turn=1)  # another harness: the same line stops
+    stop = claude.poll()
+    assert stop is not None and stop.line == REFRESH
 
 
 def test_the_watcher_reads_growing_files_line_by_line(tmp_path: Path) -> None:
@@ -221,6 +295,60 @@ def test_a_forged_infra_line_stops_the_batch_after_that_session(tmp_path: Path, 
     text = report.render([batch])
     assert "**Infra stop** (owner rule: stop, no retries): TA-r1:" in text and "| INCOMPLETE |" in text
     assert "Not started: TB (not started: the batch stopped at an infra event)" in text
+
+
+def test_the_refresh_timeout_alone_is_a_note_and_the_batch_runs_on(tmp_path: Path,
+                                                                    monkeypatch: pytest.MonkeyPatch) -> None:
+    actions = f"    - {{stderr: {json.dumps(REFRESH)}}}\n    - {{say: working}}\n    - {{say: done}}\n"
+    batch, _ = _batch(tmp_path, monkeypatch, "codex", actions)
+    assert batch.infra_stop is None and [s.scenario_id for s in batch.sessions] == ["TA", "TB"]
+    assert all(s.passed for s in batch.sessions), [r.message for s in batch.sessions for r in s.failures()]
+    grade = batch.sessions[0]
+    (note,) = grade.infra_notes
+    assert note.line == REFRESH and note.turn == 1 and note.stream == "stderr"
+    record = json.loads((Path(grade.session_dir) / SESSION_FILE).read_text(encoding="utf-8"))
+    assert record["infra_stopped"] is False and record["error"] is None
+    assert record["turns"][0]["infra_event"] is None and record["turns"][0]["infra_notes"][0]["line"] == REFRESH
+    ok = grade.results[0]
+    assert ok.name == "session ok" and ok.verdict == "pass" and "1 infra note(s), not a stop" in ok.message
+    assert any(d.startswith("turn 1 infra note (not a stop): codex model-list refresh timeout") for d in ok.details)
+    text = report.render([batch])
+    assert "- Infra notes (never a stop): 2 in 2 session(s), listed under their scenarios" in text
+    assert "Infra notes (never a stop):\n- r1 turn 1 stderr: note (codex model-list refresh timeout)" in text
+    assert "Infra stop" not in text and "| PASS |" in text
+
+
+@pytest.mark.parametrize("error", [f"    - {{stderr: {json.dumps(CONNECTOR)}}}\n",
+                                   "    - {raw: '{\"type\":\"turn.failed\",\"error\":{\"message\":\"x\"}}'}\n"])
+def test_a_real_error_in_the_same_session_still_stops(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                                      error: str) -> None:
+    actions = (f"    - {{stderr: {json.dumps(REFRESH)}}}\n    - {{say: working}}\n" + error
+               + "    - {sleep: 60}\n    - {say: never}\n")
+    batch, took = _batch(tmp_path, monkeypatch, "codex", actions)
+    assert took < 45  # killed at the real error, not at the end of the turn
+    assert [s.scenario_id for s in batch.sessions] == ["TA"] and "TB" in batch.skipped
+    stop = batch.infra_stop
+    assert stop is not None and stop.session == "TA-r1"
+    assert (stop.event.kind, stop.event.line) == (("network", CONNECTOR) if "rmcp" in error else
+                                                  ("turn_failed", stop.event.line))
+    grade = batch.sessions[0]
+    assert not grade.passed and grade.infra_event == stop.event and [n.line for n in grade.infra_notes] == [REFRESH]
+    text = report.render([batch])
+    assert "**Infra stop** (owner rule: stop, no retries): TA-r1:" in text and "| INCOMPLETE |" in text
+    assert "note (codex model-list refresh timeout)" in text
+
+
+def test_acceptance_run_lists_the_note_and_exits_0(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo = make_repo(tmp_path)
+    script = tmp_path / "agent.yaml"
+    script.write_text(f"turns:\n  1:\n    - {{stderr: {json.dumps(REFRESH)}}}\n    - {{say: done}}\n",
+                      encoding="utf-8")
+    patch_fake_harness(monkeypatch, script, tmp=tmp_path)
+    scenario = _scenario(tmp_path, "TA")
+    result = CliRunner().invoke(app, ["dev", "acceptance", "run", "--harness", "codex", "--scenario", str(scenario),
+                                      "--repo", str(repo), "--out", str(tmp_path / "out")])
+    assert result.exit_code == 0, result.output
+    assert "TA r1: PASS (1 infra note(s), not a stop)" in result.output and "INFRA STOP" not in result.output
 
 
 def test_the_84_allowed_rate_limit_events_do_not_stop_a_batch(tmp_path: Path,

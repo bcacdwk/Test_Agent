@@ -292,14 +292,18 @@ def _file_id(path: Path) -> str | None:
 
 def find_scenario(repo_root: Path, scenario: str) -> Path:
     """The file of scenario ``scenario``: a path, or an id looked up in the suite and probe directories (by the
-    file's ``id``; file name stems are tried first). When several files carry the id (a scenario and its rewrite,
-    each pending while the other runs), the one whose requirements are met wins."""
+    file's ``id``; file name stems are tried first: the whole stem, then its part before the first ``-``, so
+    ``smoke`` is ``smoke.yaml``, never ``smoke-confirm.yaml``). When several files carry the id (a scenario and its
+    rewrite, each pending while the other runs), the one whose requirements are met wins."""
     direct = Path(scenario)
     if direct.suffix in (".yaml", ".yml") and direct.is_file():
         return direct
     files = scenario_files(repo_root)
     for path in files:
-        if path.stem == scenario or path.stem.split("-", 1)[0] == scenario:
+        if path.stem == scenario:
+            return path
+    for path in files:
+        if path.stem.split("-", 1)[0] == scenario:
             return path
     matches = [path for path in files if _file_id(path) == scenario]
     if len(matches) > 1:

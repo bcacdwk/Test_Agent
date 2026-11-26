@@ -41,11 +41,12 @@ def test_probe_and_selftest_scenarios_validate() -> None:
     files = scenario_files(REPO_ROOT)
     assert {p.parent.name for p in files} >= {"probes"}
     ids = {load_scenario(p).id for p in files}
-    assert {"smoke", "atv-confirm", "atv12"} <= ids
+    assert {"smoke", "atv-confirm", "atv12", "smoke-confirm"} <= ids
     assert load_scenario(SELFTEST_SCENARIO).default_reps == 3
     assert load_scenario(REPO_ROOT / PROBE_DIR / "smoke.yaml").default_reps == 1
     assert find_scenario(REPO_ROOT, "atv-confirm").name == "atv-confirm-tool.yaml"
     assert find_scenario(REPO_ROOT, "smoke").name == "smoke.yaml"
+    assert find_scenario(REPO_ROOT, "smoke-confirm").name == "smoke-confirm.yaml"
     assert find_scenario(REPO_ROOT, str(SELFTEST_SCENARIO)) == SELFTEST_SCENARIO
     with pytest.raises(FileNotFoundError):
         find_scenario(REPO_ROOT, "S99")

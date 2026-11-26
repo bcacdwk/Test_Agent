@@ -1,8 +1,9 @@
 """Grader implementations (specs and semantics: ``specs.py``) and session grading.
 
 ``grade(evidence)`` runs an implicit ``session ok`` check (every turn exited 0, did not time out, hit no infra event
-and the harness reported a completed turn), the implicit ``harness contract`` (``contract.py``, v2.1 plan §2.5:
-structural gaps fail, vocabulary drift and the accepted residual only ``warn``) and then every grader of the scenario.
+and the harness reported a completed turn; infra notes are listed, never a failure), the implicit ``harness
+contract`` (``contract.py``, v2.1 plan §2.5: structural gaps fail, vocabulary drift and the accepted residual only
+``warn``) and then every grader of the scenario.
 A session passes when no check fails; ``warn`` never fails it; ``llm_rubric`` graders are reported as ``skipped`` and
 never decide a verdict. Graders never raise: an unexpected exception is a failed check with the exception text.
 """
@@ -28,7 +29,7 @@ from b1500_test_agent.devtools.acceptance.bringup_graders import (
 from b1500_test_agent.devtools.acceptance.contract import check_contract
 from b1500_test_agent.devtools.acceptance.evidence import GRADES_FILE, Evidence, load_evidence
 from b1500_test_agent.devtools.acceptance.extraction import extraction, field_value
-from b1500_test_agent.devtools.acceptance.infra import InfraEvent
+from b1500_test_agent.devtools.acceptance.infra import InfraEvent, InfraNote
 from b1500_test_agent.devtools.acceptance.module_graders import (
     async_run,
     commands,
@@ -104,6 +105,8 @@ class SessionGrade(BaseModel):
     times."""
     infra_event: InfraEvent | None = None
     """The infra event the session stopped at (v2.1 plan §2.4): the batch stopped after this session."""
+    infra_notes: list[InfraNote] = Field(default_factory=list)
+    """Known lines that are notes, never a stop (``infra.NOTE_RULES``), from every turn; the reports list them."""
 
     def failures(self) -> list[GraderResult]:
         return [r for r in self.results if r.verdict == "fail"]
@@ -789,11 +792,15 @@ def _session_ok(ev: Evidence) -> GraderResult:
         if transcript.info.get("permissionMode") == "bypassPermissions":
             problems.append(f"Claude Code turn {transcript.turn} ran in bypassPermissions mode")
     notices = [f"turn {t.turn} notice (not an error): {_clip(n, 120)}" for t in ev.transcripts for n in t.notices]
+    notes = [f"turn {t.index} infra note (not a stop): {n.name}: {_clip(n.line, 160)}" for t in ev.record.turns
+             for n in t.infra_notes]
     message = f"{len(ev.record.turns)} turn(s) completed" if not problems else "session invalid or incomplete"
     if notices:
         message += f"; {len(notices)} transient transport notice(s)"
+    if notes:
+        message += f"; {len(notes)} infra note(s), not a stop"
     return GraderResult(name="session ok", type="session", verdict="fail" if problems else "pass",
-                        message=message, details=_details([*problems, *notices]))
+                        message=message, details=_details([*problems, *notices, *notes]))
 
 
 def _harness_contract(ev: Evidence) -> GraderResult:
@@ -823,6 +830,7 @@ def grade(ev: Evidence) -> SessionGrade:
         harness_version=record.harness_version, session_tag=record.session_tag, session_dir=ev.root.as_posix(),
         passed=all(r.verdict != "fail" for r in results), results=results, problems=list(ev.problems),
         usage=session_usage(ev), infra_event=next((t.infra_event for t in record.turns if t.infra_event), None),
+        infra_notes=[n for t in record.turns for n in t.infra_notes],
     )  # fmt: skip
 
 

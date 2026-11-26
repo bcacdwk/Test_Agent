@@ -10,10 +10,14 @@ VERSION|latest`` (same installer and guard as ``update``: a human terminal, no a
   ``--help``, derived from the argv builders of ``harnesses.py`` (no hand list); the offline harness tests
   (``tests/adapters/test_harness*.py``, ``test_guard_hook.py``, ``test_mcp_smoke.py``, ``tests/acceptance -m "not
   acceptance"``). Any FAIL stops the ladder.
-- **T1** (probes, 1 rep, no re-run): ``smoke`` (with its shell step), ``atv-confirm`` and, for Claude Code,
-  ``atv12``; every session also carries the harness contract (``contract.py``: structural gaps FAIL, vocabulary drift
-  and the accepted residual WARN).
-- **T2** (canary, 1 rep, no re-run; a ★ 1-rep is a detector, not a §8.2 verdict): S4, S5, S16.
+- **T1** (probes, 1 rep, no re-run): ``smoke-confirm`` (the ``smoke`` steps with the shell step and the two
+  ``atv-confirm`` turns in one session, plan §11: one session and one turn fewer, every check kept) and, for Claude
+  Code, ``atv12`` (its policy flag is per session); every session also carries the harness contract
+  (``contract.py``: structural gaps FAIL, vocabulary drift and the accepted residual WARN).
+- **T2** (canary, 1 rep, no re-run; a ★ 1-rep is a detector, not a §8.2 verdict): S4, S5, S16. Only with ``--up-to
+  2`` or when T1 passes with a harness-contract WARN on a structural surface (``STRUCTURAL_WARN_SURFACES``: today the
+  ``hook`` WARNs, i.e. a new built-in tool offered, an unknown tool used, an unknown Codex rollout tool; never the
+  ``format`` vocabulary WARNs nor the accepted residual). The default ``--up-to 1`` stops after T1 otherwise.
 - **T3** (``--escalate`` [``--max-sessions N``]): the scenarios mapped to the failed or at-risk surface (§2.6) with
   the §8.2 reps and thresholds. A T2 failure whose scenarios all pass T3 is cleared (T2 detects, T3 decides); T0 and
   T1 failures stay failures.
@@ -21,13 +25,15 @@ VERSION|latest`` (same installer and guard as ``update``: a human terminal, no a
 Every tier stops at the first login/API/network event (the runner's infra watcher, owner rule OD21-4 = a): no
 further tier, harness or install runs, exit 3.
 
-Outcomes: PASS of the full ladder (T0-T2) writes ``docs/acceptance/<date>-<harness>-<version>-qualify.md``, bumps
-``config/harness/validated.yaml`` when the version differs (the maintainer commits both) and, with ``--pin``, the
-sanitized T1 sessions as ``tests/fixtures/transcripts/<harness>-<version>/``. FAIL leaves ``validated.yaml`` as it
-is, names the failed checks, their surfaces and the T3 set, and puts a candidate back to the validated version.
-``--up-to 0|1`` runs a partial ladder (report under ``work/harness/``, never a bump). ``--windows`` (the lab PC,
-OD21-3 = a) runs T0 + T1 + S16 on the installed, validated version, writes no bump and records the qualification in
+Outcomes: PASS of the qualifying ladder (T0 + T1, and T2 when it ran) writes
+``docs/acceptance/<date>-<harness>-<version>-qualify.md``, bumps ``config/harness/validated.yaml`` when the version
+differs (the maintainer commits both) and, with ``--pin``, the sanitized T1 sessions as
+``tests/fixtures/transcripts/<harness>-<version>/``. FAIL leaves ``validated.yaml`` as it is, names the failed checks,
+their surfaces and the T3 set, and puts a candidate back to the validated version. ``--up-to 0`` runs the free
+partial ladder (report under ``work/harness/``, never a bump). ``--windows`` (the lab PC, OD21-3 = a) runs its fixed
+ladder T0 + T1 + S16 on the installed, validated version, writes no bump and records the qualification in
 ``<state>/harness/windows.json`` (``update`` notes while it is missing) with its report under ``work/harness/``.
+Infra notes (``infra.NOTE_RULES``: Codex's start-up model-list refresh timeout) are listed per session, never a stop.
 Exit codes: 0 PASS, 1 FAIL (or nothing to qualify), 2 refused, 3 infra stop.
 """
 
@@ -63,10 +69,22 @@ TierVerdict = Literal["PASS", "FAIL", "INFRA_STOP"]
 Verdict = Literal["PASS", "FAIL", "INFRA_STOP", "SKIPPED"]
 CheckVerdict = Literal["pass", "warn", "fail"]
 
-T1_PROBES: Final[dict[HarnessName, tuple[str, ...]]] = {"codex": ("smoke", "atv-confirm"),
-                                                        "claude": ("smoke", "atv-confirm", "atv12")}
+T1_PROBES: Final[dict[HarnessName, tuple[str, ...]]] = {"codex": ("smoke-confirm",),
+                                                        "claude": ("smoke-confirm", "atv12")}
+"""Plan §11: ``smoke-confirm`` carries every check of ``smoke`` and ``atv-confirm`` (Codex 1 session / 2 turns, was
+2 / 3; Claude Code 2 / 3 with ``atv12``, was 3 / 4)."""
+DEFAULT_UP_TO: Final = 1
+"""Plan §11 (owner: fewer live turns): T0 + T1 by default; T2 only with ``--up-to 2`` or a structural T1 WARN."""
 T2_CANARY: Final = ("S4", "S5", "S16")
 WINDOWS_CANARY: Final = ("S16",)
+STRUCTURAL_WARN_SURFACES: Final[frozenset[Surface]] = frozenset({"approval", "hook", "lifecycle", "instructions",
+                                                                 "unclear"})
+"""Surfaces of a T1 harness-contract WARN that start the T2 canary at the default ``--up-to 1``: a surface the
+canary exercises (S4 approval, S5 instructions, S16 hook). Today only ``hook`` WARNs exist among them: a new built-in
+tool offered, an unknown tool used (Claude Code), an unknown rollout tool (Codex). Not counted: ``format`` WARNs
+(event, item, block or rollout types outside the vocabulary, an ``init`` without ``skills``: the parser is fixed and
+the batch re-graded, plan §2.6) and the owner-accepted residual (``Monitor`` and the schedule/remote tools, surface
+none, OD21-5 = c: in every Claude Code session)."""
 ESCALATION: Final[dict[Surface, tuple[str, ...]]] = {
     "format": (),
     "approval": ("S4", "S11", "S12", "S15"),
@@ -76,8 +94,12 @@ ESCALATION: Final[dict[Surface, tuple[str, ...]]] = {
 }
 """Plan §2.6: the scenarios that cover a surface; ``unclear`` (or several surfaces) = every ★ scenario of the suite."""
 SCENARIO_SURFACE: Final[dict[str, Surface]] = {"smoke": "unclear", "atv-confirm": "approval", "atv12": "approval",
-                                               "S4": "approval", "S5": "instructions", "S16": "hook"}
+                                               "smoke-confirm": "unclear", "S4": "approval", "S5": "instructions",
+                                               "S16": "hook"}
 """The surface a failing T1/T2 session points at when its failure is not a harness-contract gap."""
+GRADER_SURFACE: Final[dict[str, Surface]] = {"confirm ": "approval"}
+"""Grader-name prefixes with their own surface (``smoke-confirm``: the ``atv-confirm`` checks are ``confirm t1: ...``
+/ ``confirm t2: ...``): a session whose failed graders all carry one points at that surface, not the scenario's."""
 OFFLINE_TESTS: Final = ("tests/adapters/test_harness*.py", "tests/adapters/test_guard_hook.py",
                         "tests/adapters/test_mcp_smoke.py", "tests/acceptance")
 TESTS_TIMEOUT_S: Final = 1800.0
@@ -120,6 +142,8 @@ class SessionSummary(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     surfaces: list[str] = Field(default_factory=list)
     infra: str | None = None
+    notes: list[str] = Field(default_factory=list)
+    """Infra notes of the session (never a stop)."""
 
 
 class TierResult(BaseModel):
@@ -127,6 +151,8 @@ class TierResult(BaseModel):
 
     tier: TierName
     verdict: TierVerdict
+    why: str = ""
+    """Why a tier ran beyond the default ladder (T2: ``--up-to 2``, a structural T1 WARN, ``--windows``)."""
     checks: list[Check] = Field(default_factory=list)
     scenarios: list[str] = Field(default_factory=list)
     sessions: list[SessionSummary] = Field(default_factory=list)
@@ -176,24 +202,32 @@ class QualifyOptions:
 
     harness: HarnessName | None = None
     candidate: str | None = None
-    up_to: int = 2
+    up_to: int | None = None
+    """``None`` = the default (``DEFAULT_UP_TO``); ``--windows`` has its fixed ladder and refuses an explicit value."""
     escalate: bool = False
     max_sessions: int | None = None
     windows: bool = False
     pin: bool = False
     timeout_s: float | None = None
 
+    @property
+    def top(self) -> int:
+        """The highest tier asked for: ``--up-to`` or the default 1."""
+        return DEFAULT_UP_TO if self.up_to is None else self.up_to
+
     def problems(self) -> list[str]:
         found = []
-        if self.up_to not in (0, 1, 2):
+        if self.up_to not in (None, 0, 1, 2):
             found.append("--up-to is 0, 1 or 2")
         if self.max_sessions is not None and not self.escalate:
             found.append("--max-sessions caps the T3 sessions: give --escalate")
         if self.windows and (self.candidate or self.pin or self.escalate):
             found.append("--windows qualifies the installed, validated version on the lab PC: no --candidate, --pin "
                          "or --escalate there")
-        if self.pin and self.up_to != 2:
-            found.append("--pin needs the full ladder (T0-T2): leave out --up-to")
+        if self.windows and self.up_to is not None:
+            found.append("--windows runs its fixed ladder (T0 + T1 + S16, OD21-3): leave out --up-to")
+        if self.pin and self.top == 0:
+            found.append("--pin pins the T1 sessions: not with --up-to 0")
         if self.candidate is not None and self.candidate != "latest" and \
                 not re.fullmatch(r"\d+\.\d+\.\d+([-+.][0-9A-Za-z.]+)?", self.candidate):
             found.append(f"--candidate is a version (x.y.z) or latest, not {self.candidate!r}")
@@ -341,6 +375,15 @@ def tier0(ctx: QualifyContext, harness: HarnessName, found: Installed, backend: 
 # -- T1-T3 -----------------------------------------------------------------------------------------------------------
 
 
+def _failure_surface(scenario_id: str, failed: list[str]) -> Surface:
+    """The surface of a session's failed graders (not the contract): a grader-name prefix of ``GRADER_SURFACE`` that
+    all of them share, else the scenario's (``SCENARIO_SURFACE``, ``unclear`` when unknown)."""
+    own = {next((s for prefix, s in GRADER_SURFACE.items() if name.startswith(prefix)), None) for name in failed}
+    if len(own) == 1 and None not in own:
+        return next(iter(own))  # type: ignore[return-value]
+    return SCENARIO_SURFACE.get(scenario_id, "unclear")
+
+
 def _summary(grade: SessionGrade) -> SessionSummary:
     folder = Path(grade.session_dir)
     surfaces: set[str] = set()
@@ -354,17 +397,19 @@ def _summary(grade: SessionGrade) -> SessionSummary:
         warnings.append(f"contract not re-read: {type(exc).__name__}: {exc}")
         at_risk = set()
     failed = [r.name for r in grade.failures()]
-    if [name for name in failed if name != "harness contract"]:
-        surfaces.add(SCENARIO_SURFACE.get(grade.scenario_id, "unclear"))
+    graded = [name for name in failed if name != "harness contract"]
+    if graded:
+        surfaces.add(_failure_surface(grade.scenario_id, graded))
     if grade.passed:
         surfaces = set(at_risk)
     return SessionSummary(session=folder.name, scenario_id=grade.scenario_id, rep=grade.rep, passed=grade.passed,
                           failed=failed, warnings=warnings, surfaces=sorted(surfaces),
-                          infra=grade.infra_event.describe() if grade.infra_event else None)
+                          infra=grade.infra_event.describe() if grade.infra_event else None,
+                          notes=[n.describe() for n in grade.infra_notes])
 
 
 def run_tier(ctx: QualifyContext, opts: QualifyOptions, harness: HarnessName, tier: TierName,
-             scenario_ids: list[str]) -> TierResult:
+             scenario_ids: list[str], *, why: str = "") -> TierResult:
     """One live tier through the acceptance runner (infra watcher on)."""
     files = [find_scenario(ctx.repo, sid) for sid in scenario_ids]
     escalated = tier == "T3"
@@ -374,7 +419,7 @@ def run_tier(ctx: QualifyContext, opts: QualifyOptions, harness: HarnessName, ti
     ctx.say(f"{tier}: {', '.join(scenario_ids)} ({LABELS[harness]})")
     batch = ctx.run_batch(files, options, [f"dev harness qualify {tier} ({LABELS[harness]})"])
     sessions = [_summary(g) for g in batch.sessions]
-    result = TierResult(tier=tier, verdict="PASS", scenarios=list(scenario_ids), sessions=sessions,
+    result = TierResult(tier=tier, verdict="PASS", why=why, scenarios=list(scenario_ids), sessions=sessions,
                         batches=[batch.batch_dir], usage=sum((g.usage for g in batch.sessions), Usage()))
     if batch.infra_stop is not None:
         result.verdict, result.infra = "INFRA_STOP", batch.infra_stop.describe()
@@ -445,8 +490,8 @@ def report_path(ctx: QualifyContext, opts: QualifyOptions, q: HarnessQualificati
         return ctx.repo / WORK_DIR / f"{stem}-windows.md"
     if q.verdict == "INFRA_STOP":
         return ctx.repo / WORK_DIR / f"{stem}-qualify-infra-stop.md"
-    if opts.up_to < 2:
-        return ctx.repo / WORK_DIR / f"{stem}-qualify-t{opts.up_to}.md"
+    if opts.top == 0:
+        return ctx.repo / WORK_DIR / f"{stem}-qualify-t0.md"
     return ctx.repo / REPORT_DIR / f"{stem}-qualify.md"
 
 
@@ -513,20 +558,36 @@ def pin_sessions(ctx: QualifyContext, q: HarnessQualification) -> Path:
 # -- one harness -----------------------------------------------------------------------------------------------------
 
 
+def t2_reason(opts: QualifyOptions, t1: TierResult) -> str | None:
+    """Why T2 runs after a passing T1, or ``None`` (the default ``--up-to 1`` without a structural WARN)."""
+    if opts.windows:
+        return "--windows: S16 (OD21-3 = a)"
+    if opts.top >= 2:
+        return "--up-to 2"
+    structural = sorted(set(t1.surfaces) & STRUCTURAL_WARN_SURFACES)
+    if structural:
+        return f"T1 ended with a harness-contract WARN on the {', '.join(structural)} surface"
+    return None
+
+
 def _climb(ctx: QualifyContext, opts: QualifyOptions, q: HarnessQualification, found: Installed, backend: str) -> None:
-    """T0 → T1 → T2 (→ T3) for one installed version; sets ``q.verdict`` and ``q.tiers``."""
+    """T0 → T1 (→ T2 when ``t2_reason``) (→ T3) for one installed version; sets ``q.verdict`` and ``q.tiers``."""
     t0 = tier0(ctx, q.harness, found, backend)
     q.tiers.append(t0)
     ctx.say(f"T0 {t0.verdict} ({LABELS[q.harness]} {q.version})")
-    if t0.verdict == "FAIL" or opts.up_to == 0:
+    if t0.verdict == "FAIL" or opts.top == 0:
         q.verdict = "FAIL" if t0.verdict == "FAIL" else "PASS"
         return
     t1 = run_tier(ctx, opts, q.harness, "T1", list(T1_PROBES[q.harness]))
     q.tiers.append(t1)
     t2 = None
-    if t1.verdict == "PASS" and opts.up_to == 2:
-        t2 = run_tier(ctx, opts, q.harness, "T2", list(WINDOWS_CANARY if opts.windows else T2_CANARY))
+    why = t2_reason(opts, t1) if t1.verdict == "PASS" else None
+    if why is not None:
+        t2 = run_tier(ctx, opts, q.harness, "T2", list(WINDOWS_CANARY if opts.windows else T2_CANARY), why=why)
         q.tiers.append(t2)
+    elif t1.verdict == "PASS":
+        q.notes.append(f"T2 canary ({', '.join(T2_CANARY)}) not run: --up-to {opts.top} (the default) and no "
+                       "structural harness-contract WARN in T1; `--up-to 2` runs it")
     live = [t for t in (t1, t2) if t is not None]
     if any(t.verdict == "INFRA_STOP" for t in live):
         q.verdict = "INFRA_STOP"
@@ -598,7 +659,7 @@ def _finish(ctx: QualifyContext, opts: QualifyOptions, q: HarnessQualification,
     label = LABELS[q.harness]
     path = report_path(ctx, opts, q)
     q.report = path.relative_to(ctx.repo).as_posix()
-    full = opts.up_to == 2 and not opts.windows
+    full = opts.top >= 1 and not opts.windows
     if q.verdict == "PASS" and full:
         if q.version != want.version:
             entry = harness_versions.ValidatedVersion(version=q.version, install=harness_versions.INSTALL_METHOD[
@@ -619,7 +680,7 @@ def _finish(ctx: QualifyContext, opts: QualifyOptions, q: HarnessQualification,
         harness_versions.record_windows_qualification(state_dir, q.harness, record)
         q.windows_record = harness_versions.windows_qualification_path(state_dir).as_posix()
     elif q.verdict == "PASS":
-        q.notes.append(f"partial ladder (--up-to {opts.up_to}): nothing bumped")
+        q.notes.append("partial ladder (--up-to 0): nothing bumped")
     elif q.verdict == "FAIL" and q.candidate is not None:
         ctx.say(f"FAIL: putting {label} back to the validated {want.version}")
         found = harness_versions.find_installed(q.harness, which=ctx.ops.which, run=ctx.ops.runner())
@@ -658,7 +719,7 @@ def render(ctx: QualifyContext, opts: QualifyOptions, q: HarnessQualification) -
     kind = "Windows qualification (lab PC)" if opts.windows else "qualification"
     candidate = f"; candidate `{q.candidate}`" if q.candidate else ""
     ladder = " → ".join(f"{t.tier} {t.verdict}" for t in q.tiers) or "not run"
-    partial = f" (--up-to {opts.up_to})" if opts.up_to < 2 else ""
+    partial = " (--up-to 0)" if opts.top == 0 and not opts.windows else ""
     bumped = f"; `{harness_versions.VALIDATED_FILE}` bumped to {q.version}" if q.bumped else ""
     restored = f"; restored to {q.restored}" if q.restored else ""
     lines = [f"# Harness {kind}: {q.harness} {q.version} ({ctx.today.isoformat()})", "",
@@ -671,6 +732,7 @@ def render(ctx: QualifyContext, opts: QualifyOptions, q: HarnessQualification) -
     lines += [f"- Infra stop (owner rule: stop, no retries): {_cell(t.infra)}" for t in q.tiers if t.infra]
     for tier in q.tiers:
         lines += ["", f"## {tier.tier}: {tier.verdict}", ""]
+        lines += [f"Run because: {tier.why}.", ""] if tier.why else []
         if tier.checks:
             lines += ["| Check | Verdict | Detail |", "|---|---|---|"]
             lines += [f"| {c.name} | {c.verdict} | {_cell(c.detail)} |" for c in tier.checks]
@@ -680,6 +742,9 @@ def render(ctx: QualifyContext, opts: QualifyOptions, q: HarnessQualification) -
                   "| Session | Verdict | Failed graders | Surfaces |", "|---|---|---|---|"]
         lines += [f"| {s.session} | {'PASS' if s.passed else 'FAIL'} | {_cell(', '.join(s.failed)) or '—'} | "
                   f"{', '.join(s.surfaces) or '—'} |" for s in tier.sessions]
+    noted = [f"{t.tier} {s.session}: {n}" for t in q.tiers for s in t.sessions for n in s.notes]
+    if noted:
+        lines += ["", "## Infra notes (never a stop; owner decision 2026-11-26)", ""] + [f"- {_cell(n)}" for n in noted]
     warnings = sorted({w for t in q.tiers for s in t.sessions for w in s.warnings})
     warned_checks = [f"T0 {c.name}: {c.detail}" for t in q.tiers for c in t.checks if c.verdict == "warn"]
     if warnings or warned_checks:
@@ -744,6 +809,8 @@ def format_summary(report: QualifyReport) -> str:
         for tier in q.tiers:
             lines += [f"  {tier.tier} {c.verdict:4} {c.name}: {c.detail}" for c in tier.checks if c.verdict != "pass"]
             lines += [f"  {tier.tier} FAIL {s.session}: {', '.join(s.failed)}" for s in tier.sessions if not s.passed]
+            lines += [f"  {tier.tier} note {s.session}: {n}" for s in tier.sessions for n in s.notes]
+            lines += [f"  {tier.tier} ran because: {tier.why}"] if tier.why else []
         lines += [f"  report: {q.report}"] if q.report else []
         lines += [f"  do: {a}" for a in q.actions] + [f"  note: {n}" for n in q.notes]
     return "\n".join(lines)

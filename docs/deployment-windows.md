@@ -408,7 +408,9 @@ robocopy config\local D:\b1500-backup\config-local /E
     warns at every session start while an installed harness differs ("run `uv run b1500 update`"). After a version
     change repeat the interactive checks of steps 8.2, 8.5 and, for Claude Code, 9.4–9.5 (they cannot be checked
     without you), and the maintainer runs `uv run b1500 dev harness qualify --windows` once on this PC (T0, the
-    probes and S16 on the simulator, about 0.5–0.8 USD and 0.4–0.6 M Codex tokens; `update` notes it until then).
+    probes and S16 on the simulator, about 0.45–0.7 USD and 0.35–0.5 M Codex tokens; `update` notes it until then).
+    On the Mac the maintainer's default qualify is T0 + the probes (T1); the S4, S5, S16 canary runs only with
+    `--up-to 2` or after a structural probe WARN.
   - With a wheelhouse install (`UV_OFFLINE`), an update that changes `uv.lock` stops with "a new wheelhouse is
     needed" (§"Offline wheelhouse").
 

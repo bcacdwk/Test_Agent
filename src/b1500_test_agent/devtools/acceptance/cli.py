@@ -57,6 +57,7 @@ def _progress(message: str) -> None:
 def _summary_line(grade: SessionGrade) -> str:
     failed = [r.name for r in grade.failures()]
     tail = f" (failed: {', '.join(failed)})" if failed else ""
+    tail += f" ({len(grade.infra_notes)} infra note(s), not a stop)" if grade.infra_notes else ""
     return f"{grade.scenario_id} r{grade.rep}{' re-run' if grade.rerun else ''}: " \
            f"{'PASS' if grade.passed else 'FAIL'}{tail}"
 
@@ -228,6 +229,6 @@ def list_command(repo: RepoOption = None) -> None:
         missing = missing_requirements(scenario, root, statuses)
         pending = f"  PENDING: missing {', '.join(missing)}" if missing else ""
         tags = f"  [{', '.join(scenario.tags)}]" if scenario.tags else ""
-        typer.echo(f"{scenario.id:12} {where:5} {kind:10} reps {scenario.default_reps}  {scenario.title}{tags}"
+        typer.echo(f"{scenario.id:13} {where:5} {kind:10} reps {scenario.default_reps}  {scenario.title}{tags}"
                    f"{pending}")
     sys.stdout.flush()

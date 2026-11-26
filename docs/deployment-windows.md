@@ -27,7 +27,8 @@ sessions. Each line points to the step of §"Procedure" that explains it; comman
 folder from D6 on. Lines marked *human* are yours alone: the harness rules and the guard hook stop a coding agent
 from running them. Each D step goes into the step ledger once the clone exists: `uv run b1500 bringup next` names
 the next one, and you record it in your own terminal (`uv run b1500 bringup done D1 --human "WHAT YOU DID" --by
-NAME`) or the agent records it from your words in chat later.
+NAME`; several at once with the `batch done` line `next` prints) or the agent records it from your words in chat
+later.
 
 1. **Mac (developer):** push `main` (`git push`, owner decisions OD-4, OD21-11); optionally copy the `1500A`
    manuals folder (~75 MB of PDFs) to the lab PC for figures and `manual build`.
@@ -326,10 +327,11 @@ its numbered list; step 12). Then start the harness in the clone root and give i
 
 The agent works step by step: `uv run b1500 bringup next` names the step (after a break first the session-start
 steps R1-R4 and what to confirm again), the agent does it or hands it to you, and `uv run b1500 bringup done`
-verifies and records it in the step ledger with your own words for your steps. It tells you the physical steps,
-probes and proposes, and runs validated plans only after your consent in chat; you do the physical steps, consent
-in your own words and approve the harness prompt after comparing its summary with the chat. The stages, the nine
-sessions and who does what: [hardware-bringup.md](hardware-bringup.md).
+verifies and records it in the step ledger with your own words for your steps (the steps one message of yours
+confirmed and the agent's finished steps next to them go in one call, each still verified and recorded on its own).
+It tells you the physical steps, probes and proposes, and runs validated plans only after your consent in chat; you
+do the physical steps, consent in your own words and approve the harness prompt after comparing its summary with the
+chat. The stages, the nine sessions and who does what: [hardware-bringup.md](hardware-bringup.md).
 
 **Long runs and the harness.** A plan longer than 5 min runs asynchronously in the b1500 server; the agent polls
 `get_run` and stops it with `safe_shutdown`. The server lives as long as the harness keeps it: in the interactive

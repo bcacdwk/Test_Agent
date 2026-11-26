@@ -91,6 +91,9 @@ class ToolCall(_Event):
     """Run outcome of a ``run_plan``/``run_confirmed_plan`` result (``running`` for an asynchronous start, v2 2.6)."""
     cancelled_run: str | None = None
     """The run a ``safe_shutdown`` stopped (its result's ``cancelled_run``; transcripts only)."""
+    steps: list[str] | None = None
+    """The bring-up steps a ``bringup_done`` call recorded, in order (audit only; ``None`` when the event names none:
+    nothing recorded, or an audit line written before batches existed)."""
     adapter: str | None = None
     call_id: str | None = None
     subagent: bool = False

@@ -5,9 +5,9 @@ A simulator station is a rehearsal: ``status`` works and says so, ``record`` and
 (``S…``) before reading anything and refuse to draft on backend sim at all; nothing is written under
 ``work/bringup/records/`` or ``work/bringup/fixtures/``. Each refusal is audited (``tool_call`` ``bringup_record`` /
 ``bringup_capture``, status ``refused``), which is what acceptance scenario S17 grades. The step verbs: ``next``
-prints D1 on an empty simulator ledger; ``done`` records the human's words and who ran it (``human`` without a
-harness marker, ``human_via_agent`` with one) and exits 1 on a refusal or a recorded failure; ``check`` exits 1 on a
-gap.
+prints D1 on an empty simulator ledger and the batch that can follow; ``done`` records the human's words and who ran
+it (``human`` without a harness marker, ``human_via_agent`` with one) and exits 1 on a refusal or a recorded failure;
+several step ids record a batch (WP21.14: one line per entry, the next batch); ``check`` exits 1 on a gap.
 """
 
 from __future__ import annotations
@@ -173,6 +173,42 @@ def test_done_records_the_human_words_and_who_ran_it(steps_cli: World, monkeypat
     assert [c["status"] for c in calls] == ["refused", "ok", "ok", "ok", "error", "ok"]
 
 
+def test_done_records_a_batch_and_next_prints_the_batch_line(steps_cli: World,
+                                                              monkeypatch: pytest.MonkeyPatch) -> None:
+    """WP21.14: ``next`` prints the steps one ``done`` call can record with the next step and that call's line; ``done``
+    with several ids records one entry per step (the evidence printed once when it repeats) and prints the next
+    batch; the audit event names the steps."""
+    shown = invoke("bringup", "next")
+    assert shown.exit_code == 0, shown.output
+    assert "  batch: one `done` call can record it with the 6 step(s) after it, in order" in shown.stdout
+    assert "    D7 (both, verify doctor): `uv sync --frozen`;" in shown.stdout
+    assert ('  batch done: uv run b1500 bringup done D1 D4 D6 D7 D8 D9 D11 --human "<the human\'s own words>" --by '
+            "<NAME>") in shown.stdout
+    for tokens in named_commands(f"`{NextStep.model_validate(as_json(invoke('bringup', 'next', '--json'))).step}`"):
+        assert command_problems(tokens) == [], tokens
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.setattr(cli_bringup, "doctor_lines", lambda: [("python", "PASS", "3.12"),
+                                                              ("harness files", "PASS", "wired"),
+                                                              ("harness versions", "PASS", "= validated")])
+    result = invoke("bringup", "done", "D1", "D4", "D6", "D7", "D8", "D9", "D11", "--human",
+                    "Deployment done, every step", "--by", "Owner")
+    assert result.exit_code == 0, result.output
+    assert result.stdout.startswith("[SIMULATED] ok: SIMULATED 7 steps pass: D1 (the human's words (Owner)); D4")
+    for line in ("recorded: #1 D1 pass (confirm, human_via_agent)", "recorded: #4 D7 pass (doctor, agent)",
+                 "recorded: #7 D11 pass (confirm, human_via_agent)", "step R1 (R, agent, verify doctor, open)",
+                 "  batch done: uv run b1500 bringup done R1 R2 R3 R4 --observe reconfirm=<VALUE> --human"):
+        assert line in result.stdout, line
+    # the evidence is printed when it differs from the entry before: D1, D8 (with its doctor line), D9
+    assert result.stdout.count('evidence: "Deployment done, every step" (Owner)') == 3
+    model = StepDone.model_validate(as_json(invoke("bringup", "done", "R1", "R2", "--json")))
+    assert model.ok and [e.step for e in model.entries] == ["R1", "R2"] and model.entry == model.entries[-1]
+    refused = invoke("bringup", "done", "R3", "R4", "--observe", "reconfirm=none")
+    assert refused.exit_code == 1 and "step R3 records the human's own words" in refused.stdout
+    calls = _tool_calls(steps_cli, "bringup_done")
+    assert [(c["status"], c.get("steps")) for c in calls] == [("ok", "D1 D4 D6 D7 D8 D9 D11"), ("ok", "R1 R2"),
+                                                               ("refused", None)]
+
+
 def test_check_exits_1_on_a_gap(steps_cli: World) -> None:
     assert invoke("bringup", "done", "D1", "--human", "done", "--by", "Owner").exit_code == 0
     clean = invoke("bringup", "check")
@@ -203,15 +239,15 @@ def test_done_passes_one_fixture_folder_per_capture(steps_cli: World, monkeypatc
     folder and run to the step verifier in order."""
     seen: dict[str, Any] = {}
 
-    def fake_done(service: Any, step: str, args: Any, **_kwargs: Any) -> StepDone:
-        seen.update(step=step, runs=args.runs, fixtures=args.fixtures)
+    def fake_done(service: Any, steps: Any, args: Any, **_kwargs: Any) -> StepDone:
+        seen.update(steps=steps, runs=args.runs, fixtures=args.fixtures)
         return StepDone(ok=False, status="refused", backend="sim", simulated=True, message="seen")
 
     monkeypatch.setattr(cli_bringup.bringup_steps, "done", fake_done)
     result = invoke("bringup", "done", "L2.A10", "--run", "H20261126T080000Z-0a0b", "--fixtures",
                     "work/bringup/fixtures/H20261126T080000Z-0a0b", "--run", "H20261126T080100Z-0c0d",
                     "--fixtures", "work/bringup/fixtures/H20261126T080100Z-0c0d")
-    assert result.exit_code == 1 and seen["step"] == "L2.A10"
+    assert result.exit_code == 1 and seen["steps"] == ("L2.A10",)
     assert seen["runs"] == ("H20261126T080000Z-0a0b", "H20261126T080100Z-0c0d")
     assert seen["fixtures"] == ("work/bringup/fixtures/H20261126T080000Z-0a0b",
                                 "work/bringup/fixtures/H20261126T080100Z-0c0d")

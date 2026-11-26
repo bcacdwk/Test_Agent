@@ -1,6 +1,8 @@
 """The scripted bring-up rehearsal (v2.1 plan §4.4; WP21.7): a walker that takes each step ``b1500 bringup next``
 names, does it as the agent and the scripted human would, and records it with ``b1500 bringup done``
-(``bringup_steps``, in-process, as the CLI calls them).
+(``bringup_steps``, in-process, as the CLI calls them). Since WP21.14 it records the batch ``next`` shows (the step and
+the steps after it that one ``done`` call can take) in one call: it does every step of the batch, then records them
+together with their merged evidence options; every step still gets its own verified entry.
 
 - **The human** answers every human step with their own words (``HUMAN``), adopts configuration (``config.adopt``,
   the function behind the human-only CLI command) and reviews drafts into ``validation/hw/`` (visa-loop). A physical
@@ -170,6 +172,7 @@ class Rehearsal(ABC):
         self.facts: dict[str, tuple[str, str]] = {}
         """Run id -> (recipe, outcome)."""
         self.recorded: list[StepDone] = []
+        """Every ``done`` call's result (one per call; a batch call holds several entries)."""
         self.landed: str | None = None
 
     # -- backend hooks -----------------------------------------------------------------------------------------------
@@ -206,12 +209,12 @@ class Rehearsal(ABC):
         values.update(extra)
         return StepArgs(**values)
 
-    def done(self, step_id: str, **extra: Any) -> StepDone:
-        spec = STEPS.get(step_id)
-        assert spec is not None
-        result = bringup_steps.done(self.service, step_id, self.args(spec, **extra), doctor=lambda: DOCTOR)
-        assert result.recorded and result.entry is not None, f"{step_id} not recorded: {result.message}"
-        assert result.entry.verdict == "pass", f"{step_id} failed: {result.entry.reason}"
+    def done(self, ids: list[str], args: StepArgs) -> StepDone:
+        """One ``done`` call for ``ids`` (one step, or a batch); every step must be recorded ``pass``."""
+        result = bringup_steps.done(self.service, ids if len(ids) > 1 else ids[0], args, doctor=lambda: DOCTOR)
+        assert result.recorded and [e.step for e in result.entries] == ids, f"{ids} not recorded: {result.message}"
+        failed = [f"{e.step}: {e.reason}" for e in result.entries if e.verdict != "pass"]
+        assert not failed, failed
         self.recorded.append(result)
         return result
 
@@ -219,7 +222,8 @@ class Rehearsal(ABC):
 
     def walk(self, *, until: str | None = None, limit: int = 400) -> list[str]:
         """Do and record every step ``next`` names (up to, not including, ``until``), the review steps it lists as
-        awaiting first (the human reviews a finished stage before going on); the step ids in order."""
+        awaiting first (the human reviews a finished stage before going on), each batch ``next`` shows in one call;
+        the step ids in order."""
         walked: list[str] = []
         for _ in range(limit):
             shown = bringup_steps.next_step(self.service)
@@ -230,35 +234,53 @@ class Rehearsal(ABC):
             view = shown.step
             if view is None or view.id == until:
                 return walked
-            self.step(view.id)
-            walked.append(view.id)
-        raise AssertionError(f"the walk did not end within {limit} steps: {walked[-5:]}")
+            ids = [view.id, *(b.id for b in view.batch)]
+            ids = ids[:ids.index(until)] if until in ids else ids
+            self.record(ids)
+            walked += ids
+        raise AssertionError(f"the walk did not end within {limit} calls: {walked[-5:]}")
 
     def step(self, step_id: str) -> StepDone:
-        """Do step ``step_id`` its kind's way and record it."""
-        spec = STEPS.get(step_id)
-        assert spec is not None
-        handler = getattr(self, f"do_{self.kind(spec)}", None)
-        assert handler is not None, f"no rehearsal handler for verify {self.kind(spec)} ({step_id})"
-        return handler(spec)
+        """Do step ``step_id`` its kind's way and record it (one call)."""
+        return self.record([step_id])
 
-    def do_confirm(self, spec: StepSpec) -> StepDone:
-        return self.done(spec.id)
+    def record(self, ids: list[str]) -> StepDone:
+        """Do each step of ``ids`` its kind's way, in order, then record them in one ``done`` call (the evidence
+        options merged: a batch takes each option for one of its steps)."""
+        repeatable = ("runs", "drafts", "fixtures", "observe")
+        merged: dict[str, Any] = dict.fromkeys(repeatable, ())
+        for step_id in ids:
+            spec = STEPS.get(step_id)
+            assert spec is not None
+            handler = getattr(self, f"do_{self.kind(spec)}", None)
+            assert handler is not None, f"no rehearsal handler for verify {self.kind(spec)} ({step_id})"
+            args = self.args(spec, **handler(spec))
+            for key in repeatable:
+                merged[key] += getattr(args, key)
+            if args.probe is not None:
+                assert merged.get("probe") is None, f"{ids}: two probes in one call"
+                merged["probe"] = args.probe
+            if args.human is not None:
+                merged.update(human=args.human, by=args.by)
+        return self.done(ids, StepArgs(**merged))
+
+    def do_confirm(self, spec: StepSpec) -> dict[str, Any]:
+        return {}
 
     do_observation = do_doctor = do_ledger = do_confirm
 
-    def do_station(self, spec: StepSpec) -> StepDone:
+    def do_station(self, spec: StepSpec) -> dict[str, Any]:
         if spec.id == "E1":
             assert self.service.safe_shutdown("end of session").ok
-        return self.done(spec.id)
+        return {}
 
-    def do_probe(self, spec: StepSpec) -> StepDone:
+    def do_probe(self, spec: StepSpec) -> dict[str, Any]:
         self.land("lab_station")  # the probe reads the station as wired: the lab inventory
         report = B1500Admin(self.service).probe(wgfmu_session=spec.id in WGFMU_SESSION_PROBES)
         assert report.ok, f"{spec.id}: {report.message}"
-        return self.done(spec.id, probe="latest")
+        return {"probe": "latest"}
 
-    def do_proposal(self, spec: StepSpec) -> StepDone:
+    def do_proposal(self, spec: StepSpec) -> dict[str, Any]:
         drafts: list[str] = []
         if "station" in spec.config:
             self.land("lab_station")
@@ -272,12 +294,12 @@ class Rehearsal(ABC):
             target.write_text((self.root / "config" / folder / f"{name}.example.yaml").read_text(encoding="utf-8"),
                               encoding="utf-8")
             drafts.append(target.relative_to(self.root).as_posix())
-        return self.done(spec.id, drafts=tuple(drafts))
+        return {"drafts": tuple(drafts)}
 
-    def do_run(self, spec: StepSpec) -> StepDone:
+    def do_run(self, spec: StepSpec) -> dict[str, Any]:
         runs = self.run_step(spec)
         self.runs[spec.id] = runs
-        return self.done(spec.id, runs=tuple(runs))
+        return {"runs": tuple(runs)}
 
     # -- runs --------------------------------------------------------------------------------------------------------
 
@@ -396,9 +418,10 @@ class SimRehearsal(Rehearsal):
             self.world.use_scenario(name)
             self.landed = name
 
-    def do_refusal(self, spec: StepSpec) -> StepDone:
+    def do_refusal(self, spec: StepSpec) -> dict[str, Any]:
         """A record or capture step: on hardware it drafts records or captures fixtures; the simulator refuses both
-        for the stage's ``S...`` runs, so the step is recorded as rehearsed (never written by hand)."""
+        for the stage's ``S...`` runs, so the step is recorded as rehearsed (never written by hand) with the runs a
+        capture named."""
         if spec.verify == "record":
             refused = bringup.record(self.service, spec.group, self.stage_runs(spec.group), operator=OWNER)
             named: list[str] = []
@@ -407,4 +430,4 @@ class SimRehearsal(Rehearsal):
             refused = bringup.capture(self.service, named or ["probe"])
         assert refused.status == "refused" and not refused.ok, f"{spec.id}: {refused.message}"
         self.refusals.append(f"{spec.id}: {refused.message}")
-        return self.done(spec.id, runs=tuple(named))
+        return {"runs": tuple(named)}

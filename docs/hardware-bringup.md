@@ -29,19 +29,19 @@ Six sections each: Preconditions, Physical steps (human), Agent steps, Expected 
 
 ## Steps, ledger and sessions
 
-`steps.yaml` lists every numbered item of the stage files in execution order (who, how it is verified, the checks
-it feeds), plus the deployment steps D1-D12 and each session's start (R1-R4) and end (E1-E5). Three verbs walk it:
-`uv run b1500 bringup next` (read-only: the next step, its expected values, the exact `done` line, the abort route),
-`uv run b1500 bringup done STEP` (verifies the evidence now and appends pass or fail to the step ledger
-`data\state\bringup\`, which only this command writes; human steps carry the owner's own words) and
-`uv run b1500 bringup check --all` (re-verifies the ledger; exit 1 on a gap). A stage is signed only when every step
-passed and its records are reviewed; `uv run b1500 bringup status` shows `steps a/b` per stage. Nine sessions, each
-opened by R1-R4 and closed by E1-E5: 0 deployment (D1-D12); 1 S0, L0; 2 L1-L3; 3 L4, L5; 4 L6; 5 L7; 6 L8; 7 L9 (a
-full day, the harness kept open); 8 L10 with the review and the transfer. Their real durations are in the ledger.
+`steps.yaml` lists every numbered item of the stage files in execution order (who, how it is verified, the checks it
+feeds), plus the deployment steps D1-D12 and each session's start (R1-R4) and end (E1-E5). Three verbs walk it:
+`uv run b1500 bringup next` (read-only: the next step, its expected values, the exact `done` line, the abort route, the
+`batch` one call can record), `uv run b1500 bringup done STEP [STEP ...]` (verifies each step now and appends pass or
+fail, one entry per step, to the step ledger `data\state\bringup\` that only it writes; a failure ends the call; human
+steps carry the owner's own words) and `uv run b1500 bringup check --all` (re-verifies the ledger; exit 1 on a gap).
+Signed = every step passed and the records reviewed (`uv run b1500 bringup status` shows `steps a/b` per stage). Nine
+sessions, each opened by R1-R4 and closed by E1-E5: 0 deployment (D1-D12); 1 S0, L0; 2 L1-L3; 3 L4, L5; 4 L6; 5 L7; 6
+L8; 7 L9 (a full day, the harness kept open); 8 L10 with the review and the transfer (real durations: the ledger).
 `uv run b1500 bringup capture H... probe` writes anonymized golden fixtures (the `tests/fixtures/flex/` format, the
 `*IDN?` serial replaced by 0; also the ASU/SCUU `*LRN?` answers, `CORRL?`/`DCORR?`/`CORRDT?` and the WGFMU library's
-strings); `uv run b1500 bringup record L2 --run H... --reference r_dmm=99870 --operator NAME` drafts a record (with
-the audit's timings and the stage's steps) from hardware runs only; the owner reviews both
+strings); `uv run b1500 bringup record L2 --run H... --reference r_dmm=99870 --operator NAME` drafts a record (with the
+audit's timings and the stage's steps) from hardware runs only; the owner reviews both
 ([validation/hw/README.md](../validation/hw/README.md); `uv run b1500 dev recipe-check`).
 
 ## Who does what

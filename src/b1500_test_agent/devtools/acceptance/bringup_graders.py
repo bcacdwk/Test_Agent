@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable
-from datetime import timedelta
+from datetime import datetime, timedelta
 from fnmatch import fnmatchcase
 from pathlib import Path
 
@@ -276,19 +276,26 @@ def _label(ev: Evidence, entry: LedgerEntry) -> str:
 
 
 def _unaudited(ev: Evidence, session: list[LedgerEntry]) -> list[str]:
-    """Entries of the session that no audited ``bringup done`` call wrote: each entry pairs with the next recorded
-    call (status ok = pass, error = fail) that ended at most ``CALL_WINDOW`` after the entry's stamp."""
-    calls = sorted(c.ts for c in ev.calls("audit") if c.tool == "bringup_done" and c.status in ("ok", "error")
-                   and c.ts is not None)
-    problems, used = [], 0
+    """Entries of the session that no audited ``bringup done`` call wrote. A call's audit event names the steps it
+    recorded (one entry each; a batch names several): each entry pairs with a call naming its step, not yet paired
+    with as many entries of that step, that ended at or after the entry's stamp and at most ``CALL_WINDOW`` after it.
+    An event that names no step (an audit line from before batches) stands for one entry of any step when its status
+    is ok (pass) or error (fail)."""
+    calls: list[tuple[datetime, list[str | None]]] = sorted(
+        ((c.ts, list(c.steps) if c.steps else [None]) for c in ev.calls("audit")
+         if c.tool == "bringup_done" and c.ts is not None and (c.steps or c.status in ("ok", "error"))),
+        key=lambda call: call[0])
+    problems, first = [], 0
     for entry in sorted(session, key=lambda e: e.ts):  # parallel calls may append in another order than stamped
-        while used < len(calls) and calls[used] < entry.ts:
-            used += 1
-        if used < len(calls) and calls[used] - entry.ts <= CALL_WINDOW:
-            used += 1
-        else:
+        while first < len(calls) and calls[first][0] < entry.ts:  # a call that ended before the entry did not write it
+            first += 1
+        found = next((left for ended, left in calls[first:] if ended - entry.ts <= CALL_WINDOW
+                      and (entry.step in left or None in left)), None)
+        if found is None:
             problems.append(f"{_label(ev, entry)}: no audited `b1500 bringup done` call wrote this entry (written "
                             "outside the CLI)")
+            continue
+        found.remove(entry.step if entry.step in found else None)
     return problems
 
 

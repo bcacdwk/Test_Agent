@@ -65,18 +65,20 @@ Each test card names its stage (`bringup_stage`, shown in the card index of skil
 
 ## 3. Working a stage: next, do, done
 
-1. `uv run b1500 bringup next`: the step, its text (the stage file's item), the expected values, the pass rule, the
-   exact `bringup done` line and the abort route; after a break the start steps and the steps to confirm again come
-   first. Check the stage's preconditions once (previous stage signed off, `station_status` clean).
+1. `uv run b1500 bringup next`: the step (the stage file's item), expected values, pass rule, exact `bringup done`
+   line, abort route, and the `batch` one `done` can record with it; after a break the start steps and the steps to
+   confirm again come first. Check the stage's preconditions once (previous stage signed off, `station_status` clean).
 2. Do it. A human step (physical, D, E): give the human the whole block of consecutive human steps in one message
    and stop; never assume it is done. Configuration you prepare goes to `work/bringup/` as a proposal; the human
    adopts it. An agent step: read-only checks first (`uv run b1500 doctor --probe`), then validated plans through
    skill `b1500-test` (summary, consent, run, quality gate, analysis); compare with the expected values.
-3. `uv run b1500 bringup done STEP` with the evidence `next` named (`--run`, `--probe latest`, `--draft`,
-   `--fixtures` per captured run, `--observe KEY=VALUE` for what was seen). A human step takes the human's own chat
-   words, quoted: `--human "QUOTE" --by NAME` (their confirmation sentence; never a human-only command in it, never
-   words they did not write). `done` verifies now and prints the next step. `refused`: nothing was written, give
-   what it asks. `fail`: the stage's abort criterion (rule 3, with the step's runbooks), wait for the human.
+3. `uv run b1500 bringup done STEP [STEP ...]` with the evidence `next` named (`--run`, `--probe latest`, `--draft`,
+   `--fixtures` per captured run, `--observe KEY=VALUE` for what was seen). The steps of the batch line you finished
+   go in one call, in order (its first ones; never a step not done yet); each option goes to its step. A human step
+   takes the human's own chat words, quoted: `--human "QUOTE" --by NAME` (the message that confirmed it, one quote
+   for the steps it covers; never a human-only command in it, never words they did not write). `done` verifies each
+   step now and prints the next. `refused`: that step is not written, give what it asks. `fail`: recorded, the call
+   stops; the stage's abort criterion (rule 3, with the step's runbooks), wait for the human.
 4. Records and fixtures (hardware only): `uv run b1500 bringup record STAGE --run H... --operator NAME` drafts into
    `work/bringup/records/` (values copied from the runs, tolerances from the stage file; `--reference
    CHECK=VALUE` carries a value the human gave in chat; the draft embeds the stage's ledger steps);
@@ -86,13 +88,12 @@ Each test card names its stage (`bringup_stage`, shown in the card index of skil
 
 ## 4. Simulator rehearsal
 
-Allowed for practice and for the acceptance suite: same order, rules and loop, every value SIMULATED, a separate
-simulator ledger that never signs a stage (`rehearsed`). `bringup next` skips the lab-only steps; physical steps
-stay the human's (in a rehearsal they may simply answer "done"); the configuration commands stay the human's too.
-The rehearsal's configuration already selects the simulator, so the human skips `config init` (say so); in L0 run
-`uv run b1500 doctor --probe` and `uv run b1500 bringup propose-station` in the same turn, show the proposal path
-and diff, give the adoption command in chat for the human and stop. Pin-map or DUT proposals: show the YAML in
-chat.
+For practice and the acceptance suite: same order, rules and loop, every value SIMULATED, a separate simulator
+ledger that never signs a stage (`rehearsed`). `bringup next` skips the lab-only steps; physical steps stay the
+human's (in a rehearsal they may simply answer "done"); the configuration commands stay the human's too. The
+rehearsal's configuration already selects the simulator, so the human skips `config init` (say so); in L0 run
+`uv run b1500 doctor --probe` and `uv run b1500 bringup propose-station` in the same turn, show the proposal path and
+diff, give the adoption command in chat for the human and stop. Pin-map or DUT proposals: show the YAML in chat.
 `bringup record` and `bringup capture` refuse `S...` runs and a simulator station: accept the refusal, never work
 around it (no hand-written record or fixture, no edited run, no invented `H...` id, nothing in `validation/hw/`);
 say which records the stage would draft on hardware (`bringup done` records such a step as rehearsed).

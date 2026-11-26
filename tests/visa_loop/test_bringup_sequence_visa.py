@@ -1,7 +1,8 @@
 """The bring-up rehearsal of S0-L2 on the visa-loop (v2.1 plan §4.4; WP21.7): the walker of
 ``tests/integration/rehearsal.py`` on backend visa, so every step is verified as on the lab PC.
 
-The deployment, the session start, S0, L0, L1 and L2 in the order ``b1500 bringup next`` names them: real
+The deployment, the session start, S0, L0, L1 and L2 in the order ``b1500 bringup next`` names them, each batch it
+shows recorded in one ``done`` call (WP21.14: 73 steps in 26 calls, one verified entry per step): real
 ``VisaTransport`` runs (``H...``, cleanup verified with ``LOP?`` behind the positive control), the probes of the
 visa-loop, the station proposal adopted by the scripted human (``config.adopt``, the function behind the human-only
 CLI command), the pin map and DUT proposals and adoptions, draft records (``bringup record``) and fixtures
@@ -25,7 +26,7 @@ import yaml
 from b1500_test_agent import bringup, bringup_steps, config
 from b1500_test_agent.bringup_ledger import ledger_path, load_stage, read_ledger
 from b1500_test_agent.models.station import SimScenario
-from b1500_test_agent.models.validation import STAGE_FILES_DIR, STEPS_FILE, RecordDraft, StepDone, StepSpec
+from b1500_test_agent.models.validation import STAGE_FILES_DIR, STEPS_FILE, RecordDraft, StepSpec
 from b1500_test_agent.service import B1500Service
 from tests.integration.rehearsal import ADOPTED, OWNER, STEPS, Rehearsal, Variant, scenario_data
 from tests.visa_loop.helpers import REPO_ROOT, VisaWorld
@@ -69,7 +70,7 @@ class VisaRehearsal(Rehearsal):
 
     # -- the visa kinds ----------------------------------------------------------------------------------------------
 
-    def do_config(self, spec: StepSpec) -> StepDone:
+    def do_config(self, spec: StepSpec) -> dict[str, Any]:
         """The human adopts: the station proposal (L0.P2), the stage's pin maps and DUT profiles (its proposals where
         the agent wrote some, else the committed examples); the local settings and station need no file."""
         drafts: list[str] = []
@@ -80,27 +81,27 @@ class VisaRehearsal(Rehearsal):
             proposal = self.root / "work" / "bringup" / f"{name}.yaml"
             source = proposal if proposal.is_file() else self.root / "config" / folder / f"{name}.example.yaml"
             drafts.append(self.adopt(source, "pinmap" if folder == "pinmaps" else "dut"))
-        return self.done(spec.id, drafts=tuple(drafts))
+        return {"drafts": tuple(drafts)}
 
     def adopt(self, source: Path, kind: str) -> str:
         report = config.adopt(source, kind, self.world.paths)  # type: ignore[arg-type]
         assert report.ok, report.problems
         return source.relative_to(self.root).as_posix()
 
-    def do_record(self, spec: StepSpec) -> StepDone:
+    def do_record(self, spec: StepSpec) -> dict[str, Any]:
         drafts = self.draft_records(spec.group)
-        return self.done(spec.id, drafts=tuple(d.path for d in drafts if d.path))
+        return {"drafts": tuple(d.path for d in drafts if d.path)}
 
-    def do_capture(self, spec: StepSpec) -> StepDone:
+    def do_capture(self, spec: StepSpec) -> dict[str, Any]:
         sources = self.capture_sources(spec)
         report = bringup.capture(self.service, sources)
         assert report.ok and report.folder is not None and report.written, report.message
         tags = sorted({Path(w.path).relative_to(report.folder).parts[0] for w in report.written})
         runs = tuple(s for s in sources if s != "probe")
-        return self.done(spec.id, runs=runs, probe=None if runs else "latest",
-                         fixtures=tuple(f"{report.folder}/{tag}" for tag in tags))
+        return {"runs": runs, "probe": None if runs else "latest",
+                "fixtures": tuple(f"{report.folder}/{tag}" for tag in tags)}
 
-    def do_review(self, spec: StepSpec) -> StepDone:
+    def do_review(self, spec: StepSpec) -> dict[str, Any]:
         """The agent drafts what the stage still lacks; the human reviews every draft of the stage, fills reviewer
         and date and moves it to ``validation/hw/``."""
         self.draft_records(spec.group)
@@ -114,7 +115,7 @@ class VisaRehearsal(Rehearsal):
             target.write_text(yaml.safe_dump(reviewed.model_dump(mode="json"), sort_keys=False), encoding="utf-8")
             (self.root / draft.path).unlink()
             self.reviewed.append(target.relative_to(self.root).as_posix())
-        return self.done(spec.id)
+        return {}
 
     def draft_records(self, stage: str) -> list[RecordDraft]:
         """``bringup record`` for every record the stage needs and has no draft yet: one per recipe with checks
@@ -167,6 +168,15 @@ def test_s0_to_l2_on_the_visa_loop_signs_every_stage_inside_the_temporary_world(
     for stage in stages:  # the review step of a finished stage comes before the next stage's first step
         expected += [s.id for s in STEPS.stages[stage] if not s.is_review] + [f"{stage}.R"]
     assert walked == expected and len(walked) == 12 + 4 + 15 + 12 + 13 + 17
+    calls = [[e.step for e in result.entries] for result in rehearsal.recorded]  # WP21.14: the batches of `next`
+    assert len(calls) == 26 and [step for call in calls for step in call] == walked  # 73 steps in 26 `done` calls
+    s0 = [s.id for s in STEPS.stages["S0"] if not s.is_review]
+    assert calls[:5] == [[s.id for s in STEPS.deployment], [s.id for s in STEPS.session_start], s0[:12],
+                         ["S0.A5", "S0.A6"], ["S0.R"]]  # a record step starts its batch: drafted after the rest
+    stage_draft = rehearsal.drafts[("S0", None)].record
+    assert stage_draft is not None and [s.step for s in stage_draft.steps] == s0[:12]
+    kinds = {s.id: s.verify for s in STEPS.all()}
+    assert all(kinds[s] != "run" for call in calls for s in call[:-1])  # a run step ends its batch
 
     service = rehearsal.service
     path = ledger_path(service.config.get())

@@ -8,7 +8,8 @@ model (``models/results.py``; the run tools return ``models.run.RunSummary``). E
    still answers and shows the problems, and ``safe_shutdown``, which falls back to the last valid configuration of
    this process when there is one);
 2. appends one ``tool_call`` audit event (adapter, tool, sha256 of the canonical arguments, ``B1500_SESSION_TAG``,
-   result status and the plan/run/recipe ids involved) to ``<state_dir>/audit/YYYY-MM-DD.jsonl``;
+   result status, the plan/run/recipe ids involved and, for ``b1500 bringup done``, the steps it recorded) to
+   ``<state_dir>/audit/YYYY-MM-DD.jsonl``;
 3. never raises to adapters: package errors become their error code, anything unexpected ``internal``
    (``KeyboardInterrupt``/``SystemExit`` still propagate).
 

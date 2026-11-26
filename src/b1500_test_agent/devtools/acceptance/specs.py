@@ -504,7 +504,8 @@ class BringupStepsSpec(_Spec):
 
     - **Ledger**: it reads with its hash chain intact; no hardware ledger (``ledger-visa.jsonl``) was written; every
       entry of the session was written by an audited ``b1500 bringup done`` call (each entry stamped within that
-      call: none written by other means).
+      call, which names its step among the steps it recorded: a batch call writes one entry per step; none written
+      by other means).
     - **In order**: every entry would have been accepted by the CLI at that point (deployment, the session's start
       steps and the earlier stages first; a step the simulator rehearses, verified its rehearsal's way); none of the
       agent's steps passes before a human step listed ahead of it in its group of ``steps.yaml`` passed (a start or

@@ -19,8 +19,8 @@ evidence in one line, the entry's sha256). The ledger itself (`data/state/bringu
 ## Review flow
 
 1. On the lab PC the agent works a stage step by step (`uv run b1500 bringup next`, then `uv run b1500 bringup done
-   STEP ...`, which verifies each step's evidence and records it in the step ledger), runs the stage's plans (each
-   confirmed by the human) and drafts the record with
+   STEP [STEP ...]`, which verifies each step's evidence and records it in the step ledger, one entry per step also
+   when one call records a batch), runs the stage's plans (each confirmed by the human) and drafts the record with
    `uv run b1500 bringup record STAGE --run H... --operator NAME` into `work/bringup/records/`. The command refuses
    simulator runs (`S...`), a station on backend sim, runs whose files or recipe changed since the run, and runs of
    another backend. Measured values are copied from the run archive; references the human gave are added with

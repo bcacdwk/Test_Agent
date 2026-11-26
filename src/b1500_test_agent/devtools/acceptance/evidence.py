@@ -308,11 +308,13 @@ def _audit_calls(ev: Evidence) -> list[ToolCall]:
             if data.get("session_tag") != ev.record.session_tag:
                 continue
             ts = _parse_ts(record.get("ts"))
+            steps = data.get("steps")
             calls.append(ToolCall(
                 turn=ev.turn_of(ts), source="audit", server="b1500", tool=str(data.get("tool", "")),
                 status=data.get("status"), error_code=data.get("error_code"), plan_id=data.get("plan_id"),
                 run_id=data.get("run_id"), recipe_id=data.get("recipe_id"), tier=data.get("tier"),
                 outcome=data.get("outcome"), adapter=data.get("adapter"), ts=ts,
+                steps=steps.split() if isinstance(steps, str) and steps.strip() else None,
             ))  # fmt: skip
     calls.sort(key=lambda c: c.ts or datetime.min.replace(tzinfo=UTC))
     return calls

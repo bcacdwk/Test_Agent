@@ -9,11 +9,13 @@
   ``work/bringup/fixtures/`` (``bringup.capture``); simulator runs are refused.
 - ``record STAGE --run H…``: a draft validation record in ``work/bringup/records/`` (``bringup.record``); simulator
   runs (``S…``) and a station on backend sim are refused; ``reviewer`` stays empty for the human.
-- ``next`` (read-only), ``done STEP [evidence]``, ``check [STAGE|--all]``: the step sequence of
+- ``next`` (read-only), ``done STEP [STEP ...] [evidence]``, ``check [STAGE|--all]``: the step sequence of
   ``.agents/skills/b1500-bringup/steps.yaml`` against the step ledger ``<data>/state/bringup/ledger-<backend>.jsonl``
-  (``bringup_steps``; v2.1 plan §4.1). ``done`` runs ``b1500 doctor`` itself for a doctor step (``doctor_lines``)
-  and records who ran it: ``agent`` when a harness marker is in the environment (``human_via_agent`` with the human's
-  words), else ``human``.
+  (``bringup_steps``; v2.1 plan §4.1). ``done`` with several ids records a batch (the steps ``next`` names one after
+  another, each verified and appended on its own; ``next`` prints the batch line). ``done`` runs ``b1500 doctor``
+  itself for a doctor step (``doctor_lines``) and records who ran it: ``agent`` when a harness marker is in the
+  environment (``human_via_agent`` with the human's words; in a batch for the steps that record them), else
+  ``human``.
 """
 
 from __future__ import annotations
@@ -159,8 +161,13 @@ def record_command(
     emit(result, as_json, record_lines(result))
 
 
+BATCH_TEXT = 110
+"""Characters of each further batch step's text in the plain output (``--json`` has the whole text)."""
+
+
 def step_lines(step: StepView) -> list[str]:
-    """One step: id, who and kind, the expected values, the pass rule, the done line, the abort route."""
+    """One step: id, who and kind, the expected values, the pass rule, the done line, the abort route, then the steps
+    one ``done`` call can record with it and that call's line."""
     lines = [f"step {step.id} ({step.group}, {step.who}, verify {step.verify}, {step.state})"]
     if step.last_reason:
         lines.append(f"  last FAIL: {step.last_reason}")
@@ -170,6 +177,13 @@ def step_lines(step: StepView) -> list[str]:
         lines.append(f"  on failure: skill b1500-debug, runbooks {', '.join(step.on_fail)}")
     if step.state == "failed":
         lines += [f"  abort: {item}" for item in step.abort]
+    if step.batch:
+        lines.append(f"  batch: one `done` call can record it with the {len(step.batch)} step(s) after it, in order "
+                     "(stop before a step not done yet; a human step only with the human's own words):")
+        lines += [f"    {item.id} ({item.who}, verify {item.verify}): "
+                  + (item.text if len(item.text) <= BATCH_TEXT else item.text[:BATCH_TEXT - 3] + "...")
+                  for item in step.batch]
+        lines.append(f"  batch done: {step.batch_done}")
     return lines
 
 
@@ -197,13 +211,15 @@ def next_command(as_json: JsonOption = False) -> None:
 
 
 def done_lines(result: StepDone) -> list[str]:
+    """The ledger, each entry recorded (its evidence when it differs from the entry before), the next step."""
     lines = [f"ledger: {result.ledger}"] if result.ledger else []
-    if result.entry is not None:
-        entry = result.entry
+    previous = ""
+    for entry in result.entries or ([result.entry] if result.entry is not None else []):
         lines.append(f"recorded: #{entry.seq} {entry.step} {entry.verdict} ({entry.verify}, {entry.actor})")
         summary = entry.evidence.summary()
-        if summary:
+        if summary and summary != previous:
             lines.append(f"  evidence: {summary}")
+        previous = summary
     if result.next is not None:
         lines += ["next:", *[f"  {line}" for line in step_lines(result.next)]]
     return lines + [f"note: {note}" for note in result.notes]
@@ -211,8 +227,11 @@ def done_lines(result: StepDone) -> list[str]:
 
 @bringup_app.command("done")
 def done_command(
-    step: Annotated[str, typer.Argument(help="Step id: D1.., R1.., E1.., <stage>.P<n>, <stage>.A<n>, <stage>.R "
-                                              "(`uv run b1500 bringup next` names it).", show_default=False)],
+    steps: Annotated[list[str], typer.Argument(help="Step id: D1.., R1.., E1.., <stage>.P<n>, <stage>.A<n>, "
+                                                    "<stage>.R (`uv run b1500 bringup next` names it). Several ids "
+                                                    "record a batch: the steps `next` names one after another, in "
+                                                    "that order, each verified on its own.", show_default=False,
+                                               metavar="STEP")],
     run: Annotated[list[str] | None, typer.Option("--run", help="Run id of the step (repeatable).")] = None,
     probe: Annotated[str | None, typer.Option("--probe", help="Probe record: 'latest' or a probe-<UTC>.json "
                                                               "name.")] = None,
@@ -232,11 +251,13 @@ def done_command(
     as_json: JsonOption = False,
 ) -> None:
     """Verify bring-up step STEP now and record pass or fail in the step ledger (data/state/bringup/, written only by
-    this command); a refused call records nothing."""
+    this command); a refused call records nothing. Several steps (a batch): each option goes to the step that takes
+    it, the human's words to every step that records them; the steps are verified and recorded one by one, in order,
+    and the first failure ends the call."""
     args = bringup_steps.StepArgs(runs=tuple(run or ()), probe=probe, drafts=tuple(draft or ()),
                                   fixtures=tuple(fixtures or ()),
                                   observe=tuple(observe or ()), references=tuple(reference or ()), human=human, by=by)
-    result = bringup_steps.done(core.make_service(), step, args, actor=actor_of(human), doctor=doctor_lines)
+    result = bringup_steps.done(core.make_service(), tuple(steps), args, actor=actor_of(human), doctor=doctor_lines)
     emit(result, as_json, done_lines(result))
 
 

@@ -1,7 +1,7 @@
 # Bring-up steps in execution order (v2.1 plan §4.1; schema StepsFile in src/b1500_test_agent/models/validation.py).
 # `uv run b1500 bringup next` shows the next step, `uv run b1500 bringup done STEP ...` verifies and records it in the
-# step ledger (data/state/bringup/ledger-<backend>.jsonl, written only by the CLI), `uv run b1500 bringup check`
-# re-verifies the ledger. Stage steps are the numbered items of the stage files (L1.P1 = physical step 1, L1.A4 = agent
+# step ledger (data/state/bringup/ledger-<backend>.jsonl, written only by the CLI; several steps `next` names one after
+# another in one call, one entry each: WP21.14), `uv run b1500 bringup check` re-verifies the ledger. Stage steps are the numbered items of the stage files (L1.P1 = physical step 1, L1.A4 = agent
 # step 4) plus one review step <stage>.R; their text is the stage file's. `uv run b1500 dev lint-skills` keeps this file
 # and the stage files in step (every numbered item exactly once, recipes, check ids, runbooks).
 #

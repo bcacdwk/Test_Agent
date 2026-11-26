@@ -293,6 +293,9 @@ class B1500Service:
             outcome = getattr(result, "outcome", None)
             if isinstance(outcome, str):
                 data["outcome"] = outcome
+            steps = getattr(result, "recorded_steps", None)  # ``b1500 bringup done``: one ledger entry per step
+            if isinstance(steps, list) and steps:
+                data["steps"] = " ".join(str(step)[:16] for step in steps[:256])
             run_id = data.get("run_id") if isinstance(data.get("run_id"), str) else None
             sink.emit(AuditEvent.now("tool_call", backend, intent=f"{self.adapter}:{tool}",
                                      run=run_id if run_id and re.match(r"^[SH]\d{8}T", run_id) else None,

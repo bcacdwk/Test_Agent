@@ -27,8 +27,9 @@ every step in execution order: the deployment group ``D1``… (session 0), the s
 groups (every session) and per stage its numbered items (``L1.P1`` = physical step 1, ``L1.A4`` = agent step 4 of the
 stage file) plus one review step ``<stage>.R``. ``StepSpec.verify`` names how ``b1500 bringup done`` verifies a step
 on hardware; ``rehearsal`` how the simulator ledger takes it. The ledger ``<data>/state/bringup/ledger-<backend>.jsonl``
-holds one ``LedgerEntry`` per ``done`` call, written only by the CLI and hash-chained (``prev_sha256`` = the previous
-entry's ``sha256``, which covers the entry itself), so a hand edit shows in ``b1500 bringup check``. Records of
+holds one ``LedgerEntry`` per recorded step (one ``done`` call records one step, or a batch of consecutive steps,
+each verified on its own), written only by the CLI and hash-chained (``prev_sha256`` = the previous entry's
+``sha256``, which covers the entry itself), so a hand edit shows in ``b1500 bringup check``. Records of
 schema version 2 embed the stage's ledger entries (``ValidationRecord.steps``): the reviewer signs the step list and
 it travels with the records.
 """
@@ -736,11 +737,24 @@ class RecordDraft(ResultEnvelope):
 # == Results of b1500 bringup next | done | check ======================================================================
 
 
+class StepBrief(StrictModel):
+    """A further step of a batch as ``b1500 bringup next`` lists it: id, who, how it is verified on this backend and
+    its text."""
+
+    id: StepId
+    who: StepWho
+    verify: EffectiveKind
+    text: str
+
+
 class StepView(StrictModel):
     """One step as ``b1500 bringup next`` shows it: id, group (``D``, ``R``, ``E`` or the stage), who, how it is
     verified on this backend (``verify``), its state (``open``; ``failed``: the last ``done`` recorded a failure;
     ``reconfirm``: asked again after a break), the text (stage file item or ``steps.yaml``), the expected values of the
-    checks it feeds, the pass rule, the exact ``done`` line, the abort route and the runbooks of a failure."""
+    checks it feeds, the pass rule, the exact ``done`` line, the abort route and the runbooks of a failure. ``batch``:
+    the steps ``next`` names after it that one ``done`` call can record together with it (same stage or group, at most
+    one step per evidence option; empty: none), ``batch_done`` the exact line of that call (a call may stop earlier:
+    the steps done so far)."""
 
     id: StepId
     group: str
@@ -754,6 +768,8 @@ class StepView(StrictModel):
     abort: list[str] = Field(default_factory=list)
     on_fail: list[RunbookId] = Field(default_factory=list)
     last_reason: str | None = None
+    batch: list[StepBrief] = Field(default_factory=list)
+    batch_done: str = ""
 
 
 class NextStep(ResultEnvelope):
@@ -769,14 +785,23 @@ class NextStep(ResultEnvelope):
 
 
 class StepDone(ResultEnvelope):
-    """Result of ``b1500 bringup done``: the entry appended (``recorded``; ``ok`` = verdict pass) or why nothing was
-    written (``status: refused``), and the next step."""
+    """Result of ``b1500 bringup done STEP [STEP ...]``: the entries appended in order (``entries``, one per step;
+    ``entry`` the last; ``recorded`` = at least one; ``ok`` = every step of the call recorded ``pass``) or why nothing
+    was written (``status: refused``), and the next step. A batch stops at its first failing step (recorded ``fail``,
+    ``status: error``) or at a step whose evidence is missing (not recorded, ``status: refused``; the steps before it
+    stay recorded)."""
 
     ledger: str | None = None
     recorded: bool = False
     entry: LedgerEntry | None = None
+    entries: list[LedgerEntry] = Field(default_factory=list)
     next: StepView | None = None
     notes: list[str] = Field(default_factory=list)
+
+    @property
+    def recorded_steps(self) -> list[str]:
+        """The steps this call recorded, in order (the ``tool_call`` audit event names them)."""
+        return [entry.step for entry in self.entries]
 
 
 class LedgerGap(StrictModel):

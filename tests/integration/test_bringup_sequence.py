@@ -5,9 +5,10 @@ Marker ``rehearsal`` (CI runs these alone, serially).
 
 - **Whole walk**: every step ``b1500 bringup next`` names, in its order, from D1 through L10 (the deployment and the
   session start included, lab-only and review steps never named), every one recorded ``pass`` on the simulator
-  ledger; real ``S...`` runs of every run step's recipes on the stage's devices (the drills end ``cancelled`` and
-  ``aborted`` where the step asks for it), the refusals of every record and capture step seen before the step is
-  recorded as rehearsed; then the end steps; ``bringup check --all`` without a gap, ``bringup status`` says
+  ledger, each batch ``next`` shows in one ``done`` call (WP21.14: 176 steps in 70 calls, one entry per step); real
+  ``S...`` runs of every run step's recipes on the stage's devices (the drills end ``cancelled`` and ``aborted``
+  where the step asks for it), the refusals of every record and capture step seen before the step is recorded as
+  rehearsed; then the end steps (E1 and E3 in one call); ``bringup check --all`` without a gap, ``bringup status`` says
   ``rehearsed`` for every stage and never ``signed``; nothing drafted, captured or reviewed.
 - **Failure routing**: a zero check whose cleanup DZ/CL writes time out (fault latched) records L1.A4 ``fail``;
   ``next`` stays on it and names runbook ``cleanup-failed-fault``; after the human's verified ``fault clear`` the
@@ -63,12 +64,17 @@ def test_the_whole_sequence_is_rehearsed_on_the_simulator(rehearsal: SimRehearsa
     stages = [s for specs in STEPS.stages.values() for s in rehearsable(specs)]
     assert walked == [*rehearsable(STEPS.deployment), *rehearsable(STEPS.session_start), *stages]
     assert len(walked) == 176 and len(stages) == 165
+    # WP21.14: each batch `next` showed went into one `done` call: 176 steps in 70 calls (one per step before), one
+    # entry per step all the same, a run step last in its call (so at most one: each evidence option goes to one step)
+    calls = [[e.step for e in result.entries] for result in rehearsal.recorded]
+    assert len(calls) == 70 and [step for call in calls for step in call] == walked
+    assert calls[:3] == [rehearsable(STEPS.deployment), rehearsable(STEPS.session_start),
+                         rehearsable(STEPS.stages["S0"])]
+    assert all(effective_kind(STEPS.get(s), "sim") != "run" for call in calls for s in call[:-1])  # type: ignore[arg-type]
     # the session ends: E1 (safe_shutdown, station clean) and E3 (the ledger re-verified); then a new session
     assert rehearsal.walk() == []  # nothing left but the end steps (no review awaits on the simulator)
-    rehearsal.step("E1")
-    shown = bringup_steps.next_step(rehearsal.service)
-    assert shown.step is not None and shown.step.id == "E3"  # E2, E4, E5 are lab only
-    rehearsal.step("E3")
+    ended = rehearsal.record(["E1", "E3"])  # E2, E4, E5 are lab only; one call ends the session
+    assert [e.verify for e in ended.entries] == ["station", "ledger"]
     fresh = bringup_steps.next_step(rehearsal.service)
     assert fresh.step is not None and fresh.step.id == "R1"
 

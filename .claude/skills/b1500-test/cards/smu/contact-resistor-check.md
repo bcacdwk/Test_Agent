@@ -28,8 +28,10 @@ gate-keeper on every fresh landing and the first safe check of skill `b1500-debu
 
 - Resistor or contact structures (two ends of a line, two probes on one pad): R against the DUT profile nominal.
 - Transistor or diode landings: catches shorts. A transistor's drain-source path with the gate off and a diode
-  below turn-on read `open` by design; there the landing is proven by the real measurement (Id rising with Vg,
-  forward diode current), not by this check.
+  below turn-on read `open` by design, so `open` alone does not prove the landing: the device response does (Id
+  rising with Vg, forward diode current). After a noise-floor Id-Vg or diode curve, still run this check as step 3
+  of runbook `noisy-data` (skill `b1500-debug`): it rules out a short or parallel path and records the terminal
+  floor; the "not landed" verdict there comes from the flat device response.
 - Not for: precise low resistance (two-wire includes probes and cables; use the four-wire
   [smu-spot-kelvin](smu-spot-kelvin.md)), diode or transistor parameters (cards [diode-iv](diode-iv.md),
   [mosfet-idvg](mosfet-idvg.md)).

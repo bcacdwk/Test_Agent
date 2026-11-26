@@ -30,11 +30,18 @@ red flag.
 
 1. Report no derived value. Do not retry `analyze_run` with `force`.
 2. `get_run(run_id, include=[summary, quality])`: which column, its SNR, its magnitude against the module floor.
-3. Contact check first (card `contact-resistor-check` in skill `b1500-test`) on the terminal pair of the noisy
-   column, for example drain-source. Use the pin map the card names; if none fits, ask the human for one. A result
-   of `open` means the probe is not landed: stop and ask for re-landing. No re-run helps before that.
-4. Contact in range: re-run the same recipe with `integration: long` (or the next longer preset) as a new
-   `validate_plan` that stays tier `ok`. Compare SNR. At most two such re-runs.
+3. Contact check first, on every landing (card `contact-resistor-check` in skill `b1500-test`; cheap, tier `ok`, no
+   stress), on the terminal pair of the noisy column: `resistor-2t` on a `mosfet-4t` landing checks drain to
+   source/bulk with the gate SMU off. Use the pin map the card names; if none fits, ask the human for one. On a
+   resistor or contact structure `open` means the probe is not landed. On a transistor or diode pair `open` is
+   expected and does not prove the landing by itself: the check rules out a short or parallel path and records the
+   terminal floor (compare with the module floor: a raised floor also points to causes 3-4); the "not landed"
+   verdict comes from the device's own response (Id flat at the floor over the whole Vg sweep, no forward diode
+   current). Either way, with a noise-floor device response: stop and ask for re-landing; no re-run helps before
+   that. `short`: runbook `compliance-hit`.
+4. Landing proven (`in_range` on a resistor; a transistor or diode response above the floor): re-run the same
+   recipe with `integration: long` (or the next longer preset) as a new `validate_plan` that stays tier `ok`.
+   Compare SNR. At most two such re-runs.
 5. Still noisy: open-circuit floor with the probes lifted (contact-check plan) to see whether the station itself is
    noisy.
 
@@ -55,7 +62,8 @@ Deck order (slide 17): longer integration time, close the shield box, check grou
 
 ## Stop and call safe_shutdown
 
-- The contact check reads `open`: hand over for physical re-landing and wait.
+- Not landed: the contact check reads `open` on a resistor structure, or a transistor or diode response stays at
+  the noise floor (its contact check `open`, no short): hand over for physical re-landing and wait.
 - Two re-runs with longer integration did not raise the SNR above 10.
 - The scatter comes with status X (oscillation, output not settled) or V (over range) points: the data are
   untrusted; ask the human about cabling, Guard and the DUT.

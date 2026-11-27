@@ -467,10 +467,11 @@ uv run b1500 manual status
 
 Owner decision OD-5 (blueprint v2 §12, decided 2026-11-18): the configuration bootstrap is the human's, read-only
 manual and bring-up commands need no approval. Owner decision OD21-6 (v2.1 plan §9, decided 2026-11-26): the three
-step-ledger commands `bringup next|done|check` need no approval either. Coding agents may never edit
+step-ledger commands `bringup next|done|check` need no approval either. Owner decision of 2026-11-27 (WP21.9): the
+read-only `doctor` checks need no approval in Claude Code. Coding agents may never edit
 `.claude/settings*.json` or `.codex/**` (both are edit-denied), so each change set was applied once by the
-orchestrator, exactly as written here, with the shell (OD-5 at WP6.1, OD21-6 at WP21.5); the applied diffs are
-logged in `docs/design/progress.md` (WP6.1 and WP21.5 rows).
+orchestrator, exactly as written here, with the shell (OD-5 at WP6.1, OD21-6 at WP21.5, the doctor lines at WP21.9);
+the applied diffs are logged in `docs/design/progress.md` (WP6.1, WP21.5 and WP21.9 rows).
 `b1500 harness init --codex --claude --check` and `b1500 doctor` check that the files carry these lines
 (`devtools/harness.py`), and
 `tests/adapters/test_harness_permissions.py` asserts the applied state. Nobody adds other lines without a new owner
@@ -504,6 +505,18 @@ ledger under `data/state/bringup/`, `check` re-verifies it; none of them sends a
 "Bash(uv run b1500 bringup next*)",
 "Bash(uv run b1500 bringup done*)",
 "Bash(uv run b1500 bringup check*)"
+```
+
+and, by the owner decision of 2026-11-27, four exact lines without a wildcard for the read-only checks (`doctor`
+reads the installation and the configuration; `doctor --probe` sends queries only and writes the raw answers under
+`work/bringup/`). `--wgfmu-session` still asks, because it opens the WGFMU library's session, and so does any other
+option or argument:
+
+```json
+"Bash(uv run b1500 doctor)",
+"Bash(uv run b1500 doctor --json)",
+"Bash(uv run b1500 doctor --probe)",
+"Bash(uv run b1500 doctor --probe --json)"
 ```
 
 **Codex, `.codex/rules/b1500.rules`.** Four `forbidden` prefix rules, each with `match`/`not_match` examples that

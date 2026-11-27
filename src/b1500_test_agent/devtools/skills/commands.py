@@ -35,6 +35,9 @@ INLINE_SPAN = re.compile(r"`([^`]+)`")
 COMMAND_START = re.compile(r"(?:^|(?<=[\s(]))b1500(?=\s|$)")
 COMMAND_WORD = re.compile(r"^[a-z][a-z0-9-]*$")
 NUMBER = re.compile(r"^-\d")
+OPTION_NAME = re.compile(r"^--?[A-Za-z0-9][A-Za-z0-9-]*")
+"""The option name at the start of a token: ``--json`` of ``--json=x`` or of ``--json)",`` (a permission rule's
+JSON line in a doc); what follows the name is no part of it."""
 STOP_TOKENS = frozenset({";", "&&", "||", "|", "b1500", "uv"})
 DESIGN_DOCS = "design"
 DATED_REPORT = re.compile(r"^acceptance/\d{4}-\d{2}-\d{2}-[^/]+\.md$")
@@ -140,8 +143,8 @@ def resolve(tokens: list[str]) -> tuple[list[str], Any, list[str], str | None]:
             return path, command, [], f"no command `b1500 {' '.join([*path, name])}`"
         path.append(name)
         command = sub
-    options = [part.split("=", 1)[0] for token in rest if token.startswith("-") and not NUMBER.match(token)
-               for part in token.split("|") if part.startswith("-")]
+    options = [name.group(0) for token in rest if token.startswith("-") and not NUMBER.match(token)
+               for part in token.split("|") if (name := OPTION_NAME.match(part))]
     allowed = {"--help"} | {opt for param in command.params for opt in (*param.opts, *param.secondary_opts)}
     unknown = [option for option in options if option not in allowed]
     if unknown:

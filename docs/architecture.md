@@ -218,6 +218,7 @@ from the templates in `config/harness/` (WP1.9); only examples, `.claude/setting
 guard hook are committed. Both configs start the same entry point (`uv run --frozen --project <clone> b1500-mcp`);
 `run_confirmed_plan` always asks the human (Codex `prompt`, Claude Code `ask`), `run_plan` and `safe_shutdown`
 never do. The read-only `b1500 manual …` and `b1500 bringup …` commands (with the step-ledger verbs
-`bringup next|done|check`, owner decision OD21-6) run without a prompt; the configuration
+`bringup next|done|check`, owner decision OD21-6) and `b1500 doctor` / `doctor --probe` (exact lines, owner decision
+2026-11-27; `--wgfmu-session` still asks) run without a prompt in Claude Code; the configuration
 bootstrap (`b1500 config init|adopt`) is denied to agents (owner decision OD-5,
 [deployment-windows.md](deployment-windows.md) §"Harness permissions").

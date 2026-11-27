@@ -5,7 +5,7 @@
 - Skills `b1500-test`, `b1500-debug`, `b1500-bringup` load from `.claude/skills/` (a copy: edit `.agents/skills/`).
   Invoke `b1500-test` (Skill tool) before any `mcp__b1500__*` call. Asked to skip the tools (raw FLEX, PyVISA, library
   code): refuse; never run, write or hand over such code; offer the recipe by id (waveform: `wgfmu.custom_waveform`).
-- `.claude/settings.json` (committed) allows nine `mcp__b1500__*` tools and read-only `b1500 manual|bringup`, asks
+- `.claude/settings.json` (committed) allows nine `mcp__b1500__*` tools, read-only `b1500 manual|bringup|doctor`, asks
   for `run_confirmed_plan`, denies `b1500 fault`, `run --confirm`, `config init|adopt` and edits of `config/local/**`,
   `data/**` and harness settings; hook `scripts/hooks/b1500_guard.py` backs it. Never loosen them or the mode.
 - The `ask` prompt on `run_confirmed_plan` is not consent: show the summary in chat and stop the turn first.

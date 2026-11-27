@@ -11,12 +11,13 @@ The committed examples are the same templates rendered with the placeholder ``<A
 
 The committed, path-free harness files are checked for their wiring, not rendered: ``.claude/settings.json`` (allow
 exactly the nine other ``mcp__b1500__*`` tools plus the five read-only ``uv run b1500 manual|bringup ...`` commands
-of OD-5 and the three step-ledger commands ``uv run b1500 bringup next|done|check`` of OD21-6, ``ask`` exactly
+of OD-5, the three step-ledger commands ``uv run b1500 bringup next|done|check`` of OD21-6 and the four exact
+read-only ``uv run b1500 doctor`` checks of the owner decision of 2026-11-27, ``ask`` exactly
 ``run_confirmed_plan``, the deny rules incl. ``config init|adopt``, the ``PreToolUse`` guard hook),
 ``.codex/rules/b1500.rules`` (the eight ``forbidden`` prefix rules: ``fault``, ``run --confirm``, ``config init``,
 ``config adopt``, each with and without ``uv run``) and ``scripts/hooks/b1500_guard.py``. The OD-5 lines are the
 owner-authorized change set of ``docs/deployment-windows.md`` "Harness permissions" (WP6.1); the OD21-6 lines were
-applied the same way at WP21.5 (v2.1 plan §9).
+applied the same way at WP21.5 (v2.1 plan §9), the doctor lines at WP21.9.
 ``check`` reports drift between templates and rendered files and every wiring problem; ``doctor`` reuses it.
 """
 
@@ -62,7 +63,15 @@ CLAUDE_ALLOW_OD21_6 = frozenset({
 })  # fmt: skip
 """The step-ledger commands (owner decision OD21-6, v2.1 plan §9, applied once at WP21.5): read-only on the
 instrument; ``done`` appends to the CLI-written ledger under ``data/state/bringup/``."""
-CLAUDE_ALLOW_COMMANDS = CLAUDE_ALLOW_OD5 | CLAUDE_ALLOW_OD21_6
+CLAUDE_ALLOW_DOCTOR = frozenset({
+    "Bash(uv run b1500 doctor)", "Bash(uv run b1500 doctor --json)", "Bash(uv run b1500 doctor --probe)",
+    "Bash(uv run b1500 doctor --probe --json)",
+})  # fmt: skip
+"""The read-only installation check and instrument probe, exact lines without a wildcard (owner decision 2026-11-27,
+applied once at WP21.9): ``doctor`` reads the installation and the configuration, ``doctor --probe`` sends queries
+only and writes its raw answers under ``work/bringup/``. ``--wgfmu-session`` (it opens the WGFMU library's session)
+and every other option still ask."""
+CLAUDE_ALLOW_COMMANDS = CLAUDE_ALLOW_OD5 | CLAUDE_ALLOW_OD21_6 | CLAUDE_ALLOW_DOCTOR
 """Every CLI command Claude Code may run without asking."""
 CLAUDE_ALLOW = (frozenset(f"mcp__{SERVER_NAME}__{tool}" for tool in TOOL_NAMES if tool != CONFIRM_TOOL)
                 | CLAUDE_ALLOW_COMMANDS)

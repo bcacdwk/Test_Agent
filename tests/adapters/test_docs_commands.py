@@ -82,6 +82,11 @@ def test_resolve_rejects_unknown_commands_and_options() -> None:
     assert "no command `b1500 stauts`" in (resolve(["stauts"])[3] or "")
     assert "no option --yolo" in (resolve(["doctor", "--yolo"])[3] or "")
     assert "no command `b1500 harness setup`" in (resolve(["harness", "setup"])[3] or "")
+    # a permission rule's JSON line (docs/deployment-windows.md): the option name ends where the rule's text goes on
+    assert resolve(["doctor", "--probe", '--json)",'])[3] is None
+    assert resolve(["doctor", '--probe)"'])[3] is None
+    assert "no option --nope" in (resolve(["doctor", '--nope)",'])[3] or "")
+    assert "no option --wgfmu-sessions" in (resolve(["doctor", "--probe", "--wgfmu-sessions=1"])[3] or "")
 
 
 # -- every b1500 command of README, AGENTS, CLAUDE, docs, skills and stage files (WP11.4) ---------------------------

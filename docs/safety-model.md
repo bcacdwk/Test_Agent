@@ -662,8 +662,10 @@ the M3 safety scenarios (S2, S5, S6, S9) on both harnesses.
 forbids the human-only commands `fault`, `run --confirm`, `config init` and `config adopt` (also after `uv run`;
 argv-prefix match). Claude Code: `.claude/settings.json` allows the nine other tools, the read-only
 `uv run b1500 manual …` commands and the read-only `bringup` helpers (status, propose-station, capture, record;
-OD-5) and the step-ledger commands (next, done, check; OD21-6: no instrument I/O, `done` appends to the CLI-written
-ledger under `data/state/bringup/`, which agents can never edit), asks for `run_confirmed_plan`, denies the
+OD-5), the step-ledger commands (next, done, check; OD21-6: no instrument I/O, `done` appends to the CLI-written
+ledger under `data/state/bringup/`, which agents can never edit) and the read-only `doctor` and `doctor --probe`
+(each also with `--json`; four exact lines, owner decision 2026-11-27; `--wgfmu-session` still asks), asks for
+`run_confirmed_plan`, denies the
 human-only commands and edits of `config/local/**`, `data/**` and
 the harness settings, and runs `scripts/hooks/b1500_guard.py` before every shell or
 file-editing call. The hook fails closed (`onFailure: block`, Claude Code 2.1.295 or later): if it cannot run (for

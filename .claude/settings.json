@@ -17,7 +17,11 @@
       "Bash(uv run b1500 bringup record*)",
       "Bash(uv run b1500 bringup next*)",
       "Bash(uv run b1500 bringup done*)",
-      "Bash(uv run b1500 bringup check*)"
+      "Bash(uv run b1500 bringup check*)",
+      "Bash(uv run b1500 doctor)",
+      "Bash(uv run b1500 doctor --json)",
+      "Bash(uv run b1500 doctor --probe)",
+      "Bash(uv run b1500 doctor --probe --json)"
     ],
     "ask": [
       "mcp__b1500__run_confirmed_plan"

@@ -13,7 +13,8 @@ for the instrument, so everything is developed and tested without hardware.
 > (WP11.5) passed on Codex and Claude Code. v2.1 added the operator's `uv run b1500 update` and the maintainer's
 > harness qualification, debug cases with simulator reproductions, the bring-up as a verified step sequence with a
 > ledger (`uv run b1500 bringup next`) and explicit blanks instead of unfounded values in the skills (targeted
-> acceptance in WP21.9, [docs/roadmap.md](docs/roadmap.md) §v2.1). The hardware session M12 is the owner's.** The whole station is covered: SMUs with the GNDU, the MFCMU
+> acceptance WP21.9: Codex 6/6, Claude Code 5/6 with S17 an owner-accepted headless limitation;
+> [docs/roadmap.md](docs/roadmap.md) §v2.1). The hardware session M12 is the owner's.** The whole station is covered: SMUs with the GNDU, the MFCMU
 > (+SCUU, QSCV), the HV-SPGU with two 16440A selectors and the WGFMU with its RSUs, in 68 recipes, 14 measurement
 > kinds and 34 test cards, every recipe `sim_validated` against the simulator's device models and run through the
 > real VISA transport against the simulator (visa-loop) and through a fake of the WGFMU library's C interface. The

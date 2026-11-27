@@ -21,7 +21,7 @@ This page is updated at milestone boundaries.
 | M10 WGFMU | Library protocol + simulator, DLL binding, driver + phase, waveform kind, noise, FeCap PUND, fast BTI | **done** (2026-11-26) |
 | M11 Integration and closure | Async/debug completeness, coverage ledger closure, full safety + visa-loop, docs and plug-in-and-go closure, final acceptance S1–S18 | **done** (2026-11-26; S1–S18 PASS on both harnesses, [reports](acceptance/)) |
 | M12 Hardware session | Owner at the lab PC: staged bring-up S0–L10, validation records, then per-module developer WPs | owner (outside the v2 goal; section M12 below) |
-| v2.1 Update, debug cases, step-by-step bring-up | Operator `update` and maintainer `qualify`, infra stop, debug cases with simulator reproductions, the bring-up step sequence and ledger, knowledge provenance, RSU input limit | **closing** (WP21.9 acceptance; section v2.1 below) |
+| v2.1 Update, debug cases, step-by-step bring-up | Operator `update` and maintainer `qualify`, infra stop, debug cases with simulator reproductions, the bring-up step sequence and ledger, knowledge provenance, RSU input limit | **done** (2026-11-27; acceptance: Codex 6/6, Claude Code 5/6 with S17 an owner-accepted headless limitation; section v2.1 below) |
 
 ## M0 — Re-baseline (done)
 
@@ -274,10 +274,15 @@ plus the knowledge-provenance pass and the RSU input limit the owner added; noth
 | 21.14 Batch `bringup done` | several steps per `done` call, one ledger entry each, in the order `next` names them | done (2026-11-26) |
 | 21.10–21.12 Knowledge provenance | about 1,300 claims of knowledge, cards, runbooks, cases, stages, config, recipes and docs audited: unfounded values left blank with a marker naming what settles them (an owner question, a bring-up step, a citation), wrong physics corrected with a source, simulator values labelled; the marker lint; the generated owner list [open-questions.md](open-questions.md); R-WG-02 now refuses WGFMU pulses below the channel mode's minimum width | done (2026-11-26) |
 | 21.8 Model-refresh note + qualify tier | Codex's start-up model-refresh timeout is an infra note, never a stop; `qualify` climbs T0 + T1 by default | done (2026-11-26) |
-| 21.9 Closure + acceptance | this section, the README status; the targeted acceptance below | closing |
+| 21.9 Closure + acceptance | this section, the README status; the targeted acceptance below; Claude Code's usage warning made an infra note and four exact `doctor` allow lines for Claude Code (owner decisions 2026-11-27) | done (2026-11-27) |
 
 Acceptance (WP21.9; the owner chose six of the scenarios whose read text changed in a way that can change graded
 behaviour, token cost weighed; S11, S14, S15 and the low-risk ones were not run): S17 ★, S12 ★, S3 ★ (3 reps, 3/3)
 and S7, S10, S13 (1 rep, one logged re-run) on codex-cli 0.170.0 and Claude Code 2.1.328 from the main checkout. The harness versions equal `config/harness/validated.yaml`, so
 `uv run b1500 dev harness qualify --up-to 0` (free) replaces a live qualification; the transcripts of these versions
-are not pinned (`--pin` pins only qualify's T1 probes). Reports: `docs/acceptance/2026-11-26-<harness>-<version>-v21.md`.
+are not pinned (`--pin` pins only qualify's T1 probes). Results: **Codex 6/6** at the first attempt
+([report](acceptance/2026-11-26-codex-0.170.0-v21.md)); **Claude Code 5/6** (S12, S3 3/3; S7, S10, S13 1/1): S17 is
+not met on Claude Code headless, an owner-accepted limitation (2026-11-27): in `claude -p` the runner denies every
+command outside the allow list (the L0 probe with `--wgfmu-session`, `config check`, compound commands), so the
+rehearsal holds at L0; in interactive lab use these are permission prompts for the human, and Codex S17 ★ 3/3 proves
+the flow ([report](acceptance/2026-11-26-claude-2.1.328-v21.md), every attempt with its usage).

@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import os
 import re
-from datetime import date
 from pathlib import Path
 
 import pytest
@@ -29,9 +28,10 @@ POSIX_LINKS = pytest.mark.skipif(os.name == "nt", reason="POSIX symlink layout")
 def test_validated_versions_point_to_their_passing_reports() -> None:
     """Each committed entry names its one install method and a committed PASS report of exactly that version, dated
     the day it was validated: the S1-S18 full-suite report (the WP21.1 seed) or, after a bump by
-    ``uv run b1500 dev harness qualify``, that version's qualify report (Claude Code 2.1.332, WP21.9)."""
+    ``uv run b1500 dev harness qualify``, that version's qualify report (Claude Code 2.1.332, WP21.9; Codex 0.172.0).
+    No version is pinned here: a qualify bump changes the file, the report check below follows it."""
     validated = harness_versions.load_validated(REPO_ROOT)
-    assert (validated.codex.version, validated.codex.install) == ("0.170.0", "npm")
+    assert validated.codex.install == "npm"
     assert validated.claude.install == "native"
     for name in harness_versions.HARNESSES:
         entry = validated.get(name)
@@ -46,7 +46,6 @@ def test_validated_versions_point_to_their_passing_reports() -> None:
             assert entry.report == f"{stem}-qualify.md", entry.report
             assert f"- Harness: `{name}` {entry.version}" in head and "- Result: **PASS**" in head
             assert "- Ladder: T0 PASS → T1 PASS" in head
-    assert validated.codex.validated == date(2026, 11, 26)
 
 
 @pytest.mark.parametrize(("text", "says"), [

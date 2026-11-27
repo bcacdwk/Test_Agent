@@ -9,6 +9,7 @@ and ``RunJob`` (``runner.py``) hold a run's checkpoint state and the worker thre
 """
 
 from b1500_test_agent.session.abort import ABORT_FILE, AbortFile, AbortWatch, RunCancelled
+from b1500_test_agent.session.cleanup import run_cleanup
 from b1500_test_agent.session.fault import (
     OUTPUT_OFF_STATES,
     CleanupUnverified,
@@ -19,17 +20,11 @@ from b1500_test_agent.session.fault import (
     clear_refusals,
     outputs_zero,
 )
+from b1500_test_agent.session.inflight import InflightMarker, read_inflight
 from b1500_test_agent.session.lock import InstrumentBusy, InstrumentLock, resource_slug
 from b1500_test_agent.session.runner import RunControl, RunJob, Runner, RunnerBusy
 from b1500_test_agent.session.session import DailyAuditSink, Session, state_audit_sink
-from b1500_test_agent.session.transaction import (
-    InflightMarker,
-    RunHandle,
-    Transaction,
-    read_inflight,
-    read_live_state,
-    run_cleanup,
-)
+from b1500_test_agent.session.transaction import RunHandle, Transaction, read_live_state
 
 __all__ = [
     "ABORT_FILE",

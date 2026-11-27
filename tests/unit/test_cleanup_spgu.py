@@ -12,7 +12,7 @@ from b1500_test_agent.driver.b1500 import B1500Driver
 from b1500_test_agent.driver.discovery import parse_unt
 from b1500_test_agent.models.station import Settings
 from b1500_test_agent.session import Session
-from b1500_test_agent.session.transaction import run_cleanup, spgu_installed
+from b1500_test_agent.session.cleanup import run_cleanup, spgu_installed
 from b1500_test_agent.transport.audit import MemoryAuditSink
 from tests.unit.test_session import LOP_OFF, NO_ERROR, UNT_NO_SPGU, HwSpy, Recorder
 

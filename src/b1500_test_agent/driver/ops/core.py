@@ -5,7 +5,7 @@ uses: one command per write (never ``;``-joined), and between ``XE`` and the end
 sent (PG ``AB`` remarks, PDF 352). ``CoreOps`` holds the family-independent methods, grouped as A (queries), B (state)
 and C (measurement). Every command text comes from ``driver/flex/``. ``zero``/``disconnect`` send ``AB`` first while
 a measurement is pending so cleanup never stalls; the cleanup order itself (``AB`` -> ``DZ`` -> ``CL`` -> ``ERRX?``
-drain -> verify) belongs to ``session/transaction.py``. ``reset`` (``*RST``) is called only by kind ``system`` (lint
+drain -> verify) belongs to ``session/cleanup.py``. ``reset`` (``*RST``) is called only by kind ``system`` (lint
 ``tests/unit/test_lint_rst.py``).
 
 The transport is only typed here; ``transport/`` is imported for type checking only, so the driver has no runtime

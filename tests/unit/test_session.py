@@ -25,7 +25,7 @@ from b1500_test_agent.session import (
     run_cleanup,
     state_audit_sink,
 )
-from b1500_test_agent.session.transaction import new_tx_id
+from b1500_test_agent.session.inflight import new_tx_id
 from b1500_test_agent.transport.audit import AuditingTransport, MemoryAuditSink
 from b1500_test_agent.transport.base import Bus, TransportError, TransportTimeout
 from tests.safety.helpers import DRAIN, GATE, MemoryRun, acquire, make_harness

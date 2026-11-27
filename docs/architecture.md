@@ -115,7 +115,7 @@ catalogue rows, §7.4 stage): the steps implement a decided scope, they do not d
    `make_bus`, a transaction phase that owns the library session (`session/wgfmu_phase.py`: FLEX lock released,
    relocked at its exit), a `doctor` check of the installed library and fake-ABI tests (`tests/wgfmu_abi/`).
 7. **Transaction, recovery and probe.** The family's stop and zero step and its verification in the cleanup
-   (`session/transaction.py`, `run_cleanup`; blueprint v2 2.6 order: abort, SPGU stop, WGFMU safe state, zero,
+   (`session/cleanup.py`, `run_cleanup`; blueprint v2 2.6 order: abort, SPGU stop, WGFMU safe state, zero,
    switches to rest, disconnect, verify), also run by `safe_shutdown` and the in-flight recovery on every mainframe
    that has the module; the `LiveState` fields its rules read (`models/station.py`, filled by the snapshot); its
    read-only checks in the probe (`service/probe.py`, queries only) and, when it holds state the human records,

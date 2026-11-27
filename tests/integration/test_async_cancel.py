@@ -19,7 +19,7 @@ from b1500_test_agent.fsio import atomic_write_json
 from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.plan import PlanRequest, RunProgress
 from b1500_test_agent.session import AbortFile, Transaction
-from b1500_test_agent.session.transaction import InflightMarker
+from b1500_test_agent.session.inflight import InflightMarker
 from b1500_test_agent.transport.sim.state import load_state_file, save_state_file, sim_state_file
 from tests.integration.async_helpers import (
     IDVD_LONG,

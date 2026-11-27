@@ -24,7 +24,7 @@ the ASCII parser (+ `cmu_data.py`), discovery, errors and the module spec table.
 - Parser changes need golden fixtures in `tests/fixtures/flex/*.txt` (header convention and loader:
   `tests/unit/flex_fixtures.py`), each citing PDF pages. The simulator formatter shares no code with `parser.py`.
 - Return structured errors (`InstrumentError`, status byte, error codes), never opaque strings or silent retries.
-  Cleanup (`AB` → `DZ` → `CL` → verify) is orchestrated by `session/transaction.py`; the driver supplies the steps.
+  Cleanup (`AB` → `DZ` → `CL` → verify) is orchestrated by `session/cleanup.py`; the driver supplies the steps.
 - Tests run on the simulator: `SimTransport`, or the real `VisaTransport` over `tests/visa_loop/`; never hardware.
 - Legacy v0.2 atoms → driver methods: `references/driver-map/` (generated `flex-driver-map.yaml`). A new or
   re-attributed command: update the tables in `scripts/build_driver_map.py`, regenerate; never hand-edit the YAML.

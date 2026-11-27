@@ -43,7 +43,7 @@
 TODO(verify)[L7.A4, L9.A8] (blueprint 7.6 items 3, 9): the delivered level into real loads (ATV-20, the scope at L7)
 and the effect of ``DZ`` on a running output (the SPGU cancel drill's audit). What ``SPST?`` answers without an SPGU
 is never needed: the probe and the cleanup read ``SPST?`` only with an SPGU installed (``service/probe.py``
-``spgu_check``, ``session/transaction.py`` ``run_cleanup``; an unreadable answer there sends ``SPP`` anyway).
+``spgu_check``, ``session/cleanup.py`` ``run_cleanup``; an unreadable answer there sends ``SPP`` anyway).
 """
 
 from __future__ import annotations

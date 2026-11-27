@@ -10,7 +10,7 @@ package adds its guarded operations to the same mixin. Every command comes from
 ``driver/flex/`` and is written alone (one command per write, never ``;``-joined). Source operations refuse without
 an ``OutputGuard`` and check every channel and value against it before the first byte is written. The driver
 orchestrates nothing else: cleanup order (``AB`` -> ``DZ`` -> ``CL`` -> ``ERRX?`` drain -> verify) belongs to
-``session/transaction.py``.
+``session/cleanup.py``.
 ``SamplingOps`` (WP7.4) adds time stamps, guarded ``MV``/``MI`` and the ``MM 10`` sampling setup; ``PulsedOps``
 (WP7.3) the guarded SMU pulsed setups ``MM 3/4/5/27/28`` (``PT``, ``PV``/``PI``, ``PWV``/``PWI``, ``MCP*``);
 ``SearchOps`` (WP7.5) the guarded search and quasi-pulsed setups ``MM 14/15/9`` (``LS*``/``LG*``, ``BS*``/``BG*``,

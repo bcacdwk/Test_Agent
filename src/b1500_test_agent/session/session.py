@@ -49,16 +49,10 @@ from b1500_test_agent.models.station import DllProbe, LiveState, Settings
 from b1500_test_agent.paths import Paths
 from b1500_test_agent.session.abort import AbortFile
 from b1500_test_agent.session.fault import FaultLatch
+from b1500_test_agent.session.inflight import InflightMarker, new_tx_id, read_inflight
 from b1500_test_agent.session.lock import InstrumentLock
 from b1500_test_agent.session.runner import RunControl
-from b1500_test_agent.session.transaction import (
-    InflightMarker,
-    RunHandle,
-    Transaction,
-    new_tx_id,
-    read_inflight,
-    read_live_state,
-)
+from b1500_test_agent.session.transaction import RunHandle, Transaction, read_live_state
 from b1500_test_agent.session.wgfmu_live import SessionCheck, bound, check_session, library_probe
 from b1500_test_agent.transport.audit import AuditingTransport, AuditSink, JsonlAuditSink
 from b1500_test_agent.transport.base import Bus, BusLocked, Transport, TransportError, state_hooks

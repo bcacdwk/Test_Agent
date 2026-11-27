@@ -26,7 +26,8 @@ config/local/
 data/
 work/
 
-# Design scratch (history lives in tag archive/v0.2-fake-mcp)
+# Maintainer scratch (briefs, research, repros, executor notes); plans, decisions and ids are committed in
+# docs/design/ (no tracked file points into tmp/, tests/adapters/test_design_register.py)
 tmp/
 
 # Offline wheelhouse procedure (docs/deployment-windows.md): never commit wheels or the exported pin lists

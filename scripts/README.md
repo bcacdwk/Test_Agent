@@ -13,9 +13,3 @@ Utility scripts should be deterministic helpers that Codex can run or inspect.
   library only, reads the hook JSON on stdin, exits 2 to block (blueprint 5.4).
 
 Manual extraction is the CLI command `b1500 manual build` (`docs/manuals.md`), not a script.
-
-Planned scripts:
-
-- Plot generation.
-- Dataset export.
-- Validation and lint helpers.

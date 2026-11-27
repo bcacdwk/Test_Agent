@@ -1,4 +1,4 @@
-<!-- Plan of record v2, promoted verbatim from tmp/v2_plan_arbitration.md by WP5.1 on 2026-11-18; this copy is authoritative (v1: tag plan-v1). -->
+> **Frozen** at the v2 close (`0397f18`, 2026-11-26); as built: [architecture.md](../architecture.md) and [safety-model.md](../safety-model.md); later plans and every id: [README.md](README.md). v2 plan of record, promoted verbatim by WP5.1 on 2026-11-18 (v1 plan: tag `plan-v1`).
 # B1500A Test Agent — v2 Plan of Record (arbitrated): whole instrument, lab-ready
 
 Status: plan of record for the v2 `/goal` run. Base: `main` @ `37da9d7` (v1 = M0–M3 done, M4 = checklists; 10 MCP

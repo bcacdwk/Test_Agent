@@ -702,10 +702,19 @@ def _finish(ctx: QualifyContext, opts: QualifyOptions, q: HarnessQualification,
                          f"{harness_versions.VALIDATED_FILE} is unchanged" + (
                              f"; T3 set for the surface: {', '.join(q.t3_set)}" if q.t3_set else ""))
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render(ctx, opts, q), encoding="utf-8", newline="\n")
+    path.write_text(home_to_tilde(render(ctx, opts, q), Path.home()), encoding="utf-8", newline="\n")
 
 
 # -- report ----------------------------------------------------------------------------------------------------------
+
+
+def home_to_tilde(text: str, home: Path) -> str:
+    """Replace the user's home folder (POSIX and native spelling) by ``~``: reports are committed and must not carry
+    the machine's user name."""
+    for form in sorted({home.as_posix(), str(home)}, key=len, reverse=True):
+        if len(form) > 1:
+            text = text.replace(form, "~")
+    return text
 
 
 def _cell(text: str) -> str:

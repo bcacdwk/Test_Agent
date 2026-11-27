@@ -606,3 +606,14 @@ def test_ladder_end_to_end_with_the_scripted_agent(station: Station, monkeypatch
     assert verdicts["shell step: bringup status printed [SIMULATED]"] == "pass"
     assert verdicts["confirm t1: denied by the harness (never reached the server)"] == "pass"
     assert verdicts["confirm t2: reached the server"] == "pass"
+
+
+def test_committed_report_text_carries_no_home_folder() -> None:
+    """The qualify report is committed: the user's home folder (POSIX or native spelling) becomes ``~``."""
+    from pathlib import PureWindowsPath
+
+    posix = harness_qualify.home_to_tilde("native at /Users/someone/.local/bin/claude", Path("/Users/someone"))
+    assert posix == "native at ~/.local/bin/claude"
+    win_home = PureWindowsPath("C:/Users/someone")
+    text = r"npm at C:\Users\someone\AppData\Roaming\npm\codex.cmd; log C:/Users/someone/x"
+    assert harness_qualify.home_to_tilde(text, win_home) == r"npm at ~\AppData\Roaming\npm\codex.cmd; log ~/x"  # type: ignore[arg-type]

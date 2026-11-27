@@ -17,6 +17,7 @@ import pytest
 from b1500_test_agent.devtools import doctor, harness_versions
 from b1500_test_agent.devtools.acceptance.selection import GLOBAL_TOUCHES, glob_matches
 from b1500_test_agent.devtools.harness_versions import Installed, install_method
+from tests.adapters.stations import write_seed_validated
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POSIX_LINKS = pytest.mark.skipif(os.name == "nt", reason="POSIX symlink layout")
@@ -25,18 +26,27 @@ POSIX_LINKS = pytest.mark.skipif(os.name == "nt", reason="POSIX symlink layout")
 # -- validated.yaml -------------------------------------------------------------------------------------------------
 
 
-def test_validated_versions_are_the_2026_11_26_full_suite_reports() -> None:
+def test_validated_versions_point_to_their_passing_reports() -> None:
+    """Each committed entry names its one install method and a committed PASS report of exactly that version, dated
+    the day it was validated: the S1-S18 full-suite report (the WP21.1 seed) or, after a bump by
+    ``uv run b1500 dev harness qualify``, that version's qualify report (Claude Code 2.1.332, WP21.9)."""
     validated = harness_versions.load_validated(REPO_ROOT)
     assert (validated.codex.version, validated.codex.install) == ("0.170.0", "npm")
-    assert (validated.claude.version, validated.claude.install) == ("2.1.328", "native")
+    assert validated.claude.install == "native"
     for name in harness_versions.HARNESSES:
         entry = validated.get(name)
         report = REPO_ROOT / entry.report
         assert report.is_file(), entry.report
         head = report.read_text(encoding="utf-8")[:2000]
-        assert f"- Harness: `{name}` {entry.version}" in head
-        assert "Result: **PASS** (18/18 scenarios meet the threshold)" in head  # the S1-S18 full suite
-        assert entry.validated == date(2026, 11, 26) and entry.report.endswith(f"-{name}-{entry.version}.md")
+        stem = f"docs/acceptance/{entry.validated.isoformat()}-{name}-{entry.version}"
+        if entry.report == f"{stem}.md":
+            assert f"- Harness: `{name}` {entry.version}" in head
+            assert "Result: **PASS** (18/18 scenarios meet the threshold)" in head  # the S1-S18 full suite
+        else:
+            assert entry.report == f"{stem}-qualify.md", entry.report
+            assert f"- Harness: `{name}` {entry.version}" in head and "- Result: **PASS**" in head
+            assert "- Ladder: T0 PASS → T1 PASS" in head
+    assert validated.codex.validated == date(2026, 11, 26)
 
 
 @pytest.mark.parametrize(("text", "says"), [
@@ -198,7 +208,16 @@ PATHS = {"codex": "/opt/homebrew/lib/node_modules/@openai/codex/bin/codex.js",
          "claude": "/Users/lab/.local/share/claude/versions/2.1.328"}
 
 
-def _versions(codex: str | None, claude: str | None, *, lab: bool = False,
+@pytest.fixture(scope="module")
+def seed_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A clone with the WP21.1 seed of ``validated.yaml`` (Codex 0.170.0, Claude Code 2.1.328), so the doctor line is
+    tested independently of the maintainer's later bumps."""
+    repo = tmp_path_factory.mktemp("seed")
+    write_seed_validated(repo)
+    return repo
+
+
+def _versions(root: Path, codex: str | None, claude: str | None, *, lab: bool = False,
               paths: dict[str, str] | None = None) -> doctor.DoctorCheck:
     installed = {"codex": codex, "claude": claude}
     where = paths or PATHS
@@ -208,32 +227,32 @@ def _versions(codex: str | None, claude: str | None, *, lab: bool = False,
         version = by_exe[argv[0]]
         return (0, f"{version} (x)\n") if version != "garbage" else (0, "development build\n")
 
-    return doctor.check_harness_versions(REPO_ROOT, {}, lab=lab, run=run,
+    return doctor.check_harness_versions(root, {}, lab=lab, run=run,
                                          which=lambda name: where[name] if installed[name] else None)
 
 
-def test_doctor_harness_versions_pass_warn_info() -> None:
-    passed = _versions("0.170.0", "2.1.328")
+def test_doctor_harness_versions_pass_warn_info(seed_repo: Path) -> None:
+    passed = _versions(seed_repo, "0.170.0", "2.1.328")
     assert passed.name == "harness versions" and passed.status == "PASS"
     assert passed.detail == "Codex 0.170.0 (npm), Claude Code 2.1.328 (native) = config/harness/validated.yaml"
-    assert _versions("0.170.0", None).status == "PASS"  # Claude Code is optional
-    older = _versions("0.169.0", "2.1.328")
+    assert _versions(seed_repo, "0.170.0", None).status == "PASS"  # Claude Code is optional
+    older = _versions(seed_repo, "0.169.0", "2.1.328")
     assert older.status == "WARN" and older.detail == (
         "Codex 0.169.0 installed, 0.170.0 validated; Claude Code 2.1.328 (native) = validated: run `uv run b1500 "
         "update`")
-    newer = _versions("0.170.0", "2.1.330")
+    newer = _versions(seed_repo, "0.170.0", "2.1.330")
     assert newer.status == "WARN" and newer.detail.endswith(
         "run `uv run b1500 update` or qualify it: `uv run b1500 dev harness qualify`")
-    assert "qualify" not in _versions("0.170.0", "2.1.330", lab=True).detail  # the lab PC never qualifies
-    none = _versions(None, None)
+    assert "qualify" not in _versions(seed_repo, "0.170.0", "2.1.330", lab=True).detail  # the lab PC never qualifies
+    none = _versions(seed_repo, None, None)
     assert none.status == "INFO" and "no harness CLI on PATH" in none.detail and "Codex 0.170.0" in none.detail
-    unreadable = _versions("garbage", "2.1.328")
+    unreadable = _versions(seed_repo, "garbage", "2.1.328")
     assert unreadable.status == "WARN" and "Codex: cannot read its version" in unreadable.detail
 
 
-def test_doctor_warns_about_another_install_method() -> None:
-    check = _versions("0.170.0", "2.1.328", paths={**PATHS, "claude": "/usr/local/lib/node_modules/@anthropic-ai/"
-                                                                       "claude-code/cli.js"})
+def test_doctor_warns_about_another_install_method(seed_repo: Path) -> None:
+    npm_claude = "/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js"
+    check = _versions(seed_repo, "0.170.0", "2.1.328", paths={**PATHS, "claude": npm_claude})
     assert check.status == "WARN" and "Claude Code at /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js " \
         "is a npm install, the validated one is native" in check.detail
 

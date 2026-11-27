@@ -572,7 +572,7 @@ def test_ladder_end_to_end_with_the_scripted_agent(station: Station, monkeypatch
                                                    harness: str, up_to: int | None, tiers: list[str]) -> None:
     for rel in ("config", "recipes"):
         shutil.copytree(REPO_ROOT / rel, station.repo / rel, dirs_exist_ok=True,
-                        ignore=shutil.ignore_patterns("local"))
+                        ignore=shutil.ignore_patterns("local", "validated.yaml"))  # the station keeps the seed
     add_manual_corpus(station.repo)
     station.set(codex={"version": "0.171.0"})
     _scripted_harness(monkeypatch, station.tmp)

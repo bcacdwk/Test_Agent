@@ -22,8 +22,31 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 FAKE = Path(__file__).with_name("fake_tools.py")
 WINDOWS = os.name == "nt"
 COMMITTED = (".claude/settings.json", ".codex/rules/b1500.rules", "scripts/hooks/b1500_guard.py", "pyproject.toml",
-             "config/harness/codex.config.toml", "config/harness/mcp.json", "config/harness/validated.yaml",
+             "config/harness/codex.config.toml", "config/harness/mcp.json",
              ".codex/config.example.toml", ".mcp.example.json")
+VALIDATED = "config/harness/validated.yaml"
+SEED_VALIDATED = (
+    "# Harness versions validated for this repository (v2.1 plan §2.1). Written only by "
+    "`uv run b1500 dev harness qualify`\n"
+    "# (the maintainer commits it); `uv run b1500 update` installs exactly these versions, with the one install "
+    "method per\n"
+    "# harness: Codex from npm (`npm install -g @openai/codex@<version>`), Claude Code as the native build\n"
+    "# (`claude install <version>`). Seeded from the S1-S18 full-suite reports of 2026-11-26 (WP21.1).\n"
+    "codex:  {version: 0.170.0, install: npm,    validated: 2026-11-26, "
+    "report: docs/acceptance/2026-11-26-codex-0.170.0.md}\n"
+    "claude: {version: 2.1.328, install: native, validated: 2026-11-26, "
+    "report: docs/acceptance/2026-11-26-claude-2.1.328.md}\n"
+)
+"""The WP21.1 seed of ``validated.yaml`` that every station clone carries: the fakes report these versions by default
+(``fake_tools.py``), so the tests stay true when the maintainer's ``dev harness qualify`` bumps the committed file."""
+
+
+def write_seed_validated(repo: Path) -> Path:
+    """``config/harness/validated.yaml`` of a test clone: the seed (``SEED_VALIDATED``)."""
+    path = repo / VALIDATED
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(SEED_VALIDATED, encoding="utf-8")
+    return path
 DROP = ("CODEX_HOME", "CLAUDE_CONFIG_DIR", "UV_OFFLINE", "DISABLE_AUTOUPDATER", "DISABLE_UPDATES")
 
 
@@ -110,6 +133,7 @@ def make_station(tmp_path: Path) -> Station:
     for rel in COMMITTED:
         (repo / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(REPO_ROOT / rel, repo / rel)
+    write_seed_validated(repo)
     assert harness.init(repo, ["codex", "claude"]).ok
     for tool in ("git", "uv", "npm"):
         wrapper(bin_dir, tool)

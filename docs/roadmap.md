@@ -285,4 +285,7 @@ are not pinned (`--pin` pins only qualify's T1 probes). Results: **Codex 6/6** a
 not met on Claude Code headless, an owner-accepted limitation (2026-11-27): in `claude -p` the runner denies every
 command outside the allow list (the L0 probe with `--wgfmu-session`, `config check`, compound commands), so the
 rehearsal holds at L0; in interactive lab use these are permission prompts for the human, and Codex S17 ★ 3/3 proves
-the flow ([report](acceptance/2026-11-26-claude-2.1.328-v21.md), every attempt with its usage).
+the flow ([report](acceptance/2026-11-26-claude-2.1.328-v21.md), every attempt with its usage). The Mac's Claude Code then updated itself to 2.1.332 (stable channel, OD21-2): its new
+built-in `McpTaskCheck` was checked (read-only status of a background MCP task) and classified, and
+`uv run b1500 dev harness qualify --harness claude` passed T0 + T1 (0.67 USD) and bumped `config/harness/validated.yaml`
+to 2.1.332 ([qualify report](acceptance/2026-11-27-claude-2.1.332-qualify.md)).

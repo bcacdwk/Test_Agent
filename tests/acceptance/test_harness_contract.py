@@ -209,6 +209,28 @@ def test_claude_vocabulary_drift_and_a_residual_call_only_warn(tmp_path: Path) -
     assert result.surfaces(warnings=True) == {"format", "hook"}
 
 
+def test_the_checked_2_1_332_tool_mcp_task_check_is_no_warn(tmp_path: Path) -> None:
+    """WP21.9: Claude Code 2.1.332 offers ``McpTaskCheck`` (the status of a background MCP task, input ``task_id``,
+    read-only; it neither runs commands nor writes files), so neither offering nor calling it is a WARN; the residual
+    WARN stays the only one, and another new tool still warns."""
+    folder = session_copy(tmp_path, CLAUDE)
+
+    def offer(records: list[dict]) -> list[dict]:
+        _init(records)["tools"].append("McpTaskCheck")
+        sid = _init(records)["session_id"]
+        call = {"type": "assistant", "session_id": sid, "parent_tool_use_id": None, "message": {"content": [
+            {"type": "tool_use", "id": "c1", "name": "McpTaskCheck", "input": {"task_id": "t1"}}]}}
+        return [*records[:2], call, *records[2:]]
+
+    edit_transcript(folder, offer)
+    result = contract(folder)
+    assert result.problems == [] and [w.surface for w in result.warnings] == [None], texts(result)
+    assert "McpTaskCheck" not in " ".join(texts(result))
+    edit_transcript(folder, lambda records: (_init(records)["tools"].append("McpTaskRun"), records)[1])
+    warned = {(f.surface, f.text.split(":")[0]) for f in contract(folder).warnings}
+    assert ("hook", "new built-in tool offered") in warned
+
+
 def test_an_init_without_skills_field_warns(tmp_path: Path) -> None:
     folder = session_copy(tmp_path, CLAUDE)
     edit_transcript(folder, _init_edit(skills=None))

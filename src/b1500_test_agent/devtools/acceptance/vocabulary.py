@@ -57,8 +57,13 @@ CLAUDE_TOOLS_OFFERED: Final = frozenset({
     "PublishPlugin", "PushNotification", "Read", "ReadMcpResourceDirTool", "ReadMcpResourceTool", "RemoteTrigger",
     "ReportFindings", "ScheduleWakeup", "SendMessage", "ShareOnboardingGuide", "Skill", "Task", "TaskStop",
     "ToolSearch", "WebSearch", "Write",
+}) | frozenset({
+    "McpTaskCheck",  # 2.1.332 (WP21.9): the status of a background MCP task; input task_id; read-only
 })
-"""The 31 built-in tools of the ``init`` event of every 11.5 session (``mcp__`` tools excluded)."""
+"""The 31 built-in tools of the ``init`` event of every 11.5 session (``mcp__`` tools excluded), plus the tools a later
+version offered that were checked to neither run commands nor write files: ``McpTaskCheck`` (Claude Code 2.1.332;
+"Check the status of a background MCP task", input ``task_id`` only, declared read-only, reads the harness's own task
+registry; checked in WP21.9 from the 2.1.332 binary)."""
 CLAUDE_TOOLS_KNOWN: Final = CLAUDE_TOOLS_OFFERED | frozenset({
     "Agent", "Glob", "Grep", "LS", "MultiEdit", "PowerShell", "TodoWrite", "WebFetch",
 })

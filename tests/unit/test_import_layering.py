@@ -1,7 +1,7 @@
 """Import layering of ``src/b1500_test_agent`` (blueprint 2):
 
     adapters -> service -> {catalog, rules, archive, analysis, manuals} -> session -> driver -> transport;
-    models is a leaf.
+    models is a leaf; fsio (file primitives) imports only models and errors.
 
 Ranks (a module may import its own component, the package root and components of lower or equal rank):
 
@@ -9,7 +9,8 @@ Ranks (a module may import its own component, the package root and components of
 rank components
 ==== ==========================================================================================================
 0    ``models`` (leaf: imports only ``models``)
-1    ``errors``, ``paths``, ``config`` (shared foundations: import only ``models`` and each other)
+1    ``errors``, ``paths``, ``config`` (shared foundations: import only ``models`` and each other), ``fsio`` (atomic
+     writes, locked appends, file digests, host name: imports only ``models`` and ``errors``)
 2    ``transport``
 3    ``driver``
 4    ``session``
@@ -23,9 +24,10 @@ rank components
 ==== ==========================================================================================================
 
 Extra rules: ``analysis`` never imports ``session``, ``driver``, ``transport`` or ``catalog`` (blueprint 2 and
-``analysis/AGENTS.md``); ``manuals`` imports only ``models`` and ``paths``, ``bringup`` only ``service``, ``models``
-and the step modules (blueprint v2 2.1; the step modules never import ``bringup``); only
-``adapters/mcp_server.py`` imports ``fastmcp`` (``devtools/`` is exempt: its token counter loads FastMCP apps, WP0.3).
+``analysis/AGENTS.md``); ``fsio`` imports only ``models`` and ``errors``; ``manuals`` imports only ``models`` and
+``paths``, ``bringup`` only ``service``, ``models`` and the step modules (blueprint v2 2.1; the step modules never
+import ``bringup``), and each of them may also import ``fsio``; only ``adapters/mcp_server.py`` imports ``fastmcp``
+(``devtools/`` is exempt: its token counter loads FastMCP apps, WP0.3).
 Every import statement counts, including function-level and ``TYPE_CHECKING`` imports. A new top-level module must be
 added to ``RANKS`` before it can be imported.
 
@@ -55,6 +57,7 @@ RANKS: dict[str, int] = {
     "errors": 1,
     "paths": 1,
     "config": 1,
+    "fsio": 1,
     "transport": 2,
     "driver": 3,
     "session": 4,
@@ -72,15 +75,17 @@ RANKS: dict[str, int] = {
     "bringup_steps": 7,
 }
 FORBIDDEN: dict[str, frozenset[str]] = {"analysis": frozenset({"session", "driver", "transport", "catalog"})}
-ONLY: dict[str, frozenset[str]] = {"manuals": frozenset({"models", "paths"}),
-                                   "bringup": frozenset({"service", "models", "bringup_ledger", "bringup_steps"}),
-                                   "bringup_ledger": frozenset({"models"}),
-                                   "bringup_verify": frozenset({"service", "models", "bringup_ledger"}),
-                                   "bringup_steps": frozenset({"service", "models", "bringup_ledger",
+ONLY: dict[str, frozenset[str]] = {"fsio": frozenset({"models", "errors"}),
+                                   "manuals": frozenset({"models", "paths", "fsio"}),
+                                   "bringup": frozenset({"service", "models", "fsio", "bringup_ledger",
+                                                         "bringup_steps"}),
+                                   "bringup_ledger": frozenset({"models", "fsio"}),
+                                   "bringup_verify": frozenset({"service", "models", "fsio", "bringup_ledger"}),
+                                   "bringup_steps": frozenset({"service", "models", "fsio", "bringup_ledger",
                                                                "bringup_verify"})}
-"""Component -> the only other components it may import (blueprint v2 2.1: ``manuals`` imports only models/paths,
-``bringup`` only service/models and the v2.1 step modules, which form a chain ledger <- verify <- steps and never
-import ``bringup``)."""
+"""Component -> the only other components it may import (``fsio`` only models/errors; blueprint v2 2.1:
+``manuals`` imports only models/paths, ``bringup`` only service/models and the v2.1 step modules, which form a chain
+ledger <- verify <- steps and never import ``bringup``; each of these may use the file primitives of ``fsio``)."""
 FASTMCP_ALLOWED_FILES = frozenset({"adapters/mcp_server.py"})
 FASTMCP_ALLOWED_COMPONENTS = frozenset({"devtools"})
 _FASTMCP = re.compile(r"^fastmcp(\.|$)")
@@ -228,6 +233,11 @@ def test_every_top_level_component_has_a_rank() -> None:
         ("manuals/build.py", "from b1500_test_agent.errors import InvalidConfigError"),
         ("manuals/catalog.py", "from b1500_test_agent.service import B1500Service"),
         ("catalog/planner.py", "from b1500_test_agent.adapters.cli import manual"),
+        ("fsio.py", "from b1500_test_agent.paths import Paths"),
+        ("fsio.py", "from b1500_test_agent.config import load_yaml"),
+        ("fsio.py", "from b1500_test_agent.session.lock import InstrumentLock"),
+        ("models/run.py", "from b1500_test_agent.fsio import host_name"),
+        ("bringup_ledger.py", "from b1500_test_agent.paths import Paths"),
     ],
 )
 def test_checker_flags_violations(rel: str, source: str) -> None:
@@ -270,6 +280,13 @@ if TYPE_CHECKING:
         ("manuals/catalog.py", "from b1500_test_agent.paths import find_repo_root\nimport pypdfium2"),
         ("devtools/doctor.py", "from b1500_test_agent.manuals import search"),
         ("service.py", "from b1500_test_agent.manuals.catalog import ManualPaths"),
+        ("fsio.py", "import filelock\nfrom b1500_test_agent.errors import B1500Error"),
+        ("fsio.py", "from b1500_test_agent.models.run import LockHolder"),
+        ("session/lock.py", "from b1500_test_agent.fsio import atomic_write_json, remove_file"),
+        ("archive/store.py", "from b1500_test_agent.fsio import append_line, sha256_file"),
+        ("manuals/catalog.py", "from b1500_test_agent.fsio import sha256_file"),
+        ("bringup_verify.py", "from b1500_test_agent.fsio import sha256_file"),
+        ("config.py", "from b1500_test_agent.fsio import atomic_write_json"),
     ],
 )
 def test_checker_accepts_allowed_imports(rel: str, source: str) -> None:

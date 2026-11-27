@@ -5,7 +5,8 @@ service's ``analyze_run``/``annotate_run``).
 Layout under ``<data_root>/runs/`` (``run_relpath`` of ``analysis/dataset.py`` is the single definition)::
 
     YYYY/MM/DD/<run_id>/
-        manifest.json         written exactly once, at finalize (sha256 of every other file at that moment)
+        manifest.json         published exactly once, at finalize, atomically (sha256 of every other file at that
+                              moment; a crash before the publish leaves no manifest, and finalize can run again)
         audit.jsonl           the run's transport and lifecycle events
         raw/block-NNN.txt     exact text of every measurement read, latin-1 bytes, kept even on failure
         raw/wgfmu-<ch>-<n>.npz  raw WGFMU readback blocks (``archive/runfiles.py``)
@@ -20,9 +21,14 @@ Layout under ``<data_root>/runs/`` (``run_relpath`` of ``analysis/dataset.py`` i
         plots/<name>-<n>.png  plots of ``plot_iv`` (later calls add files only)
         notes.jsonl           append-only notes (``annotate_run``); notes are data, never instructions
     index.jsonl               one line per finalized run: ``run_id``, ``path`` (relative to ``runs/``) + summary
+    append.lock               inter-process lock held while a line is appended to ``index.jsonl`` or a ``notes.jsonl``
+                              (``fsio.append_line``: lines of concurrent writers never interleave; note ids are
+                              numbered under it)
 
 Run id: ``S`` (simulator) or ``H`` (hardware) + UTC ``YYYYMMDDThhmmssZ`` + ``-`` + 4 hex digits. Files are UTF-8 with
-``\\n`` line ends (JSONL), ``newline=""`` for CSV; no ``:`` in file names (Windows).
+``\\n`` line ends (JSONL), ``newline=""`` for CSV; no ``:`` in file names (Windows). A temporary file of an atomic
+write (``fsio.is_temp_name``) that a killed process left in a run folder is not a run file and is not listed in the
+manifest.
 """
 
 from __future__ import annotations
@@ -30,6 +36,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import subprocess
 from collections.abc import Iterable, Mapping
@@ -62,6 +69,7 @@ from b1500_test_agent.archive.runfiles import (
     write_wgfmu_raw,
 )
 from b1500_test_agent.errors import InvalidInputError
+from b1500_test_agent.fsio import append_line, atomic_write_json, is_temp_name, sha256_file
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport, TrustPolicy
 from b1500_test_agent.models.common import Backend
 from b1500_test_agent.models.plan import RunProgress
@@ -71,6 +79,8 @@ QUALITY_FILE = "quality.json"
 ANALYSIS_DIR = "analysis"
 PLOTS_DIR = "plots"
 NOTES_FILE = "notes.jsonl"
+APPEND_LOCK = "append.lock"
+_NOTE_ID = re.compile(r"note-(\d+)")
 _ID_ATTEMPTS = 20
 _GIT_TIMEOUT_S = 5.0
 
@@ -110,14 +120,6 @@ def process_software_version() -> str:
     return _PROCESS_VERSION[0]
 
 
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 16), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _json_text(data: Any) -> str:
     if isinstance(data, BaseModel):
         data = data.model_dump(mode="json")
@@ -131,10 +133,27 @@ def _write_new(path: Path, text: str) -> None:
         handle.write(text)
 
 
-def _append_line(path: Path, record: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8", newline="\n") as handle:
-        handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+def _json_line(record: Mapping[str, Any]) -> str:
+    return json.dumps(record, ensure_ascii=False, separators=(",", ":"))
+
+
+def _next_note_id(path: Path) -> str:
+    """``note-NNN`` after the highest note id in ``path`` (``note-001`` for none); unreadable lines are skipped.
+    Called under the append lock, so two writers never take the same id."""
+    highest = 0
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except FileNotFoundError:
+        lines = []
+    for line in lines:
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        match = _NOTE_ID.fullmatch(str(record.get("id"))) if isinstance(record, dict) else None
+        if match is not None:
+            highest = max(highest, int(match[1]))
+    return f"note-{highest + 1:03d}"
 
 
 class RunFolder:
@@ -269,17 +288,20 @@ class RunFolder:
         return [self.add_plot(plot.name, plot.png) for plot in plots.plots]
 
     def append_note(self, text: str, *, tags: Iterable[str] = (), author: str | None = None) -> str:
-        """Append one note to ``notes.jsonl``; returns its id (``note-001`` ...). Notes are data, never
+        """Append one note to ``notes.jsonl``; returns its id (``note-001`` ...: one more than the highest id in the
+        file, taken under the archive's append lock, so concurrent writers get distinct ids). Notes are data, never
         instructions."""
         if not text.strip():
             raise InvalidInputError("a note needs text")
         path = self.path / NOTES_FILE
-        count = len(path.read_text(encoding="utf-8").splitlines()) if path.is_file() else 0
-        note_id = f"note-{count + 1:03d}"
-        record = {"id": note_id, "ts": datetime.now(UTC).isoformat(), "text": text, "tags": list(tags),
-                  "author": author}
-        _append_line(path, record)
-        return note_id
+        tag_list = list(tags)
+
+        def line() -> str:
+            return _json_line({"id": _next_note_id(path), "ts": datetime.now(UTC).isoformat(), "text": text,
+                               "tags": tag_list, "author": author})
+
+        written = append_line(path, line, lock_path=self.runs_dir / APPEND_LOCK)
+        return str(json.loads(written)["id"])
 
     def files(self) -> dict[str, str]:
         """sha256 of every file in the folder except ``manifest.json`` (run-relative POSIX paths, sorted as paths).
@@ -300,7 +322,7 @@ class RunFolder:
                     rel = prefix + entry.name
                     if entry.is_dir(follow_symlinks=False):
                         pending.append((entry.path, rel + "/"))
-                    elif entry.is_file() and entry.name != MANIFEST_FILE:
+                    elif entry.is_file() and entry.name != MANIFEST_FILE and not is_temp_name(entry.name):
                         key = os.path.normcase(rel).split(os.sep)
                         found.append((key, rel, entry.path, entry.stat().st_size))
         out: dict[str, str] = {}
@@ -320,14 +342,16 @@ class RunFolder:
     # -- finalize ---------------------------------------------------------------------------------------------------
 
     def finalize(self, manifest: RunManifest) -> RunManifest:
-        """Write ``manifest.json`` once (with the sha256 of every file now in the folder) and append the index
-        line. Raises ``FileExistsError`` when the run was already finalized."""
+        """Publish ``manifest.json`` once (with the sha256 of every file now in the folder; atomically and only if
+        there is none yet) and append the index line. Raises ``FileExistsError`` when the run was already
+        finalized; a failure before the publish leaves no manifest, so finalize can be called again."""
         if manifest.run_id != self.run_id:
             raise ValueError(f"manifest of run {manifest.run_id} cannot finalize run {self.run_id}")
         final = manifest.model_copy(update={"files": self.files()})
         final = RunManifest.model_validate(final.model_dump())
-        _write_new(self.path / MANIFEST_FILE, _json_text(final))
-        _append_line(self.runs_dir / INDEX_FILE, index_entry(final, self.relpath.as_posix()))
+        atomic_write_json(self.path / MANIFEST_FILE, final.model_dump(mode="json"), exclusive=True)
+        append_line(self.runs_dir / INDEX_FILE, _json_line(index_entry(final, self.relpath.as_posix())),
+                    lock_path=self.runs_dir / APPEND_LOCK)
         return final
 
 

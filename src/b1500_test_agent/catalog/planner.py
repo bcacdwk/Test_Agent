@@ -48,6 +48,7 @@ from b1500_test_agent.catalog.registry import RecipeRegistry
 from b1500_test_agent.catalog.schema import CompiledKindPlan, CompileError
 from b1500_test_agent.config import ConfigBundle
 from b1500_test_agent.errors import B1500Error, InvalidInputError
+from b1500_test_agent.fsio import atomic_write_json
 from b1500_test_agent.models.analysis import Quantity
 from b1500_test_agent.models.common import ErrorCode
 from b1500_test_agent.models.plan import (
@@ -79,7 +80,6 @@ from b1500_test_agent.rules import (
     correction_records,
     with_rules,
 )
-from b1500_test_agent.session.lock import atomic_write_json
 
 PLAN_ID_PREFIX = "P-"
 PLANS_DIR = "plans"

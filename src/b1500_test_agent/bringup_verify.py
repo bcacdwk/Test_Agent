@@ -30,6 +30,7 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from b1500_test_agent.bringup_ledger import load_record, load_stage
+from b1500_test_agent.fsio import sha256_file
 from b1500_test_agent.models.common import Backend
 from b1500_test_agent.models.policy import DutProfile, Policy
 from b1500_test_agent.models.station import PinMap, Settings, StationProfile
@@ -115,14 +116,6 @@ Verdict = tuple[Literal["pass", "fail"], str]
 def model_digest(model: BaseModel) -> str:
     """sha256 of a model's JSON (run manifests and probe reports as the ledger pins them)."""
     return hashlib.sha256(model.model_dump_json().encode("utf-8")).hexdigest()
-
-
-def _file_sha(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _resolve(ctx: Ctx, ref: str, *, under: Path | None, what: str) -> Path:
@@ -257,7 +250,7 @@ def verify_proposal(ctx: Ctx) -> Verdict:
     paths = [_resolve(ctx, ref, under=_bringup_dir(ctx), what="proposal file") for ref in ctx.args.drafts]
     problems, kinds = [], set()
     for path in paths:
-        ctx.add("drafts", EvidenceItem(ref=ctx.shown(path), sha256=_file_sha(path)))
+        ctx.add("drafts", EvidenceItem(ref=ctx.shown(path), sha256=sha256_file(path)))
         try:
             kinds.add(_config_kind(ctx, path)[0])
         except ValueError as exc:
@@ -290,7 +283,7 @@ def verify_config(ctx: Ctx) -> Verdict:
         problems.append("config check: " + "; ".join(p.message for p in report.problems[:3]))
     files = ctx.bundle.files
     for path, _kind, key in adopted:
-        ctx.add("drafts", EvidenceItem(ref=ctx.shown(path), sha256=_file_sha(path)))
+        ctx.add("drafts", EvidenceItem(ref=ctx.shown(path), sha256=sha256_file(path)))
         problems += _adopted_problems(ctx, key, files.get(key), path)
     for kind in ctx.spec.config:
         if kind not in CONFIG_KEYS and kind not in named:
@@ -326,7 +319,7 @@ def verify_record(ctx: Ctx) -> Verdict:
     keys = {k or f"stage-{ctx.spec.group.lower()}" for k in front.record_keys()} if front else set()
     problems, notes = [], []
     for path in paths:
-        ctx.add("drafts", EvidenceItem(ref=ctx.shown(path), sha256=_file_sha(path)))
+        ctx.add("drafts", EvidenceItem(ref=ctx.shown(path), sha256=sha256_file(path)))
         try:
             record = load_record(path)
         except ValueError as exc:
@@ -392,7 +385,7 @@ def verify_capture(ctx: Ctx) -> Verdict:
 
 
 def _folder_sha(folder: Path) -> str:
-    lines = [f"{p.relative_to(folder).as_posix()}:{_file_sha(p)}" for p in sorted(folder.rglob("*")) if p.is_file()]
+    lines = [f"{p.relative_to(folder).as_posix()}:{sha256_file(p)}" for p in sorted(folder.rglob("*")) if p.is_file()]
     return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
 
 
@@ -408,7 +401,7 @@ def verify_hw_suite(ctx: Ctx) -> Verdict:
     if len(ctx.args.drafts) != 1:
         raise Refused("give the JUnit file of the hardware tests: --draft work/bringup/hw-<UTC>.xml")
     path = _resolve(ctx, ctx.args.drafts[0], under=Path(ctx.bundle.paths.work_dir), what="JUnit file")
-    ctx.add("drafts", EvidenceItem(ref=ctx.shown(path), sha256=_file_sha(path)))
+    ctx.add("drafts", EvidenceItem(ref=ctx.shown(path), sha256=sha256_file(path)))
     try:
         cases = list(ElementTree.parse(path).getroot().iter("testcase"))
     except (OSError, ElementTree.ParseError) as exc:
@@ -446,7 +439,7 @@ def verify_review(ctx: Ctx) -> Verdict:
         if not path.is_file():
             problems.append(f"validation/hw/{name} missing")
             continue
-        ctx.add("drafts", EvidenceItem(ref=ctx.shown(path), sha256=_file_sha(path)))
+        ctx.add("drafts", EvidenceItem(ref=ctx.shown(path), sha256=sha256_file(path)))
         try:
             record = load_record(path)
         except ValueError as exc:
@@ -546,7 +539,7 @@ def reverify(ctx: Ctx, entry: LedgerEntry) -> tuple[list[str], list[str]]:
     records = [f.removeprefix("record ") for f in ev.facts if f.startswith("record ")]
     for item in ev.drafts:
         path = ctx.repo / item.ref if not Path(item.ref).is_absolute() else Path(item.ref)
-        current = _file_sha(path) if path.is_file() else None
+        current = sha256_file(path) if path.is_file() else None
         if current == item.sha256:
             continue
         if entry.verify in ("proposal", "config"):

@@ -8,7 +8,9 @@ blueprint v2 7.1: switch wiring and presence the human has not recorded on a swi
 and AC envelopes of the DUT terminals sources without compliance and the MFCMU can reach, local pin maps and DUT
 profiles on backend visa, the load standard when the policy requires it; ``check_local_config``); ``data/`` writable
 and free space; clone path
-length (WARN above 80 characters on Windows); stale inflight marker or latched fault; skills mirror
+length (WARN above 80 characters on Windows); clone or data folder inside a synced folder (WARN: OneDrive, Dropbox,
+iCloud, macOS ``CloudStorage``; their handles can outlast the Windows write retry of ``fsio``); stale inflight marker
+or latched fault; skills mirror
 (``.claude/skills/`` = the generated copy of ``.agents/skills/``: FAIL on drift, WARN when there is no skill); harness
 files (the committed ``.claude/settings.json``, Codex rules, guard hook and
 examples wired as blueprint 5.4 says; each generated ``.codex/config.toml`` / ``.mcp.json`` free of drift, both on
@@ -42,7 +44,7 @@ import uuid
 import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Final, Literal
 
 from pydantic import BaseModel
@@ -51,6 +53,7 @@ from b1500_test_agent.config import ConfigBundle, ConfigLoader
 from b1500_test_agent.devtools import budget, harness, harness_versions, sync_harness
 from b1500_test_agent.devtools.harness_versions import HARNESSES, LABELS, VALIDATED_FILE
 from b1500_test_agent.errors import InvalidConfigError
+from b1500_test_agent.fsio import RETRY_BUDGET_S
 from b1500_test_agent.manuals import search as manual_search
 from b1500_test_agent.manuals.catalog import ManualError, ManualPaths
 from b1500_test_agent.models.policy import DutProfile
@@ -71,6 +74,13 @@ BUDGET_TOTAL = 4500
 BUDGET_PER_TOOL = 700
 WINDOWS_PATH_WARN = 80
 MIN_FREE_BYTES = 1 << 30
+SYNC_ROOT_VARS: Final = ("OneDrive", "OneDriveCommercial", "OneDriveConsumer")
+"""Windows environment variables that hold the OneDrive root folders."""
+SYNC_FOLDER_PREFIXES: Final = (("onedrive", "OneDrive"), ("dropbox", "Dropbox"), ("icloud", "iCloud"),
+                               ("mobile documents", "iCloud"))
+"""Case-blind name prefixes of synced folders and their service: ``OneDrive``, ``OneDrive - <org>``, macOS
+``OneDrive-<account>``; ``Dropbox``; ``iCloudDrive`` (Windows) and ``Mobile Documents`` (macOS iCloud Drive).
+Any folder under macOS ``Library/CloudStorage`` (File Provider: OneDrive, Dropbox, Google Drive, Box) counts too."""
 
 
 class DoctorCheck(BaseModel):
@@ -338,6 +348,52 @@ def check_path_length(paths: Paths, *, windows: bool) -> DoctorCheck:
     return _check("path length", "PASS", detail + ("" if windows else " (the 80-character limit applies on Windows)"))
 
 
+def synced_folder(path: PurePath, environ: Mapping[str, str]) -> str | None:
+    """The synced folder that contains ``path`` as ``"<service> (<folder>)"``, or ``None`` (pure: no file system
+    access; ``path`` should be absolute and resolved)."""
+    for name in SYNC_ROOT_VARS:
+        root = environ.get(name, "").strip()
+        if root and path.is_relative_to(type(path)(root)):
+            return f"OneDrive ({type(path)(root).as_posix()})"
+    parts = path.parts
+    for index, part in enumerate(parts):
+        folded = part.casefold()
+        for prefix, service in SYNC_FOLDER_PREFIXES:
+            if folded.startswith(prefix):
+                return f"{service} ({type(path)(*parts[:index + 1]).as_posix()})"
+    for index, part in enumerate(parts[:-1]):
+        if part.casefold() == "cloudstorage":
+            return f"CloudStorage ({type(path)(*parts[:index + 2]).as_posix()})"
+    return None
+
+
+def _resolved(path: Path) -> Path:
+    try:
+        return path.resolve()
+    except OSError:
+        return path.absolute()
+
+
+def check_synced_folder(paths: Paths, environ: Mapping[str, str]) -> DoctorCheck:
+    """WARN when the clone, or a data folder outside it, lies inside a synced folder (OneDrive, Dropbox, iCloud,
+    macOS ``CloudStorage``): a sync client or antivirus scanner can hold a state file (fault latch, in-flight marker,
+    plans, run files) open longer than the Windows write retry of ``fsio`` lasts."""
+    repo, data = _resolved(paths.repo_root), _resolved(paths.data_root)
+    found = []
+    for what, path in (("clone", repo), ("data dir", data)):
+        if what == "data dir" and data.is_relative_to(repo):
+            continue  # inside the clone: the clone's finding covers it
+        hit = synced_folder(path, environ)
+        if hit is not None:
+            found.append(f"{what} inside {hit}")
+    if not found:
+        return _check("synced folder", "PASS", "clone and data dir outside OneDrive, Dropbox, iCloud and CloudStorage "
+                      "folders")
+    return _check("synced folder", "WARN", "; ".join(found) + ": a sync client or antivirus scanner can hold state "
+                  f"files open longer than the {RETRY_BUDGET_S:g} s write retry on Windows; keep the lab PC's clone "
+                  "outside synced folders (C:\\b1500\\test_agent, docs/deployment-windows.md)")
+
+
 def check_state(bundle: ConfigBundle | None, paths: Paths) -> DoctorCheck:
     state_dir = bundle.paths.state_dir if bundle is not None else paths.state_dir
     fault = FaultLatch(state_dir, audit=NullAuditSink(), backend=bundle.backend if bundle else "sim").get()
@@ -564,6 +620,7 @@ def run_doctor(*, environ: Mapping[str, str] | None = None, windows: bool | None
         check_local_config(bundle),
         check_data_dir(paths),
         check_path_length(paths, windows=on_windows),
+        check_synced_folder(paths, env),
         check_state(bundle, paths),
         check_skills_mirror(paths.repo_root),
         check_harness_files(paths.repo_root),

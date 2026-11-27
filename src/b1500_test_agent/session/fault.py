@@ -20,10 +20,10 @@ from typing import ClassVar
 from pydantic import ValidationError
 
 from b1500_test_agent.errors import B1500Error
+from b1500_test_agent.fsio import atomic_write_json, remove_file
 from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.common import Backend, ErrorCode
 from b1500_test_agent.models.run import CleanupReport, FaultRecord, PositiveControl
-from b1500_test_agent.session.lock import atomic_write_json, remove_file
 from b1500_test_agent.transport.audit import AuditSink
 
 OUTPUT_OFF_STATES: frozenset[str] = frozenset({"00", "off"})

@@ -12,7 +12,8 @@ natively.
   by platform injection in ``tests/wgfmu_abi/test_platform.py``), and every
   module of the package imports on this OS.
 - ``b1500 doctor`` Windows checks with ``windows=True`` injected: path length, ``PYTHONUTF8``, ``LongPathsEnabled``
-  without ``winreg``.
+  without ``winreg``; a clone or data folder inside a synced folder (OneDrive, Dropbox, iCloud, macOS
+  ``CloudStorage``) is recognised in Windows and macOS paths and WARNs.
 - Console encoding: the CLI on a cp1252 or cp936 stdout (Windows without ``PYTHONUTF8``) never fails on ``Ω``, ``µ``
   or CJK text; it writes ``\\uXXXX`` escapes instead (``adapters/streams.py``).
 - ``file`` parameters spelled with backslashes are refused with a hint to use ``/``.
@@ -30,7 +31,7 @@ import re
 import shutil
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from types import SimpleNamespace
 from typing import Any
 
@@ -38,6 +39,7 @@ import pytest
 from typer.testing import CliRunner, Result
 
 import b1500_test_agent
+from b1500_test_agent import fsio
 from b1500_test_agent.adapters import streams
 from b1500_test_agent.adapters.cli import app, main
 from b1500_test_agent.devtools import doctor
@@ -254,6 +256,51 @@ def test_doctor_warns_about_a_long_clone_path_on_windows_only(tmp_path: Path) ->
     assert doctor.check_path_length(deep, windows=False).status == "PASS"
     short = base.model_copy(update={"repo_root": Path(tmp_path.anchor) / "b1500" / "test_agent"})
     assert doctor.check_path_length(short, windows=True).status == "PASS"
+
+
+@pytest.mark.parametrize(("path", "environ", "found"), [
+    (PureWindowsPath("C:/Users/lab/OneDrive - Contoso/b1500/test_agent"), {},
+     "OneDrive (C:/Users/lab/OneDrive - Contoso)"),
+    (PureWindowsPath("C:/Users/lab/onedrive/test_agent"), {}, "OneDrive (C:/Users/lab/onedrive)"),
+    (PureWindowsPath("C:/Users/lab/Dropbox (Lab)/test_agent"), {}, "Dropbox (C:/Users/lab/Dropbox (Lab))"),
+    (PureWindowsPath("C:/Users/lab/iCloudDrive/test_agent"), {}, "iCloud (C:/Users/lab/iCloudDrive)"),
+    (PureWindowsPath("D:/Sync/Work/test_agent"), {"OneDriveCommercial": "d:\\sync\\work"}, "OneDrive (d:/sync/work)"),
+    (PureWindowsPath("C:/b1500/test_agent"), {"OneDrive": "C:\\Users\\lab\\OneDrive"}, None),
+    (PureWindowsPath("C:/b1500/test_agent"), {"OneDrive": ""}, None),
+    (PurePosixPath("/Users/me/Library/CloudStorage/OneDrive-个人/Files/test_agent"), {},
+     "OneDrive (/Users/me/Library/CloudStorage/OneDrive-个人)"),
+    (PurePosixPath("/Users/me/Library/CloudStorage/GoogleDrive-me@example.org/My Drive/test_agent"), {},
+     "CloudStorage (/Users/me/Library/CloudStorage/GoogleDrive-me@example.org)"),
+    (PurePosixPath("/Users/me/Library/Mobile Documents/com~apple~CloudDocs/test_agent"), {},
+     "iCloud (/Users/me/Library/Mobile Documents)"),
+    (PurePosixPath("/home/me/Dropbox/test_agent"), {}, "Dropbox (/home/me/Dropbox)"),
+    (PurePosixPath("/home/me/src/test_agent"), {}, None),
+])
+def test_doctor_recognises_synced_folders(path: PurePath, environ: dict[str, str], found: str | None) -> None:
+    assert doctor.synced_folder(path, environ) == found
+
+
+def test_doctor_warns_about_a_clone_or_data_dir_in_a_synced_folder(tmp_path: Path) -> None:
+    base = Paths.from_env({}, repo_root=REPO_ROOT)
+
+    def check(repo: Path, data: Path) -> doctor.DoctorCheck:
+        return doctor.check_synced_folder(base.model_copy(update={"repo_root": repo, "data_root": data}), {})
+
+    plain = tmp_path / "b1500" / "test_agent"
+    synced = tmp_path / "OneDrive - Lab" / "test_agent"
+    assert check(plain, plain / "data").status == "PASS"
+    warned = check(synced, synced / "data")
+    assert warned.status == "WARN" and warned.detail.startswith("clone inside OneDrive (")
+    assert "data dir" not in warned.detail  # inside the clone: one finding
+    assert f"{fsio.RETRY_BUDGET_S:g} s write retry" in warned.detail and "deployment-windows.md" in warned.detail
+    outside = check(plain, tmp_path / "Dropbox" / "b1500-data")
+    assert outside.status == "WARN" and outside.detail.startswith("data dir inside Dropbox (")
+    both = check(synced, tmp_path / "Dropbox" / "b1500-data")
+    assert both.detail.startswith("clone inside OneDrive (") and "; data dir inside Dropbox (" in both.detail
+    environ = {"OneDrive": str(tmp_path / "Sync")}
+    renamed = base.model_copy(update={"repo_root": tmp_path / "Sync" / "test_agent",
+                                      "data_root": tmp_path / "Sync" / "test_agent" / "data"})
+    assert doctor.check_synced_folder(renamed, environ).status == "WARN"
 
 
 def test_doctor_pythonutf8_check_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:

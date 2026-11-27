@@ -220,8 +220,10 @@ def test_doctor(cli_world: World) -> None:
     report = as_json(result)
     checks = {c["name"]: c for c in report["checks"]}
     assert set(checks) == {"python", "uv.lock", "imports", "config", "local config", "data dir", "path length",
-                           "state", "skills mirror", "harness files", "harness versions", "mcp server",
-                           "manual corpus", "manual PDFs", "wgfmu library", "PYTHONUTF8", "LongPathsEnabled"}
+                           "synced folder", "state", "skills mirror", "harness files", "harness versions",
+                           "mcp server", "manual corpus", "manual PDFs", "wgfmu library", "PYTHONUTF8",
+                           "LongPathsEnabled"}
+    assert checks["synced folder"]["status"] == "PASS"  # the test clone lives in the system's temporary folder
     # WP21.1: the installed harness CLIs against config/harness/validated.yaml (INFO on a runner without them)
     assert checks["harness versions"]["status"] in ("PASS", "INFO", "WARN")
     assert "validated" in checks["harness versions"]["detail"]

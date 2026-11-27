@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Literal, cast
 
 from b1500_test_agent.driver.b1500 import B1500Driver
+from b1500_test_agent.fsio import host_name
 from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.common import Backend
 from b1500_test_agent.models.plan import CompiledEnvelope
@@ -48,7 +49,7 @@ from b1500_test_agent.models.station import DllProbe, LiveState, Settings
 from b1500_test_agent.paths import Paths
 from b1500_test_agent.session.abort import AbortFile
 from b1500_test_agent.session.fault import FaultLatch
-from b1500_test_agent.session.lock import InstrumentLock, host_name
+from b1500_test_agent.session.lock import InstrumentLock
 from b1500_test_agent.session.runner import RunControl
 from b1500_test_agent.session.transaction import (
     InflightMarker,

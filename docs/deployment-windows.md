@@ -85,7 +85,7 @@ Fill in the last column before step 1. Where a fact is unknown, the default appl
 | Node.js LTS | npm is the one install method of Codex | `node --version` | Node.js LTS from WinGet (`OpenJS.NodeJS.LTS`), per user | |
 | Manuals folder | Figures and `manual build` need the PDFs; search and page text come from the committed corpus | Copy of the developer's `1500A` folder | `C:\b1500\` (the clone's parent), or set `B1500_MANUALS_DIR` | |
 | Backup of `data\runs\` | Runs exist only in the clone | Ask the owner: target folder and rhythm | No automatic backup; copy `data\runs\` and `config\local\` at the end of each measurement day (step 11) | |
-| Clone folder | Long or non-ASCII paths cause Windows path problems; `doctor` warns above 80 characters | Choose | `C:\b1500\test_agent` | |
+| Clone folder | Long or non-ASCII paths cause Windows path problems; `doctor` warns above 80 characters. Keep it outside OneDrive, Dropbox and iCloud folders: their sync and antivirus handles can hold the state files longer than the write retry (`doctor` warns inside one) | Choose | `C:\b1500\test_agent` | |
 | Windows account and admin rights | The VISA and WGFMU installers need admin rights once | Lab IT | Lab IT installs both; everything else installs per user without admin rights | |
 | Power-line frequency | Run-time estimates and integration assume 50 Hz (ATV-31) | EasyEXPERT Configuration window, Main Frame tab | 50 Hz | |
 | Git remote, branch and credentials | What `git clone` and `uv run b1500 update` fetch; pushing the bring-up records (OD-7) needs credentials | The developer | The developer's remote, its default branch `main`; no push credentials: OneDrive copy | |

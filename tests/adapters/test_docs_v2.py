@@ -117,7 +117,7 @@ def test_the_files_architecture_names_exist() -> None:
 
 def test_the_dependency_lines_are_the_layering_test() -> None:
     """The dependency line of the architecture page, the README and AGENTS.md follows the import test's ranks, and
-    the architecture page names its two "imports only" rules."""
+    the architecture page names its "imports only" rules."""
     from tests.unit.test_import_layering import ONLY, RANKS
 
     line = ("adapters → {bringup →} service → {catalog, rules, archive, analysis, manuals} → session → driver → "
@@ -129,12 +129,15 @@ def test_the_dependency_lines_are_the_layering_test() -> None:
     assert all(len(r) == 1 for r in ranks) and [r.pop() for r in ranks] == [7, 6, 5, 4, 3, 2]
     assert RANKS["bringup"] > RANKS["service"]
     architecture = " ".join(_read("docs/architecture.md").split())
-    assert set(ONLY) == {"manuals", "bringup", "bringup_ledger", "bringup_verify", "bringup_steps"}
-    assert "manuals: imports only models and paths; bringup: imports only service and models" in architecture
+    assert set(ONLY) == {"fsio", "manuals", "bringup", "bringup_ledger", "bringup_verify", "bringup_steps"}
+    assert ONLY["fsio"] == {"models", "errors"} and "fsio: file primitives" in architecture
+    assert "imports only models and errors" in architecture
+    assert ("manuals: imports only models, paths and fsio; bringup: imports only service, models and fsio"
+            in architecture)
     # v2.1 (WP21.5): the bring-up step modules, a chain below bringup
     assert "bringup_steps → bringup_verify → bringup_ledger" in architecture
-    assert ONLY["bringup_ledger"] == {"models"} and ONLY["bringup"] - {"service", "models"} == {"bringup_ledger",
-                                                                                                "bringup_steps"}
+    assert ONLY["manuals"] == {"models", "paths", "fsio"} and ONLY["bringup_ledger"] == {"models", "fsio"}
+    assert ONLY["bringup"] - {"service", "models", "fsio"} == {"bringup_ledger", "bringup_steps"}
     assert all(RANKS[name] == RANKS["bringup"] for name in ("bringup_ledger", "bringup_verify", "bringup_steps"))
 
 

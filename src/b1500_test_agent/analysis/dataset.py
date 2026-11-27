@@ -55,7 +55,6 @@ with ``read_table`` (no pickle).
 
 from __future__ import annotations
 
-import hashlib
 import io
 import json
 import re
@@ -72,6 +71,7 @@ from pydantic import ValidationError
 from b1500_test_agent.analysis.errors import RunFormatError, RunNotFoundError
 from b1500_test_agent.config import load_config
 from b1500_test_agent.errors import InvalidConfigError, InvalidInputError
+from b1500_test_agent.fsio import sha256_file
 from b1500_test_agent.models.analysis import Quantity, TrustLevel, TrustPolicy, Unit
 from b1500_test_agent.models.run import RunManifest
 from b1500_test_agent.paths import Paths
@@ -575,14 +575,6 @@ def load_manifest(run_dir: Path) -> RunManifest:
         raise RunFormatError(f"{path.as_posix()} does not validate as a run manifest: {exc}") from exc
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 # -- RunData ---------------------------------------------------------------------------------------------------------
 
 
@@ -690,7 +682,7 @@ def load_run(run_id: str, *, data_root: Path | str | None = None) -> RunData:
     if data_path is None:
         raise RunFormatError(f"Run {run_id} has no {DATA_FILE} or {NPZ_FILE} (no measurement table was archived).")
     expected = manifest.files.get(data_path.name)
-    if expected is not None and _sha256(data_path) != expected:
+    if expected is not None and sha256_file(data_path) != expected:
         raise RunFormatError(f"{data_path.name} of run {run_id} does not match the sha256 recorded in its manifest.")
     return RunData(manifest=manifest, table=read_table(data_path), path=run_dir)
 

@@ -43,10 +43,10 @@ from b1500_test_agent.analysis.dataset import (
 )
 from b1500_test_agent.analysis.errors import RunFormatError
 from b1500_test_agent.errors import InvalidInputError
+from b1500_test_agent.fsio import atomic_write_json
 from b1500_test_agent.models.analysis import TrustPolicy
 from b1500_test_agent.models.plan import RunProgress
 from b1500_test_agent.models.run import RunProgram
-from b1500_test_agent.session.lock import atomic_write_json
 
 PROGRESS_FILE = "progress.json"
 PARTIAL_FILE = "partial.csv"

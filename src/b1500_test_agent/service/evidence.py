@@ -33,7 +33,6 @@ slowest ``bus_open``/``bus_lock``/``bus_unlock``/``bus_close``, ATV-13), ``tst_s
 from __future__ import annotations
 
 import dataclasses
-import hashlib
 import json
 import re
 from collections.abc import Callable
@@ -79,6 +78,7 @@ from b1500_test_agent.driver.errors import (
 )
 from b1500_test_agent.driver.parser import parse_data
 from b1500_test_agent.errors import InvalidInputError
+from b1500_test_agent.fsio import sha256_file
 from b1500_test_agent.models.analysis import ExtractionResult, QualityReport
 from b1500_test_agent.models.audit import AuditEvent
 from b1500_test_agent.models.bringup import ProbeReport
@@ -355,14 +355,6 @@ def audit_exchanges(folder: Path) -> list[CapturedExchange]:
     return audit_facts(folder)[0]
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def run_facts(bundle: ConfigBundle, run_id: str) -> RunFacts:
     """Facts of a finished run (module docstring). Raises ``RunNotFoundError``/``InvalidInputError`` (run id) or
     ``RunFormatError`` (a manifest that does not validate, e.g. a hardware id with a simulator backend)."""
@@ -384,7 +376,7 @@ def run_facts(bundle: ConfigBundle, run_id: str) -> RunFacts:
     changed = []
     for rel, digest in sorted(manifest.files.items()):
         target = folder.path / rel
-        if rel != MANIFEST_FILE and (not target.is_file() or _sha256(target) != digest):
+        if rel != MANIFEST_FILE and (not target.is_file() or sha256_file(target) != digest):
             changed.append(rel)
     exchanges, timings = audit_facts(folder.path)
     return RunFacts(manifest=manifest, folder=bundle.paths.display(folder.path), analyses=analyses, quality=quality,

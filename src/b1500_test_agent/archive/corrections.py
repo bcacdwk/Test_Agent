@@ -29,7 +29,6 @@ records", so a broken store cannot hide a correction problem (R-CORR-01 then blo
 
 from __future__ import annotations
 
-import contextlib
 import json
 from collections.abc import Iterable, Sequence
 from datetime import datetime
@@ -39,6 +38,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from b1500_test_agent.analysis.dataset import default_paths
 from b1500_test_agent.errors import InvalidInputError
+from b1500_test_agent.fsio import atomic_write_json, remove_file
 from b1500_test_agent.models.common import Alias
 from b1500_test_agent.models.policy import CorrectionPolicy
 from b1500_test_agent.models.station import (
@@ -48,7 +48,6 @@ from b1500_test_agent.models.station import (
     CorrectionRecord,
     CorrectionState,
 )
-from b1500_test_agent.session.lock import atomic_write_json
 
 CORRECTIONS_DIR = "corrections"
 MAX_RECORDS_PER_KIND = 20
@@ -132,8 +131,7 @@ class CorrectionStore:
         if kept:
             atomic_write_json(self.path(cmu_alias), [r.model_dump(mode="json") for r in kept])
         else:
-            with contextlib.suppress(FileNotFoundError):
-                self.path(cmu_alias).unlink()
+            remove_file(self.path(cmu_alias))
         return len(records) - len(kept)
 
     def clear(self, cmu_alias: str) -> int:
@@ -143,8 +141,7 @@ class CorrectionStore:
             count = len(self.records(cmu_alias))
         except CorrectionStoreError:
             count = 0  # a corrupt file is removed as well
-        with contextlib.suppress(FileNotFoundError):
-            self.path(cmu_alias).unlink()
+        remove_file(self.path(cmu_alias))
         return count
 
     def freshness(self, cmu_alias: str, policy: CorrectionPolicy, *, now: datetime,

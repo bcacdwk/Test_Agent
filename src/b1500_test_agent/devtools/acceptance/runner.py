@@ -87,6 +87,7 @@ from b1500_test_agent.devtools.acceptance.scenario import (
     render_prompt,
 )
 from b1500_test_agent.devtools.acceptance.transcripts import HarnessName, parse_codex_rollout, parse_turn
+from b1500_test_agent.fsio import sha256_file
 from b1500_test_agent.models.validation import LEDGER_DIR, HumanWords, StepEvidence
 from b1500_test_agent.paths import ENV_CONFIG_DIR, ENV_DATA_DIR, Paths
 from b1500_test_agent.service import ENV_SESSION_TAG, B1500Service
@@ -344,14 +345,6 @@ def seed_steps(item: SeedSteps, repo: Path, ledger: Path, now: datetime) -> dict
 FileState = tuple[int, int, str | None]
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def snapshot_files(root: Path, *, skip: Iterable[Path] = ()) -> dict[str, FileState]:
     """``relative POSIX path → (size, mtime_ns, sha256 or None for large files)`` of every file under ``root``."""
     skipped = {p.resolve() for p in skip}
@@ -366,7 +359,7 @@ def snapshot_files(root: Path, *, skip: Iterable[Path] = ()) -> dict[str, FileSt
             path = here / name
             try:
                 stat = path.stat()
-                sha = _sha256(path) if stat.st_size <= HASH_MAX_BYTES else None
+                sha = sha256_file(path) if stat.st_size <= HASH_MAX_BYTES else None
             except OSError:
                 continue
             states[path.relative_to(root).as_posix()] = (stat.st_size, stat.st_mtime_ns, sha)

@@ -85,6 +85,7 @@ from b1500_test_agent.driver.b1500 import B1500Driver
 from b1500_test_agent.driver.discovery import all_outputs_off
 from b1500_test_agent.driver.errors import DriverError
 from b1500_test_agent.driver.guard import EnvelopeViolation, OutputGuard
+from b1500_test_agent.fsio import atomic_write_json, host_name, remove_file
 from b1500_test_agent.models.audit import AuditEvent, AuditEventName
 from b1500_test_agent.models.common import Backend, JsonScalar, StrictModel
 from b1500_test_agent.models.plan import CompiledEnvelope
@@ -98,7 +99,6 @@ from b1500_test_agent.models.station import (
     channel_slot,
 )
 from b1500_test_agent.session.fault import CleanupUnverified, FaultLatched, PositiveControlFailed
-from b1500_test_agent.session.lock import atomic_write_json, host_name, remove_file
 from b1500_test_agent.session.raw_capture import RawCapture
 from b1500_test_agent.session.routes import apply_phase, cleanup_scope, read_states, restore_routes, verify_routes
 from b1500_test_agent.session.wgfmu_phase import WgfmuLink, WgfmuPhase

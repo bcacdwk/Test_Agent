@@ -29,6 +29,7 @@ from typing import Literal
 import yaml
 from pydantic import ValidationError
 
+from b1500_test_agent.fsio import sha256_file
 from b1500_test_agent.models.manuals import ManualCatalog, ManualDoc, Synonyms
 
 ENV_MANUALS_DIR = "B1500_MANUALS_DIR"
@@ -167,15 +168,6 @@ def build_digest(catalog: ManualCatalog) -> str:
         "docs": [[doc.id, doc.sha256, doc.pages, doc.label_rule] for doc in catalog.docs],
     }
     return hashlib.sha256(json.dumps(relevant, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
-
-
-def sha256_file(path: Path) -> str:
-    """Streaming sha256 of a file."""
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 @dataclass(frozen=True)

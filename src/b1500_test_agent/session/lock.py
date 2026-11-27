@@ -8,33 +8,25 @@ before it is released. A sidecar left behind by a dead process is ignored becaus
 only while the OS lock is actually held.
 
 The lock is not re-entrant: a second ``acquire`` in the same process (another thread or a nested call) waits like a
-foreign process and times out with ``InstrumentBusy``.
-
-Small file helpers shared by the session package (atomic JSON writes, host name) live here too.
+foreign process and times out with ``InstrumentBusy``. The sidecar is written and removed with the file
+primitives of ``fsio``.
 """
 
 from __future__ import annotations
 
-import contextlib
-import json
-import os
 import re
-import socket
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import ClassVar
 
 import filelock
 from pydantic import ValidationError
 
 from b1500_test_agent.errors import B1500Error
+from b1500_test_agent.fsio import atomic_write_json, remove_file
 from b1500_test_agent.models.common import ErrorCode
 from b1500_test_agent.models.run import LockHolder
-
-_REPLACE_RETRIES = 5
-_REPLACE_BACKOFF_S = 0.02
 
 
 class InstrumentBusy(B1500Error):
@@ -62,51 +54,6 @@ def resource_slug(resource: str) -> str:
     if not slug:
         raise ValueError(f"Resource {resource!r} has no usable characters for a lock file name.")
     return slug
-
-
-def host_name() -> str:
-    """This machine's host name (``unknown`` when it cannot be determined)."""
-    try:
-        return socket.gethostname() or "unknown"
-    except OSError:  # pragma: no cover - platform specific
-        return "unknown"
-
-
-def atomic_write_json(path: Path, data: Any) -> None:
-    """Write ``data`` as UTF-8 JSON to ``path`` atomically (temporary file in the same directory + ``os.replace``).
-
-    ``os.replace`` can fail transiently on Windows while another process has the target open for reading; it is
-    retried a few times.
-    """
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f"{path.name}.tmp-{os.getpid()}")
-    try:
-        with tmp.open("w", encoding="utf-8", newline="\n") as handle:
-            handle.write(json.dumps(data, ensure_ascii=False, indent=1) + "\n")
-        for attempt in range(_REPLACE_RETRIES):
-            try:
-                os.replace(tmp, path)
-                break
-            except PermissionError:
-                if attempt == _REPLACE_RETRIES - 1:
-                    raise
-                time.sleep(_REPLACE_BACKOFF_S * (attempt + 1))
-    finally:
-        with contextlib.suppress(OSError):
-            tmp.unlink(missing_ok=True)
-
-
-def remove_file(path: Path) -> None:
-    """Delete ``path`` if it exists (retried briefly on Windows sharing violations)."""
-    for attempt in range(_REPLACE_RETRIES):
-        try:
-            Path(path).unlink(missing_ok=True)
-            return
-        except PermissionError:
-            if attempt == _REPLACE_RETRIES - 1:
-                raise
-            time.sleep(_REPLACE_BACKOFF_S * (attempt + 1))
 
 
 class InstrumentLock:

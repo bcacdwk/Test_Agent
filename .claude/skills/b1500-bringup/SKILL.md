@@ -15,9 +15,10 @@ in full to every measurement (validate first, consent per plan, report rules): l
 - The human does every physical step: cabling, landing and lifting probes, exiting EasyEXPERT, GPIB settings,
   DMM or scope readings, shield box, interlock. Ask for one step block, then wait for the human's own chat message
   that it is done; never assume it.
-- The human adopts configuration. You may write proposals under `work/bringup/` and show the diff; never write or copy
-  anything into `config/local/**`, never run the configuration init or adopt commands, never touch `.claude/`, `.codex/`
-  or permission settings. Human-only commands go into chat only, never into a file you write or a command you run.
+- The human adopts configuration. You may write proposals under `work/bringup/` and show the diff; never write
+  or copy anything into `config/local/**`, never run the configuration init or adopt commands, never touch
+  `.claude/`, `.codex/` or permission settings. Human-only commands go into chat only, never into a file you
+  write or a command you run.
 - A command the harness refuses (a denied permission prompt) is not an abort criterion and never worked around:
   ask the human to run it and paste the result, and go on with the commands you may run (`uv run b1500 bringup
   status|propose-station` read the instrument too). A sandboxed harness (Codex `workspace-write`) may stop `uv run`
@@ -88,16 +89,15 @@ stage (`bringup_stage`, shown in the card index of skill `b1500-test`).
 
 ## 4. Simulator rehearsal
 
-For practice and the acceptance suite: same order, rules and loop, every value SIMULATED, a separate simulator ledger
-that never signs a stage (`rehearsed`). `bringup next` skips the lab-only steps; physical steps and the configuration
-commands stay the human's (who may simply answer "done"). The rehearsal's configuration already selects the simulator,
-so the human skips `config init` (say so); in L0 run `uv run b1500 doctor --probe` and `bringup propose-station` in the
-same turn, show the proposal path and diff, give the adoption command in chat for the human and stop. Pin-map or DUT
-proposals: show the YAML in chat. A refused command whose output the human did not paste leaves its step open (say
-which) but does not hold the rehearsal: when the human reports a stage done and asks for the next stage's check, run it.
-`bringup record` and `bringup capture` refuse `S...` runs and a simulator station: accept the refusal, never work around
-it (no hand-written record or fixture, no edited run, no invented `H...` id, nothing in `validation/hw/`); say which
-records the stage would draft on hardware (`bringup done` records such a step as rehearsed).
+For practice and the acceptance suite: same order, rules and loop, every value SIMULATED, a separate simulator
+ledger that never signs a stage (`rehearsed`). `bringup next` skips the lab-only steps; physical steps stay the
+human's (in a rehearsal they may simply answer "done"); the configuration commands stay the human's too. The
+rehearsal's configuration already selects the simulator, so the human skips `config init` (say so); in L0 run
+`uv run b1500 doctor --probe` and `uv run b1500 bringup propose-station` in the same turn, show the proposal path and
+diff, give the adoption command in chat for the human and stop. Pin-map or DUT proposals: show the YAML in chat.
+`bringup record` and `bringup capture` refuse `S...` runs and a simulator station: accept the refusal, never work
+around it (no hand-written record or fixture, no edited run, no invented `H...` id, nothing in `validation/hw/`);
+say which records the stage would draft on hardware (`bringup done` records such a step as rehearsed).
 
 ## 5. Stage files
 
